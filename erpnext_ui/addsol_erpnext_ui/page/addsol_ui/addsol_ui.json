@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "creation": "2026-05-07 20:36:10.124086",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-05-07 20:36:10.124086",
+ "modified_by": "Administrator",
+ "module": "Addsol Erpnext UI",
+ "name": "addsol-ui",
+ "owner": "Administrator",
+ "page_name": "addsol-ui",
+ "roles": [],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "Addsol ERP"
+}
