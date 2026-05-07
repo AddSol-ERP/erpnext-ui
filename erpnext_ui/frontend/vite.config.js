@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
 	plugins: [react()],
-	base: "/assets/shopfloor/erp_ui/",
+	base: "/assets/erpnext_ui/erp_ui/",
 
 	define: {
 		global: "{}",
@@ -11,7 +11,7 @@ export default defineConfig({
 	},
 
 	build: {
-		outDir: "dist",
+		outDir: "../public/erp_ui",
 		assetsDir: "",
 		lib: {
 			entry: "src/main.jsx",
