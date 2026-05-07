@@ -1,0 +1,21 @@
+.approval-tile {
+  cursor: pointer;
+}
+
+/* subtle hover boost */
+.approval-tile:hover {
+  transform: var(--card-hover-transform);
+}
+
+/* icon polish */
+.approval-tile .icon-box {
+  background: var(--icon-box-bg);
+  color: var(--brand-primary);
+}
+
+/* badge polish */
+.approval-tile .badge {
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
