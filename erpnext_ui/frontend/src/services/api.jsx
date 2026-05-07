@@ -14,7 +14,9 @@ async function request(method, url, data = {}) {
     method,
     headers: {
       "Content-Type": "application/json",
-      Authorization: getAuthHeader(),
+      ...(import.meta.env.VITE_API_TOKEN && {
+        Authorization: import.meta.env.VITE_API_TOKEN,
+      }),
     },
     body: method !== "GET" ? JSON.stringify(data) : undefined,
   });
