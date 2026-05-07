@@ -8,6 +8,7 @@ export default defineConfig({
 	define: {
 		global: "{}",
 		"process.env": "{}",
+		"process.env.NODE_ENV": JSON.stringify("production"),
 	},
 
 	build: {
