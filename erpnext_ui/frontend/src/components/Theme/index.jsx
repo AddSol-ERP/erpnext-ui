@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function ThemePanel({ applyTheme }) {
   const [open, setOpen] = useState(false);
@@ -8,13 +8,20 @@ export default function ThemePanel({ applyTheme }) {
   "mode": "dark"
 }`);
 
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("app_theme");
+    if (savedTheme) {
+      setJson(savedTheme);
+    }
+  }, []);
+
   const handleApply = () => {
     try {
       const config = JSON.parse(json);
       applyTheme(config);
 
-      // optional: persist
-      localStorage.setItem("app_theme", JSON.stringify(config));
+      localStorage.setItem("app_theme", json);
+      alert("Theme applied and saved! ✨");
     } catch (err) {
       alert("Invalid JSON ❌");
       console.error(err);
@@ -39,13 +46,11 @@ export default function ThemePanel({ applyTheme }) {
             zIndex: 9999,
             padding: "14px",
             borderRadius: "12px",
-            background: "var(--card-bg)",
             border: "1px solid var(--bs-border-color)",
             boxShadow: "var(--shadow-strong)",
+            background: "var(--bs-body-bg)",
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: "8px" }}>Theme JSON</div>
-
           <textarea
             value={json}
             onChange={(e) => setJson(e.target.value)}
@@ -61,13 +66,13 @@ export default function ThemePanel({ applyTheme }) {
             }}
           />
 
-          <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-            <button className="btn btn-primary btn-sm" onClick={handleApply}>
+          <div className="d-flex gap-2 mt-2 justify-content-end">
+            <button className="btn btn-primary w-100" onClick={handleApply}>
               Apply
             </button>
 
             <button
-              className="btn btn-outline-primary btn-sm"
+              className="btn btn-outline-primary w-100"
               onClick={() => setOpen(false)}
             >
               Close
