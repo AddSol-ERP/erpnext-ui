@@ -1,7 +1,7 @@
 const BASE_URL = "/api";
 
 function getAuthHeader() {
-  return `token 5b33c5d2897abcb:8be4f326dd1262b`;
+  return import.meta.env.VITE_API_TOKEN;
 }
 
 const getBaseUrl = () => {
