@@ -26,11 +26,13 @@ export default function PrintPreview() {
   const decodedDoctype = decodeURIComponent(doctype || "");
   const decodedName = decodeURIComponent(name || "");
 
-  /** Build the native Frappe printview URL. */
+  /**
+   * Build the native Frappe printview URL.
+   * Omitting "format" lets Frappe use the doctype's configured default print format.
+   */
   const printviewUrl =
     `/printview?doctype=${encodeURIComponent(decodedDoctype)}` +
-    `&name=${encodeURIComponent(decodedName)}` +
-    `&format=Standard`;
+    `&name=${encodeURIComponent(decodedName)}`;
 
   /* ------------------------------------------------------------------
      HEADER
@@ -73,11 +75,11 @@ export default function PrintPreview() {
      DOWNLOAD / PRINT HELPERS
   ------------------------------------------------------------------ */
   const downloadPdf = () => {
+    // Omitting "format" lets Frappe use the doctype's configured default print format.
     const url =
       `/api/method/frappe.utils.print_format.download_pdf` +
       `?doctype=${encodeURIComponent(decodedDoctype)}` +
-      `&name=${encodeURIComponent(decodedName)}` +
-      `&format=Standard`;
+      `&name=${encodeURIComponent(decodedName)}`;
     window.open(url, "_blank");
   };
 
