@@ -23,7 +23,7 @@ export default function SalesDashboard() {
       route: "/sales/Customer",
       description: "Manage customer records",
       createRoute: "/sales/Customer/new",
-      color: "#0891b2",
+      color: "#4f46e5",
     },
     {
       title: "Lead",
@@ -31,7 +31,7 @@ export default function SalesDashboard() {
       route: "/sales/Lead",
       description: "Track sales leads",
       createRoute: "/sales/Lead/new",
-      color: "#0891b2",
+      color: "#4f46e5",
     },
     {
       title: "Opportunity",
@@ -39,7 +39,7 @@ export default function SalesDashboard() {
       route: "/sales/Opportunity",
       description: "Manage opportunities",
       createRoute: "/sales/Opportunity/new",
-      color: "#0891b2",
+      color: "#4f46e5",
     },
     {
       title: "Quotation",
@@ -47,7 +47,7 @@ export default function SalesDashboard() {
       route: "/sales/Quotation",
       description: "Customer quotations",
       createRoute: "/sales/Quotation/new",
-      color: "#0891b2",
+      color: "#4f46e5",
     },
     {
       title: "Sales Order",
@@ -55,7 +55,7 @@ export default function SalesDashboard() {
       route: "/sales/Sales Order",
       description: "Manage sales orders",
       createRoute: "/sales/Sales Order/new",
-      color: "#0891b2",
+      color: "#4f46e5",
     },
     {
       title: "Sales Invoice",
@@ -63,7 +63,7 @@ export default function SalesDashboard() {
       route: "/sales/Sales Invoice",
       description: "Create sales invoices",
       createRoute: "/sales/Sales Invoice/new",
-      color: "#0891b2",
+      color: "#4f46e5",
     },
     {
       title: "Item",
@@ -71,7 +71,7 @@ export default function SalesDashboard() {
       route: "/sales/Item",
       description: "Manage products & services",
       createRoute: "/sales/Item/new",
-      color: "#0891b2",
+      color: "#4f46e5",
     },
   ];
 

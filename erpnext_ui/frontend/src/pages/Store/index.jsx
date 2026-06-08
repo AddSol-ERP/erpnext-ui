@@ -87,10 +87,8 @@ export default function StoreDashboard() {
 
               <ActionTile
                 tile={{
-                  ...m,
-                  color: m.highlight
-                    ? "var(--color-warning)"
-                    : "var(--brand-primary)",
+                   ...m,
+                   color: "#4f46e5",
                   primary: true,
                 }}
                 onClick={(tile, isCreate) => {

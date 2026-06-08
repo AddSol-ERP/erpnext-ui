@@ -23,7 +23,7 @@ export default function PurchaseDashboard() {
       route: "/purchase/Supplier",
       description: "Manage supplier records",
       createRoute: "/purchase/Supplier/new",
-      color: "#d97706",
+      color: "#4f46e5",
     },
     {
       title: "Purchase Order",
@@ -31,7 +31,7 @@ export default function PurchaseDashboard() {
       route: "/purchase/Purchase Order",
       description: "Create purchase orders",
       createRoute: "/purchase/Purchase Order/new",
-      color: "#d97706",
+      color: "#4f46e5",
     },
     {
       title: "Purchase Receipt",
@@ -39,7 +39,7 @@ export default function PurchaseDashboard() {
       route: "/purchase/Purchase Receipt",
       description: "Record goods receipt",
       createRoute: "/purchase/Purchase Receipt/new",
-      color: "#d97706",
+      color: "#4f46e5",
     },
     {
       title: "Purchase Invoice",
@@ -47,7 +47,7 @@ export default function PurchaseDashboard() {
       route: "/purchase/Purchase Invoice",
       description: "Supplier invoices",
       createRoute: "/purchase/Purchase Invoice/new",
-      color: "#d97706",
+      color: "#4f46e5",
     },
     {
       title: "Supplier Quotation",
@@ -55,7 +55,7 @@ export default function PurchaseDashboard() {
       route: "/purchase/Supplier Quotation",
       description: "Supplier quotations",
       createRoute: "/purchase/Supplier Quotation/new",
-      color: "#d97706",
+      color: "#4f46e5",
     },
     {
       title: "Request for Quotation",
@@ -63,7 +63,7 @@ export default function PurchaseDashboard() {
       route: "/purchase/Request for Quotation",
       description: "Request supplier quotes",
       createRoute: "/purchase/Request for Quotation/new",
-      color: "#d97706",
+      color: "#4f46e5",
     },
   ];
 

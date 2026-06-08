@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
+import { getDoctypeConfig } from "../../config/doctypes";
 
 /** Extract the hub name from the first segment of the current path. */
 function useHub() {
@@ -26,13 +27,51 @@ export default function PrintPreview() {
   const decodedDoctype = decodeURIComponent(doctype || "");
   const decodedName = decodeURIComponent(name || "");
 
+  /* ------------------------------------------------------------------
+     PRINT FORMAT FROM DOCTYPE CONFIG
+  ------------------------------------------------------------------ */
+  const doctypeConfig = getDoctypeConfig(decodedDoctype);
+  const printFormat = doctypeConfig.printFormat || "";
+
+  /* ------------------------------------------------------------------
+     IFRAME LOAD ERROR DETECTION
+  ------------------------------------------------------------------ */
+  const [loadError, setLoadError] = useState("");
+
+  const handleIframeLoad = () => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (doc) {
+        const title = doc.title || "";
+        const bodyText = doc.body?.innerText?.slice(0, 500) || "";
+        const errorKeywords = ["not found", "cannot be accessed", "does not exist", "error", "oops"];
+        const isError = errorKeywords.some(
+          (kw) => title.toLowerCase().includes(kw) || bodyText.toLowerCase().includes(kw)
+        );
+        // Also check for Frappe's standard 404 page indicator
+        const hasErrorPage = doc.querySelector(".page-card") ||
+                             doc.querySelector(".error-page") ||
+                             doc.querySelector(".frappe-404");
+        if (isError || hasErrorPage) {
+          setLoadError("This document does not exist or you do not have permission to view it.");
+        }
+      }
+    } catch {
+      // Cross-origin access blocked — silently ignore
+    }
+  };
+
   /**
    * Build the native Frappe printview URL.
-   * Omitting "format" lets Frappe use the doctype's configured default print format.
+   * Uses the doctype's configured print format if specified,
+   * otherwise omits "format" so Frappe falls back to its own default.
    */
   const printviewUrl =
     `/printview?doctype=${encodeURIComponent(decodedDoctype)}` +
-    `&name=${encodeURIComponent(decodedName)}`;
+    `&name=${encodeURIComponent(decodedName)}` +
+    (printFormat ? `&format=${encodeURIComponent(printFormat)}` : "");
 
   /* ------------------------------------------------------------------
      HEADER
@@ -75,25 +114,18 @@ export default function PrintPreview() {
      DOWNLOAD / PRINT HELPERS
   ------------------------------------------------------------------ */
   const downloadPdf = () => {
-    // Omitting "format" lets Frappe use the doctype's configured default print format.
     const url =
       `/api/method/frappe.utils.print_format.download_pdf` +
       `?doctype=${encodeURIComponent(decodedDoctype)}` +
-      `&name=${encodeURIComponent(decodedName)}`;
+      `&name=${encodeURIComponent(decodedName)}` +
+      (printFormat ? `&format=${encodeURIComponent(printFormat)}` : "");
     window.open(url, "_blank");
   };
 
   const handlePrint = () => {
-    const iframe = iframeRef.current;
-    if (iframe) {
-      try {
-        iframe.contentWindow.print();
-      } catch {
-        window.print();
-      }
-    } else {
-      window.print();
-    }
+    // Open printview in a new window for native browser printing.
+    // This is more reliable than iframe.contentWindow.print() across browsers.
+    window.open(printviewUrl, "_blank");
   };
 
   /* ==================================================================
@@ -126,20 +158,32 @@ export default function PrintPreview() {
 
       {/* Native Frappe /printview page embedded in an iframe */}
       <div className="flex-grow-1 print-preview-frame">
-        <iframe
-          ref={iframeRef}
-          src={printviewUrl}
-          title={`${decodedDoctype} - ${decodedName}`}
-          className="print-iframe"
-          sandbox="allow-same-origin allow-forms allow-scripts"
-          style={{
-            width: "100%",
-            height: "100%",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            background: "#fff",
-          }}
-        />
+        {loadError ? (
+          <div className="d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
+            <i className="bi bi-exclamation-triangle text-warning" style={{ fontSize: "3rem" }}></i>
+            <h5 className="mt-3 text-muted">Document Not Available</h5>
+            <p className="text-muted mb-3">{loadError}</p>
+            <button className="btn btn-outline-secondary" onClick={() => navigate(-1)}>
+              <i className="bi bi-arrow-left me-1"></i> Go back
+            </button>
+          </div>
+        ) : (
+          <iframe
+            ref={iframeRef}
+            src={printviewUrl}
+            title={`${decodedDoctype} - ${decodedName}`}
+            className="print-iframe"
+            sandbox="allow-same-origin allow-forms allow-scripts"
+            onLoad={handleIframeLoad}
+            style={{
+              width: "100%",
+              height: "100%",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              background: "#fff",
+            }}
+          />
+        )}
       </div>
     </div>
   );

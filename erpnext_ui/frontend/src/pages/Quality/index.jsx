@@ -82,10 +82,8 @@ export default function QualityDashboard() {
 
               <ActionTile
                 tile={{
-                  ...m,
-                  color: m.highlight
-                    ? "var(--color-warning)" // 🔥 highlight approvals
-                    : "var(--brand-primary)",
+                   ...m,
+                   color: "#4f46e5",
                   primary: true,
                 }}
                 onClick={(tile, isCreate) => {

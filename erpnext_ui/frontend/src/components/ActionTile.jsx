@@ -1,10 +1,13 @@
+const DEFAULT_COLOR = "#4f46e5";
+
 export default function ActionTile({ tile, onClick }) {
+  const color = tile.color || DEFAULT_COLOR;
   return (
     <div
       className="card h-100 cursor-pointer d-flex flex-column"
       onClick={() => onClick(tile)}
       style={{
-        borderTop: `3px solid ${tile.color}`,
+        borderTop: `3px solid ${color}`,
       }}
     >
       {/* HEADER */}
@@ -19,7 +22,7 @@ export default function ActionTile({ tile, onClick }) {
         >
           <i
             className={tile.icon}
-            style={{ color: tile.color, fontSize: "20px" }}
+            style={{ color, fontSize: "20px" }}
           />
         </div>
 

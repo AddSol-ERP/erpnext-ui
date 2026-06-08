@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
@@ -122,7 +122,7 @@ export default function GenericListPage() {
   const [filterConfig, setFilterConfig] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const config = getDoctypeConfig(doctype);
+  const config = useMemo(() => getDoctypeConfig(doctype), [doctype]);
   const fieldsCache = useRef({});
   const decodedDoctype = decodeURIComponent(doctype);
 

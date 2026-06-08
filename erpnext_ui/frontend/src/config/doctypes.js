@@ -90,7 +90,8 @@ export const DOCTYPE_CONFIG = {
       statusField: "docstatus",
     },
     searchFields: ["employee_name", "employee"],
-    readOnly: true,   // renders ERPNext print format instead of editable form
+    readOnly: true,      // renders ERPNext print format instead of editable form
+    printFormat: "Salary Slip",  // custom print format name for this doctype
   },
   "Job Opening": {
     list: {
