@@ -8,18 +8,21 @@ app_license = "mit"
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "erpnext_ui",
-# 		"logo": "/assets/erpnext_ui/logo.png",
-# 		"title": "Addsol Erpnext UI",
-# 		"route": "/erpnext_ui",
-# 		"has_permission": "erpnext_ui.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "erpnext_ui",
+		"logo": "/assets/erpnext_ui/erp_ui/favicon.svg",
+		"title": "Custom UI",
+		"route": "/custom_ui",
+		"has_permission": "erpnext_ui.api.has_app_permission"
+	}
+]
+
+# Boot session — sets home_page for role-based redirect to custom UI
+boot_session = "erpnext_ui.api.boot_session"
 
 # Includes in <head>
 # ------------------

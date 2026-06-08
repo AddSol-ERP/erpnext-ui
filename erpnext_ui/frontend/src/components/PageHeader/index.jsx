@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import ThemePanel from "../Theme";
 import applyTheme from "../../utils/theme";
 import { get } from "../../services/api";
@@ -18,7 +18,9 @@ export default function PageHeader({
   const navigate = useNavigate();
 
   const [user, setUser] = useState("");
-  const [showMore, setShowMore] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
 
   useEffect(() => {
     loadUser();
@@ -42,6 +44,18 @@ export default function PageHeader({
       console.error(e);
     }
   };
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const handleClick = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showUserMenu]);
 
   const handleBack = () => {
     // Check if we're in ERPNext context and if history is safe
@@ -161,19 +175,19 @@ export default function PageHeader({
             <div className="position-relative d-sm-none">
               <button
                 className="btn btn-icon"
-                onClick={() => setShowMore((p) => !p)}
+                onClick={() => setShowMobileMenu((p) => !p)}
               >
                 <i className="bi bi-three-dots-vertical" />
               </button>
 
-              {showMore && (
+              {showMobileMenu && (
                 <div className="dropdown-menu show p-2 shadow-sm">
                   {actions.slice(1).map((action, i) => (
                     <button
                       key={i}
                       className="dropdown-item"
                       onClick={() => {
-                        setShowMore(false);
+                        setShowMobileMenu(false);
                         action.onClick();
                       }}
                     >
@@ -185,13 +199,54 @@ export default function PageHeader({
             </div>
           )}
 
-          {/* USER */}
-          <div
-            className="d-flex align-items-center gap-1"
-            style={{ fontSize: 12 }}
-          >
-            <i className="bi bi-person-circle" />
-            <span className="d-none d-sm-inline">{user || "User"}</span>
+          {/* USER DROPDOWN */}
+          <div className="position-relative" ref={userMenuRef}>
+            <button
+              className="btn btn-icon d-flex align-items-center gap-1"
+              style={{ fontSize: 12 }}
+              onClick={() => setShowUserMenu((p) => !p)}
+              title={user || "User"}
+            >
+              <i className="bi bi-person-circle" />
+              <span className="d-none d-sm-inline">{user || "User"}</span>
+              <i className="bi bi-chevron-down" style={{ fontSize: 10 }} />
+            </button>
+
+            {showUserMenu && (
+              <div
+                className="dropdown-menu show shadow-sm"
+                style={{
+                  right: 0,
+                  left: "auto",
+                  minWidth: "180px",
+                  zIndex: 1050,
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="dropdown-item-text small text-muted border-bottom px-3 py-2">
+                  {user || "User"}
+                </div>
+                <button
+                  className="dropdown-item"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    window.location.href = "/app";
+                  }}
+                >
+                  <i className="bi bi-grid me-2"></i>Back to ERPNext
+                </button>
+                <div className="dropdown-divider"></div>
+                <button
+                  className="dropdown-item text-danger"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    window.location.href = "/logout";
+                  }}
+                >
+                  <i className="bi bi-box-arrow-right me-2"></i>Logout
+                </button>
+              </div>
+            )}
           </div>
 
           {/* THEME */}
