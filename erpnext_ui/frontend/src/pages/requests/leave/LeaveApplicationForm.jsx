@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useHeader } from "../../../context/HeaderContext";
 import { get, post } from "../../../services/api";
 import { FormField } from "../../../components/FormField";
@@ -7,10 +7,14 @@ import LinkField from "../../../components/LinkField";
 
 export default function LeaveApplicationForm() {
   const { name } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
 
   const isEdit = !!name;
+
+  // Pre-fill from URL search params (used when navigating from attendance calendar)
+  const prefilledDate = searchParams.get("from_date") || "";
 
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -23,8 +27,8 @@ export default function LeaveApplicationForm() {
     employee: "",
     leave_approver: "",
     leave_type: "",
-    from_date: "",
-    to_date: "",
+    from_date: prefilledDate,
+    to_date: prefilledDate,
     half_day: 0,
     reason: "",
   });

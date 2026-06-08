@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import ThemePanel from "../Theme";
 import applyTheme from "../../utils/theme";
 import { get } from "../../services/api";
+import { getUserSync, getCurrentUser } from "../../utils/getUser";
 
 export default function PageHeader({
   title = "",
@@ -24,9 +25,19 @@ export default function PageHeader({
   }, []);
 
   const loadUser = async () => {
+    // ERPNext mode: read synchronously from window.frappe
+    const sync = getUserSync();
+    if (sync) {
+      setUser(sync.user);
+      return;
+    }
+
+    // Dev mode: try API fallback
     try {
-      const res = await get("method/frappe.auth.get_logged_user");
-      setUser(res.message || "");
+      const res = await getCurrentUser(get);
+      if (res) {
+        setUser(res.user);
+      }
     } catch (e) {
       console.error(e);
     }

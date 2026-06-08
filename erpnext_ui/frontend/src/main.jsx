@@ -6,6 +6,7 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "./index.css";
 import { HeaderProvider } from "./context/HeaderContext";
 import { ToastProvider } from "./context/ToastContext";
+import { RoleProvider } from "./context/RoleContext";
 import applyTheme from "./utils/theme";
 
 // Initialize theme on app load
@@ -34,7 +35,9 @@ if (rootElement) {
   root.render(
     <ToastProvider>
       <HeaderProvider>
-        <App />
+        <RoleProvider>
+          <App />
+        </RoleProvider>
       </HeaderProvider>
     </ToastProvider>,
   );
@@ -51,7 +54,9 @@ const mountErpUI = function (id) {
   root.render(
     <ToastProvider>
       <HeaderProvider>
-        <App />
+        <RoleProvider>
+          <App />
+        </RoleProvider>
       </HeaderProvider>
     </ToastProvider>,
   );

@@ -34,6 +34,21 @@ import DeliveryNoteList from "./pages/Store/delivery";
 import DeliveryNoteForm from "./pages/Store/delivery/form";
 import StockBalance from "./pages/Store/stock-balance";
 
+// NEW ROLE HUBS
+import HRDashboard from "./pages/HR";
+import SalesDashboard from "./pages/Sales";
+import PurchaseDashboard from "./pages/Purchase";
+import ESSDashboard from "./pages/ESS";
+import ESSProfile from "./pages/ESS/Profile";
+import ESSCalendar from "./pages/ESS/Attendance";
+
+// GENERIC LIST & FORM
+import GenericListPage from "./components/GenericList";
+import GenericFormPage from "./components/GenericForm";
+
+// PRINT PREVIEW (read-only doctypes)
+import PrintPreview from "./components/PrintPreview";
+
 export default function App() {
   return (
     <HashRouter>
@@ -81,6 +96,10 @@ export default function App() {
             path="/quality/reports"
             element={<QualityInspectionReport />}
           />
+          {/* Quality generic routes for new doctypes */}
+          <Route path="/quality/:doctype" element={<GenericListPage />} />
+          <Route path="/quality/:doctype/new" element={<GenericFormPage />} />
+          <Route path="/quality/:doctype/:name" element={<GenericFormPage />} />
 
           <Route path="/production/job-cards" element={<JobCardsList />} />
           <Route path="/production/work-order" element={<WorkOrderList />} />
@@ -108,6 +127,10 @@ export default function App() {
           <Route path="/store/delivery" element={<DeliveryNoteList />} />
           <Route path="/store/delivery/new" element={<DeliveryNoteForm />} />
           <Route path="/store/stock-balance" element={<StockBalance />} />
+          {/* Store generic routes for new doctypes (Item, Warehouse, etc.) */}
+          <Route path="/store/:doctype" element={<GenericListPage />} />
+          <Route path="/store/:doctype/new" element={<GenericFormPage />} />
+          <Route path="/store/:doctype/:name" element={<GenericFormPage />} />
 
           <Route path="/requests" element={<RequestDashboard />} />
           <Route
@@ -140,6 +163,46 @@ export default function App() {
           />
           <Route path="/reports" element={<ReportDashboard />} />
           <Route path="/reports/attendance" element={<AttendancePage />} />
+
+          {/* ================================
+              HR HUB
+          ================================ */}
+          <Route path="/hr" element={<HRDashboard />} />
+          <Route path="/hr/:doctype" element={<GenericListPage />} />
+          <Route path="/hr/:doctype/new" element={<GenericFormPage />} />
+          <Route path="/hr/:doctype/:name" element={<GenericFormPage />} />
+
+          {/* ================================
+              SALES HUB
+          ================================ */}
+          <Route path="/sales" element={<SalesDashboard />} />
+          <Route path="/sales/:doctype" element={<GenericListPage />} />
+          <Route path="/sales/:doctype/new" element={<GenericFormPage />} />
+          <Route path="/sales/:doctype/:name" element={<GenericFormPage />} />
+
+          {/* ================================
+              PURCHASE HUB
+          ================================ */}
+          <Route path="/purchase" element={<PurchaseDashboard />} />
+          <Route path="/purchase/:doctype" element={<GenericListPage />} />
+          <Route path="/purchase/:doctype/new" element={<GenericFormPage />} />
+          <Route path="/purchase/:doctype/:name" element={<GenericFormPage />} />
+
+          {/* ================================
+              EMPLOYEE SELF SERVICE HUB
+          ================================ */}
+          <Route path="/ess" element={<ESSDashboard />} />
+          <Route path="/ess/profile" element={<ESSProfile />} />
+          <Route path="/ess/attendance" element={<ESSCalendar />} />
+          <Route path="/ess/:doctype" element={<GenericListPage />} />
+          <Route path="/ess/:doctype/new" element={<GenericFormPage />} />
+          <Route path="/ess/:doctype/:name" element={<GenericFormPage />} />
+          <Route path="/ess/print/:doctype/:name" element={<PrintPreview />} />
+
+          {/* ================================
+              GENERIC PRINT PREVIEW (any hub)
+          ================================ */}
+          <Route path="/:hub/print/:doctype/:name" element={<PrintPreview />} />
         </Route>
       </Routes>
     </HashRouter>

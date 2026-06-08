@@ -39,6 +39,24 @@ export default function QualityDashboard() {
       description: "Perform inspections",
     },
     {
+      title: "Non-Conformance",
+      icon: "bi-exclamation-triangle",
+      route: "/quality/Non Conformance",
+      description: "Track quality issues",
+    },
+    {
+      title: "Corrective Action",
+      icon: "bi-tools",
+      route: "/quality/Corrective Action",
+      description: "Manage CAPA",
+    },
+    {
+      title: "Quality Procedure",
+      icon: "bi-journal-text",
+      route: "/quality/Quality Procedure",
+      description: "Quality procedures & docs",
+    },
+    {
       title: "Reports",
       icon: "bi-bar-chart",
       route: "reports",
@@ -70,7 +88,13 @@ export default function QualityDashboard() {
                     : "var(--brand-primary)",
                   primary: true,
                 }}
-                onClick={() => navigate(m.route)}
+                onClick={(tile, isCreate) => {
+                  if (isCreate && tile.createRoute) {
+                    navigate(tile.createRoute);
+                  } else {
+                    navigate(m.route);
+                  }
+                }}
               />
             </div>
           </div>

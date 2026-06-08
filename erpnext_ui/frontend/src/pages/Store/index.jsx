@@ -26,14 +26,13 @@ export default function StoreDashboard() {
       icon: "bi-box-seam",
       route: "stock-entry",
       description: "Material Issue, Receipt, Transfer",
-      highlight: true, // 🔥 most used
+      highlight: true,
     },
     {
       title: "Material Request",
       icon: "bi-inbox",
       route: "material-request",
       description: "Request raw materials",
-      badge: 5, // 🔥 pending requests (dynamic later)
     },
     {
       title: "Delivery / Dispatch",
@@ -50,8 +49,23 @@ export default function StoreDashboard() {
     {
       title: "Item Master",
       icon: "bi-box",
-      route: "items",
+      route: "/store/Item",
       description: "Manage items & variants",
+      createRoute: "/store/Item/new",
+    },
+    {
+      title: "Warehouse",
+      icon: "bi-building",
+      route: "/store/Warehouse",
+      description: "Manage warehouses",
+      createRoute: "/store/Warehouse/new",
+    },
+    {
+      title: "Stock Reconciliation",
+      icon: "bi-arrow-repeat",
+      route: "/store/Stock Reconciliation",
+      description: "Reconcile stock quantities",
+      createRoute: "/store/Stock Reconciliation/new",
     },
   ];
 
@@ -79,7 +93,13 @@ export default function StoreDashboard() {
                     : "var(--brand-primary)",
                   primary: true,
                 }}
-                onClick={() => navigate(m.route)}
+                onClick={(tile, isCreate) => {
+                  if (isCreate && tile.createRoute) {
+                    navigate(tile.createRoute);
+                  } else {
+                    navigate(m.route);
+                  }
+                }}
               />
             </div>
           </div>

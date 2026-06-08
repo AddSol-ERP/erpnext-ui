@@ -3,10 +3,13 @@ import { useHeader } from "../../context/HeaderContext";
 import { useEffect, useState } from "react";
 import ActionTile from "../../components/ActionTile";
 import { get } from "../../services/api";
+import { useRole } from "../../context/RoleContext";
+import { MODULE_ACCESS } from "../../config/moduleAccess";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { hasModuleAccess, loading: roleLoading } = useRole();
   const [counts, setCounts] = useState({
     pendingApprovals: 0,
     openRequests: 0,
@@ -63,7 +66,7 @@ export default function Dashboard() {
     }
   };
 
-  const modules = [
+  const allModules = [
     {
       title: "Approvals",
       icon: "bi-check2-square",
@@ -71,38 +74,75 @@ export default function Dashboard() {
       description: "Pending approvals",
       highlight: true,
       badge: counts.pendingApprovals,
+      moduleKey: "Approvals",
     },
     {
       title: "Production",
       icon: "bi-gear",
       route: "/production",
       description: "Work orders & job cards",
+      moduleKey: "Production",
     },
     {
       title: "Store",
       icon: "bi-box-seam",
       route: "/store",
       description: "Inventory & stock",
+      moduleKey: "Stock",
     },
     {
       title: "Requests",
       icon: "bi-inbox",
       route: "/requests",
       description: "Employee requests",
+      moduleKey: "ESS",
     },
     {
       title: "Quality",
       icon: "bi-shield-check",
       route: "/quality",
       description: "Inspection & QC",
+      moduleKey: "Quality",
+    },
+    {
+      title: "HR",
+      icon: "bi-people",
+      route: "/hr",
+      description: "Employee master, attendance & payroll",
+      moduleKey: "HR",
+    },
+    {
+      title: "Sales",
+      icon: "bi-cart",
+      route: "/sales",
+      description: "Customers, orders & invoices",
+      moduleKey: "Sales",
+    },
+    {
+      title: "Purchase",
+      icon: "bi-truck",
+      route: "/purchase",
+      description: "Suppliers & purchase orders",
+      moduleKey: "Purchase",
+    },
+    {
+      title: "Employee Self Service",
+      icon: "bi-person-badge",
+      route: "/ess",
+      description: "My profile, leave & salary",
+      moduleKey: "ESS",
     },
     {
       title: "Reports",
       icon: "bi-bar-chart",
       route: "/reports",
       description: "Analytics & reports",
+      moduleKey: "Reports",
     },
   ];
+
+  // Filter by role access
+  const modules = allModules.filter((m) => hasModuleAccess(m.moduleKey));
 
   const approvals = modules.find((m) => m.highlight);
   const others = modules.filter((m) => !m.highlight);
