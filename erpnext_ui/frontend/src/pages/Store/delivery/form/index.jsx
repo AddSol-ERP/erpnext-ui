@@ -150,6 +150,25 @@ export default function DeliveryNoteForm() {
     });
   };
 
+  /* ================= ITEM AUTO-POPULATE ================= */
+  const handleItemChange = async (i, itemCode) => {
+    const updated = [...doc.items];
+    updated[i].item_code = itemCode;
+
+    // Auto-fill UOM from Item master
+    try {
+      const res = await get(`resource/Item/${encodeURIComponent(itemCode)}`);
+      const item = res.data;
+      if (item) {
+        updated[i].uom = item.stock_uom || "";
+      }
+    } catch (e) {
+      console.warn("Failed to fetch item details:", e);
+    }
+
+    setDoc({ ...doc, items: updated });
+  };
+
   /* ================= VALIDATION ================= */
   const validate = () => {
     if (!doc.customer) return "Customer required";
@@ -211,7 +230,7 @@ export default function DeliveryNoteForm() {
 
   /* ================= UI ================= */
   return (
-    <div className="container-fluid px-2 px-md-3">
+    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {showSource && (
         <DeliveryNotePicker
           show={showSource}
@@ -304,7 +323,7 @@ export default function DeliveryNoteForm() {
                   <LinkField
                     doctype="Item"
                     value={row.item_code}
-                    onChange={(v) => updateRow(i, "item_code", v)}
+                    onChange={(v) => handleItemChange(i, v)}
                   />
                 </FormField>
               </div>

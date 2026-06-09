@@ -82,6 +82,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "is_active",
     },
     searchFields: ["name"],
+    nativeForm: true,
   },
   "Salary Slip": {
     list: {
@@ -91,6 +92,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "docstatus",
     },
     searchFields: ["employee_name", "employee"],
+    nativeForm: true,
     readOnly: true,      // renders ERPNext print format instead of editable form
     printFormat: "Salary Slip",  // custom print format name for this doctype
   },
@@ -142,6 +144,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["customer_name", "opportunity_from"],
+    nativeForm: true,
   },
   Quotation: {
     list: {
@@ -151,6 +154,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["customer_name", "name"],
+    nativeForm: true,
   },
   "Sales Order": {
     list: {
@@ -160,6 +164,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["customer_name", "name"],
+    nativeForm: true,
   },
   "Sales Invoice": {
     list: {
@@ -169,6 +174,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["customer_name", "name"],
+    nativeForm: true,
   },
   Item: {
     list: {
@@ -200,6 +206,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["supplier", "name"],
+    nativeForm: true,
   },
   "Purchase Receipt": {
     list: {
@@ -209,6 +216,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["supplier", "name"],
+    nativeForm: true,
   },
   "Purchase Invoice": {
     list: {
@@ -218,6 +226,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["supplier", "name"],
+    nativeForm: true,
   },
   "Supplier Quotation": {
     list: {
@@ -227,6 +236,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["supplier", "name"],
+    nativeForm: true,
   },
   "Request for Quotation": {
     list: {
@@ -236,6 +246,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["name"],
+    nativeForm: true,
   },
 
   // ============================
@@ -258,6 +269,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "docstatus",
     },
     searchFields: ["name"],
+    nativeForm: true,
   },
 
   // ============================

@@ -94,7 +94,7 @@ export default function StockEntryPage() {
   ]);
 
   return (
-    <div className="container-fluid p-0">
+    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       <StockFixModal
         show={stock.showFixModal}
         onClose={() => stock.setShowFixModal(false)}

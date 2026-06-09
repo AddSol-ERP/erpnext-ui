@@ -272,7 +272,7 @@ export default function MaterialRequestForm() {
 
   /* ================= UI ================= */
   return (
-    <div className="container-fluid px-2 px-md-3">
+    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {error && <div className="alert alert-danger">{error}</div>}
 
       {/* BASIC */}

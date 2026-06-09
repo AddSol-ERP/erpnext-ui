@@ -6,6 +6,7 @@ import { get, post, put } from "../../services/api";
 import { FormField } from "../FormField";
 import ChildTable from "../ChildTable";
 import { getFieldRenderer } from "./fieldTypes";
+import { getDoctypeConfig } from "../../config/doctypes";
 
 /** Extract the hub name from the first segment of the current path. */
 function useHub() {
@@ -47,6 +48,22 @@ export default function GenericFormPage() {
   const isNew = name === "new" || !name;
   const decodedDoctype = decodeURIComponent(doctype);
   const decodedName = isNew ? null : decodeURIComponent(name);
+
+  /* ===============================
+     NATIVE FORM REDIRECT
+     If the doctype is configured as nativeForm,
+     open ERPNext native form in a new tab and go back.
+  ============================== */
+  useEffect(() => {
+    const config = getDoctypeConfig(decodedDoctype);
+    if (config.nativeForm) {
+      const url = isNew
+        ? `/app/${decodedDoctype}/new-${decodedDoctype}`
+        : `/app/${decodedDoctype}/${decodedName}`;
+      window.open(url, '_blank');
+      navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
+    }
+  }, []); // run once on mount
 
   /* ===============================
      LOAD METADATA + DOC

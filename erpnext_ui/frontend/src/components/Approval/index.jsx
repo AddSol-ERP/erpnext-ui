@@ -143,7 +143,7 @@ export default function Approval() {
   };
 
   return (
-    <div className="container-fluid px-2 px-md-3">
+    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {loading ? (
         <div className="text-center py-5">
           <div className="spinner-border" role="status">

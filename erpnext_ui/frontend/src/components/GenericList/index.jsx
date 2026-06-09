@@ -133,8 +133,15 @@ export default function GenericListPage() {
     const hubName = hub ? hub.charAt(0).toUpperCase() + hub.slice(1) : "";
     const actions = [];
 
-    // Only show "New" button for editable doctypes
-    if (!config.readOnly) {
+    // "New" button: nativeForm → ERPNext in new tab, readOnly → hidden, else → our GenericForm
+    if (config.nativeForm) {
+      actions.push({
+        label: "New",
+        variant: "btn-primary",
+        icon: "bi bi-plus-lg",
+        onClick: () => window.open(`/app/${decodedDoctype}/new-${decodedDoctype}`, '_blank'),
+      });
+    } else if (!config.readOnly) {
       actions.push({
         label: "New",
         variant: "btn-primary",
@@ -161,7 +168,7 @@ export default function GenericListPage() {
       actions,
     });
     return () => setHeader({});
-  }, [doctype, hub, page, config.readOnly]);
+  }, [doctype, hub, page, config.readOnly, config.nativeForm]);
 
   /* ===============================
      BUILD FILTERS FROM METADATA
@@ -339,7 +346,10 @@ export default function GenericListPage() {
      ROW CLICK
   ============================== */
   const handleRowClick = (doc) => {
-    if (config.readOnly) {
+    if (config.nativeForm) {
+      // Open ERPNext native form in new tab
+      window.open(`/app/${decodedDoctype}/${doc.name}`, '_blank');
+    } else if (config.readOnly) {
       // Navigate to print preview for read-only doctypes
       navigate(`/${hub}/print/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(doc.name)}`);
     } else {

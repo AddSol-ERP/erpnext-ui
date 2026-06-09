@@ -208,7 +208,7 @@ export default function InspectionForm() {
 
   /* ================= UI ================= */
   return (
-    <div className="container-fluid px-2 px-md-3">
+    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {/* BASIC */}
       <div className="card mb-3">
         <div className="card-body row g-2">
