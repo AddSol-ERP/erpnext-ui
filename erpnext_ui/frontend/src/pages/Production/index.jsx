@@ -38,10 +38,10 @@ export default function ProductionDashboard() {
   ];
 
   return (
-    <div className="pt-4">
+    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       <div className="row">
         {modules.map((m, i) => (
-          <div key={i} className="col-lg-4 col-md-6 mb-4 cursor-pointer">
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 mb-4 cursor-pointer">
             <div className="position-relative">
               {/* 🔥 Badge (optional) */}
               {m.badge ? (
@@ -56,9 +56,7 @@ export default function ProductionDashboard() {
               <ActionTile
                 tile={{
                   ...m,
-                  color: m.highlight
-                    ? "var(--color-warning)" // 🔥 highlight approvals
-                    : "var(--brand-primary)",
+                  color: "#4f46e5",
                   primary: true,
                 }}
                 onClick={() => navigate(m.route)}

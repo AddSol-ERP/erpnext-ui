@@ -22,7 +22,6 @@ export default function ReportDashboard() {
       desc: "View attendance calendar & team data",
       icon: "bi-calendar3",
       path: "/reports/attendance",
-      color: "primary",
     },
   ];
 
@@ -30,7 +29,7 @@ export default function ReportDashboard() {
     <div className="container-fluid px-2 px-md-3">
       <div className="row g-3">
         {cards.map((c, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 cursor-pointer">
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 cursor-pointer">
             <div
               className="card h-100 shadow-sm border-0"
               style={{ cursor: "pointer" }}
@@ -38,8 +37,8 @@ export default function ReportDashboard() {
             >
               <div className="card-body d-flex align-items-center">
                 <div
-                  className={`me-3 rounded-circle bg-${c.color} text-white d-flex align-items-center justify-content-center`}
-                  style={{ width: 50, height: 50 }}
+                  className="me-3 rounded-circle text-white d-flex align-items-center justify-content-center"
+                  style={{ width: 50, height: 50, backgroundColor: "#4f46e5" }}
                 >
                   <i className={`bi ${c.icon}`} />
                 </div>

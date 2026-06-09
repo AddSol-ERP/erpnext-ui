@@ -504,7 +504,7 @@ const ApprovalListPage = () => {
   };
 
   return (
-    <div className="d-flex flex-column h-100">
+    <div className="d-flex flex-column h-100" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {/* MODALS */}
       <ApprovalPreview
         show={showPreview}

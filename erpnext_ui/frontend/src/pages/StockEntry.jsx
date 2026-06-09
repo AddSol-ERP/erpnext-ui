@@ -53,7 +53,7 @@ export default function DemoForm() {
   };
 
   return (
-    <div className="form-container">
+    <div className="form-container" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {/* BASIC */}
       <div className="form-section">
         <div className="form-section-title">Basic Fields</div>

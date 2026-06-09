@@ -155,7 +155,7 @@ export default function Approval() {
           {/* 🔥 GRID */}
           <div className="row g-3">
             {tiles.map((tile) => (
-              <div key={tile.doctype} className="col-md-4 col-lg-3">
+              <div key={tile.doctype} className="col-12 col-md-6 col-lg-4 col-xl-3">
                 <ApprovalTile
                   tile={tile}
                   onClick={(doctype) =>

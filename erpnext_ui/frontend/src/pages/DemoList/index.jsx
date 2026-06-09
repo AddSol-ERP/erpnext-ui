@@ -87,7 +87,7 @@ const DemoList = () => {
   );
 
   return (
-    <div>
+    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       <ActionBar
         onSearch={(q) => setSearch(q)}
         onFilter={() => console.log("open filter modal")}

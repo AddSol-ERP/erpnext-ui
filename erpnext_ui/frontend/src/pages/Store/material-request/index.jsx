@@ -33,35 +33,30 @@ export default function MaterialRequestDashboard() {
       title: "Purchase Request",
       type: "Purchase",
       icon: "bi-cart",
-      color: "primary",
       desc: "Request items for purchase",
     },
     {
       title: "Material Transfer",
       type: "Transfer",
       icon: "bi-arrow-left-right",
-      color: "info",
       desc: "Move stock between warehouses",
     },
     {
       title: "Material Issue",
       type: "Material Issue",
       icon: "bi-box-arrow-up",
-      color: "warning",
       desc: "Issue material for usage",
     },
     {
       title: "Material Receipt",
       type: "Material Receipt",
       icon: "bi-box-arrow-in-down",
-      color: "success",
       desc: "Receive materials",
     },
     {
       title: "Customer Provided",
       type: "Customer Provided",
       icon: "bi-person-check",
-      color: "secondary",
       desc: "Customer supplied materials",
     },
   ];
@@ -70,7 +65,7 @@ export default function MaterialRequestDashboard() {
     <div className="container-fluid px-2 px-md-3">
       <div className="row g-3">
         {tiles.map((t, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4">
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3">
             <div
               className="card h-100 border-0 shadow-sm"
               style={{ cursor: "pointer" }}
@@ -78,8 +73,8 @@ export default function MaterialRequestDashboard() {
             >
               <div className="card-body d-flex align-items-center">
                 <div
-                  className={`me-3 rounded-circle bg-${t.color} text-white d-flex align-items-center justify-content-center`}
-                  style={{ width: 50, height: 50 }}
+                  className="me-3 rounded-circle text-white d-flex align-items-center justify-content-center"
+                  style={{ width: 50, height: 50, backgroundColor: "#4f46e5" }}
                 >
                   <i className={`bi ${t.icon}`} />
                 </div>

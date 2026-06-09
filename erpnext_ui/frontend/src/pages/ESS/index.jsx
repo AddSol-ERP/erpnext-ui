@@ -72,10 +72,10 @@ export default function ESSDashboard() {
   ];
 
   return (
-    <div className="pt-4">
+    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       <div className="row">
         {modules.map((m, i) => (
-          <div key={i} className="col-lg-4 col-md-6 mb-4 cursor-pointer">
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 mb-4 cursor-pointer">
             <ActionTile
               tile={{
                 ...m,
