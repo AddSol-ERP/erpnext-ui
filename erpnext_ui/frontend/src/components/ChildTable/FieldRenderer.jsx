@@ -1,4 +1,6 @@
-function FieldRenderer({ type, value, onChange }) {
+import LinkField from "../LinkField";
+
+function FieldRenderer({ type, value, options, onChange }) {
   switch (type) {
     case "number":
       return (
@@ -11,6 +13,7 @@ function FieldRenderer({ type, value, onChange }) {
       );
 
     case "select":
+      const opts = typeof options === "string" ? options.split("\n") : [];
       return (
         <select
           className="form-select"
@@ -18,9 +21,34 @@ function FieldRenderer({ type, value, onChange }) {
           onChange={(e) => onChange(e.target.value)}
         >
           <option value="">Select</option>
-          <option>Option 1</option>
-          <option>Option 2</option>
+          {opts.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
         </select>
+      );
+
+    case "checkbox":
+      return (
+        <div className="d-flex justify-content-center">
+          <input
+            type="checkbox"
+            className="form-check-input"
+            checked={!!value}
+            onChange={(e) => onChange(e.target.checked ? 1 : 0)}
+          />
+        </div>
+      );
+
+    case "link":
+      return (
+        <LinkField
+          doctype={options}
+          value={value}
+          onChange={onChange}
+          placeholder="Search..."
+        />
       );
 
     default:

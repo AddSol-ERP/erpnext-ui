@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useToast } from "../../context/ToastContext";
@@ -42,6 +42,7 @@ export default function GenericFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const calculateTimer = useRef(null); // Debounce timer for server-side calc
 
   const isNew = name === "new" || !name;
   const decodedDoctype = decodeURIComponent(doctype);
@@ -164,7 +165,7 @@ export default function GenericFormPage() {
   /* ===============================
      FIELD CHANGE
   ============================== */
-  const handleFieldChange = (fieldname, value) => {
+  const handleFieldChange = async (fieldname, value) => {
     setDoc((prev) => ({ ...prev, [fieldname]: value }));
     // Clear error for this field
     if (errors[fieldname]) {
@@ -173,6 +174,72 @@ export default function GenericFormPage() {
         delete next[fieldname];
         return next;
       });
+    }
+
+    // ========== fetch_from auto-population ==========
+    if (meta && value) {
+      const changedField = meta.find((f) => f.fieldname === fieldname);
+      if (changedField?.fieldtype === "Link" && changedField.options) {
+        const dependentFields = meta.filter(
+          (f) => f.fetch_from && f.fetch_from.startsWith(fieldname + ".")
+        );
+        if (dependentFields.length > 0) {
+          try {
+            const res = await get(
+              `resource/${changedField.options}/${encodeURIComponent(value)}`
+            );
+            const linkedData = res.data || {};
+            const updates = {};
+            dependentFields.forEach((f) => {
+              const sourceKey = f.fetch_from.split(".").slice(1).join(".");
+              if (linkedData[sourceKey] !== undefined) {
+                updates[f.fieldname] = linkedData[sourceKey];
+              }
+            });
+            if (Object.keys(updates).length > 0) {
+              setDoc((prev) => ({ ...prev, ...updates }));
+            }
+          } catch (e) {
+            console.warn(`fetch_from failed for ${fieldname}:`, e);
+          }
+        }
+      }
+    }
+
+    // Debounced server-side calculation (only for doctypes with tables)
+    if (meta?.some((f) => f.fieldtype === "Table")) {
+      if (calculateTimer.current) clearTimeout(calculateTimer.current);
+      calculateTimer.current = setTimeout(() => {
+        calculateServerSide();
+      }, 1500);
+    }
+  };
+
+  /* ===============================
+     SERVER-SIDE CALCULATION
+  ============================== */
+  const calculateServerSide = async () => {
+    if (!meta?.some((f) => f.fieldtype === "Table")) return;
+
+    try {
+      const payload = { ...doc, doctype: decodedDoctype };
+      SYSTEM_FIELDS.forEach((f) => delete payload[f]);
+      const res = await post("method/frappe.client.validate", { doc: payload });
+      const result = res.message || res.data;
+      if (result) {
+        setDoc((prev) => ({
+          ...prev,
+          total_qty: result.total_qty,
+          total: result.total,
+          net_total: result.net_total,
+          total_taxes_and_charges: result.total_taxes_and_charges,
+          grand_total: result.grand_total,
+          rounded_total: result.rounded_total,
+          in_words: result.in_words,
+        }));
+      }
+    } catch (e) {
+      // Silently fail — user can still save manually
     }
   };
 
@@ -347,6 +414,7 @@ export default function GenericFormPage() {
                             cf.fieldtype === "Link" ? "link" : "text",
                       options: cf.options,
                       required: cf.reqd,
+                      fetchFrom: cf.fetch_from,
                     }))
                   }
                   value={doc[row[0].fieldname] || []}

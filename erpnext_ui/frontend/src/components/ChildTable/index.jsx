@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import FieldRenderer from "./FieldRenderer";
+import { get } from "../../services/api";
 
 export default function ChildTable({
   title = "Items",
@@ -18,9 +19,45 @@ export default function ChildTable({
     onChange && onChange(newData);
   };
 
-  const handleChange = (rowIndex, field, val) => {
+  const handleChange = async (rowIndex, field, val) => {
     const updated = [...data];
     updated[rowIndex][field] = val;
+
+    // ===== Auto-calculate amount = qty × rate =====
+    const colFields = columns.map((c) => c.field);
+    if (
+      colFields.includes("amount") &&
+      (field === "qty" || field === "rate")
+    ) {
+      const qty = parseFloat(updated[rowIndex].qty) || 0;
+      const rate = parseFloat(updated[rowIndex].rate) || 0;
+      updated[rowIndex].amount = qty * rate;
+    }
+
+    // ===== fetch_from auto-population in child rows =====
+    const changedCol = columns.find((c) => c.field === field);
+    if (changedCol?.type === "link" && changedCol.options && val) {
+      const dependentCols = columns.filter(
+        (c) => c.fetchFrom && c.fetchFrom.startsWith(field + ".")
+      );
+      if (dependentCols.length > 0) {
+        try {
+          const res = await get(
+            `resource/${changedCol.options}/${encodeURIComponent(val)}`
+          );
+          const linkedData = res.data || {};
+          dependentCols.forEach((col) => {
+            const sourceKey = col.fetchFrom.split(".").slice(1).join(".");
+            if (linkedData[sourceKey] !== undefined) {
+              updated[rowIndex][col.field] = linkedData[sourceKey];
+            }
+          });
+        } catch (e) {
+          console.warn("Child row fetch_from failed:", e);
+        }
+      }
+    }
+
     update(updated);
   };
 

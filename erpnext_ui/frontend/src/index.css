@@ -1444,11 +1444,18 @@ body {
      CHILD TABLE
   ============================== */
 	--child-table-bg: #ffffff;
+	--child-table-head-bg: rgba(0, 0, 0, 0.03);
+	--child-table-head-text: rgba(0, 0, 0, 0.55);
+	--child-row-border: rgba(0, 0, 0, 0.06);
+	--child-cell-border: rgba(0, 0, 0, 0.04);
 	--child-row-hover-bg: #f8fafc;
 
 	--child-input-bg: #ffffff;
 	--child-input-bg-hover: #f1f5f9;
 	--child-input-bg-focus: #ffffff;
+	--child-input-border: rgba(0, 0, 0, 0.1);
+	--child-input-border-hover: rgba(0, 0, 0, 0.18);
+	--child-card-bg: rgba(0, 0, 0, 0.02);
 
 	/* ===============================
      BACKGROUND EFFECT (LIGHT SAFE)
