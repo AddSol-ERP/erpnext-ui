@@ -32,7 +32,7 @@ def boot_session(bootinfo):
     """Redirect operational users to the custom UI after login.
 
     This hook runs after login during boot info generation. It sets the user's
-    home_page to /custom_ui so that Employee/Self Employee users land on the
+    home_page to /addsol_ui so that Employee/Self Employee users land on the
     tile-based SPA instead of the standard Frappe desk.
 
     Users who need the standard desk can always return via the "Back to ERPNext"
@@ -47,4 +47,4 @@ def boot_session(bootinfo):
         # ESS, Approvals, and Reports modules are accessible by "*" (all users),
         # so every authenticated user has access to at least parts of the SPA.
         # The "Back to ERPNext" dropdown option provides access to the standard desk.
-        bootinfo["user"]["home_page"] = "/custom_ui"
+        bootinfo["user"]["home_page"] = "/addsol_ui"

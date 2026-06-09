@@ -49,7 +49,7 @@ function addCustomUIButton() {
 
 	var link = document.createElement("a");
 	link.className = "nav-link";
-	link.href = "/custom_ui";
+	link.href = "/addsol_ui";
 	link.title = "Open Addsol UI";
 	link.style.cssText = [
 		"display:flex",
@@ -138,7 +138,7 @@ function tryInjectTile() {
 
 	var tile = document.createElement("a");
 	tile.id = "addsol-home-tile";
-	tile.href = "/custom_ui";
+	tile.href = "/addsol_ui";
 	tile.className = "workspace-card";
 	tile.title = "Open Addsol UI";
 

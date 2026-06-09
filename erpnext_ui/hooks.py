@@ -16,7 +16,7 @@ add_to_apps_screen = [
 		"name": "erpnext_ui",
 		"logo": "/assets/erpnext_ui/erp_ui/favicon.svg",
 		"title": "Addsol UI",
-		"route": "/custom_ui",
+		"route": "/addsol_ui",
 		"has_permission": "erpnext_ui.api.has_app_permission"
 	}
 ]
