@@ -14,7 +14,7 @@ required_apps = []
 add_to_apps_screen = [
 	{
 		"name": "erpnext_ui",
-		"logo": "/assets/erpnext_ui/erp_ui/favicon.svg",
+		"logo": "/assets/erpnext_ui/erp_ui/logo.png",
 		"title": "Addsol UI",
 		"route": "/addsol_ui",
 		"has_permission": "erpnext_ui.api.has_app_permission"
