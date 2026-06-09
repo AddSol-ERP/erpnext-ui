@@ -3,7 +3,7 @@ import frappe
 
 def has_app_permission():
     """Permission check for the add_to_apps_screen hook.
-    All authenticated users can see the Custom UI app tile.
+    All authenticated users can see the Addsol UI app tile.
     """
     return True
 
