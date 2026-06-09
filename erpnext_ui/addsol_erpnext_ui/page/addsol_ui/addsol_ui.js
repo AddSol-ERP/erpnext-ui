@@ -1,3 +1,57 @@
+/**
+ * Load the Vite manifest to resolve hashed filenames for cache busting.
+ * Falls back to unhashed names (main.js / erp-ui.css) if manifest is unavailable.
+ */
+async function loadErpUIBuild(containerId) {
+	const MANIFEST_URL = "/assets/erpnext_ui/erp_ui/.vite/manifest.json";
+	const ASSETS_BASE = "/assets/erpnext_ui/erp_ui";
+
+	try {
+		const res = await fetch(MANIFEST_URL);
+		const manifest = await res.json();
+		const entry = manifest["src/main.jsx"] || {};
+		const jsFile = entry.file || "main.js";
+		const cssFiles = entry.css || [];
+		const cssFile = cssFiles[0] || "erp-ui.css";
+
+		if (!document.getElementById("erp-ui-css")) {
+			const link = document.createElement("link");
+			link.id = "erp-ui-css";
+			link.rel = "stylesheet";
+			link.href = `${ASSETS_BASE}/${cssFile}`;
+			document.head.appendChild(link);
+		}
+
+		const script = document.createElement("script");
+		script.src = `${ASSETS_BASE}/${jsFile}`;
+		script.onload = function () {
+			if (window.mountErpUI) {
+				window.mountErpUI(containerId);
+			}
+		};
+		document.body.appendChild(script);
+	} catch (e) {
+		console.warn("Failed to load Vite manifest, falling back to unhashed names.", e);
+		// Fallback to unhashed filenames
+		if (!document.getElementById("erp-ui-css")) {
+			const link = document.createElement("link");
+			link.id = "erp-ui-css";
+			link.rel = "stylesheet";
+			link.href = `${ASSETS_BASE}/erp-ui.css`;
+			document.head.appendChild(link);
+		}
+
+		const script = document.createElement("script");
+		script.src = `${ASSETS_BASE}/main.js`;
+		script.onload = function () {
+			if (window.mountErpUI) {
+				window.mountErpUI(containerId);
+			}
+		};
+		document.body.appendChild(script);
+	}
+}
+
 frappe.pages["addsol-ui"].on_page_load = function (wrapper) {
 	let page = frappe.ui.make_app_page({
 		parent: wrapper,
@@ -41,20 +95,6 @@ frappe.pages["addsol-ui"].on_page_load = function (wrapper) {
 		})
 		.html(`<div id="erp-ui-wrapper"><div id="react-root"></div></div>`);
 
-	if (!document.getElementById("erp-ui-css")) {
-		const link = document.createElement("link");
-		link.id = "erp-ui-css";
-		link.rel = "stylesheet";
-		link.href = "/assets/erpnext_ui/erp_ui/erp-ui.css";
-		document.head.appendChild(link);
-	}
-
-	const script = document.createElement("script");
-	script.src = "/assets/erpnext_ui/erp_ui/main.js";
-	script.onload = function () {
-		if (window.mountErpUI) {
-			window.mountErpUI("react-root");
-		}
-	};
-	document.body.appendChild(script);
+	// Load the built JS/CSS via manifest resolution
+	loadErpUIBuild("react-root");
 };
