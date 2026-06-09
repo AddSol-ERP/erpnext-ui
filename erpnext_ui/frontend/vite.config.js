@@ -13,12 +13,16 @@ export default defineConfig({
 
 	build: {
 		outDir: "../public/erp_ui",
+		emptyOutDir: true,
 		assetsDir: "",
-		lib: {
-			entry: "src/main.jsx",
-			name: "ErpUI",
-			formats: ["iife"],
-			fileName: () => "main.js",
+		manifest: true,
+		rollupOptions: {
+			input: "src/main.jsx",
+			output: {
+				entryFileNames: "main.[hash].js",
+				chunkFileNames: "[name].[hash].js",
+				assetFileNames: "[name].[hash][extname]",
+			},
 		},
 	},
 });

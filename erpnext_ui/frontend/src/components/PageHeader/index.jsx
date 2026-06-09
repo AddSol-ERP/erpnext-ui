@@ -202,8 +202,17 @@ export default function PageHeader({
           {/* USER DROPDOWN */}
           <div className="position-relative" ref={userMenuRef}>
             <button
-              className="btn btn-icon d-flex align-items-center gap-1"
-              style={{ fontSize: 12 }}
+              className="btn d-flex align-items-center gap-1"
+              style={{
+                fontSize: 12,
+                height: 34,
+                padding: "0 10px",
+                borderRadius: 8,
+                background: "var(--btn-bg)",
+                border: "1px solid var(--btn-border)",
+                color: "var(--btn-text)",
+                whiteSpace: "nowrap",
+              }}
               onClick={() => setShowUserMenu((p) => !p)}
               title={user || "User"}
             >
