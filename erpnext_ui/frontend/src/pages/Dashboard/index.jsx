@@ -215,7 +215,7 @@ export default function Dashboard() {
       {/* ================= 📦 MODULE GRID ================= */}
       <div className="row g-3">
         {others.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 cursor-pointer">
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 cursor-pointer">
             <div className="position-relative">
               {m.badge && (
                 <span

@@ -459,7 +459,7 @@ export default function GenericFormPage() {
   }
 
   return (
-    <div className="generic-form">
+    <div className="generic-form" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {buildFormLayout()}
 
       {/* Read-only system info for existing docs */}

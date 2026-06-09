@@ -222,7 +222,7 @@ export default function AttendanceCalendar() {
   }
 
   return (
-    <div className="attendance-calendar">
+    <div className="attendance-calendar" style={{ maxWidth: 900, margin: "0 auto", width: "100%" }}>
       {/* ── Month Navigation ── */}
       <div className="d-flex align-items-center justify-content-between mb-3">
         <button className="btn btn-outline-secondary btn-sm" onClick={prevMonth}>
