@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../../context/HeaderContext";
+import ActionTile from "../../../components/ActionTile";
 
 export default function MaterialRequestDashboard() {
   const navigate = useNavigate();
@@ -28,62 +29,53 @@ export default function MaterialRequestDashboard() {
     return () => setHeader({});
   }, []);
 
-  const tiles = [
+  const modules = [
     {
       title: "Purchase Request",
       type: "Purchase",
       icon: "bi-cart",
-      desc: "Request items for purchase",
+      description: "Request items for purchase",
     },
     {
       title: "Material Transfer",
       type: "Transfer",
       icon: "bi-arrow-left-right",
-      desc: "Move stock between warehouses",
+      description: "Move stock between warehouses",
     },
     {
       title: "Material Issue",
       type: "Material Issue",
       icon: "bi-box-arrow-up",
-      desc: "Issue material for usage",
+      description: "Issue material for usage",
     },
     {
       title: "Material Receipt",
       type: "Material Receipt",
       icon: "bi-box-arrow-in-down",
-      desc: "Receive materials",
+      description: "Receive materials",
     },
     {
       title: "Customer Provided",
       type: "Customer Provided",
       icon: "bi-person-check",
-      desc: "Customer supplied materials",
+      description: "Customer supplied materials",
     },
   ];
 
   return (
-    <div className="container-fluid px-2 px-md-3">
-      <div className="row g-3">
-        {tiles.map((t, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3">
-            <div
-              className="card h-100 border-0 shadow-sm"
-              style={{ cursor: "pointer" }}
-              onClick={() => navigate(`type/${t.type}`)}
-            >
-              <div className="card-body d-flex align-items-center">
-                <div
-                  className="me-3 rounded-circle text-white d-flex align-items-center justify-content-center"
-                  style={{ width: 50, height: 50, backgroundColor: "#4f46e5" }}
-                >
-                  <i className={`bi ${t.icon}`} />
-                </div>
-
-                <div>
-                  <div className="fw-bold">{t.title}</div>
-                  <div className="text-muted small">{t.desc}</div>
-                </div>
-              </div>
+    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+      <div className="row">
+        {modules.map((m, i) => (
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 mb-4 cursor-pointer">
+            <div className="position-relative">
+              <ActionTile
+                tile={{
+                  ...m,
+                  color: "#4f46e5",
+                  primary: true,
+                }}
+                onClick={() => navigate(`type/${m.type}`)}
+              />
             </div>
           </div>
         ))}

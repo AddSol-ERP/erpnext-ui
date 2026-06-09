@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
+import ActionTile from "../../components/ActionTile";
 
 export default function ReportDashboard() {
   const navigate = useNavigate();
@@ -16,45 +17,31 @@ export default function ReportDashboard() {
 
     return () => setHeader({});
   }, []);
-  const cards = [
+  const modules = [
     {
       title: "Attendance Report",
-      desc: "View attendance calendar & team data",
+      description: "View attendance calendar & team data",
       icon: "bi-calendar3",
-      path: "/reports/attendance",
+      route: "/reports/attendance",
     },
   ];
 
   return (
-    <div className="container-fluid px-2 px-md-3">
-      <div className="row g-3">
-        {cards.map((c, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 cursor-pointer">
-            <div
-              className="card h-100 shadow-sm border-0"
-              style={{ cursor: "pointer" }}
-              onClick={() => navigate(c.path)}
-            >
-              <div className="card-body d-flex align-items-center">
-                <div
-                  className="me-3 rounded-circle text-white d-flex align-items-center justify-content-center"
-                  style={{ width: 50, height: 50, backgroundColor: "#4f46e5" }}
-                >
-                  <i className={`bi ${c.icon}`} />
-                </div>
-
-                <div>
-                  <div className="fw-bold">{c.title}</div>
-                  <div className="text-muted small">{c.desc}</div>
-                </div>
-              </div>
-            </div>
+    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+      <div className="row">
+        {modules.map((m, i) => (
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 mb-4 cursor-pointer">
+            <ActionTile
+              tile={{
+                ...m,
+                color: "#4f46e5",
+                primary: true,
+              }}
+              onClick={() => navigate(m.route)}
+            />
           </div>
         ))}
       </div>
-
-      {/* EMPTY STATE FOR FUTURE */}
-      <div className="text-muted small mt-4">More reports coming soon...</div>
     </div>
   );
 }

@@ -148,10 +148,10 @@ export default function Dashboard() {
   const others = modules.filter((m) => !m.highlight);
 
   return (
-    <div className="container-fluid px-2 px-md-3 pt-3">
+    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
       {/* ================= 🔥 HIGHLIGHT CARD ================= */}
       {approvals && (
-        <div className="card mb-3" onClick={() => navigate(approvals.route)}>
+        <div className="card mb-4" onClick={() => navigate(approvals.route)}>
           <div className="card-body d-flex align-items-center justify-content-between cursor-pointer">
             <div className="d-flex align-items-center gap-3">
               <div
@@ -182,7 +182,7 @@ export default function Dashboard() {
       )}
 
       {/* ================= 📊 QUICK STATS ================= */}
-      <div className="row g-2 mb-3">
+      <div className="row g-2 mb-4">
         <div className="col-6 col-md-3">
           <div className="card text-center p-2">
             <div className="stat-value">{counts.openRequests}</div>
@@ -213,9 +213,9 @@ export default function Dashboard() {
       </div>
 
       {/* ================= 📦 MODULE GRID ================= */}
-      <div className="row g-3">
+      <div className="row">
         {others.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 cursor-pointer">
+          <div key={i} className="col-12 col-md-6 col-lg-4 col-xl-3 mb-4 cursor-pointer">
             <div className="position-relative">
               {m.badge && (
                 <span
