@@ -29,7 +29,7 @@ boot_session = "erpnext_ui.api.boot_session"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/erpnext_ui/css/erpnext_ui.css"
-# app_include_js = "/assets/erpnext_ui/js/erpnext_ui.js"
+app_include_js = "/assets/erpnext_ui/js/addsol_desk_button.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/erpnext_ui/css/erpnext_ui.css"
