@@ -1,6 +1,6 @@
 /**
  * Enhances the Frappe desk with navigation to the custom tile-based SPA:
- *   1. Navbar button — indigo "Custom UI" pill next to the user avatar.
+ *   1. Navbar button — indigo "Addsol UI" pill next to the user avatar.
  *   2. Home page tile — injected into the workspace/module grid on /app.
  *
  * Supports Frappe v14 (module-grid) and v15 (workspace-grid).
@@ -50,7 +50,7 @@ function addCustomUIButton() {
 	var link = document.createElement("a");
 	link.className = "nav-link";
 	link.href = "/custom_ui";
-	link.title = "Open Custom UI";
+	link.title = "Open Addsol UI";
 	link.style.cssText = [
 		"display:flex",
 		"align-items:center",
@@ -73,7 +73,7 @@ function addCustomUIButton() {
 		'<rect x="3" y="14" width="7" height="7"></rect>' +
 		'<rect x="14" y="14" width="7" height="7"></rect>' +
 		"</svg>" +
-		" Custom UI";
+		" Addsol UI";
 
 	li.appendChild(link);
 	target.parentNode.insertBefore(li, target);
@@ -140,7 +140,7 @@ function tryInjectTile() {
 	tile.id = "addsol-home-tile";
 	tile.href = "/custom_ui";
 	tile.className = "workspace-card";
-	tile.title = "Open Custom UI";
+	tile.title = "Open Addsol UI";
 
 	// Let the grid's own layout apply (flex/grid), just set visual style
 	tile.style.cssText = [
@@ -169,7 +169,7 @@ function tryInjectTile() {
 		'<rect x="14" y="14" width="7" height="7"></rect>' +
 		"</svg>" +
 		"</div>" +
-		'<div style="font-size:14px;font-weight:600;text-align:center;color:#fff;">Custom UI</div>' +
+		'<div style="font-size:14px;font-weight:600;text-align:center;color:#fff;">Addsol UI</div>' +
 		'<div style="font-size:11px;opacity:0.8;text-align:center;color:#fff;">Tile-based interface</div>';
 
 	// Hover effect
