@@ -1751,9 +1751,22 @@ body {
 	z-index: 2000 !important;
 }
 
+.body-container {
+	overflow: hidden;
+}
+
+/* Allow flex child to shrink below content height for proper scrolling */
+.min-h-0 {
+	min-height: 0;
+}
+
 .section-body-scroll {
 	overflow-y: auto;
+	overflow-x: hidden;
 	padding-bottom: 60px; /* 🔥 space for footer */
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 }
 
 .app-footer-credit {
@@ -1776,12 +1789,6 @@ body {
 /* optional: smoother UX */
 .list-container {
 	padding-bottom: 10px;
-}
-
-.section-body-scroll {
-	height: calc(100vh - 120px); /* adjust based on header */
-	display: flex;
-	flex-direction: column;
 }
 
 /* wrapper must fill page */

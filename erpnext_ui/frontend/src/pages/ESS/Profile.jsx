@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useToast } from "../../context/ToastContext";
 import { get } from "../../services/api";
+import { getCurrentUser } from "../../utils/getUser";
+import { getDoctypeConfig } from "../../config/doctypes";
 
 /**
  * ESS Profile page.
@@ -18,6 +20,38 @@ export default function ESSProfile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Read configured print format from doctypes.js
+  const employeeConfig = getDoctypeConfig("Employee");
+  const printFormat = employeeConfig.printFormat || "Employee Appointment Letter";
+
+  /* ── Print / Download helpers ── */
+  const downloadPdf = () => {
+    if (!profile) return;
+    const params = new URLSearchParams({
+      doctype: "Employee",
+      name: profile.name,
+      format: printFormat,
+    });
+    window.open(
+      `/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`,
+      "_blank"
+    );
+  };
+
+  const handlePrint = () => {
+    if (!profile) return;
+    const params = new URLSearchParams({
+      doctype: "Employee",
+      name: profile.name,
+      format: printFormat,
+    });
+    window.open(
+      `/printview?${params.toString()}`,
+      "_blank"
+    );
+  };
+
+  /* ── Header: set on mount with Back only; update with actions once profile loaded ── */
   useEffect(() => {
     setHeader({
       title: "My Profile",
@@ -30,7 +64,7 @@ export default function ESSProfile() {
       actions: [
         {
           label: "Back",
-          variant: "btn-outline-primary",
+          variant: "btn-outline-secondary",
           icon: "bi bi-arrow-left",
           onClick: () => navigate("/ess"),
         },
@@ -40,14 +74,44 @@ export default function ESSProfile() {
   }, []);
 
   useEffect(() => {
+    if (!profile) return;
+    setHeader((prev) => ({
+      ...prev,
+      actions: [
+        {
+          label: "Appointment Letter",
+          variant: "btn-outline-primary",
+          icon: "bi bi-file-earmark-pdf",
+          onClick: downloadPdf,
+        },
+        {
+          label: "Print",
+          variant: "btn-outline-primary",
+          icon: "bi bi-printer",
+          onClick: handlePrint,
+        },
+        {
+          label: "Back",
+          variant: "btn-outline-secondary",
+          icon: "bi bi-arrow-left",
+          onClick: () => navigate("/ess"),
+        },
+      ],
+    }));
+  }, [profile]);
+
+  useEffect(() => {
     loadProfile();
   }, []);
 
   const loadProfile = async () => {
     setLoading(true);
     try {
-      const userRes = await get("method/frappe.auth.get_logged_user");
-      const currentUser = userRes.message;
+      // Use hybrid resolution: window.frappe.session in ERPNext mode,
+      // custom whitelisted API fallback in dev mode.
+      // Direct frappe.auth.get_logged_user is NOT available for Employee-only roles.
+      const userInfo = await getCurrentUser(get);
+      const currentUser = userInfo?.user;
 
       if (!currentUser) {
         toast.error("Could not identify current user");

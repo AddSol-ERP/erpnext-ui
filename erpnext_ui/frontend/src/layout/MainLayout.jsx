@@ -6,10 +6,10 @@ export default function MainLayout() {
   const { header } = useHeader();
 
   return (
-    <div className="body-container d-flex flex-column min-vh-100">
+    <div className="body-container d-flex flex-column vh-100 overflow-hidden">
       <PageHeader {...header} />
 
-      <div className="flex-grow-1 container section-body-scroll">
+      <div className="flex-grow-1 px-3 px-md-4 section-body-scroll min-h-0">
         <Outlet />
       </div>
 

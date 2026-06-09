@@ -25,6 +25,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["employee_name", "employee", "designation"],
+    printFormat: "Employee Appointment Letter",
   },
   Department: {
     list: {
