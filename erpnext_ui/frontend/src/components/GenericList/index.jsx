@@ -65,7 +65,8 @@ function resolveStatus(row, statusField) {
 
   // Handle disabled / is_active boolean fields
   if (typeof raw === "boolean" || raw === 0 || raw === 1) {
-    if (raw === true || raw === 1) return { label: "Active", color: "complete" };
+    if (raw === true || raw === 1)
+      return { label: "Active", color: "complete" };
     return { label: "Disabled", color: "danger" };
   }
 
@@ -139,14 +140,19 @@ export default function GenericListPage() {
         label: "New",
         variant: "btn-primary",
         icon: "bi bi-plus-lg",
-        onClick: () => window.open(`/app/${decodedDoctype}/new-${decodedDoctype}`, '_blank'),
+        onClick: () =>
+          window.open(
+            `/app/${decodedDoctype.toLowerCase()}/new-${decodedDoctype.toLowerCase()}`,
+            "_blank",
+          ),
       });
     } else if (!config.readOnly) {
       actions.push({
         label: "New",
         variant: "btn-primary",
         icon: "bi bi-plus-lg",
-        onClick: () => navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}/new`),
+        onClick: () =>
+          navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}/new`),
       });
     }
 
@@ -189,10 +195,20 @@ export default function GenericListPage() {
 
   const buildFilterConfig = (fields) => {
     const PRIORITY_FIELDS = [
-      "workflow_state", "status", "company", "department",
-      "supplier", "customer", "employee", "employee_name",
-      "posting_date", "transaction_date", "from_date", "to_date",
-      "item_code", "item_group",
+      "workflow_state",
+      "status",
+      "company",
+      "department",
+      "supplier",
+      "customer",
+      "employee",
+      "employee_name",
+      "posting_date",
+      "transaction_date",
+      "from_date",
+      "to_date",
+      "item_code",
+      "item_group",
     ];
 
     const allowedTypes = ["Link", "Select", "Date"];
@@ -209,7 +225,10 @@ export default function GenericListPage() {
           label: f.label,
           field: f.fieldname,
           type: "select",
-          options: f.options.split("\n").map((o) => o.trim()).filter(Boolean),
+          options: f.options
+            .split("\n")
+            .map((o) => o.trim())
+            .filter(Boolean),
         });
       }
       if (f.fieldtype === "Link") {
@@ -228,12 +247,23 @@ export default function GenericListPage() {
     // Fill remaining slots
     for (const f of fields) {
       if (filters.length >= 8) break;
-      if (!f.fieldname || filters.find((x) => x.field === f.fieldname)) continue;
+      if (!f.fieldname || filters.find((x) => x.field === f.fieldname))
+        continue;
       if (!allowedTypes.includes(f.fieldtype)) continue;
-      if (["name", "owner", "creation", "modified", "idx", "docstatus"].includes(f.fieldname)) continue;
+      if (
+        ["name", "owner", "creation", "modified", "idx", "docstatus"].includes(
+          f.fieldname,
+        )
+      )
+        continue;
 
       if (f.fieldtype === "Link") {
-        filters.push({ label: f.label, field: f.fieldname, type: "link", doctype: f.options });
+        filters.push({
+          label: f.label,
+          field: f.fieldname,
+          type: "link",
+          doctype: f.options,
+        });
       }
       if (f.fieldtype === "Select" && f.options) {
         filters.push({
@@ -261,7 +291,8 @@ export default function GenericListPage() {
 
     const customFields = [];
     const cfg = config.list;
-    if (cfg.titleField && cfg.titleField !== "name") customFields.push(cfg.titleField);
+    if (cfg.titleField && cfg.titleField !== "name")
+      customFields.push(cfg.titleField);
     if (cfg.subtitleField) customFields.push(cfg.subtitleField);
     if (cfg.metaField) customFields.push(cfg.metaField);
     if (cfg.statusField) customFields.push(cfg.statusField);
@@ -331,7 +362,15 @@ export default function GenericListPage() {
     } finally {
       setLoading(false);
     }
-  }, [decodedDoctype, page, search, selectedFilters, getFields, buildFilters, buildOrFilters]);
+  }, [
+    decodedDoctype,
+    page,
+    search,
+    selectedFilters,
+    getFields,
+    buildFilters,
+    buildOrFilters,
+  ]);
 
   useEffect(() => {
     loadData();
@@ -348,12 +387,16 @@ export default function GenericListPage() {
   const handleRowClick = (doc) => {
     if (config.nativeForm) {
       // Open ERPNext native form in new tab
-      window.open(`/app/${decodedDoctype}/${doc.name}`, '_blank');
+      window.open(`/app/${decodedDoctype.toLowerCase()}/${doc.name}`, "_blank");
     } else if (config.readOnly) {
       // Navigate to print preview for read-only doctypes
-      navigate(`/${hub}/print/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(doc.name)}`);
+      navigate(
+        `/${hub}/print/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(doc.name)}`,
+      );
     } else {
-      navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(doc.name)}`);
+      navigate(
+        `/${hub}/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(doc.name)}`,
+      );
     }
   };
 
@@ -365,9 +408,9 @@ export default function GenericListPage() {
     const status = resolveStatus(row, cfg.statusField);
 
     return {
-      title: cfg.titleField ? (row[cfg.titleField] || row.name || "—") : row.name,
-      subtitle: cfg.subtitleField ? (row[cfg.subtitleField] || "") : "",
-      meta: cfg.metaField ? (row[cfg.metaField] || "") : "",
+      title: cfg.titleField ? row[cfg.titleField] || row.name || "—" : row.name,
+      subtitle: cfg.subtitleField ? row[cfg.subtitleField] || "" : "",
+      meta: cfg.metaField ? row[cfg.metaField] || "" : "",
       statusLabel: status.label,
       statusColor: status.color,
       raw: row,
@@ -377,7 +420,10 @@ export default function GenericListPage() {
   const listData = data.map(mapToList);
 
   return (
-    <div className="d-flex flex-column h-100" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+    <div
+      className="d-flex flex-column h-100"
+      style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}
+    >
       {/* FILTER MODAL */}
       {filterConfig && (
         <FilterModal
@@ -391,10 +437,7 @@ export default function GenericListPage() {
 
       {/* ACTION BAR */}
       <div className="flex-shrink-0">
-        <ActionBar
-          onSearch={setSearch}
-          onFilter={() => setShowFilter(true)}
-        />
+        <ActionBar onSearch={setSearch} onFilter={() => setShowFilter(true)} />
       </div>
 
       {/* LIST BODY */}
