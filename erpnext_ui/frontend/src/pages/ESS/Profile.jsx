@@ -175,7 +175,7 @@ export default function ESSProfile() {
         : "bg-secondary";
 
   return (
-    <div>
+    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
       {/* ── Profile Header Card ── */}
       <div className="card p-4 mb-4 d-flex flex-row align-items-center gap-4">
         <div
@@ -259,7 +259,7 @@ export default function ESSProfile() {
    ─────────────────────────────────────────── */
 function ProfileField({ label, value, wide }) {
   return (
-    <div className={`col-md-${wide ? 12 : 6} mb-3`}>
+    <div className={`col-md-${wide ? 12 : 6} col-lg-${wide ? 12 : 4} mb-2`}>
       <div className="form-field">
         <span className="form-label">{label}</span>
         <div
