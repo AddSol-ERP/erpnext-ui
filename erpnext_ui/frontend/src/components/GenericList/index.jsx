@@ -142,7 +142,7 @@ export default function GenericListPage() {
         icon: "bi bi-plus-lg",
         onClick: () =>
           window.open(
-            `/app/${decodedDoctype.toLowerCase().replace(" ", "-")}/new-${decodedDoctype.toLowerCase().replace(" ", "-")}`,
+            `/app/${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}/new-${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}`,
             "_blank",
           ),
       });
@@ -388,7 +388,7 @@ export default function GenericListPage() {
     if (config.nativeForm) {
       // Open ERPNext native form in new tab
       window.open(
-        `/app/${decodedDoctype.toLowerCase().replace(" ", "-")}/${doc.name}`,
+        `/app/${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}/${doc.name}`,
         "_blank",
       );
     } else if (config.readOnly) {

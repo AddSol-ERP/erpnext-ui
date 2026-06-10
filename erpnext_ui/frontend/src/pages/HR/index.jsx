@@ -3,11 +3,27 @@ import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
 import ActionTile from "../../components/ActionTile";
 import { useRole } from "../../context/RoleContext";
+import { getDoctypeConfig } from "../../config/doctypes";
 
 export default function HRDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { hasModuleAccess } = useRole();
+
+  const handleTileClick = (tile, isCreate) => {
+    if (isCreate && tile.createRoute) {
+      const doctype = tile.route.split("/").filter(Boolean).pop();
+      const config = getDoctypeConfig(doctype);
+      if (config.nativeForm) {
+        const doctypeUrl = doctype.toLowerCase().replace(/\s+/g, "-");
+        window.open(`/app/${doctypeUrl}/new-${doctypeUrl}`, "_blank");
+      } else {
+        navigate(tile.createRoute);
+      }
+    } else {
+      navigate(tile.route);
+    }
+  };
 
   useEffect(() => {
     setHeader({
@@ -109,13 +125,7 @@ export default function HRDashboard() {
                 ...m,
                 primary: true,
               }}
-              onClick={(tile, isCreate) => {
-                if (isCreate && tile.createRoute) {
-                  navigate(tile.createRoute);
-                } else {
-                  navigate(m.route);
-                }
-              }}
+              onClick={handleTileClick}
             />
           </div>
         ))}

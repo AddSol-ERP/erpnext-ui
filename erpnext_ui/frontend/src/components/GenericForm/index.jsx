@@ -57,9 +57,10 @@ export default function GenericFormPage() {
   useEffect(() => {
     const config = getDoctypeConfig(decodedDoctype);
     if (config.nativeForm) {
+      const doctypeUrl = decodedDoctype.toLowerCase().replace(/\s+/g, "-");
       const url = isNew
-        ? `/app/${decodedDoctype}/new-${decodedDoctype}`
-        : `/app/${decodedDoctype}/${decodedName}`;
+        ? `/app/${doctypeUrl}/new-${doctypeUrl}`
+        : `/app/${doctypeUrl}/${decodedName}`;
       window.open(url, '_blank');
       navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
     }

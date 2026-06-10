@@ -2,10 +2,26 @@ import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
 import ActionTile from "../../components/ActionTile";
+import { getDoctypeConfig } from "../../config/doctypes";
 
 export default function StoreDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+
+  const handleTileClick = (tile, isCreate) => {
+    if (isCreate && tile.createRoute) {
+      const doctype = tile.route.split("/").filter(Boolean).pop();
+      const config = getDoctypeConfig(doctype);
+      if (config.nativeForm) {
+        const doctypeUrl = doctype.toLowerCase().replace(/\s+/g, "-");
+        window.open(`/app/${doctypeUrl}/new-${doctypeUrl}`, "_blank");
+      } else {
+        navigate(tile.createRoute);
+      }
+    } else {
+      navigate(tile.route);
+    }
+  };
 
   useEffect(() => {
     setHeader({
@@ -91,13 +107,7 @@ export default function StoreDashboard() {
                    color: "#4f46e5",
                   primary: true,
                 }}
-                onClick={(tile, isCreate) => {
-                  if (isCreate && tile.createRoute) {
-                    navigate(tile.createRoute);
-                  } else {
-                    navigate(m.route);
-                  }
-                }}
+                onClick={handleTileClick}
               />
             </div>
           </div>
