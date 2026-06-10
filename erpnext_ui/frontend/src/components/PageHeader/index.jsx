@@ -77,6 +77,33 @@ export default function PageHeader({
   const goHome = () => navigate("/");
   const goDesk = () => (window.location.href = "/app");
 
+  const handleLogout = () => {
+    // Use Frappe's built-in logout (handles CSRF token, POST request, proper redirect).
+    // This is available in both embedded (Frappe desk) and standalone (/addsol_ui) modes
+    // since Frappe's JS libraries are loaded on every Frappe-served page.
+    if (window.frappe?.app?.logout) {
+      window.frappe.app.logout();
+      return;
+    }
+
+    // Fallback: try the logout API directly
+    fetch("/api/method/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Frappe-CSRF-Token": window.frappe?.csrf_token || "",
+      },
+    })
+      .then(() => {
+        window.location.href = "/login";
+      })
+      .catch(() => {
+        // Last-resort fallback: direct GET navigation
+        window.location.href = "/logout";
+      });
+  };
+
   return (
     <div className="page-header">
       {/* ================= TOP BAR ================= */}
@@ -242,14 +269,14 @@ export default function PageHeader({
                     window.location.href = "/app";
                   }}
                 >
-                  <i className="bi bi-grid me-2"></i>Back to ERPNext
+                  <i className="bi bi-grid me-2"></i>Back to Desk
                 </button>
                 <div className="dropdown-divider"></div>
                 <button
                   className="dropdown-item text-danger"
                   onClick={() => {
                     setShowUserMenu(false);
-                    window.location.href = "/logout";
+                    handleLogout();
                   }}
                 >
                   <i className="bi bi-box-arrow-right me-2"></i>Logout
