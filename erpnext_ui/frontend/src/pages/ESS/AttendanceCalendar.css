@@ -89,6 +89,19 @@
   color: #fff;
 }
 
+/* ---- Action buttons inside cells ---- */
+.action-buttons {
+  margin-top: 4px;
+}
+
+.action-buttons .btn {
+  font-size: 0.6rem;
+  line-height: 1.4;
+  padding: 1px 4px;
+  height: auto;
+  border-radius: 4px;
+}
+
 /* ---- Day header row needs dark bg / light text ---- */
 .calendar-grid .day-header {
   background: #1a2332 !important;

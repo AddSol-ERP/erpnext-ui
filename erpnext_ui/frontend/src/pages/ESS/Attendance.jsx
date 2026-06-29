@@ -314,16 +314,20 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
     cellClass += " border border-primary border-2";
   }
 
+  // Determine if this attendance record needs corrective action
+  const attStatus = att?.status || "";
+  const isProblematic =
+    attStatus === "Absent" || attStatus === "Half Day" || attStatus === "Late";
+
   if (att) {
     // Attendance record exists
-    const status = att.status || "";
-    if (status === "Present") {
+    if (attStatus === "Present") {
       cellClass += " bg-success-subtle";
       statusClass = "present";
-    } else if (status === "Half Day" || status === "Late") {
+    } else if (attStatus === "Half Day" || attStatus === "Late") {
       cellClass += " bg-warning-subtle";
       statusClass = "late";
-    } else if (status === "Absent" || status === "On Leave") {
+    } else if (attStatus === "Absent" || attStatus === "On Leave") {
       cellClass += " bg-danger-subtle";
       statusClass = "absent";
     } else {
@@ -336,8 +340,6 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
     statusClass = "missing";
   }
   // Future days with no record stay default
-
-  const showActions = !att && isPast;
 
   return (
     <div
@@ -392,10 +394,31 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
                 {att.status === "On Leave" ? "On Leave" : att.status}
               </span>
             )}
+            {/* Action buttons for problematic past attendance (Absent, Half Day, Late) */}
+            {isProblematic && (
+              <div className="mt-1 action-buttons">
+                <button
+                  className="btn btn-sm btn-outline-danger py-0 px-1 mb-1 w-100"
+                  style={{ fontSize: "0.6rem", lineHeight: 1.5 }}
+                  onClick={() => onApplyLeave(dateStr)}
+                  title="Create Leave Application"
+                >
+                  <i className="bi bi-calendar-plus me-1"></i>Leave
+                </button>
+                <button
+                  className="btn btn-sm btn-outline-warning py-0 px-1 w-100"
+                  style={{ fontSize: "0.6rem", lineHeight: 1.5 }}
+                  onClick={() => onRequestAttendance(dateStr)}
+                  title="Request Attendance Correction"
+                >
+                  <i className="bi bi-pencil-square me-1"></i>Attnd
+                </button>
+              </div>
+            )}
           </>
         ) : isPast ? (
           /* Missing attendance — action buttons */
-          <div className="mt-2">
+          <div className="mt-1 action-buttons">
             <div className="att-missing-label mb-1">
               Missing
             </div>
