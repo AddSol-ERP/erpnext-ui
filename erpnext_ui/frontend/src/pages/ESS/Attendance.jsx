@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
+import "./AttendanceCalendar.css";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -255,11 +256,7 @@ export default function AttendanceCalendar() {
         <div className="calendar-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
           {/* Day headers */}
           {DAY_HEADERS.map((h) => (
-            <div
-              key={h}
-              className="text-center py-1 small fw-bold text-muted"
-              style={{ background: "#f9fafb", borderRadius: "4px" }}
-            >
+            <div key={h} className="day-header">
               {h}
             </div>
           ))}
@@ -282,21 +279,21 @@ export default function AttendanceCalendar() {
       )}
 
       {/* ── Legend ── */}
-      <div className="d-flex gap-3 mt-3 small text-muted">
-        <span>
-          <span className="badge bg-success-subtle text-success-emphasis me-1">&check;</span> Present
+      <div className="d-flex gap-3 mt-3 small">
+        <span className="d-flex align-items-center gap-1">
+          <span className="legend-badge present">&check;</span> Present
         </span>
-        <span>
-          <span className="badge bg-warning-subtle text-warning-emphasis me-1">~</span> Late / Half Day
+        <span className="d-flex align-items-center gap-1">
+          <span className="legend-badge late">~</span> Late / Half Day
         </span>
-        <span>
-          <span className="badge bg-danger-subtle text-danger-emphasis me-1">x</span> Absent
+        <span className="d-flex align-items-center gap-1">
+          <span className="legend-badge absent">x</span> Absent
         </span>
-        <span>
-          <span className="badge bg-danger bg-opacity-10 text-danger me-1">!</span> Missing (no record)
+        <span className="d-flex align-items-center gap-1">
+          <span className="legend-badge missing">!</span> Missing (no record)
         </span>
-        <span>
-          <span className="badge bg-info bg-opacity-10 text-info-emphasis me-1">&rarr;</span> Future
+        <span className="d-flex align-items-center gap-1">
+          <span className="legend-badge future">&rarr;</span> Future
         </span>
       </div>
     </div>
@@ -310,8 +307,8 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
   const { day, dateStr, isToday, isPast, att } = cell;
 
   // Determine cell background / styling
-  let cellClass = "position-relative p-1";
-  let statusBadge = null;
+  let cellClass = "attendance-cell position-relative p-1";
+  let statusClass = "future";
 
   if (isToday) {
     cellClass += " border border-primary border-2";
@@ -322,16 +319,21 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
     const status = att.status || "";
     if (status === "Present") {
       cellClass += " bg-success-subtle";
+      statusClass = "present";
     } else if (status === "Half Day" || status === "Late") {
       cellClass += " bg-warning-subtle";
+      statusClass = "late";
     } else if (status === "Absent" || status === "On Leave") {
       cellClass += " bg-danger-subtle";
+      statusClass = "absent";
     } else {
       cellClass += " bg-light";
+      statusClass = "present";
     }
   } else if (isPast) {
     // Past day with NO attendance record → MISSING
     cellClass += " bg-danger bg-opacity-10";
+    statusClass = "missing";
   }
   // Future days with no record stay default
 
@@ -340,6 +342,7 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
   return (
     <div
       className={cellClass}
+      data-status={statusClass}
       style={{
         minHeight: "110px",
         borderRadius: "6px",
@@ -369,13 +372,13 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
             {att.in_time && (
               <div className="d-flex align-items-center gap-1">
                 <i className="bi bi-box-arrow-in-right text-success" style={{ fontSize: "0.6rem" }}></i>
-                <span>{formatTime(att.in_time)}</span>
+                <span className="att-time-text">{formatTime(att.in_time)}</span>
               </div>
             )}
             {att.out_time && (
               <div className="d-flex align-items-center gap-1">
                 <i className="bi bi-box-arrow-right text-danger" style={{ fontSize: "0.6rem" }}></i>
-                <span>{formatTime(att.out_time)}</span>
+                <span className="att-time-text">{formatTime(att.out_time)}</span>
               </div>
             )}
             {att.in_time && att.out_time && (
@@ -385,7 +388,7 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
             )}
             {/* Status if no times */}
             {!att.in_time && !att.out_time && (
-              <span className="fw-medium">
+              <span className="att-status-text">
                 {att.status === "On Leave" ? "On Leave" : att.status}
               </span>
             )}
@@ -393,7 +396,7 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
         ) : isPast ? (
           /* Missing attendance — action buttons */
           <div className="mt-2">
-            <div className="text-danger fw-medium mb-1" style={{ fontSize: "0.65rem" }}>
+            <div className="att-missing-label mb-1">
               Missing
             </div>
             <button

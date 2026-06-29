@@ -1,0 +1,101 @@
+/* ============================================================
+   Attendance Calendar — Color Contrast Fixes
+   The app uses a dark theme (--bs-body-color: #e6edf7) but
+   calendar cells use light Bootstrap subtle backgrounds.
+   These styles ensure text is always readable.
+   ============================================================ */
+
+/* ---- Ensure dark text on light cell backgrounds ---- */
+.attendance-cell {
+  /* Explicitly set text to dark for readability on light bg */
+  color: #1a2332;
+}
+
+/* Day number inherits the dark text from .attendance-cell */
+.attendance-cell .fw-bold.small {
+  color: inherit;
+}
+
+/* In/Out time text */
+.att-time-text {
+  color: #1a2332;
+  font-weight: 500;
+}
+
+/* Status-only text (when no In/Out times, e.g. "On Leave") */
+.att-status-text {
+  color: #1a2332;
+  font-weight: 600;
+}
+
+/* "Today" badge inside cell */
+.attendance-cell .badge.bg-primary {
+  color: #fff;
+}
+
+/* ---- Missing attendance ---- */
+.att-missing-label {
+  color: #b71c1c !important; /* stronger red for visibility */
+  font-weight: 600;
+}
+
+/* ---- Status-specific icon colors for contrast ---- */
+.attendance-cell.present .bi-box-arrow-in-right {
+  color: #15803d !important; /* darker green for contrast on light green bg */
+}
+
+.attendance-cell.late .bi-box-arrow-in-right {
+  color: #92400e !important; /* dark amber for contrast on light yellow bg */
+}
+
+.attendance-cell.absent .bi-box-arrow-right {
+  color: #b91c1c !important; /* darker red for contrast on light red bg */
+}
+
+/* ---- Legend badges (solid colors with white text) ---- */
+.legend-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 4px;
+  color: #fff;
+}
+
+.legend-badge.present {
+  background-color: #22c55e;
+}
+
+.legend-badge.late {
+  background-color: #f59e0b;
+  color: #1a2332; /* dark text on yellow for better contrast */
+}
+
+.legend-badge.absent {
+  background-color: #ef4444;
+}
+
+.legend-badge.missing {
+  background-color: #dc2626;
+}
+
+.legend-badge.future {
+  background-color: #06b6d4;
+  color: #fff;
+}
+
+/* ---- Day header row needs dark bg / light text ---- */
+.calendar-grid .day-header {
+  background: #1a2332 !important;
+  color: #e6edf7 !important;
+  border-radius: 4px;
+  padding: 4px 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}

@@ -298,13 +298,13 @@
 }
 
 .badge-in {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: #22c55e;
+  color: #ffffff;
 }
 
 .badge-out {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: #ef4444;
+  color: #ffffff;
 }
 
 /* Responsive Design */
