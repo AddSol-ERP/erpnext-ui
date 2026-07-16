@@ -224,60 +224,43 @@ export default function AttendanceCalendar() {
 
   return (
     <div className="attendance-calendar" style={{ maxWidth: 900, margin: "0 auto", width: "100%" }}>
-      {/* ── Month Navigation ── */}
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <button className="btn btn-outline-secondary btn-sm" onClick={prevMonth}>
-          <i className="bi bi-chevron-left"></i>
-        </button>
-        <h5 className="mb-0">
-          {MONTHS[month]} {year}
-        </h5>
-        <button
-          className="btn btn-outline-secondary btn-sm"
-          onClick={nextMonth}
-          disabled={isCurrentMonth}
-        >
-          <i className="bi bi-chevron-right"></i>
-        </button>
-      </div>
-
-      {/* ── Summary Cards ── */}
-      {!loading && Object.keys(attendance).length > 0 && (
-        <div className="row g-2 mb-3">
-          <div className="col-3">
-            <div className="card text-center p-2">
-              <div className="stat-value text-success">
-                {Object.values(attendance).filter((a) => a.status === "Present").length}
-              </div>
-              <div className="stat-label">Present</div>
-            </div>
-          </div>
-          <div className="col-3">
-            <div className="card text-center p-2">
-              <div className="stat-value text-danger">
-                {Object.values(attendance).filter((a) => a.status === "Absent").length}
-              </div>
-              <div className="stat-label">Absent</div>
-            </div>
-          </div>
-          <div className="col-3">
-            <div className="card text-center p-2">
-              <div className="stat-value text-primary">
-                {Object.values(attendance).filter((a) => a.status === "On Leave").length}
-              </div>
-              <div className="stat-label">Leaves</div>
-            </div>
-          </div>
-          <div className="col-3">
-            <div className="card text-center p-2">
-              <div className="stat-value text-warning">
-                {Object.values(attendance).filter((a) => a.status === "Half Day" || a.status === "Late").length}
-              </div>
-              <div className="stat-label">Half Day</div>
-            </div>
-          </div>
+      {/* ── Month Navigation + Summary Counts ── */}
+      <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        {/* Left: Navigation */}
+        <div className="d-flex align-items-center gap-2">
+          <button className="btn btn-outline-secondary btn-sm" onClick={prevMonth}>
+            <i className="bi bi-chevron-left"></i>
+          </button>
+          <h5 className="mb-0">
+            {MONTHS[month]} {year}
+          </h5>
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={nextMonth}
+            disabled={isCurrentMonth}
+          >
+            <i className="bi bi-chevron-right"></i>
+          </button>
         </div>
-      )}
+
+        {/* Right: Compact Counts */}
+        {!loading && Object.keys(attendance).length > 0 && (
+          <div className="d-flex gap-2 flex-wrap">
+            <span className="badge bg-success">
+              Present: {Object.values(attendance).filter((a) => a.status === "Present").length}
+            </span>
+            <span className="badge bg-danger">
+              Absent: {Object.values(attendance).filter((a) => a.status === "Absent").length}
+            </span>
+            <span className="badge bg-primary">
+              Leave: {Object.values(attendance).filter((a) => a.status === "On Leave").length}
+            </span>
+            <span className="badge bg-warning text-dark">
+              Half Day: {Object.values(attendance).filter((a) => a.status === "Half Day" || a.status === "Late").length}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* ── Loading ── */}
       {loading && (
