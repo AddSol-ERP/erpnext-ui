@@ -241,6 +241,44 @@ export default function AttendanceCalendar() {
         </button>
       </div>
 
+      {/* ── Summary Cards ── */}
+      {!loading && Object.keys(attendance).length > 0 && (
+        <div className="row g-2 mb-3">
+          <div className="col-3">
+            <div className="card text-center p-2">
+              <div className="stat-value text-success">
+                {Object.values(attendance).filter((a) => a.status === "Present").length}
+              </div>
+              <div className="stat-label">Present</div>
+            </div>
+          </div>
+          <div className="col-3">
+            <div className="card text-center p-2">
+              <div className="stat-value text-danger">
+                {Object.values(attendance).filter((a) => a.status === "Absent").length}
+              </div>
+              <div className="stat-label">Absent</div>
+            </div>
+          </div>
+          <div className="col-3">
+            <div className="card text-center p-2">
+              <div className="stat-value text-primary">
+                {Object.values(attendance).filter((a) => a.status === "On Leave").length}
+              </div>
+              <div className="stat-label">Leaves</div>
+            </div>
+          </div>
+          <div className="col-3">
+            <div className="card text-center p-2">
+              <div className="stat-value text-warning">
+                {Object.values(attendance).filter((a) => a.status === "Half Day" || a.status === "Late").length}
+              </div>
+              <div className="stat-label">Half Day</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Loading ── */}
       {loading && (
         <div className="text-center py-3">
