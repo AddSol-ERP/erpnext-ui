@@ -84,6 +84,16 @@ export const DOCTYPE_CONFIG = {
     searchFields: ["name"],
     nativeForm: true,
   },
+  "Overtime Log": {
+    list: {
+      titleField: "employee_name",
+      subtitleField: "employee",
+      metaField: "attendance_date",
+      statusField: "status",
+    },
+    searchFields: ["employee_name", "employee"],
+    readOnly: true,
+  },
   "Salary Slip": {
     list: {
       titleField: "employee_name",

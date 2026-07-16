@@ -7,13 +7,14 @@ import LeavePreview from "./types/LeavePreview";
 import DefaultPreview from "./types/DefaultPreview";
 import { get } from "../../../../services/api";
 import QuotationPreview from "./types/QuotationPreview";
-// import DefaultPreview from "./types/DefaultPreview";
+import OvertimeLogPreview from "./types/OvertimeLogPreview";
 
 const PREVIEW_MAP = {
   "Purchase Order": PurchaseOrderPreview,
   "Expense Claim": ExpensePreview,
   "Leave Application": LeavePreview,
   Quotation: QuotationPreview,
+  "Overtime Log": OvertimeLogPreview,
 };
 
 export default function PreviewRenderer({ doctype, doc }) {

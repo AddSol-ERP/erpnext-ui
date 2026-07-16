@@ -396,10 +396,15 @@ export default function AttendanceRequestForm() {
           <div className="col-md-6">
             <FormField label="Reason" required>
               <select
-                className="form-control"
+                className="form-select"
                 disabled={isDisabled}
                 value={doc.reason}
                 onChange={(e) => setDoc({ ...doc, reason: e.target.value })}
+                style={{
+                  color: "#0d6efd",
+                  borderColor: "#0d6efd",
+                  backgroundColor: "#f0f4ff",
+                }}
               >
                 <option value="">Select</option>
                 <option value="Work From Home">Work From Home</option>

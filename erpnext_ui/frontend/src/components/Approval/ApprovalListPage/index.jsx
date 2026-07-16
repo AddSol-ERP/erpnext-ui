@@ -41,6 +41,17 @@ const DOCTYPE_FIELDS = {
     "terms",
     "workflow_state",
   ],
+  "Overtime Log": [
+    "employee",
+    "employee_name",
+    "attendance_date",
+    "shift",
+    "in_time",
+    "out_time",
+    "overtime_hours",
+    "status",
+    "remarks",
+  ],
 };
 
 const SEARCH_FIELDS = {
@@ -48,6 +59,7 @@ const SEARCH_FIELDS = {
   "Expense Claim": ["name", "employee"],
   "Leave Application": ["name", "employee", "employee_name"],
   Quotation: ["customer_name", "title"],
+  "Overtime Log": ["name", "employee", "employee_name"],
 };
 
 /* ===============================
@@ -290,6 +302,10 @@ const ApprovalListPage = () => {
       filters.push(["status", "in", ["Open", "Applied"]]);
     }
 
+    if (doctype === "Overtime Log") {
+      filters.push(["status", "=", "Draft"]);
+    }
+
     return filters;
   };
 
@@ -472,6 +488,18 @@ const ApprovalListPage = () => {
         title: row.name || "—",
         subtitle: row.customer_name,
         meta: `${row.transaction_date}`,
+        status: status.color,
+        statusLabel: status.label,
+        raw: row,
+      };
+    }
+
+    // 🔥 Overtime Log (CUSTOM VIEW)
+    if (doctype === "Overtime Log") {
+      return {
+        title: row.employee_name || row.employee || "—",
+        subtitle: `OT: ${row.overtime_hours || 0} hrs`,
+        meta: row.attendance_date || "",
         status: status.color,
         statusLabel: status.label,
         raw: row,

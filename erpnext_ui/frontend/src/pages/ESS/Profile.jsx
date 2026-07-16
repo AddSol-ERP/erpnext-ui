@@ -197,6 +197,19 @@ export default function ESSProfile() {
         </div>
       </div>
 
+      {/* ── HR Approval Warning ── */}
+      {!p.custom_hr_approved && (
+        <div className="alert alert-warning d-flex align-items-center mb-4" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-2" style={{ fontSize: "1.2rem" }} />
+          <div>
+            <strong>HR Approval Pending</strong>
+            <div className="mt-1">
+              Your profile is not yet approved by HR. Salary will not be processed until HR approval.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Personal Details ── */}
       <div className="form-section mb-4">
         <div className="form-section-title">Personal Details</div>

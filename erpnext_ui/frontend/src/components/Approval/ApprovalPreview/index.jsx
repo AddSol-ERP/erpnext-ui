@@ -29,6 +29,10 @@ const APPROVAL_CONFIG = {
     title: "Quotation Approval",
     showTerms: true,
   },
+  "Overtime Log": {
+    type: "workflow",
+    title: "Overtime Approval",
+  },
 };
 
 export default function ApprovalPreview({

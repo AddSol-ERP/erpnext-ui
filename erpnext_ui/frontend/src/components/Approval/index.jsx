@@ -95,15 +95,18 @@ export default function Approval() {
           icon: "bi-calendar-check",
         },
         { doctype: "Quotation", label: "Quotations", icon: "bi-file-text" },
+        { doctype: "Overtime Log", label: "Overtime Logs", icon: "bi-hourglass-split", pendingStatus: "Draft" },
       ];
 
       const fetchedTiles = await Promise.all(
         approvalDoctypes.map(async (item) => {
           try {
+            const pendingStatus = item.pendingStatus || "Pending";
+
             // Fetch pending count
             const pendingRes = await get("method/frappe.client.get_count", {
               doctype: item.doctype,
-              filters: JSON.stringify({ status: "Pending" }),
+              filters: JSON.stringify({ status: pendingStatus }),
             });
 
             // Fetch approved count

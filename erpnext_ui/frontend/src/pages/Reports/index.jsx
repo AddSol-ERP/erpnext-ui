@@ -24,6 +24,12 @@ export default function ReportDashboard() {
       icon: "bi-calendar3",
       route: "/reports/attendance",
     },
+    {
+      title: "Overtime Report",
+      description: "View overtime data across employees",
+      icon: "bi-hourglass-split",
+      route: "/reports/overtime",
+    },
   ];
 
   return (

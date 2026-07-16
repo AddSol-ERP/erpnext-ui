@@ -42,10 +42,10 @@ export default function ESSDashboard() {
       color: "#4f46e5",
     },
     {
-      title: "My Attendance",
+      title: "Attendance Required",
       icon: "bi-clock-history",
       route: "/requests/attendance",
-      description: "Request attendance fixes",
+      description: "Manage attendance requests",
       color: "#4f46e5",
     },
     {
@@ -53,6 +53,13 @@ export default function ESSDashboard() {
       icon: "bi-calendar-month",
       route: "/ess/attendance",
       description: "Monthly calendar view with In/Out times",
+      color: "#4f46e5",
+    },
+    {
+      title: "Overtime Logs",
+      icon: "bi-hourglass-split",
+      route: "/ess/overtime",
+      description: "View your overtime records",
       color: "#4f46e5",
     },
     {

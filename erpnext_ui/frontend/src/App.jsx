@@ -26,6 +26,7 @@ import ExpenseClaimList from "./pages/requests/expense/ExpenseClaimList";
 import ExpenseClaimForm from "./pages/requests/expense/ExpenseClaimForm";
 import ReportDashboard from "./pages/Reports";
 import AttendancePage from "./pages/Reports/attendance/AttendancePage";
+import OvertimeReportPage from "./pages/Reports/overtime/OvertimeReportPage";
 import MaterialRequestDashboard from "./pages/Store/material-request";
 import MaterialRequestList from "./pages/Store/material-request/list";
 import MaterialRequestForm from "./pages/Store/material-request/form";
@@ -41,6 +42,7 @@ import PurchaseDashboard from "./pages/Purchase";
 import ESSDashboard from "./pages/ESS";
 import ESSProfile from "./pages/ESS/Profile";
 import ESSCalendar from "./pages/ESS/Attendance";
+import OvertimeLogs from "./pages/ESS/OvertimeLogs";
 
 // GENERIC LIST & FORM
 import GenericListPage from "./components/GenericList";
@@ -163,6 +165,7 @@ export default function App() {
           />
           <Route path="/reports" element={<ReportDashboard />} />
           <Route path="/reports/attendance" element={<AttendancePage />} />
+          <Route path="/reports/overtime" element={<OvertimeReportPage />} />
 
           {/* ================================
               HR HUB
@@ -194,6 +197,7 @@ export default function App() {
           <Route path="/ess" element={<ESSDashboard />} />
           <Route path="/ess/profile" element={<ESSProfile />} />
           <Route path="/ess/attendance" element={<ESSCalendar />} />
+          <Route path="/ess/overtime" element={<OvertimeLogs />} />
           <Route path="/ess/:doctype" element={<GenericListPage />} />
           <Route path="/ess/:doctype/new" element={<GenericFormPage />} />
           <Route path="/ess/:doctype/:name" element={<GenericFormPage />} />
