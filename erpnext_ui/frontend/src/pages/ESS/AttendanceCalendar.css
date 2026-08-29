@@ -93,9 +93,18 @@
   background-color: #64748b;
 }
 
+.legend-badge.holiday {
+  background-color: #14b8a6;
+}
+
 /* ---- Weekly off cells (slate tint) ---- */
 .attendance-cell.weeklyoff {
   background-color: rgba(100, 116, 139, 0.12);
+}
+
+/* ---- Holiday cells (teal tint) ---- */
+.attendance-cell.holiday {
+  background-color: rgba(20, 184, 166, 0.12);
 }
 
 /* ---- Action buttons inside cells ---- */

@@ -2,7 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
-import { fetchEmployeeWeeklyOff } from "../../utils/weeklyOff";
+import {
+  fetchMonthlyAttendance,
+  daySetForRow,
+} from "../../utils/monthlyAttendance";
 import "./AttendanceCalendar.css";
 
 const MONTHS = [
@@ -31,6 +34,7 @@ export default function AttendanceCalendar() {
   const [empName, setEmpName] = useState("");        // display name
   const [attendance, setAttendance] = useState({});  // { "YYYY-MM-DD": { in_time, out_time, status, ... } }
   const [weeklyOff, setWeeklyOff] = useState(new Set()); // Set<"YYYY-MM-DD"> weekly off dates
+  const [holidays, setHolidays] = useState(new Set()); // Set<"YYYY-MM-DD"> holiday dates
   const [loading, setLoading] = useState(true);
 
   const year = currentMonth.getFullYear();
@@ -149,8 +153,24 @@ export default function AttendanceCalendar() {
     let cancelled = false;
 
     (async () => {
-      const off = await fetchEmployeeWeeklyOff(currentMonth, employee);
-      if (!cancelled) setWeeklyOff(off);
+      try {
+        const res = await fetchMonthlyAttendance({
+          year: currentMonth.getFullYear(),
+          month: currentMonth.getMonth() + 1,
+          employee,
+        });
+        const row = (res.rows || [])[0];
+        if (!cancelled) {
+          setWeeklyOff(daySetForRow(row, "WO"));
+          setHolidays(daySetForRow(row, "H"));
+        }
+      } catch (e) {
+        console.error("Failed to load weekly off / holidays:", e);
+        if (!cancelled) {
+          setWeeklyOff(new Set());
+          setHolidays(new Set());
+        }
+      }
     })();
 
     return () => {
@@ -192,7 +212,8 @@ export default function AttendanceCalendar() {
     const isPast = cellDate < new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const att = attendance[dateStr] || null;
     const isWeeklyOff = !att && weeklyOff.has(dateStr);
-    cells.push({ day: d, dateStr, isToday, isPast, att, isWeeklyOff });
+    const isHoliday = !att && holidays.has(dateStr);
+    cells.push({ day: d, dateStr, isToday, isPast, att, isWeeklyOff, isHoliday });
   }
 
   /* ------------------------------------------------------------------
@@ -341,6 +362,9 @@ export default function AttendanceCalendar() {
           <span className="legend-badge weeklyoff">W</span> Weekly Off
         </span>
         <span className="d-flex align-items-center gap-1">
+          <span className="legend-badge holiday">H</span> Holiday
+        </span>
+        <span className="d-flex align-items-center gap-1">
           <span className="legend-badge future">&rarr;</span> Future
         </span>
       </div>
@@ -352,7 +376,7 @@ export default function AttendanceCalendar() {
    DAY CELL COMPONENT
 ================================================================== */
 function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
-  const { day, dateStr, isToday, isPast, att, isWeeklyOff } = cell;
+  const { day, dateStr, isToday, isPast, att, isWeeklyOff, isHoliday } = cell;
 
   // Determine cell background / styling
   let cellClass = "attendance-cell position-relative p-1";
@@ -386,6 +410,10 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
     // Weekly off — no attendance expected (attendance record wins)
     cellClass += " weeklyoff";
     statusClass = "weeklyoff";
+  } else if (isHoliday) {
+    // Holiday — no attendance expected (attendance record wins)
+    cellClass += " holiday";
+    statusClass = "holiday";
   } else if (isPast) {
     // Past day with NO attendance record → MISSING
     cellClass += " bg-danger bg-opacity-10";
@@ -480,6 +508,20 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
               title="Weekly Off"
             >
               W
+            </span>
+          </div>
+        ) : isHoliday ? (
+          /* Holiday — no attendance expected, no actions */
+          <div
+            className="d-flex align-items-center justify-content-center"
+            style={{ minHeight: "58px" }}
+          >
+            <span
+              className="badge"
+              style={{ background: "#14b8a6", color: "#fff", fontSize: "0.7rem" }}
+              title="Holiday"
+            >
+              H
             </span>
           </div>
         ) : isPast ? (

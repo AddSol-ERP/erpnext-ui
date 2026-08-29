@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { get } from "../../../services/api";
-import { fetchEmployeeWeeklyOff } from "../../../utils/weeklyOff";
+import {
+  fetchMonthlyAttendance,
+  daySetForRow,
+} from "../../../utils/monthlyAttendance";
 
 export default function AttendanceCalendar({
   month,
@@ -11,6 +14,7 @@ export default function AttendanceCalendar({
   const [data, setData] = useState({});
   const [teamData, setTeamData] = useState({});
   const [weeklyOff, setWeeklyOff] = useState(new Set());
+  const [holidays, setHolidays] = useState(new Set());
 
   const start = new Date(month.getFullYear(), month.getMonth(), 1);
   const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
@@ -64,12 +68,25 @@ export default function AttendanceCalendar({
     setData(map);
     setTeamData(teamMap);
 
-    // Weekly off dates for the selected employee (employee mode only)
+    // Weekly off + holiday dates for the selected employee (employee mode only)
     if (employee) {
-      const off = await fetchEmployeeWeeklyOff(month, employee);
-      setWeeklyOff(off);
+      try {
+        const res = await fetchMonthlyAttendance({
+          year: month.getFullYear(),
+          month: month.getMonth() + 1,
+          employee,
+        });
+        const myRow = (res.rows || [])[0];
+        setWeeklyOff(daySetForRow(myRow, "WO"));
+        setHolidays(daySetForRow(myRow, "H"));
+      } catch (e) {
+        console.error("Failed to load weekly off / holidays:", e);
+        setWeeklyOff(new Set());
+        setHolidays(new Set());
+      }
     } else {
       setWeeklyOff(new Set());
+      setHolidays(new Set());
     }
   };
 
@@ -96,17 +113,25 @@ export default function AttendanceCalendar({
     const status = data[date];
     const team = teamData[date];
     const isWeeklyOff = weeklyOff.has(date);
+    const isHoliday = holidays.has(date);
+    const isDayOff = isWeeklyOff || isHoliday;
 
     cells.push(
       <div
         key={i}
         className="border rounded p-2"
         onClick={() =>
-          employee && onDateClick && onDateClick(date, employee, status, isWeeklyOff)
+          employee &&
+          onDateClick &&
+          onDateClick(date, employee, status, isDayOff)
         }
         style={{
           minHeight: 90,
-          background: isWeeklyOff && !status ? "rgba(100, 116, 139, 0.1)" : "var(--card-bg)",
+          background: isWeeklyOff
+            ? "rgba(100, 116, 139, 0.1)"
+            : isHoliday
+              ? "rgba(20, 184, 166, 0.1)"
+              : "var(--card-bg)",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
@@ -146,6 +171,17 @@ export default function AttendanceCalendar({
               }}
             >
               Weekly Off
+            </div>
+          ) : isHoliday ? (
+            <div
+              className="badge"
+              style={{
+                fontSize: 11,
+                background: "#14b8a6",
+                color: "#fff",
+              }}
+            >
+              Holiday
             </div>
           ) : (
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>-</div>

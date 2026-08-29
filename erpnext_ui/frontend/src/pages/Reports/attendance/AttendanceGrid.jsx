@@ -1,10 +1,28 @@
 import { useEffect, useState } from "react";
-import { get } from "../../../services/api";
-import { fetchWeeklyOffMap } from "../../../utils/weeklyOff";
+import { fetchMonthlyAttendance } from "../../../utils/monthlyAttendance";
 
 const WEEKLY_OFF_COLOR = "#64748b";
+const HOLIDAY_COLOR = "#14b8a6";
 
 const CELL = 34;
+const EMP_COL = 200;
+const STICKY_BG = "rgb(21 29 47)";
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Report status abbreviations -> display mapping.
+// `color: ""` rows (WO/H) are painted with their own inline background.
+const STATUS_MAP = {
+  P: { short: "P", label: "Present", color: "bg-success" },
+  WFH: { short: "P", label: "Work From Home", color: "bg-success" },
+  A: { short: "A", label: "Absent", color: "bg-danger" },
+  "HD/A": { short: "H", label: "Half Day", color: "bg-warning" },
+  "HD/P": { short: "H", label: "Half Day", color: "bg-warning" },
+  L: { short: "L", label: "On Leave", color: "bg-primary" },
+  WO: { short: "W", label: "Weekly Off", color: "" },
+  H: { short: "H", label: "Holiday", color: "" },
+  "": { short: "-", label: "No Data", color: "bg-secondary" },
+};
 
 export default function AttendanceGrid({
   month,
@@ -12,52 +30,21 @@ export default function AttendanceGrid({
   department,
   onDateClick,
 }) {
-  const [employees, setEmployees] = useState([]);
-  const [data, setData] = useState({});
-  const [weeklyOff, setWeeklyOff] = useState({});
-
-  const start = new Date(month.getFullYear(), month.getMonth(), 1);
-  const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const [rows, setRows] = useState([]);
+  const [days, setDays] = useState([]);
 
   /* ================= LOAD ================= */
   const load = async () => {
     try {
-      const attFilters = [["attendance_date", "between", [start, end]]];
-
-      if (employee) attFilters.push(["employee", "=", employee]);
-      if (department) attFilters.push(["department", "=", department]);
-
-      const empFilters = [];
-      if (employee) empFilters.push(["name", "=", employee]);
-      if (department) empFilters.push(["department", "=", department]);
-
-      const [empRes, attRes] = await Promise.all([
-        get("resource/Employee", {
-          fields: JSON.stringify(["name", "employee_name", "holiday_list"]),
-          filters: JSON.stringify(empFilters),
-          limit_page_length: 200,
-        }),
-        get("resource/Attendance", {
-          fields: JSON.stringify(["employee", "attendance_date", "status"]),
-          filters: JSON.stringify(attFilters),
-          limit_page_length: 2000,
-        }),
-      ]);
-
-      const empList = empRes.data || [];
-      setEmployees(empList);
-
-      const map = {};
-      (attRes.data || []).forEach((d) => {
-        if (!map[d.employee]) map[d.employee] = {};
-        map[d.employee][d.attendance_date] = d.status;
+      const res = await fetchMonthlyAttendance({
+        year: month.getFullYear(),
+        month: month.getMonth() + 1,
+        department,
+        employee,
       });
 
-      setData(map);
-
-      // Weekly off days from each employee's holiday list
-      const wMap = await fetchWeeklyOffMap(month, empList);
-      setWeeklyOff(wMap);
+      setRows(res.rows || []);
+      setDays(res.days || []);
     } catch (e) {
       console.error(e);
     }
@@ -67,27 +54,8 @@ export default function AttendanceGrid({
     load();
   }, [month, employee, department]);
 
-  /* ================= HELPERS ================= */
-  const days = Array.from({ length: end.getDate() }, (_, i) => i + 1);
-
-  const getShort = (status) => {
-    if (status === "Present") return "P";
-    if (status === "Absent") return "A";
-    if (status === "Half Day") return "H";
-    if (status === "On Leave") return "L";
-    return "-";
-  };
-
-  const getColor = (status) => {
-    if (status === "Present") return "bg-success";
-    if (status === "Absent") return "bg-danger";
-    if (status === "Half Day") return "bg-warning";
-    if (status === "On Leave") return "bg-primary";
-    return "bg-secondary";
-  };
-
   /* ================= EMPTY ================= */
-  if (!employees.length) {
+  if (!rows.length) {
     return (
       <div className="card p-3 text-center text-muted">No employees found</div>
     );
@@ -106,20 +74,20 @@ export default function AttendanceGrid({
         <div
           style={{
             display: "flex",
-            minWidth: 200 + days.length * CELL,
+            minWidth: EMP_COL + days.length * CELL,
             position: "sticky",
             top: 0,
             zIndex: 3,
-            background: "rgb(21 29 47)",
+            background: STICKY_BG,
           }}
         >
           <div
             style={{
-              width: 200,
-              minWidth: 200,
+              width: EMP_COL,
+              minWidth: EMP_COL,
               position: "sticky",
               left: 0,
-              background: "rgb(21 29 47)",
+              background: STICKY_BG,
               zIndex: 2,
               padding: "8px",
               fontWeight: 600,
@@ -129,42 +97,48 @@ export default function AttendanceGrid({
             Employee
           </div>
 
-          {days.map((d) => (
-            <div
-              key={d}
-              style={{
-                width: CELL,
-                minWidth: CELL,
-                textAlign: "center",
-                fontSize: 12,
-                padding: "6px 0",
-                borderBottom: "1px solid var(--bs-border-color)",
-                color: "var(--text-muted)",
-              }}
-            >
-              {d}
-            </div>
-          ))}
+          {days.map((d) => {
+            const dt = new Date(`${d}T00:00:00`);
+            return (
+              <div
+                key={d}
+                title={
+                  Number.isNaN(dt.getTime()) ? "" : WEEKDAYS[dt.getDay()]
+                }
+                style={{
+                  width: CELL,
+                  minWidth: CELL,
+                  textAlign: "center",
+                  fontSize: 12,
+                  padding: "6px 0",
+                  borderBottom: "1px solid var(--bs-border-color)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {Number.isNaN(dt.getTime()) ? d.slice(8) : dt.getDate()}
+              </div>
+            );
+          })}
         </div>
 
         {/* ROWS */}
-        {employees.map((emp) => (
+        {rows.map((row) => (
           <div
-            key={emp.name}
+            key={row.employee}
             style={{
               display: "flex",
-              minWidth: 200 + days.length * CELL,
+              minWidth: EMP_COL + days.length * CELL,
               borderBottom: "1px solid var(--bs-border-color)",
             }}
           >
             {/* EMPLOYEE */}
             <div
               style={{
-                width: 200,
-                minWidth: 200,
+                width: EMP_COL,
+                minWidth: EMP_COL,
                 position: "sticky",
                 left: 0,
-                background: "rgb(21 29 47)",
+                background: STICKY_BG,
                 zIndex: 1,
                 padding: "8px",
                 fontSize: 13,
@@ -173,20 +147,20 @@ export default function AttendanceGrid({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
               }}
-              title={emp.employee_name}
+              title={`${row.employee_name} (${row.employee})${
+                row.department ? ` · ${row.department}` : ""
+              }`}
             >
-              {emp.employee_name}
+              {row.employee_name}
             </div>
 
             {/* DAYS */}
             {days.map((d) => {
-              const date = `${month.getFullYear()}-${String(
-                month.getMonth() + 1,
-              ).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
-              const status = data[emp.name]?.[date];
-              const isWeeklyOff = weeklyOff[emp.name]?.has(date);
-              const showWeeklyOff = !status && isWeeklyOff;
+              const status = row.statuses?.[d] || "";
+              const meta = STATUS_MAP[status] || STATUS_MAP[""];
+              const isDayOff = status === "WO" || status === "H";
+              // Keep AttendancePage's contract: pass full labels, blank for no-data
+              const clickStatus = meta.label === "No Data" ? "" : meta.label;
 
               return (
                 <div
@@ -199,43 +173,41 @@ export default function AttendanceGrid({
                     alignItems: "center",
                     justifyContent: "center",
                     cursor: "pointer",
-                    ...(isWeeklyOff && !status
-                      ? { background: "rgba(100, 116, 139, 0.1)" }
+                    ...(isDayOff
+                      ? {
+                          background:
+                            status === "WO"
+                              ? "rgba(100, 116, 139, 0.1)"
+                              : "rgba(20, 184, 166, 0.1)",
+                        }
                       : {}),
                   }}
                   onClick={() =>
+                    !isDayOff &&
                     onDateClick &&
-                    onDateClick(date, emp.name, status, showWeeklyOff)
+                    onDateClick(d, row.employee, clickStatus)
                   }
                 >
                   <span
-                    className={`badge ${getColor(status)}`}
-                    style={
-                      showWeeklyOff
-                        ? {
-                            width: 22,
-                            height: 22,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderRadius: 6,
-                            fontSize: 10,
-                            background: WEEKLY_OFF_COLOR,
-                            color: "#fff",
-                          }
-                        : {
-                            width: 22,
-                            height: 22,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderRadius: 6,
-                            fontSize: 10,
-                          }
-                    }
-                    title={showWeeklyOff ? "Weekly Off" : status || "No Data"}
+                    className={`badge ${meta.color}`}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 6,
+                      fontSize: 10,
+                      ...(status === "WO"
+                        ? { background: WEEKLY_OFF_COLOR, color: "#fff" }
+                        : {}),
+                      ...(status === "H"
+                        ? { background: HOLIDAY_COLOR, color: "#fff" }
+                        : {}),
+                    }}
+                    title={meta.label}
                   >
-                    {showWeeklyOff ? "W" : getShort(status)}
+                    {meta.short}
                   </span>
                 </div>
               );

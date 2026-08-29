@@ -11,6 +11,12 @@ export default function AttendanceLegend() {
       >
         Weekly Off
       </span>
+      <span
+        className="badge me-2"
+        style={{ background: "#14b8a6", color: "#fff" }}
+      >
+        Holiday
+      </span>
     </div>
   );
 }

@@ -440,3 +440,164 @@ def leave_balance_employees(department=None):
     )
 
     return {"employees": employees}
+
+
+@frappe.whitelist()
+def monthly_attendance(year, month, department=None, employee=None, company=None):
+    """Monthly attendance matrix for the attendance report.
+
+    Reuses the built-in "Monthly Attendance Sheet" report logic server-side, so
+    weekly off (WO) and holiday (H) days are computed exactly like ERPNext does
+    (from each employee's / company's Holiday List). Access is scoped per user
+    (HR/HOD/manager/self) the same way as leave_balance_report.
+
+    Args:
+        year (int): Calendar year, e.g. 2026.
+        month (int): Calendar month 1-12.
+        department (str, optional): Department to filter by.
+        employee (str, optional): Employee name to filter by.
+        company (str, optional): Company; defaults to the employee's / default.
+
+    Returns:
+        dict: {
+          "company", "year", "month",
+          "days": ["YYYY-MM-DD", ...],
+          "rows": [{
+            "employee", "employee_name", "department", "designation",
+            "statuses": {"YYYY-MM-DD": "P|A|HD/L/WO/H|..."}  # "" = no data
+          }],
+          "is_hr", "is_hod", "can_view_others"
+        }
+    """
+    import calendar
+    from datetime import date as _date
+
+    user = frappe.session.user
+    scope = _get_scope(user)
+
+    try:
+        year = int(year)
+        month = int(month)
+    except (TypeError, ValueError):
+        frappe.throw("Invalid year/month.")
+
+    total_days = calendar.monthrange(year, month)[1]
+    days = [_date(year, month, d).isoformat() for d in range(1, total_days + 1)]
+
+    # ----- Resolve the employees the user may see -----
+    emp_filters = {"status": "Active"}
+
+    if employee:
+        if scope["my_employee"] == employee or scope["can_view_others"]:
+            emp_filters["name"] = employee
+        else:
+            emp_filters["name"] = scope["my_employee"]
+    elif scope["can_view_others"]:
+        if department:
+            allowed = scope["allowed_departments"]
+            if allowed is not None and department not in allowed:
+                department = None
+            if department:
+                emp_filters["department"] = department
+        elif scope["allowed_departments"] is not None:
+            emp_filters["department"] = ["in", scope["allowed_departments"]]
+    else:
+        emp_filters["name"] = scope["my_employee"]
+
+    employees = frappe.get_all(
+        "Employee",
+        filters=emp_filters,
+        fields=["name", "employee_name", "department", "designation", "company"],
+        order_by="employee_name asc",
+        ignore_permissions=True,
+    )
+
+    if not employees:
+        return {
+            "company": company or "",
+            "year": year,
+            "month": month,
+            "days": days,
+            "rows": [],
+            "is_hr": scope["is_hr"],
+            "is_hod": scope["is_hod"],
+            "can_view_others": scope["can_view_others"],
+        }
+
+    # ----- Company for the report filter -----
+    if not company:
+        company = next(
+            (e.get("company") for e in employees if e.get("company")), ""
+        ) or frappe.db.get_default("company")
+    if not company:
+        company = frappe.db.get_single_value("Global Defaults", "default_company")
+
+    # Seed the matrix with ALL scoped employees so people with zero attendance
+    # still appear (all-blank cells).
+    rows = {}
+    for e in employees:
+        rows[e["name"]] = {
+            "employee": e["name"],
+            "employee_name": e.get("employee_name") or e["name"],
+            "department": e.get("department") or "",
+            "designation": e.get("designation") or "",
+            "statuses": {d: "" for d in days},
+        }
+
+    # ----- Run the built-in Monthly Attendance Sheet report -----
+    report_data = []
+    try:
+        try:
+            from hrms.hr.report.monthly_attendance_sheet.monthly_attendance_sheet import (
+                execute as _report_execute,
+            )
+        except ImportError:
+            from erpnext.hr.report.monthly_attendance_sheet.monthly_attendance_sheet import (
+                execute as _report_execute,
+            )
+
+        report_filters = frappe._dict(
+            {
+                "filter_based_on": "Month",
+                "month": month,
+                "year": year,
+                "company": company,
+                "include_company_descendants": True,
+            }
+        )
+        if not scope["can_view_others"] and scope["my_employee"]:
+            # Regular employees only need their own row.
+            report_filters["employee"] = scope["my_employee"]
+        _columns, report_data, _message, _chart = _report_execute(report_filters)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "erpnext_ui.monthly_attendance")
+
+    # ----- Merge report rows (per employee x shift) into the matrix -----
+    # The report keys day cells as "DD-MM-YYYY"; per day we keep the first
+    # non-blank value across an employee's shift rows.
+    for row in report_data or []:
+        emp_key = row.get("employee")
+        if emp_key not in rows:
+            continue
+        target = rows[emp_key]
+        for d in days:
+            date_part = _date.fromisoformat(d)
+            key = date_part.strftime("%d-%m-%Y")
+            value = row.get(key) or ""
+            if value and not target["statuses"][d]:
+                target["statuses"][d] = value
+        if row.get("department") and not target["department"]:
+            target["department"] = row["department"]
+        if row.get("designation") and not target["designation"]:
+            target["designation"] = row["designation"]
+
+    return {
+        "company": company or "",
+        "year": year,
+        "month": month,
+        "days": days,
+        "rows": list(rows.values()),
+        "is_hr": scope["is_hr"],
+        "is_hod": scope["is_hod"],
+        "can_view_others": scope["can_view_others"],
+    }
