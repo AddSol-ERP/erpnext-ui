@@ -442,6 +442,77 @@ def leave_balance_employees(department=None):
     return {"employees": employees}
 
 
+def _get_effective_holiday_list(employee, company, as_on):
+    """Resolve an employee's holiday list for a date.
+
+    Precedence:
+      1. Holiday List Assignment (HLA) for the employee, then the company.
+      2. Legacy Employee.holiday_list field.
+      3. Legacy Company.default_holiday_list.
+      4. Global Defaults.default_holiday_list.
+
+    Returns the holiday list name, or "" if none can be found.
+    """
+    try:
+        from hrms.utils.holiday_list import get_assigned_holiday_list
+    except ImportError:
+        try:
+            from erpnext.utils.holiday_list import get_assigned_holiday_list
+        except ImportError:
+            get_assigned_holiday_list = None
+
+    if get_assigned_holiday_list:
+        for assigned_to in (employee, company):
+            if assigned_to:
+                hl = get_assigned_holiday_list(assigned_to, as_on)
+                if hl:
+                    return hl
+
+    if employee:
+        hl = frappe.db.get_value("Employee", employee, "holiday_list")
+        if hl:
+            return hl
+
+    if company:
+        hl = frappe.db.get_value("Company", company, "default_holiday_list")
+        if hl:
+            return hl
+
+    return frappe.db.get_single_value("Global Defaults", "default_holiday_list") or ""
+
+
+def _fetch_month_holidays(holiday_list, start_date, end_date):
+    """Holiday child rows for a holiday list in a date range.
+
+    Returns a list of {"holiday_date": "YYYY-MM-DD", "weekly_off": 0|1}.
+    The child date field is `holiday_date` in HRMS (older schemas used
+    `holiday`); the meta is checked so either version works.
+    """
+    if not holiday_list:
+        return []
+
+    date_field = (
+        "holiday_date"
+        if frappe.get_meta("Holiday").has_field("holiday_date")
+        else "holiday"
+    )
+
+    rows = frappe.get_all(
+        "Holiday",
+        filters={
+            "parent": holiday_list,
+            date_field: ["between", [start_date, end_date]],
+        },
+        fields=[date_field, "weekly_off"],
+        ignore_permissions=True,
+    )
+
+    return [
+        {"holiday_date": str(r[date_field]), "weekly_off": r.get("weekly_off") or 0}
+        for r in rows
+    ]
+
+
 @frappe.whitelist()
 def monthly_attendance(year, month, department=None, employee=None, company=None):
     """Monthly attendance matrix for the attendance report.
@@ -590,6 +661,23 @@ def monthly_attendance(year, month, department=None, employee=None, company=None
             target["department"] = row["department"]
         if row.get("designation") and not target["designation"]:
             target["designation"] = row["designation"]
+
+    # ----- Overlay weekly off / holiday on blank days -----
+    # The built-in report only resolves holiday lists via Holiday List
+    # Assignment, so installs using the classic Employee.holiday_list field
+    # would otherwise get no WO/H at all. We fill those blanks ourselves;
+    # attendance statuses from the report always win.
+    for row in rows.values():
+        hl = _get_effective_holiday_list(row["employee"], company, days[0])
+        if not hl:
+            continue
+        day_off = {}
+        for h in _fetch_month_holidays(hl, days[0], days[-1]):
+            day_off[h["holiday_date"]] = "WO" if h["weekly_off"] else "H"
+        statuses = row["statuses"]
+        for d in days:
+            if not statuses[d] and d in day_off:
+                statuses[d] = day_off[d]
 
     return {
         "company": company or "",
