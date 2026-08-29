@@ -100,25 +100,41 @@ def _get_scope(user):
     my_employee = my_emp.get("name") or ""
     my_department = my_emp.get("department") or ""
 
-    # HOD = Department.hod matches the logged-in user OR their employee record
+    # HOD detection: Department.hod (user link) and/or Department.head_of_department
+    # (employee link). Field presence is checked so older/custom schemas that only
+    # expose one of the two don't raise "Unknown column" errors.
+    dept_meta = frappe.get_meta("Department")
+    has_hod = dept_meta.has_field("hod")
+    has_head_of_department = dept_meta.has_field("head_of_department")
+
     hod_departments = []
     if user and user != "Guest":
-        q = {"hod": user}
-        hod_departments = [
-            d["name"]
-            for d in frappe.get_all(
-                "Department",
-                filters=q,
-                fields=["name"],
-                ignore_permissions=True,
-            )
-        ]
-        if my_employee:
+        if has_hod:
             hod_departments += [
                 d["name"]
                 for d in frappe.get_all(
                     "Department",
-                    filters={"hod": my_employee},
+                    filters={"hod": user},
+                    fields=["name"],
+                    ignore_permissions=True,
+                )
+            ]
+            if my_employee:
+                hod_departments += [
+                    d["name"]
+                    for d in frappe.get_all(
+                        "Department",
+                        filters={"hod": my_employee},
+                        fields=["name"],
+                        ignore_permissions=True,
+                    )
+                ]
+        if has_head_of_department and my_employee:
+            hod_departments += [
+                d["name"]
+                for d in frappe.get_all(
+                    "Department",
+                    filters={"head_of_department": my_employee},
                     fields=["name"],
                     ignore_permissions=True,
                 )
@@ -185,7 +201,6 @@ def _aggregate_leaves(employees, fy):
             "from_date",
             "new_leaves_allocated",
             "unused_leaves",
-            "total_leaves_allocated",
         ],
         order_by="from_date desc",
         ignore_permissions=True,
@@ -230,7 +245,10 @@ def _aggregate_leaves(employees, fy):
         }
         for lt in keys:
             alloc_row = best_alloc.get((emp["name"], lt))
-            allocated = alloc_row["total_leaves_allocated"] or 0
+            # Allocated = new + carry-forward (works across ERPNext versions)
+            allocated = (alloc_row["new_leaves_allocated"] or 0) + (
+                alloc_row["unused_leaves"] or 0
+            )
             used_days = used.get((emp["name"], lt), 0)
             leaves[lt] = {
                 "leave_type": lt,
@@ -365,3 +383,44 @@ def leave_balance_report(department=None, employee=None, fiscal_year=None):
         "employees": rows,
         "my_employee": scope["my_employee"],
     }
+
+
+@frappe.whitelist()
+def leave_balance_employees(department=None):
+    """Permission-scoped employee list for the Leave Balance employee filter.
+
+    Returns the active employees the current user is allowed to see for the
+    leave balance report (same scoping as leave_balance_report).
+
+    Args:
+        department (str, optional): Restrict to a single department.
+
+    Returns:
+        dict: {"employees": [{"name", "employee_name", "department"}]}
+    """
+    user = frappe.session.user
+    scope = _get_scope(user)
+
+    emp_filters = {"status": "Active"}
+
+    if scope["can_view_others"]:
+        if department:
+            allowed = scope["allowed_departments"]
+            if allowed is not None and department not in allowed:
+                department = None
+            if department:
+                emp_filters["department"] = department
+        elif scope["allowed_departments"] is not None:
+            emp_filters["department"] = ["in", scope["allowed_departments"]]
+    else:
+        emp_filters["name"] = scope["my_employee"]
+
+    employees = frappe.get_all(
+        "Employee",
+        filters=emp_filters,
+        fields=["name", "employee_name", "department"],
+        order_by="employee_name asc",
+        ignore_permissions=True,
+    )
+
+    return {"employees": employees}

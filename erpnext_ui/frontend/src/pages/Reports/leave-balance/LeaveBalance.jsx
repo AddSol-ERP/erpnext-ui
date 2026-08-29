@@ -27,7 +27,10 @@ export default function LeaveBalance({ context = "ess" }) {
   const [hasEmployee, setHasEmployee] = useState(false);
 
   const [selectedDept, setSelectedDept] = useState("");
-  const [search, setSearch] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [employeeOptions, setEmployeeOptions] = useState([]);
+  const [loadingEmployee, setLoadingEmployee] = useState(false);
+  const [employeeError, setEmployeeError] = useState("");
 
   /* ================= HEADER ================= */
   useEffect(() => {
@@ -71,12 +74,13 @@ export default function LeaveBalance({ context = "ess" }) {
   }, [fiscalYear, context]);
 
   /* ================= LOAD ================= */
-  const load = async (department) => {
+  const load = async (department, employee) => {
     setLoading(true);
     setError("");
     try {
       const params = {};
       if (department) params.department = department;
+      if (employee) params.employee = employee;
 
       const res = await get(
         "method/erpnext_ui.api.leave_balance_report",
@@ -102,17 +106,44 @@ export default function LeaveBalance({ context = "ess" }) {
   };
 
   useEffect(() => {
-    load(selectedDept);
-  }, [selectedDept]);
+    load(selectedDept, selectedEmployee);
+  }, [selectedDept, selectedEmployee]);
+
+  /* ================= EMPLOYEE OPTIONS ================= */
+  // Fetch the permission-scoped employee list so the filter lets users pick
+  // (ERPNext handles the permission scoping server-side).
+  useEffect(() => {
+    if (!meta.can_view_others || loadingEmployee) return;
+
+    (async () => {
+      setLoadingEmployee(true);
+      setEmployeeError("");
+      try {
+        const params = {};
+        if (selectedDept) params.department = selectedDept;
+
+        const res = await get(
+          "method/erpnext_ui.api.leave_balance_employees",
+          params,
+        );
+        const list = (res.message && res.message.employees) || [];
+        setEmployeeOptions(list);
+
+        // If the current selection is outside the new list, clear it.
+        if (selectedEmployee && !list.some((e) => e.name === selectedEmployee)) {
+          setSelectedEmployee("");
+        }
+      } catch (e) {
+        console.error("Failed to load employee list:", e);
+        setEmployeeError("Could not load employee list.");
+      } finally {
+        setLoadingEmployee(false);
+      }
+    })();
+  }, [meta.can_view_others, selectedDept]);
 
   /* ================= DERIVE ================= */
-  const visibleRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      (r.employee_name || r.employee || "").toLowerCase().includes(q),
-    );
-  }, [rows, search]);
+  const visibleRows = useMemo(() => rows, [rows]);
 
   const singleEmployee = visibleRows.length === 1;
   const focusRow = singleEmployee ? visibleRows[0] : null;
@@ -210,10 +241,7 @@ export default function LeaveBalance({ context = "ess" }) {
               <select
                 className="form-select"
                 value={selectedDept}
-                onChange={(e) => {
-                  setSelectedDept(e.target.value);
-                  setSearch("");
-                }}
+                onChange={(e) => setSelectedDept(e.target.value)}
               >
                 <option value="">All Departments</option>
                 {departments.map((d) => (
@@ -225,17 +253,43 @@ export default function LeaveBalance({ context = "ess" }) {
             </div>
 
             <div className="col-md-4">
-              <label className="form-label small mb-1">Search Employee</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Type employee name / id…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+              <label className="form-label small mb-1">Employee</label>
+              <select
+                className="form-select"
+                value={selectedEmployee}
+                onChange={(e) => setSelectedEmployee(e.target.value)}
+                disabled={!employeeOptions.length}
+              >
+                <option value="">
+                  {loadingEmployee
+                    ? "Loading employees…"
+                    : employeeOptions.length
+                      ? "All Employees"
+                      : "No employees available"}
+                </option>
+                {employeeOptions.map((e) => (
+                  <option key={e.name} value={e.name}>
+                    {e.employee_name} ({e.name})
+                  </option>
+                ))}
+              </select>
+              {employeeError && (
+                <div className="small text-danger mt-1">{employeeError}</div>
+              )}
             </div>
 
             <div className="col-md-4 d-flex gap-2">
+              {(selectedDept || selectedEmployee) && (
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => {
+                    setSelectedDept("");
+                    setSelectedEmployee("");
+                  }}
+                >
+                  <i className="bi bi-x-circle me-2"></i>Clear Filters
+                </button>
+              )}
               <button className="btn btn-outline-secondary" onClick={handleExport}>
                 <i className="bi bi-download me-2"></i>Export CSV
               </button>
@@ -287,9 +341,7 @@ export default function LeaveBalance({ context = "ess" }) {
           <div>
             {!meta.can_view_others && !hasEmployee
               ? "No Employee profile linked to your user account."
-              : rows.length === 0
-                ? "No leave data found for the current fiscal year."
-                : "No employees match the current search."}
+              : "No leave data found for the current fiscal year."}
           </div>
         </div>
       ) : singleEmployee ? (
