@@ -61,10 +61,10 @@ def _get_current_fiscal_year():
     today = frappe.utils.today()
     rows = frappe.db.sql(
         """
-        select name, start_date, end_date
+        select name, year_start_date, year_end_date
         from `tabFiscal Year`
-        where %s between start_date and end_date
-        order by start_date desc
+        where %s between year_start_date and year_end_date and disabled = 0
+        order by year_start_date desc
         limit 1
         """,
         today,
@@ -74,8 +74,8 @@ def _get_current_fiscal_year():
         return None
     return {
         "name": rows[0]["name"],
-        "start_date": str(rows[0]["start_date"]),
-        "end_date": str(rows[0]["end_date"]),
+        "start_date": str(rows[0]["year_start_date"]),
+        "end_date": str(rows[0]["year_end_date"]),
     }
 
 
@@ -276,7 +276,7 @@ def leave_balance_report(department=None, employee=None, fiscal_year=None):
 
     fy_obj = None
     if fiscal_year:
-        st, en = frappe.db.get_value("Fiscal Year", fiscal_year, ["start_date", "end_date"])
+        st, en = frappe.db.get_value("Fiscal Year", fiscal_year, ["year_start_date", "year_end_date"])
         if st and en:
             fy_obj = {"name": fiscal_year, "start_date": str(st), "end_date": str(en)}
     if not fy_obj:
