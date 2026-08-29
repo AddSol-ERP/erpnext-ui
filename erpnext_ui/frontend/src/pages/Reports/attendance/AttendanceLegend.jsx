@@ -5,6 +5,12 @@ export default function AttendanceLegend() {
       <span className="badge bg-danger me-2">Absent</span>
       <span className="badge bg-warning me-2">Half Day</span>
       <span className="badge bg-primary me-2">Leave</span>
+      <span
+        className="badge me-2"
+        style={{ background: "#64748b", color: "#fff" }}
+      >
+        Weekly Off
+      </span>
     </div>
   );
 }

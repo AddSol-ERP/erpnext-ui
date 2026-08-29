@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { get } from "../../../services/api";
+import { fetchWeeklyOffMap } from "../../../utils/weeklyOff";
+
+const WEEKLY_OFF_COLOR = "#64748b";
 
 const CELL = 34;
 
@@ -11,6 +14,7 @@ export default function AttendanceGrid({
 }) {
   const [employees, setEmployees] = useState([]);
   const [data, setData] = useState({});
+  const [weeklyOff, setWeeklyOff] = useState({});
 
   const start = new Date(month.getFullYear(), month.getMonth(), 1);
   const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
@@ -29,7 +33,7 @@ export default function AttendanceGrid({
 
       const [empRes, attRes] = await Promise.all([
         get("resource/Employee", {
-          fields: JSON.stringify(["name", "employee_name"]),
+          fields: JSON.stringify(["name", "employee_name", "holiday_list"]),
           filters: JSON.stringify(empFilters),
           limit_page_length: 200,
         }),
@@ -50,6 +54,10 @@ export default function AttendanceGrid({
       });
 
       setData(map);
+
+      // Weekly off days from each employee's holiday list
+      const wMap = await fetchWeeklyOffMap(month, empList);
+      setWeeklyOff(wMap);
     } catch (e) {
       console.error(e);
     }
@@ -177,6 +185,8 @@ export default function AttendanceGrid({
               ).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
               const status = data[emp.name]?.[date];
+              const isWeeklyOff = weeklyOff[emp.name]?.has(date);
+              const showWeeklyOff = !status && isWeeklyOff;
 
               return (
                 <div
@@ -189,25 +199,43 @@ export default function AttendanceGrid({
                     alignItems: "center",
                     justifyContent: "center",
                     cursor: "pointer",
+                    ...(isWeeklyOff && !status
+                      ? { background: "rgba(100, 116, 139, 0.1)" }
+                      : {}),
                   }}
                   onClick={() =>
-                    onDateClick && onDateClick(date, emp.name, status)
+                    onDateClick &&
+                    onDateClick(date, emp.name, status, showWeeklyOff)
                   }
                 >
                   <span
                     className={`badge ${getColor(status)}`}
-                    style={{
-                      width: 22,
-                      height: 22,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: 6,
-                      fontSize: 10,
-                    }}
-                    title={status || "No Data"}
+                    style={
+                      showWeeklyOff
+                        ? {
+                            width: 22,
+                            height: 22,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: 6,
+                            fontSize: 10,
+                            background: WEEKLY_OFF_COLOR,
+                            color: "#fff",
+                          }
+                        : {
+                            width: 22,
+                            height: 22,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: 6,
+                            fontSize: 10,
+                          }
+                    }
+                    title={showWeeklyOff ? "Weekly Off" : status || "No Data"}
                   >
-                    {getShort(status)}
+                    {showWeeklyOff ? "W" : getShort(status)}
                   </span>
                 </div>
               );

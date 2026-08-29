@@ -80,6 +80,10 @@ export default function AttendanceCalendar() {
         }
       } catch (e) {
         console.error("Failed to fetch employee:", e);
+      } finally {
+        // Always stop loading so users without a linked Employee
+        // reach the empty state instead of an infinite spinner.
+        setLoading(false);
       }
     };
     fetchEmployee();

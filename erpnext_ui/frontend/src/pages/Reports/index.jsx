@@ -30,6 +30,12 @@ export default function ReportDashboard() {
       icon: "bi-hourglass-split",
       route: "/reports/overtime",
     },
+    {
+      title: "Leave Balance Report",
+      description: "Used & unused leave balance by employee",
+      icon: "bi-pie-chart",
+      route: "/reports/leave-balance",
+    },
   ];
 
   return (

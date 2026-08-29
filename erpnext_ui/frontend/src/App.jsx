@@ -27,6 +27,7 @@ import ExpenseClaimForm from "./pages/requests/expense/ExpenseClaimForm";
 import ReportDashboard from "./pages/Reports";
 import AttendancePage from "./pages/Reports/attendance/AttendancePage";
 import OvertimeReportPage from "./pages/Reports/overtime/OvertimeReportPage";
+import LeaveBalance from "./pages/Reports/leave-balance/LeaveBalance";
 import MaterialRequestDashboard from "./pages/Store/material-request";
 import MaterialRequestList from "./pages/Store/material-request/list";
 import MaterialRequestForm from "./pages/Store/material-request/form";
@@ -166,6 +167,7 @@ export default function App() {
           <Route path="/reports" element={<ReportDashboard />} />
           <Route path="/reports/attendance" element={<AttendancePage />} />
           <Route path="/reports/overtime" element={<OvertimeReportPage />} />
+          <Route path="/reports/leave-balance" element={<LeaveBalance context="reports" />} />
 
           {/* ================================
               HR HUB
@@ -198,6 +200,7 @@ export default function App() {
           <Route path="/ess/profile" element={<ESSProfile />} />
           <Route path="/ess/attendance" element={<ESSCalendar />} />
           <Route path="/ess/overtime" element={<OvertimeLogs />} />
+          <Route path="/ess/leave-balance" element={<LeaveBalance context="ess" />} />
           <Route path="/ess/:doctype" element={<GenericListPage />} />
           <Route path="/ess/:doctype/new" element={<GenericFormPage />} />
           <Route path="/ess/:doctype/:name" element={<GenericFormPage />} />

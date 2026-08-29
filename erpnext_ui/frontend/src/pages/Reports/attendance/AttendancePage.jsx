@@ -65,7 +65,7 @@ export default function AttendancePage() {
   };
 
   /* ================= HANDLERS ================= */
-  const handleDateClick = (date, employee, status) => {
+  const handleDateClick = (date, employee, status, isWeeklyOff = false) => {
     setSelectedDate(date);
     setSelectedEmployee(employee);
     setSelectedStatus(status);
@@ -73,8 +73,8 @@ export default function AttendancePage() {
     // Show check-in logs for present status
     if (status === "Present") {
       setShowCheckinModal(true);
-    } else if (status === "Absent" || !status) {
-      // Show request options for absent/no data
+    } else if (status === "Absent" || (!status && !isWeeklyOff)) {
+      // Show request options for absent / no-data days (skip weekly offs)
       setShowRequestModal(true);
     }
   };

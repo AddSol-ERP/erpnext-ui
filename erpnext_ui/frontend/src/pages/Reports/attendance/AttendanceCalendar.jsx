@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { get } from "../../../services/api";
+import { fetchEmployeeWeeklyOff } from "../../../utils/weeklyOff";
 
 export default function AttendanceCalendar({
   month,
@@ -9,6 +10,7 @@ export default function AttendanceCalendar({
 }) {
   const [data, setData] = useState({});
   const [teamData, setTeamData] = useState({});
+  const [weeklyOff, setWeeklyOff] = useState(new Set());
 
   const start = new Date(month.getFullYear(), month.getMonth(), 1);
   const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
@@ -61,6 +63,14 @@ export default function AttendanceCalendar({
 
     setData(map);
     setTeamData(teamMap);
+
+    // Weekly off dates for the selected employee (employee mode only)
+    if (employee) {
+      const off = await fetchEmployeeWeeklyOff(month, employee);
+      setWeeklyOff(off);
+    } else {
+      setWeeklyOff(new Set());
+    }
   };
 
   useEffect(() => {
@@ -85,17 +95,18 @@ export default function AttendanceCalendar({
 
     const status = data[date];
     const team = teamData[date];
+    const isWeeklyOff = weeklyOff.has(date);
 
     cells.push(
       <div
         key={i}
         className="border rounded p-2"
         onClick={() =>
-          employee && onDateClick && onDateClick(date, employee, status)
+          employee && onDateClick && onDateClick(date, employee, status, isWeeklyOff)
         }
         style={{
           minHeight: 90,
-          background: "var(--card-bg)",
+          background: isWeeklyOff && !status ? "rgba(100, 116, 139, 0.1)" : "var(--card-bg)",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
@@ -124,6 +135,17 @@ export default function AttendanceCalendar({
               style={{ fontSize: 11 }}
             >
               {status}
+            </div>
+          ) : isWeeklyOff ? (
+            <div
+              className="badge"
+              style={{
+                fontSize: 11,
+                background: "#64748b",
+                color: "#fff",
+              }}
+            >
+              Weekly Off
             </div>
           ) : (
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>-</div>

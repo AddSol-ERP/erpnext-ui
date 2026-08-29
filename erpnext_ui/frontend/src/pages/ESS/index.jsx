@@ -35,6 +35,13 @@ export default function ESSDashboard() {
       color: "#4f46e5",
     },
     {
+      title: "Leave Balance",
+      icon: "bi-pie-chart",
+      route: "/ess/leave-balance",
+      description: "View my leave balance for the year",
+      color: "#4f46e5",
+    },
+    {
       title: "My Expenses",
       icon: "bi-receipt",
       route: "/requests/expense",
