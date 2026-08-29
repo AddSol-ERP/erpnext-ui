@@ -176,11 +176,16 @@ def _get_scope(user):
     }
 
 
-def _aggregate_leaves(employees, fy):
+def _aggregate_leaves(employees, fy, leave_types):
     """Compute allocated/used/balance per leave type for a list of employees.
 
-    Uses Approval-based Leave Allocations (carry-forward included in
-    total_leaves_allocated) and approved Leave Applications in the FY window.
+    Every employee is seeded with ALL leave types (0 allocated/used when there
+    is no allocation/application), so the report is a complete matrix where a
+    missing allocation simply shows a zero balance.
+
+    Allocated = new_leaves_allocated + unused_leaves (carry-forward) of the most
+    recent approved Leave Allocation; used = approved Leave Applications
+    overlapping the fiscal year window.
     """
     emp_names = [e["name"] for e in employees]
     if not emp_names:
@@ -237,18 +242,15 @@ def _aggregate_leaves(employees, fy):
     result = []
     for emp in employees:
         leaves = {}
-        # All leave types that appear in allocations or usage
-        keys = {
-            k[1]
-            for k in list(best_alloc.keys()) + list(used.keys())
-            if k[0] == emp["name"]
-        }
-        for lt in keys:
+        for lt in leave_types:
             alloc_row = best_alloc.get((emp["name"], lt))
-            # Allocated = new + carry-forward (works across ERPNext versions)
-            allocated = (alloc_row["new_leaves_allocated"] or 0) + (
-                alloc_row["unused_leaves"] or 0
-            )
+            if alloc_row:
+                # Allocated = new + carry-forward (works across ERPNext versions)
+                allocated = (alloc_row["new_leaves_allocated"] or 0) + (
+                    alloc_row["unused_leaves"] or 0
+                )
+            else:
+                allocated = 0
             used_days = used.get((emp["name"], lt), 0)
             leaves[lt] = {
                 "leave_type": lt,
@@ -260,7 +262,7 @@ def _aggregate_leaves(employees, fy):
             "employee": emp["name"],
             "employee_name": emp.get("employee_name") or emp["name"],
             "department": emp.get("department") or "",
-            "leaves": [leaves[k] for k in sorted(leaves)],
+            "leaves": [leaves[k] for k in leave_types],
         })
     return result
 
@@ -283,8 +285,9 @@ def leave_balance_report(department=None, employee=None, fiscal_year=None):
         {
           "fiscal_year": {...},
           "is_hr": bool, "is_hod": bool, "can_view_others": bool,
-          "departments": [str],            # departments the user can filter by
-          "employees": [
+"departments": [str],            # departments the user can filter by
+      "leave_types": [str],            # all Leave Types (matrix columns)
+      "employees": [
             {"employee", "employee_name", "department",
              "leaves": [{"leave_type", "allocated", "used", "balance"}]}
           ]
@@ -344,6 +347,17 @@ def leave_balance_report(department=None, employee=None, fiscal_year=None):
         ignore_permissions=True,
     )
 
+    # ----- All leave types (matrix columns) -----
+    leave_types = [
+        t["name"]
+        for t in frappe.get_all(
+            "Leave Type",
+            fields=["name"],
+            order_by="name asc",
+            ignore_permissions=True,
+        )
+    ]
+
     if not employees and not scope["can_view_others"] and not scope["my_employee"]:
         return {
             "fiscal_year": fy_obj,
@@ -351,6 +365,7 @@ def leave_balance_report(department=None, employee=None, fiscal_year=None):
             "is_hod": scope["is_hod"],
             "can_view_others": scope["can_view_others"],
             "departments": [],
+            "leave_types": leave_types,
             "employees": [],
         }
 
@@ -369,7 +384,7 @@ def leave_balance_report(department=None, employee=None, fiscal_year=None):
             )
         ]
 
-    rows = _aggregate_leaves(employees, fy_obj)
+    rows = _aggregate_leaves(employees, fy_obj, leave_types)
 
     # Sort employees by name
     rows.sort(key=lambda r: (r["employee_name"] or "").lower())
@@ -380,6 +395,7 @@ def leave_balance_report(department=None, employee=None, fiscal_year=None):
         "is_hod": scope["is_hod"],
         "can_view_others": scope["can_view_others"],
         "departments": dept_names,
+        "leave_types": leave_types,
         "employees": rows,
         "my_employee": scope["my_employee"],
     }

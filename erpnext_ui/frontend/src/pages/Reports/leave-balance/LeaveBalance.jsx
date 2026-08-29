@@ -23,6 +23,7 @@ export default function LeaveBalance({ context = "ess" }) {
   const [fiscalYear, setFiscalYear] = useState(null);
   const [meta, setMeta] = useState({ can_view_others: false });
   const [departments, setDepartments] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
   const [rows, setRows] = useState([]);
   const [hasEmployee, setHasEmployee] = useState(false);
 
@@ -95,6 +96,7 @@ export default function LeaveBalance({ context = "ess" }) {
         can_view_others: !!msg.can_view_others,
       });
       setDepartments(msg.departments || []);
+      setLeaveTypes(msg.leave_types || []);
       setRows(msg.employees || []);
       setHasEmployee(!!msg.my_employee);
     } catch (e) {
@@ -144,9 +146,6 @@ export default function LeaveBalance({ context = "ess" }) {
 
   /* ================= DERIVE ================= */
   const visibleRows = useMemo(() => rows, [rows]);
-
-  const singleEmployee = visibleRows.length === 1;
-  const focusRow = singleEmployee ? visibleRows[0] : null;
 
   const totals = useMemo(() => {
     let allocated = 0;
@@ -344,143 +343,202 @@ export default function LeaveBalance({ context = "ess" }) {
               : "No leave data found for the current fiscal year."}
           </div>
         </div>
-      ) : singleEmployee ? (
-        <LeaveCards employee={focusRow} />
       ) : (
-        <LeaveTable rows={visibleRows} />
+        <LeaveMatrix rows={visibleRows} leaveTypes={leaveTypes} />
       )}
     </div>
   );
 }
 
 /* ============================================================
-   SINGLE EMPLOYEE VIEW — per leave type cards with progress
+   MATRIX VIEW — employees × leave types
+   Each cell is the employee's balance for that leave type, with
+   "used/allocated" underneath. A gray 0 means no allocation.
    ============================================================ */
-function LeaveCards({ employee }) {
-  const leaves = employee?.leaves || [];
+const COL = 110; // each leave-type column
+const EMP_COL = 220; // sticky employee column
+const STICKY_BG = "rgb(21 29 47)"; // matches attendance grid theme
 
-  if (!leaves.length) {
-    return (
-      <div className="card p-4 text-center text-muted">
-        No leave allocations found for this employee.
+function LeaveMatrix({ rows, leaveTypes = [] }) {
+  // Fallback: derive column set from data if the API didn't send it.
+  const types = leaveTypes.length
+    ? leaveTypes
+    : Array.from(
+        new Set(
+          rows.flatMap((r) => (r.leaves || []).map((l) => l.leave_type || "")),
+        ),
+      ).filter(Boolean).sort();
+
+  return (
+    <div>
+      <div className="small text-muted mb-2">
+        Each cell shows the <b>balance</b> with used / allocated underneath.{" "}
+        <span className="text-muted">Gray 0 = no allocation for this leave type.</span>
       </div>
-    );
-  }
-
-  return (
-    <div className="row g-3">
-      {leaves.map((l) => {
-        const pct =
-          l.allocated > 0 ? Math.round((l.used / l.allocated) * 100) : 0;
-        const remainingPct = l.allocated > 0 ? Math.round((l.balance / l.allocated) * 100) : 0;
-        const barColor =
-          remainingPct >= 50
-            ? "bg-success"
-            : remainingPct >= 25
-              ? "bg-warning"
-              : "bg-danger";
-
-        return (
-          <div key={l.leave_type} className="col-12 col-md-6 col-lg-4">
-            <div className="card h-100 p-3">
-              <div className="d-flex justify-content-between align-items-start mb-2">
-                <div className="fw-semibold">{l.leave_type}</div>
-                <span
-                  className={`badge ${
-                    l.balance <= 0 ? "bg-danger" : "bg-success"
-                  }`}
-                >
-                  {l.balance} left
-                </span>
-              </div>
-
-              <div className="d-flex justify-content-between small text-muted mb-1">
-                <span>Used: {l.used}</span>
-                <span>of {l.allocated}</span>
-              </div>
-
-              <div className="progress" style={{ height: 8 }}>
-                <div
-                  className={`progress-bar ${barColor}`}
-                  style={{ width: `${Math.min(pct, 100)}%` }}
-                />
-              </div>
-
-              <div className="d-flex justify-content-between small mt-2">
-                <span className="text-danger">
-                  <i className="bi bi-calendar-x me-1"></i>Used {l.used}
-                </span>
-                <span className="text-success">
-                  <i className="bi bi-calendar-check me-1"></i>Balance {l.balance}
-                </span>
-              </div>
+      <div className="card p-2">
+        <div
+          style={{ overflow: "auto", maxHeight: "calc(100vh - 300px)" }}
+        >
+          {/* HEADER */}
+          <div
+            style={{
+              display: "flex",
+              minWidth: EMP_COL + types.length * COL,
+              position: "sticky",
+              top: 0,
+              zIndex: 3,
+              background: STICKY_BG,
+            }}
+          >
+            <div
+              style={{
+                width: EMP_COL,
+                minWidth: EMP_COL,
+                position: "sticky",
+                left: 0,
+                background: STICKY_BG,
+                zIndex: 2,
+                padding: "8px",
+                fontWeight: 600,
+                borderBottom: "1px solid var(--bs-border-color)",
+              }}
+            >
+              Employee
             </div>
+
+            {types.map((t) => (
+              <div
+                key={t}
+                title={t}
+                style={{
+                  width: COL,
+                  minWidth: COL,
+                  textAlign: "center",
+                  fontSize: 11,
+                  lineHeight: 1.2,
+                  padding: "6px 2px",
+                  borderBottom: "1px solid var(--bs-border-color)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {t}
+              </div>
+            ))}
           </div>
-        );
-      })}
-    </div>
-  );
-}
 
-/* ============================================================
-   DEPARTMENT VIEW — employee × leave type table
-   ============================================================ */
-function LeaveTable({ rows }) {
-  return (
-    <div className="card p-2">
-      <div style={{ overflow: "auto", maxHeight: "calc(100vh - 300px)" }}>
-        <table className="table table-hover mb-0 align-middle">
-          <thead className="small">
-            <tr>
-              <th>Employee</th>
-              <th>Department</th>
-              <th>Leave Type</th>
-              <th className="text-center">Allocated</th>
-              <th className="text-center">Used</th>
-              <th className="text-center">Balance</th>
-              <th className="text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody className="small">
-            {rows.map((r) =>
-              (r.leaves?.length ? r.leaves : [null]).map((l, i) => {
-                const balance = l ? l.balance : 0;
-                const status =
-                  l === null
-                    ? { cls: "bg-secondary", label: "No Allocation" }
-                    : balance <= 0
-                      ? { cls: "bg-danger", label: "Exhausted" }
-                      : balance < l.allocated * 0.25
-                        ? { cls: "bg-warning", label: "Low" }
-                        : { cls: "bg-success", label: "Okay" };
+          {/* ROWS */}
+          {rows.map((r) => {
+            const byType = {};
+            (r.leaves || []).forEach((l) => {
+              byType[l.leave_type] = l;
+            });
 
-                return (
-                  <tr key={`${r.employee}-${l ? l.leave_type : "none"}`}>
-                    {i === 0 && (
-                      <>
-                        <td rowSpan={r.leaves?.length || 1}>
-                          <div className="fw-semibold">{r.employee_name}</div>
-                          <div className="text-muted">{r.employee}</div>
-                        </td>
-                        <td rowSpan={r.leaves?.length || 1}>
-                          {r.department || "—"}
-                        </td>
-                      </>
-                    )}
+            return (
+              <div
+                key={r.employee}
+                style={{
+                  display: "flex",
+                  minWidth: EMP_COL + types.length * COL,
+                  borderBottom: "1px solid var(--bs-border-color)",
+                }}
+              >
+                {/* EMPLOYEE */}
+                <div
+                  style={{
+                    width: EMP_COL,
+                    minWidth: EMP_COL,
+                    position: "sticky",
+                    left: 0,
+                    background: STICKY_BG,
+                    zIndex: 1,
+                    padding: "6px 8px",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>
+                    {r.employee_name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--text-muted)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {r.employee}
+                    {r.department ? ` · ${r.department}` : ""}
+                  </div>
+                </div>
 
-                    <td>{l ? l.leave_type : "—"}</td>
-                    <td className="text-center">{l ? l.allocated : 0}</td>
-                    <td className="text-center">{l ? l.used : 0}</td>
-                    <td className="text-center">{l ? l.balance : 0}</td>
-                    <td className="text-center">
-                      <span className={`badge ${status.cls}`}>{status.label}</span>
-                    </td>
-                  </tr>
-                );
-              }),
-            )}
-          </tbody>
-        </table>
+                {/* LEAVE TYPE CELLS */}
+                {types.map((t) => {
+                  const l = byType[t];
+                  const allocated = l ? l.allocated : 0;
+                  const used = l ? l.used : 0;
+                  const balance = l ? l.balance : 0;
+
+                  const tone =
+                    allocated <= 0
+                      ? "none" // no allocation -> muted 0
+                      : balance <= 0
+                        ? "danger"
+                        : balance < allocated * 0.25
+                          ? "warning"
+                          : "ok";
+
+                  const color =
+                    tone === "danger"
+                      ? "#f87171"
+                      : tone === "warning"
+                        ? "#fbbf24"
+                        : tone === "none"
+                          ? "var(--text-muted)"
+                          : "inherit";
+
+                  return (
+                    <div
+                      key={t}
+                      title={`${t}: Allocated ${allocated} · Used ${used} · Balance ${balance}`}
+                      style={{
+                        width: COL,
+                        minWidth: COL,
+                        padding: "6px 2px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 2,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color,
+                        }}
+                      >
+                        {balance}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: "var(--text-muted)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {allocated}/{used}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

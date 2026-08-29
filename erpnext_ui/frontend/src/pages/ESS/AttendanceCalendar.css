@@ -89,6 +89,15 @@
   color: #fff;
 }
 
+.legend-badge.weeklyoff {
+  background-color: #64748b;
+}
+
+/* ---- Weekly off cells (slate tint) ---- */
+.attendance-cell.weeklyoff {
+  background-color: rgba(100, 116, 139, 0.12);
+}
+
 /* ---- Action buttons inside cells ---- */
 .action-buttons {
   margin-top: 4px;

@@ -58,8 +58,11 @@ export async function fetchWeeklyOffMap(month, employees) {
   lists.forEach((list) => {
     const dates = new Set();
     (list.holidays || []).forEach((h) => {
-      if (h.weekly_off && h.holiday_date && isInMonth(h.holiday_date, month)) {
-        const dateStr = toDateString(h.holiday_date);
+      // ERPNext's Holiday child table stores the date in `holiday`
+      // (older schemas named it `holiday_date`); accept both.
+      const holidayDate = h.holiday || h.holiday_date;
+      if (h.weekly_off && holidayDate && isInMonth(holidayDate, month)) {
+        const dateStr = toDateString(holidayDate);
         if (dateStr) dates.add(dateStr);
       }
     });

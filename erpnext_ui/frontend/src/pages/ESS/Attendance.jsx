@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
+import { fetchEmployeeWeeklyOff } from "../../utils/weeklyOff";
 import "./AttendanceCalendar.css";
 
 const MONTHS = [
@@ -29,6 +30,7 @@ export default function AttendanceCalendar() {
   const [employee, setEmployee] = useState(null);   // employee name/id
   const [empName, setEmpName] = useState("");        // display name
   const [attendance, setAttendance] = useState({});  // { "YYYY-MM-DD": { in_time, out_time, status, ... } }
+  const [weeklyOff, setWeeklyOff] = useState(new Set()); // Set<"YYYY-MM-DD"> weekly off dates
   const [loading, setLoading] = useState(true);
 
   const year = currentMonth.getFullYear();
@@ -140,6 +142,23 @@ export default function AttendanceCalendar() {
   }, [fetchAttendance]);
 
   /* ------------------------------------------------------------------
+     FETCH WEEKLY OFF DATES FOR THE CURRENT MONTH
+  ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (!employee) return;
+    let cancelled = false;
+
+    (async () => {
+      const off = await fetchEmployeeWeeklyOff(currentMonth, employee);
+      if (!cancelled) setWeeklyOff(off);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [employee, currentMonth]);
+
+  /* ------------------------------------------------------------------
      NAVIGATION HELPERS
   ------------------------------------------------------------------ */
   const prevMonth = () => {
@@ -172,7 +191,8 @@ export default function AttendanceCalendar() {
       today.getDate() === d;
     const isPast = cellDate < new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const att = attendance[dateStr] || null;
-    cells.push({ day: d, dateStr, isToday, isPast, att });
+    const isWeeklyOff = !att && weeklyOff.has(dateStr);
+    cells.push({ day: d, dateStr, isToday, isPast, att, isWeeklyOff });
   }
 
   /* ------------------------------------------------------------------
@@ -318,6 +338,9 @@ export default function AttendanceCalendar() {
           <span className="legend-badge missing">!</span> Missing (no record)
         </span>
         <span className="d-flex align-items-center gap-1">
+          <span className="legend-badge weeklyoff">W</span> Weekly Off
+        </span>
+        <span className="d-flex align-items-center gap-1">
           <span className="legend-badge future">&rarr;</span> Future
         </span>
       </div>
@@ -329,7 +352,7 @@ export default function AttendanceCalendar() {
    DAY CELL COMPONENT
 ================================================================== */
 function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
-  const { day, dateStr, isToday, isPast, att } = cell;
+  const { day, dateStr, isToday, isPast, att, isWeeklyOff } = cell;
 
   // Determine cell background / styling
   let cellClass = "attendance-cell position-relative p-1";
@@ -359,6 +382,10 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
       cellClass += " bg-light";
       statusClass = "present";
     }
+  } else if (isWeeklyOff) {
+    // Weekly off — no attendance expected (attendance record wins)
+    cellClass += " weeklyoff";
+    statusClass = "weeklyoff";
   } else if (isPast) {
     // Past day with NO attendance record → MISSING
     cellClass += " bg-danger bg-opacity-10";
@@ -441,6 +468,20 @@ function DayCell({ cell, formatTime, onApplyLeave, onRequestAttendance }) {
               </div>
             )}
           </>
+        ) : isWeeklyOff ? (
+          /* Weekly off — no attendance expected, no actions */
+          <div
+            className="d-flex align-items-center justify-content-center"
+            style={{ minHeight: "58px" }}
+          >
+            <span
+              className="badge"
+              style={{ background: "#64748b", color: "#fff", fontSize: "0.7rem" }}
+              title="Weekly Off"
+            >
+              W
+            </span>
+          </div>
         ) : isPast ? (
           /* Missing attendance — action buttons */
           <div className="mt-1 action-buttons">
