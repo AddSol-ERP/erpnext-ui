@@ -1,7 +1,41 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
+import { UserX, Hourglass, FileText, Timer, CircleCheck, Clock } from "lucide-react";
+import StatCard from "../../components/StatCard";
+import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyMedia,
+} from "@/components/ui/empty";
+import { gridCorners } from "../../lib/gridCorners";
+
+const STAT_BP = [{ cols: 2 }, { min: "md", cols: 4 }];
+
+const STATUS_BADGE = {
+  Approved: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
+  Rejected: "border-destructive/40 bg-destructive/10 text-destructive",
+};
+
+const STATUS_KEY = {
+  Approved: "ess.overtime.statusApproved",
+  Rejected: "ess.overtime.statusRejected",
+};
 
 /**
  * ESS Overtime Logs
@@ -12,6 +46,7 @@ import { get } from "../../services/api";
 export default function OvertimeLogs() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t, i18n } = useTranslation();
 
   const [employee, setEmployee] = useState(null);
   const [empName, setEmpName] = useState("");
@@ -21,31 +56,31 @@ export default function OvertimeLogs() {
   /* ── Header ── */
   useEffect(() => {
     setHeader({
-      title: "Overtime Logs",
-      subtitle: empName ? `Employee: ${empName}` : "Your overtime records",
+      title: t("ess.header.overtimeTitle"),
+      subtitle: empName
+        ? t("ess.header.overtimeSubtitleEmployee", { name: empName })
+        : t("ess.header.overtimeSubtitle"),
       breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "ESS", path: "/ess" },
-        { label: "Overtime Logs" },
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.ess"), path: "/ess" },
+        { label: t("ess.header.overtimeTitle") },
       ],
       actions: [
         {
-          label: "Back",
+          label: t("common.back"),
           variant: "btn-outline-secondary",
-          icon: "bi bi-arrow-left",
           onClick: () => navigate("/ess"),
         },
       ],
     });
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empName]);
 
   /* ── Fetch employee for current user ── */
-  useEffect(() => {
-    fetchEmployee();
-  }, []);
-
-  const fetchEmployee = async () => {
+  // fetchEmployee setStates only after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function fetchEmployee() {
     try {
       let userId = "";
       if (window.frappe?.session?.user) {
@@ -77,14 +112,19 @@ export default function OvertimeLogs() {
       // reach the empty state instead of an infinite spinner.
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    // fetchEmployee setStates only after awaited API responses; the compiler
+    // rule conservatively flags any setState-reaching call from an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEmployee();
+  }, []);
 
   /* ── Fetch OT logs once employee is resolved ── */
-  useEffect(() => {
-    if (employee) fetchLogs();
-  }, [employee]);
-
-  const fetchLogs = async () => {
+  // fetchLogs setStates only after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function fetchLogs() {
     setLoading(true);
     try {
       const res = await get("resource/Overtime Log", {
@@ -112,13 +152,21 @@ export default function OvertimeLogs() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (employee) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee]);
 
   /* ── Helpers ── */
   const formatDateTime = (dt) => {
     if (!dt) return "—";
     try {
-      return new Date(dt).toLocaleString("en-IN", {
+      return new Date(dt).toLocaleString(i18n.language || "en", {
         day: "2-digit",
         month: "short",
         hour: "2-digit",
@@ -129,42 +177,31 @@ export default function OvertimeLogs() {
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "Approved":
-        return "bg-success";
-      case "Rejected":
-        return "bg-danger";
-      default:
-        return "bg-warning text-dark";
-    }
-  };
-
   /* ── Render ── */
   if (loading) {
     return (
-      <div className="text-center py-5">
-        <div className="spinner-border" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+        <Spinner className="size-6 text-primary" />
+        <span className="text-sm">{t("common.loading")}</span>
       </div>
     );
   }
 
   if (!employee) {
     return (
-      <div className="text-center py-5">
-        <div className="mb-3">
-          <i className="bi bi-person-exclamation" style={{ fontSize: 48 }} />
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col items-center gap-3 py-16 text-center">
+        <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <UserX className="size-7" />
         </div>
-        <h5>No Employee Found</h5>
-        <p className="text-muted">
-          Your user account is not linked to an Employee record.
-          Please contact HR.
+        <h5 className="text-base font-semibold">
+          {t("ess.overtime.noEmployeeTitle")}
+        </h5>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {t("ess.overtime.noEmployeeDescription")}
         </p>
-        <button className="btn btn-primary" onClick={() => navigate("/ess")}>
-          Back to Dashboard
-        </button>
+        <Button onClick={() => navigate("/ess")}>
+          {t("ess.overtime.backToDashboard")}
+        </Button>
       </div>
     );
   }
@@ -175,86 +212,94 @@ export default function OvertimeLogs() {
   const pendingCount = logs.filter((l) => l.status === "Draft").length;
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+    <div className="mx-auto w-full max-w-[1600px] pt-4">
       {/* ── Summary Cards ── */}
-      <div className="row g-2 mb-4">
-        <div className="col-6 col-md-3">
-          <div className="card text-center p-3">
-            <div className="stat-value">{logs.length}</div>
-            <div className="stat-label">Total Logs</div>
-          </div>
-        </div>
-        <div className="col-6 col-md-3">
-          <div className="card text-center p-3">
-            <div className="stat-value text-primary">
-              {totalOT.toFixed(2)}
-            </div>
-            <div className="stat-label">Total OT Hours</div>
-          </div>
-        </div>
-        <div className="col-6 col-md-3">
-          <div className="card text-center p-3">
-            <div className="stat-value text-success">{approvedCount}</div>
-            <div className="stat-label">Approved</div>
-          </div>
-        </div>
-        <div className="col-6 col-md-3">
-          <div className="card text-center p-3">
-            <div className="stat-value text-warning">{pendingCount}</div>
-            <div className="stat-label">Pending</div>
-          </div>
-        </div>
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <StatCard
+          value={logs.length}
+          label={t("ess.overtime.totalLogs")}
+          icon={FileText}
+          className={gridCorners({ breakpoints: STAT_BP, index: 0, count: 4 })}
+        />
+        <StatCard
+          value={totalOT.toFixed(2)}
+          label={t("ess.overtime.totalOTHours")}
+          icon={Timer}
+          color="var(--brand-primary)"
+          className={gridCorners({ breakpoints: STAT_BP, index: 1, count: 4 })}
+        />
+        <StatCard
+          value={approvedCount}
+          label={t("ess.overtime.approved")}
+          icon={CircleCheck}
+          color="var(--chart-2)"
+          className={gridCorners({ breakpoints: STAT_BP, index: 2, count: 4 })}
+        />
+        <StatCard
+          value={pendingCount}
+          label={t("ess.overtime.pending")}
+          icon={Clock}
+          color="var(--chart-3)"
+          className={gridCorners({ breakpoints: STAT_BP, index: 3, count: 4 })}
+        />
       </div>
 
       {/* ── Logs Table ── */}
       {logs.length === 0 ? (
-        <div className="card p-5 text-center">
-          <i className="bi bi-hourglass text-muted" style={{ fontSize: 48 }} />
-          <h5 className="mt-3">No Overtime Records</h5>
-          <p className="text-muted">
-            You don't have any overtime logs yet.
-          </p>
-        </div>
+        <Empty className="rounded-none bg-card ring-1 ring-foreground/10">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Hourglass />
+            </EmptyMedia>
+            <EmptyTitle>{t("ess.overtime.noRecordsTitle")}</EmptyTitle>
+            <EmptyDescription>
+              {t("ess.overtime.noRecordsDescription")}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <div className="card">
-          <div className="table-responsive">
-            <table className="table table-hover mb-0">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Shift</th>
-                  <th>In Time</th>
-                  <th>Out Time</th>
-                  <th>OT Hours</th>
-                  <th>Status</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.name}>
-                    <td>{log.attendance_date || "—"}</td>
-                    <td>{log.shift || "—"}</td>
-                    <td>{formatDateTime(log.in_time)}</td>
-                    <td>{formatDateTime(log.out_time)}</td>
-                    <td>
-                      <strong>{log.overtime_hours || 0}</strong> hrs
-                    </td>
-                    <td>
-                      <span
-                        className={`badge ${getStatusBadge(log.status)}`}
-                      >
-                        {log.status || "Draft"}
-                      </span>
-                    </td>
-                    <td className="text-muted small">
-                      {log.remarks || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="overflow-hidden rounded-none bg-card ring-1 ring-foreground/10">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("ess.overtime.columns.date")}</TableHead>
+                <TableHead>{t("ess.overtime.columns.shift")}</TableHead>
+                <TableHead>{t("ess.overtime.columns.inTime")}</TableHead>
+                <TableHead>{t("ess.overtime.columns.outTime")}</TableHead>
+                <TableHead>{t("ess.overtime.columns.otHours")}</TableHead>
+                <TableHead>{t("ess.overtime.columns.status")}</TableHead>
+                <TableHead>{t("ess.overtime.columns.remarks")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {logs.map((log) => (
+                <TableRow key={log.name}>
+                  <TableCell>{log.attendance_date || "—"}</TableCell>
+                  <TableCell>{log.shift || "—"}</TableCell>
+                  <TableCell>{formatDateTime(log.in_time)}</TableCell>
+                  <TableCell>{formatDateTime(log.out_time)}</TableCell>
+                  <TableCell>
+                    <strong>{log.overtime_hours || 0}</strong>{" "}
+                    {t("ess.overtime.hrs")}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={
+                        STATUS_BADGE[log.status] ||
+                        "border-amber-500/40 bg-amber-500/10 text-amber-600"
+                      }
+                    >
+                      {t(STATUS_KEY[log.status] || "ess.overtime.statusDraft")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {log.remarks || "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

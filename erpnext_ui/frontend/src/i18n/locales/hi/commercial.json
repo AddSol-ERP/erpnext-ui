@@ -1,0 +1,69 @@
+{
+	"hr": {
+		"header": {
+			"title": "एचआर",
+			"subtitle": "कर्मचारी मास्टर, उपस्थिति, वेतन एवं भर्ती"
+		},
+		"tiles": {
+			"employee": { "title": "कर्मचारी", "description": "कर्मचारी रिकॉर्ड प्रबंधित करें" },
+			"department": { "title": "विभाग", "description": "विभाग प्रबंधित करें" },
+			"designation": { "title": "पदनाम", "description": "पदनाम प्रबंधित करें" },
+			"leaveType": { "title": "अवकाश प्रकार", "description": "अवकाश प्रकार कॉन्फ़िगर करें" },
+			"holidayList": { "title": "अवकाश सूची", "description": "अवकाश कैलेंडर प्रबंधित करें" },
+			"attendance": { "title": "उपस्थिति", "description": "उपस्थिति रिकॉर्ड देखें" },
+			"salaryStructure": { "title": "वेतन संरचना", "description": "वेतन संरचना निर्धारित करें" },
+			"salarySlip": { "title": "वेतन पर्ची", "description": "वेतन पर्ची बनाएँ" },
+			"jobOpening": { "title": "जॉब ओपनिंग", "description": "जॉब ओपनिंग प्रबंधित करें" },
+			"jobApplicant": { "title": "जॉब आवेदक", "description": "आवेदकों को ट्रैक करें" }
+		}
+	},
+	"sales": {
+		"header": {
+			"title": "बिक्री",
+			"subtitle": "ग्राहक, लीड, अवसर और ऑर्डर"
+		},
+		"tiles": {
+			"customer": { "title": "ग्राहक", "description": "ग्राहक रिकॉर्ड प्रबंधित करें" },
+			"lead": { "title": "लीड", "description": "बिक्री लीड ट्रैक करें" },
+			"opportunity": { "title": "अवसर", "description": "अवसर प्रबंधित करें" },
+			"quotation": { "title": "कोटेशन", "description": "ग्राहक कोटेशन" },
+			"salesOrder": { "title": "सेल्स ऑर्डर", "description": "सेल्स ऑर्डर प्रबंधित करें" },
+			"salesInvoice": { "title": "सेल्स इनवॉइस", "description": "सेल्स इनवॉइस बनाएँ" },
+			"item": { "title": "आइटम", "description": "उत्पाद और सेवाएँ प्रबंधित करें" }
+		}
+	},
+	"purchase": {
+		"header": {
+			"title": "क्रय",
+			"subtitle": "सप्लायर्स, परचेज ऑर्डर और इनवॉइस"
+		},
+		"tiles": {
+			"supplier": { "title": "सप्लायर", "description": "सप्लायर रिकॉर्ड प्रबंधित करें" },
+			"purchaseOrder": { "title": "परचेज ऑर्डर", "description": "परचेज ऑर्डर बनाएँ" },
+			"purchaseReceipt": { "title": "परचेज रसीद", "description": "माल प्राप्ति दर्ज करें" },
+			"purchaseInvoice": { "title": "परचेज इनवॉइस", "description": "सप्लायर इनवॉइस" },
+			"supplierQuotation": { "title": "सप्लायर कोटेशन", "description": "सप्लायर कोटेशन" },
+			"requestForQuotation": { "title": "कोटेशन अनुरोध", "description": "सप्लायरों से कोटेशन माँगें" }
+		}
+	},
+	"demo": {
+		"header": {
+			"title": "🏭 ERP डैशबोर्ड",
+			"subtitle": "संचालन तक त्वरित पहुँच"
+		},
+		"actions": {
+			"quickAction": "+ त्वरित क्रिया"
+		},
+		"status": {
+			"open": "खुला",
+			"complete": "पूर्ण",
+			"pending": "लंबित"
+		},
+		"rows": {
+			"materialIssue": { "subtitle": "सामग्री जारी", "meta": "WH-A → उत्पादन" },
+			"materialReceipt": { "subtitle": "सामग्री प्राप्ति", "meta": "विक्रेता → WH-B" },
+			"transferEntry": { "subtitle": "स्थानांतरण प्रविष्टि", "meta": "WH-A → WH-C" },
+			"repackEntry": { "subtitle": "रीपैक प्रविष्टि", "meta": "WH-B → WH-A" }
+		}
+	}
+}

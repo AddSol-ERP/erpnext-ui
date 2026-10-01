@@ -1,129 +1,80 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
 import ActionBar from "../../../components/ActionBar";
 import Pagination from "../../../components/Pagination";
-import FilterModal from "../../../components/FilterModal";
-import ListLayout from "../../../components/ListLayout"; // ✅ important
+import ListLayout from "../../../components/ListLayout";
+import { ListRow } from "../../../components/List/ListRow";
+import DataTable from "../../../components/List/DataTable";
+import { StatusBadge } from "../../../components/List/StatusBadge";
+import useListPagination from "../../../hooks/useListPagination";
 import { get } from "../../../services/api";
+import { listFilterHandlers } from "../../../lib/filterChips";
 import WorkOrderPreviewModal from "./WorkOrderPreviewModal";
 
-const PAGE_SIZE = 10;
-
-/* ===============================
-   LIST ROW
-================================ */
-function ListRow({ item, onClick }) {
-  return (
-    <div className="list-row" onClick={() => onClick(item.raw)}>
-      <div className="list-col main">
-        <div className="list-title">{item.title}</div>
-        <div className="list-sub text-muted">{item.subtitle}</div>
-      </div>
-
-      <div className="list-col meta d-none d-md-block">{item.meta}</div>
-
-      <div className="list-col actions">
-        <span className={`badge status-${item.status}`}>
-          {item.statusLabel}
-        </span>
-
-        <button className="btn btn-icon">
-          <i className="bi bi-chevron-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ===============================
-   STATUS
-================================ */
-const getStatus = (row) => {
+const getStatus = (row, t) => {
   if (row.status === "Completed")
-    return { label: "Completed", color: "complete" };
+    return { label: t("production.statusCompleted"), color: "complete" };
   if (row.status === "In Process")
-    return { label: "In Process", color: "pending" };
-  if (row.status === "Not Started") return { label: "Open", color: "open" };
+    return { label: t("production.statusInProgress"), color: "pending" };
+  if (row.status === "Not Started")
+    return { label: t("common.open"), color: "open" };
 
-  return { label: row.status || "Unknown", color: "open" };
+  return { label: row.status || t("production.statusUnknown"), color: "open" };
 };
 
-/* ===============================
-   FILTER CONFIG
-================================ */
-const filterConfig = {
-  filters: [
-    {
-      label: "Status",
-      field: "status",
-      type: "select",
-      options: ["Not Started", "In Process", "Completed"],
-    },
-    {
-      label: "Item",
-      field: "production_item",
-      type: "link",
-      doctype: "Item",
-    },
-  ],
-};
-
-/* ===============================
-   MAIN
-================================ */
 export default function WorkOrderList() {
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const [data, setData] = useState([]);
-  const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [showFilter, setShowFilter] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState({});
 
   const [previewDoc, setPreviewDoc] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  /* HEADER */
-  useEffect(() => {
-    setHeader({
-      title: "Work Orders",
-      subtitle: "Track and manage production jobs",
+  const {
+    page,
+    setPage,
+    totalItems,
+    setTotal,
+    totalPages,
+    resetPage,
+    limit_start,
+    limit_page_length,
+  } = useListPagination({ pageSize: 10 });
 
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Production", path: "/production" },
-        { label: "Work Orders" },
-      ],
+  const filterUi = useMemo(
+    () => listFilterHandlers(setSelectedFilters, resetPage),
+    [resetPage],
+  );
 
-      actions: [
-        {
-          label: "Refresh",
-          variant: "btn-outline-primary",
-          icon: "bi bi-arrow-clockwise",
-          onClick: loadData,
-        },
-      ],
-    });
+  const filterConfig = {
+    filters: [
+      {
+        label: t("common.status"),
+        field: "status",
+        type: "select",
+        options: ["Not Started", "In Process", "Completed"],
+      },
+      {
+        label: t("production.item"),
+        field: "production_item",
+        type: "link",
+        doctype: "Item",
+      },
+    ],
+  };
 
-    return () => setHeader({});
-  }, []);
-
-  /* DEBOUNCE */
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  /* LOAD */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      let filters = [["docstatus", "!=", 2]];
+      const filters = [["docstatus", "!=", 2]];
 
       Object.entries(selectedFilters).forEach(([k, v]) => {
         if (v) filters.push([k, "=", v]);
@@ -140,55 +91,129 @@ export default function WorkOrderList() {
         ]),
         filters: JSON.stringify(filters),
         order_by: "modified desc",
-        limit_start: (page - 1) * PAGE_SIZE,
-        limit_page_length: PAGE_SIZE,
+        limit_start,
+        limit_page_length,
       };
 
-      if (debouncedSearch) {
-        params.or_filters = JSON.stringify([
-          ["name", "like", `%${debouncedSearch}%`],
-          ["production_item", "like", `%${debouncedSearch}%`],
-        ]);
-      }
+      const orFilters = debouncedSearch
+        ? [
+            ["name", "like", `%${debouncedSearch}%`],
+            ["production_item", "like", `%${debouncedSearch}%`],
+          ]
+        : [];
+      if (orFilters.length) params.or_filters = JSON.stringify(orFilters);
 
       const [listRes, countRes] = await Promise.all([
         get("resource/Work Order", params),
         get("method/frappe.client.get_count", {
           doctype: "Work Order",
           filters: JSON.stringify(filters),
+          ...(orFilters.length && { or_filters: JSON.stringify(orFilters) }),
         }),
       ]);
 
       setData(listRes.data || []);
-
-      const count = countRes.message || 0;
-      setTotalPages(Math.ceil(count / PAGE_SIZE));
+      setTotal(countRes.message || 0);
     } catch (e) {
       console.error(e);
+      setError(e);
+      setData([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [
+    debouncedSearch,
+    selectedFilters,
+    limit_start,
+    limit_page_length,
+    setTotal,
+  ]);
 
   useEffect(() => {
+    setHeader({
+      title: t("production.workOrders"),
+      subtitle: t("production.workOrdersSubtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.production"), path: "/production" },
+        { label: t("production.workOrders") },
+      ],
+      actions: [
+        {
+          label: t("common.refresh"),
+          variant: "btn-outline-primary",
+          onClick: loadData,
+        },
+      ],
+    });
+
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSearch = useCallback(
+    (q) => {
+      setDebouncedSearch(q);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
-  }, [page, debouncedSearch, selectedFilters]);
+  }, [loadData]);
 
-  /* MAP */
-  const listData = data.map((row) => {
-    const status = getStatus(row);
+  const listData = useMemo(
+    () =>
+      data.map((row) => {
+        const status = getStatus(row, t);
+        return {
+          title: row.name,
+          subtitle: row.production_item,
+          meta: `${row.produced_qty || 0} / ${row.qty || 0}`,
+          status: status.color,
+          statusLabel: status.label,
+          raw: row,
+        };
+      }),
+    [data, t],
+  );
 
-    return {
-      title: row.name,
-      subtitle: row.production_item,
-      meta: `${row.produced_qty || 0} / ${row.qty || 0}`,
-      status: status.color,
-      statusLabel: status.label,
-      raw: row,
-    };
-  });
+  const columns = useMemo(
+    () => [
+      {
+        id: "name",
+        header: t("common.name"),
+        cell: (row) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium">{row.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {row.subtitle}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "meta",
+        header: t("common.total"),
+        hideBelow: "md",
+        cellClassName: "tabular-nums",
+        cell: (row) => row.meta,
+      },
+      {
+        id: "status",
+        header: t("common.status"),
+        cell: (row) => (
+          <StatusBadge tone={row.status}>{row.statusLabel}</StatusBadge>
+        ),
+      },
+    ],
+    [t],
+  );
 
   return (
     <>
-      {/* MODAL */}
       <WorkOrderPreviewModal
         show={showPreview}
         onClose={() => setShowPreview(false)}
@@ -196,50 +221,61 @@ export default function WorkOrderList() {
         onSuccess={loadData}
       />
 
-      {/* FILTER */}
-      <FilterModal
-        show={showFilter}
-        onClose={() => setShowFilter(false)}
-        config={filterConfig}
-        initialFilters={selectedFilters}
-        onApply={(f) => {
-          setSelectedFilters(f);
-          setPage(1);
-        }}
-      />
-
       <ListLayout
+        contentMode="auto"
+        loading={loading}
+        error={error}
+        onRetry={loadData}
         actionBar={
           <ActionBar
-            onSearch={setSearch}
-            onFilter={() => setShowFilter(true)}
+            onSearch={handleSearch}
+            resultCount={totalItems}
+            filterConfig={filterConfig}
+            selectedFilters={selectedFilters}
+            {...filterUi}
+          />
+        }
+        cards={
+          <div className="card-stack flex flex-col gap-2.5">
+            {listData.map((item, i) => (
+              <ListRow
+                key={i}
+                item={item}
+                index={limit_start + i + 1}
+                onClick={(doc) => {
+                  setPreviewDoc(doc);
+                  setShowPreview(true);
+                }}
+              />
+            ))}
+          </div>
+        }
+        table={
+          <DataTable
+            columns={columns}
+            data={listData}
+            rowKey={(row) => row.raw?.name}
+            onRowClick={(row) => {
+              setPreviewDoc(row.raw);
+              setShowPreview(true);
+            }}
+            loading={loading}
+            rowOffset={limit_start}
           />
         }
         pagination={
-          totalPages > 1 && (
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          )
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            totalItems={totalItems}
+            pageSize={limit_page_length}
+            disabled={loading}
+          />
         }
-        isEmpty={listData.length === 0}
-        emptyState="No Work Orders found"
-      >
-        <div className="list-container">
-          {listData.map((item, i) => (
-            <ListRow
-              key={i}
-              item={item}
-              onClick={(doc) => {
-                setPreviewDoc(doc);
-                setShowPreview(true);
-              }}
-            />
-          ))}
-        </div>
-      </ListLayout>
+        isEmpty={!loading && listData.length === 0}
+        emptyTitle={t("production.emptyWorkOrders")}
+      />
     </>
   );
 }

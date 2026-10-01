@@ -1,0 +1,69 @@
+{
+	"hr": {
+		"header": {
+			"title": "الموارد البشرية",
+			"subtitle": "بيانات الموظفين والحضور والرواتب والتوظيف"
+		},
+		"tiles": {
+			"employee": { "title": "الموظف", "description": "إدارة سجلات الموظفين" },
+			"department": { "title": "القسم", "description": "إدارة الأقسام" },
+			"designation": { "title": "المسمى الوظيفي", "description": "إدارة المسميات الوظيفية" },
+			"leaveType": { "title": "نوع الإجازة", "description": "تكوين أنواع الإجازات" },
+			"holidayList": { "title": "قائمة العطل", "description": "إدارة تقويمات العطل" },
+			"attendance": { "title": "الحضور", "description": "عرض سجلات الحضور" },
+			"salaryStructure": { "title": "هيكل الراتب", "description": "تحديد هيكل الرواتب" },
+			"salarySlip": { "title": "قسيمة الراتب", "description": "إنشاء قسائم الرواتب" },
+			"jobOpening": { "title": "وظيفة شاغرة", "description": "إدارة الوظائف الشاغرة" },
+			"jobApplicant": { "title": "متقدّم للوظيفة", "description": "متابعة المتقدّمين" }
+		}
+	},
+	"sales": {
+		"header": {
+			"title": "المبيعات",
+			"subtitle": "العملاء والعملاء المحتملون والفرص والطلبات"
+		},
+		"tiles": {
+			"customer": { "title": "العميل", "description": "إدارة سجلات العملاء" },
+			"lead": { "title": "عميل محتمل", "description": "متابعة عملاء المبيعات المحتملين" },
+			"opportunity": { "title": "فرصة", "description": "إدارة الفرص" },
+			"quotation": { "title": "عرض سعر", "description": "عروض أسعار العملاء" },
+			"salesOrder": { "title": "أمر بيع", "description": "إدارة أوامر البيع" },
+			"salesInvoice": { "title": "فاتورة مبيعات", "description": "إنشاء فواتير المبيعات" },
+			"item": { "title": "صنف", "description": "إدارة المنتجات والخدمات" }
+		}
+	},
+	"purchase": {
+		"header": {
+			"title": "المشتريات",
+			"subtitle": "الموردون وأوامر الشراء والفواتير"
+		},
+		"tiles": {
+			"supplier": { "title": "المورد", "description": "إدارة سجلات الموردين" },
+			"purchaseOrder": { "title": "أمر شراء", "description": "إنشاء أوامر الشراء" },
+			"purchaseReceipt": { "title": "إيصال شراء", "description": "تسجيل استلام البضائع" },
+			"purchaseInvoice": { "title": "فاتورة شراء", "description": "فواتير الموردين" },
+			"supplierQuotation": { "title": "عرض سعر مورّد", "description": "عروض أسعار الموردين" },
+			"requestForQuotation": { "title": "طلب عرض سعر", "description": "طلب عروض أسعار من الموردين" }
+		}
+	},
+	"demo": {
+		"header": {
+			"title": "🏭 لوحة تحكّم ERP",
+			"subtitle": "وصول سريع إلى العمليات"
+		},
+		"actions": {
+			"quickAction": "+ إجراء سريع"
+		},
+		"status": {
+			"open": "مفتوح",
+			"complete": "مكتمل",
+			"pending": "معلّق"
+		},
+		"rows": {
+			"materialIssue": { "subtitle": "صرف مواد", "meta": "WH-A → الإنتاج" },
+			"materialReceipt": { "subtitle": "استلام مواد", "meta": "المورّد → WH-B" },
+			"transferEntry": { "subtitle": "قيد تحويل", "meta": "WH-A → WH-C" },
+			"repackEntry": { "subtitle": "قيد إعادة تغليف", "meta": "WH-B → WH-A" }
+		}
+	}
+}

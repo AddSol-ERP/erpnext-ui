@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
 import { getDoctypeConfig } from "../../config/doctypes";
+import { Button } from "@/components/ui/button";
+import { Download, Printer, TriangleAlert } from "lucide-react";
 
 /** Extract the hub name from the first segment of the current path. */
 function useHub() {
@@ -22,6 +25,7 @@ export default function PrintPreview() {
   const hub = useHub();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
   const iframeRef = useRef(null);
 
   const decodedDoctype = decodeURIComponent(doctype || "");
@@ -55,7 +59,7 @@ export default function PrintPreview() {
                              doc.querySelector(".error-page") ||
                              doc.querySelector(".frappe-404");
         if (isError || hasErrorPage) {
-          setLoadError("This document does not exist or you do not have permission to view it.");
+          setLoadError(t("print.loadError"));
         }
       }
     } catch {
@@ -72,43 +76,6 @@ export default function PrintPreview() {
     `/printview?doctype=${encodeURIComponent(decodedDoctype)}` +
     `&name=${encodeURIComponent(decodedName)}` +
     (printFormat ? `&format=${encodeURIComponent(printFormat)}` : "");
-
-  /* ------------------------------------------------------------------
-     HEADER
-  ------------------------------------------------------------------ */
-  useEffect(() => {
-    setHeader({
-      title: decodedName || "Print Preview",
-      subtitle: decodedDoctype,
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: hub.charAt(0).toUpperCase() + hub.slice(1), path: `/${hub}` },
-        { label: decodedDoctype, path: `/${hub}/${encodeURIComponent(decodedDoctype)}` },
-        { label: decodedName },
-      ],
-      actions: [
-        {
-          label: "Download PDF",
-          variant: "btn-primary",
-          icon: "bi bi-download",
-          onClick: downloadPdf,
-        },
-        {
-          label: "Print",
-          variant: "btn-outline-primary",
-          icon: "bi bi-printer",
-          onClick: handlePrint,
-        },
-        {
-          label: "Back",
-          variant: "btn-outline-secondary",
-          icon: "bi bi-arrow-left",
-          onClick: () => navigate(-1),
-        },
-      ],
-    });
-    return () => setHeader({});
-  }, [doctype, name, hub]);
 
   /* ------------------------------------------------------------------
      DOWNLOAD / PRINT HELPERS
@@ -128,60 +95,92 @@ export default function PrintPreview() {
     window.open(printviewUrl, "_blank");
   };
 
+  /* ------------------------------------------------------------------
+     HEADER
+  ------------------------------------------------------------------ */
+  useEffect(() => {
+    setHeader({
+      title: decodedName || t("print.previewTitle"),
+      subtitle: decodedDoctype,
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: hub.charAt(0).toUpperCase() + hub.slice(1), path: `/${hub}` },
+        { label: decodedDoctype, path: `/${hub}/${encodeURIComponent(decodedDoctype)}` },
+        { label: decodedName },
+      ],
+      actions: [
+        {
+          label: t("print.downloadPdf"),
+          variant: "btn-primary",
+          onClick: downloadPdf,
+        },
+        {
+          label: t("common.print"),
+          variant: "btn-outline-primary",
+          onClick: handlePrint,
+        },
+        {
+          label: t("common.back"),
+          variant: "btn-outline-secondary",
+          onClick: () => navigate(-1),
+        },
+      ],
+    });
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doctype, name, hub]);
+
   /* ==================================================================
      RENDER
   ================================================================== */
 
   if (!decodedDoctype || !decodedName) {
     return (
-      <div className="alert alert-danger m-4">
-        <i className="bi bi-exclamation-triangle me-2"></i>
-        Missing doctype or document name in the URL.
+      <div className="m-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">
+        <TriangleAlert className="me-2 inline size-4" />
+        {t("print.missingParams")}
       </div>
     );
   }
 
   return (
-    <div className="print-preview-container d-flex flex-column h-100">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Toolbar */}
-      <div className="print-preview-toolbar flex-shrink-0 d-flex align-items-center gap-2 mb-2 pb-2 border-bottom">
-        <button className="btn btn-sm btn-primary" onClick={downloadPdf}>
-          <i className="bi bi-download me-1"></i> Download PDF
-        </button>
-        <button className="btn btn-sm btn-outline-primary" onClick={handlePrint}>
-          <i className="bi bi-printer me-1"></i> Print
-        </button>
-        <span className="text-muted small ms-auto">
+      <div className="mb-2 flex shrink-0 items-center gap-2 border-b border-border pb-2">
+        <Button size="sm" onClick={downloadPdf}>
+          <Download className="size-4" />
+          {t("print.downloadPdf")}
+        </Button>
+        <Button variant="outline" size="sm" onClick={handlePrint}>
+          <Printer className="size-4" />
+          {t("common.print")}
+        </Button>
+        <span className="ms-auto truncate text-sm text-muted-foreground">
           {decodedDoctype} — {decodedName}
         </span>
       </div>
 
       {/* Native Frappe /printview page embedded in an iframe */}
-      <div className="flex-grow-1 print-preview-frame">
+      <div className="min-h-0 flex-1">
         {loadError ? (
-          <div className="d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
-            <i className="bi bi-exclamation-triangle text-warning" style={{ fontSize: "3rem" }}></i>
-            <h5 className="mt-3 text-muted">Document Not Available</h5>
-            <p className="text-muted mb-3">{loadError}</p>
-            <button className="btn btn-outline-secondary" onClick={() => navigate(-1)}>
-              <i className="bi bi-arrow-left me-1"></i> Go back
-            </button>
+          <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+            <TriangleAlert className="size-12 text-amber-600" />
+            <h5 className="mt-3 text-lg font-semibold text-muted-foreground">
+              {t("print.notAvailable")}
+            </h5>
+            <p className="mb-3 text-muted-foreground">{loadError}</p>
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              {t("print.goBack")}
+            </Button>
           </div>
         ) : (
           <iframe
             ref={iframeRef}
             src={printviewUrl}
             title={`${decodedDoctype} - ${decodedName}`}
-            className="print-iframe"
+            className="h-full w-full rounded-md border border-border bg-white"
             sandbox="allow-same-origin allow-forms allow-scripts"
             onLoad={handleIframeLoad}
-            style={{
-              width: "100%",
-              height: "100%",
-              border: "1px solid #d1d5db",
-              borderRadius: "6px",
-              background: "#fff",
-            }}
           />
         )}
       </div>

@@ -1,0 +1,308 @@
+{
+	"requests": {
+		"header": {
+			"title": "Requests",
+			"subtitle": "Create and manage employee requests",
+			"attendanceListTitle": "Attendance Requests",
+			"attendanceListSubtitle": "Review and manage attendance corrections",
+			"attendanceEditTitle": "Attendance Request {{name}}",
+			"attendanceNewTitle": "New Attendance Request",
+			"attendanceEditSubtitle": "Review and update attendance correction",
+			"attendanceNewSubtitle": "Create a request to correct attendance records",
+			"leaveListTitle": "Leave Applications",
+			"leaveListSubtitle": "Track and manage employee leaves",
+			"leaveEditTitle": "Leave Application {{name}}",
+			"leaveNewTitle": "New Leave Application",
+			"leaveEditSubtitle": "Review and update leave request",
+			"leaveNewSubtitle": "Create a new leave request",
+			"expenseListTitle": "Expense Claims",
+			"expenseListSubtitle": "Track and manage employee expense submissions",
+			"expenseEditTitle": "Expense Claim {{name}}",
+			"expenseNewTitle": "New Expense Claim",
+			"expenseEditSubtitle": "Review and update expense details",
+			"expenseNewSubtitle": "Create and submit a new expense claim"
+		},
+		"tiles": {
+			"attendance": {
+				"title": "Attendance Request",
+				"description": "Fix attendance entries"
+			},
+			"leave": {
+				"title": "Leave Request",
+				"description": "Apply for leave"
+			},
+			"expense": {
+				"title": "Expense Request",
+				"description": "Submit expenses"
+			}
+		},
+		"status": {
+			"approved": "Approved",
+			"rejected": "Rejected",
+			"pending": "Pending",
+			"draft": "Draft",
+			"submitted": "Submitted",
+			"paid": "Paid"
+		},
+		"list": {
+			"create": "Create",
+			"new": "+ New",
+			"emptyAttendance": "No attendance requests found",
+			"emptyLeave": "No leave applications found",
+			"emptyExpense": "No expense claims found",
+			"activeFilters": "Filters: {{filters}}",
+			"reason": "Reason"
+		},
+		"filters": {
+			"employee": "Employee",
+			"leaveType": "Leave Type",
+			"fromDate": "From Date",
+			"toDate": "To Date"
+		},
+		"attendance": {
+			"employee": "Employee",
+			"company": "Company",
+			"fromDate": "From Date",
+			"toDate": "To Date",
+			"halfDay": "Half Day",
+			"halfDayDate": "Half Day Date",
+			"halfDayHint": "Select a date within the chosen range",
+			"includeHolidays": "Include Holidays",
+			"shift": "Shift",
+			"reason": "Reason",
+			"explanation": "Explanation",
+			"workFromHome": "Work From Home",
+			"onDuty": "On Duty",
+			"select": "Select",
+			"validationRequired": "Employee, Dates and Reason are required",
+			"validationRange": "To Date cannot be before From Date",
+			"validationHalfDayDate": "Half Day Date is required",
+			"loadFailed": "Failed to load document",
+			"sectionDetails": "Attendance Details",
+			"sectionOptions": "Options"
+		},
+		"leave": {
+			"employee": "Employee",
+			"approver": "Approver",
+			"autoAssigned": "Auto assigned",
+			"leaveType": "Leave Type",
+			"balance": "Balance: {{days}} days",
+			"fromDate": "From Date",
+			"toDate": "To Date",
+			"totalDays": "Total Days: {{days}}",
+			"remaining": "Remaining: {{days}}",
+			"halfDay": "Half Day",
+			"reason": "Reason",
+			"noApprover": "No Leave Approver assigned for this employee",
+			"approverFetchFailed": "Unable to fetch approver",
+			"loadFailed": "Failed to load",
+			"validationRequired": "All required fields must be filled",
+			"validationApprover": "Leave approver is required",
+			"validationRange": "Invalid date range",
+			"validationBalance": "Insufficient leave balance",
+			"sectionDetails": "Leave Details",
+			"sectionNotes": "Half Day & Reason"
+		},
+		"expense": {
+			"employee": "Employee",
+			"company": "Company",
+			"approver": "Approver",
+			"selectApprover": "Select Approver",
+			"postingDate": "Posting Date",
+			"expenses": "Expenses",
+			"date": "Date",
+			"type": "Type",
+			"amount": "Amount",
+			"description": "Description",
+			"total": "Total: ₹ {{amount}}",
+			"remark": "Remark",
+			"noApprover": "No Expense Approver found. Contact HR.",
+			"approverFetchFailed": "Failed to fetch approver",
+			"loadFailed": "Failed to load",
+			"validationRequired": "Employee, Company and Approver required",
+			"validationApprover": "Expense Approver is required",
+			"validationAddOne": "Add at least one expense",
+			"validationFillRows": "All expense rows must be filled",
+			"validationAmount": "Amount must be greater than 0",
+			"sectionDetails": "Claim Details"
+		}
+	},
+	"ess": {
+		"header": {
+			"title": "Employee Self Service",
+			"subtitle": "My profile, attendance, leave & salary",
+			"profileTitle": "My Profile",
+			"profileSubtitle": "View your employee information",
+			"attendanceTitle": "Attendance Calendar",
+			"attendanceCrumb": "Attendance",
+			"attendanceSubtitleEmployee": "Employee: {{name}}",
+			"attendanceSubtitle": "ESS",
+			"overtimeTitle": "Overtime Logs",
+			"overtimeSubtitleEmployee": "Employee: {{name}}",
+			"overtimeSubtitle": "Your overtime records",
+			"back": "Back",
+			"appointmentLetter": "Appointment Letter",
+			"print": "Print"
+		},
+		"tiles": {
+			"profile": {
+				"title": "My Profile",
+				"description": "View and manage your profile"
+			},
+			"leave": {
+				"title": "My Leave",
+				"description": "Apply for leave & view balance"
+			},
+			"leaveBalance": {
+				"title": "Leave Balance",
+				"description": "View my leave balance for the year"
+			},
+			"expenses": {
+				"title": "My Expenses",
+				"description": "Submit expense claims"
+			},
+			"attendanceRequests": {
+				"title": "Attendance Required",
+				"description": "Manage attendance requests"
+			},
+			"attendanceLogs": {
+				"title": "Attendance Logs",
+				"description": "Monthly calendar view with In/Out times"
+			},
+			"overtime": {
+				"title": "Overtime Logs",
+				"description": "View your overtime records"
+			},
+			"salarySlips": {
+				"title": "My Salary Slips",
+				"description": "View payslips"
+			},
+			"tasks": {
+				"title": "My Tasks",
+				"description": "View assigned tasks"
+			}
+		},
+		"profile": {
+			"loading": "Loading…",
+			"notFoundTitle": "No Employee Profile Found",
+			"notFoundDescription": "Your user account is not linked to an Employee record. Please contact HR to set up your profile.",
+			"backToDashboard": "Back to Dashboard",
+			"idLabel": "ID: {{id}}",
+			"hrApprovalTitle": "HR Approval Pending",
+			"hrApprovalDescription": "Your profile is not yet approved by HR. Salary will not be processed until HR approval.",
+			"sectionPersonal": "Personal Details",
+			"sectionEmployment": "Employment",
+			"sectionContact": "Contact",
+			"sectionAddress": "Address",
+			"fields": {
+				"employeeName": "Employee Name",
+				"dateOfBirth": "Date of Birth",
+				"gender": "Gender",
+				"employeeId": "Employee ID",
+				"company": "Company",
+				"department": "Department",
+				"designation": "Designation",
+				"branch": "Branch",
+				"dateOfJoining": "Date of Joining",
+				"contractEndDate": "Contract End Date",
+				"personalEmail": "Personal Email",
+				"companyEmail": "Company Email",
+				"mobileNumber": "Mobile Number",
+				"emergencyContact": "Emergency Contact",
+				"currentAddress": "Current Address",
+				"permanentAddress": "Permanent Address"
+			},
+			"lastUpdated": "Last Updated: {{date}}",
+			"created": "Created: {{date}}",
+			"userNotFound": "Could not identify current user",
+			"loadFailed": "Failed to load profile",
+			"notFoundInfo": "Employee profile not found. Try creating one."
+		},
+		"attendance": {
+			"loadingEmployee": "Loading employee data…",
+			"noEmployee": "No linked Employee record found for your user account.",
+			"loadingRecords": "Loading attendance records…",
+			"today": "Today",
+			"present": "Present",
+			"absent": "Absent",
+			"leave": "Leave",
+			"halfDay": "Half Day",
+			"onLeave": "On Leave",
+			"presentCount": "Present: {{count}}",
+			"absentCount": "Absent: {{count}}",
+			"leaveCount": "Leave: {{count}}",
+			"halfDayCount": "Half Day: {{count}}",
+			"lateHalfDay": "Late / Half Day",
+			"missing": "Missing",
+			"weeklyOff": "Weekly Off",
+			"holiday": "Holiday",
+			"future": "Future",
+			"weeklyOffShort": "W",
+			"holidayShort": "H",
+			"createLeave": "Create Leave Application",
+			"requestCorrection": "Request Attendance Correction",
+			"leaveAction": "Leave",
+			"attendanceAction": "Attnd",
+			"prevMonth": "Previous month",
+			"nextMonth": "Next month",
+			"heroDesc": "Monthly attendance with in/out times and quick actions",
+			"checkinLogs": "Check-in Logs - {{date}}",
+			"months": {
+				"january": "January",
+				"february": "February",
+				"march": "March",
+				"april": "April",
+				"may": "May",
+				"june": "June",
+				"july": "July",
+				"august": "August",
+				"september": "September",
+				"october": "October",
+				"november": "November",
+				"december": "December"
+			},
+			"days": {
+				"sun": "Sun",
+				"mon": "Mon",
+				"tue": "Tue",
+				"wed": "Wed",
+				"thu": "Thu",
+				"fri": "Fri",
+				"sat": "Sat"
+			},
+			"legend": {
+				"present": "Present",
+				"lateHalfDay": "Late / Half Day",
+				"absent": "Absent",
+				"missing": "Missing",
+				"weeklyOff": "Weekly Off",
+				"holiday": "Holiday",
+				"future": "Future"
+			}
+		},
+		"overtime": {
+			"backToDashboard": "Back to Dashboard",
+			"noEmployeeTitle": "No Employee Found",
+			"noEmployeeDescription": "Your user account is not linked to an Employee record. Please contact HR.",
+			"totalLogs": "Total Logs",
+			"totalOTHours": "Total OT Hours",
+			"approved": "Approved",
+			"pending": "Pending",
+			"noRecordsTitle": "No Overtime Records",
+			"noRecordsDescription": "You don't have any overtime logs yet.",
+			"hrs": "hrs",
+			"statusDraft": "Draft",
+			"statusApproved": "Approved",
+			"statusRejected": "Rejected",
+			"columns": {
+				"date": "Date",
+				"shift": "Shift",
+				"inTime": "In Time",
+				"outTime": "Out Time",
+				"otHours": "OT Hours",
+				"status": "Status",
+				"remarks": "Remarks"
+			}
+		}
+	}
+}

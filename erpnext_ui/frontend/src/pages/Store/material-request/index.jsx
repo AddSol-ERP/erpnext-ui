@@ -1,85 +1,91 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../../context/HeaderContext";
-import ActionTile from "../../../components/ActionTile";
+import { useTranslation } from "react-i18next";
+import {
+  ShoppingCart,
+  ArrowLeftRight,
+  PackageOpen,
+  PackageCheck,
+  Inbox,
+  UserCheck,
+} from "lucide-react";
+import DashboardShell from "../../../components/dashboard/DashboardShell";
+import DashboardHero from "../../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../../components/dashboard/ModuleGrid";
+
+const MODULE_DEFS = [
+  {
+    key: "purchase",
+    titleKey: "store.mr.tiles.purchase",
+    type: "Purchase",
+    icon: ShoppingCart,
+  },
+  {
+    key: "transfer",
+    titleKey: "store.mr.tiles.transfer",
+    type: "Transfer",
+    icon: ArrowLeftRight,
+  },
+  {
+    key: "issue",
+    titleKey: "store.mr.tiles.issue",
+    type: "Material Issue",
+    icon: PackageOpen,
+  },
+  {
+    key: "receipt",
+    titleKey: "store.mr.tiles.receipt",
+    type: "Material Receipt",
+    icon: PackageCheck,
+  },
+  {
+    key: "customerProvided",
+    titleKey: "store.mr.tiles.customerProvided",
+    type: "Customer Provided",
+    icon: UserCheck,
+  },
+];
 
 export default function MaterialRequestDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   useEffect(() => {
     setHeader({
-      title: "Material Requests",
-      subtitle: "Track and manage all material requests",
-
+      title: t("store.mr.title"),
+      subtitle: t("store.mr.subtitle"),
       breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Store", path: "/store" },
-        { label: "Material Requests" },
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.store"), path: "/store" },
+        { label: t("store.mr.title") },
       ],
-
       actions: [
         {
-          label: "+ New",
+          label: t("common.new"),
           onClick: () => navigate("/store/material-request/type/Purchase/new"),
         },
       ],
     });
 
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const modules = [
-    {
-      title: "Purchase Request",
-      type: "Purchase",
-      icon: "bi-cart",
-      description: "Request items for purchase",
-    },
-    {
-      title: "Material Transfer",
-      type: "Transfer",
-      icon: "bi-arrow-left-right",
-      description: "Move stock between warehouses",
-    },
-    {
-      title: "Material Issue",
-      type: "Material Issue",
-      icon: "bi-box-arrow-up",
-      description: "Issue material for usage",
-    },
-    {
-      title: "Material Receipt",
-      type: "Material Receipt",
-      icon: "bi-box-arrow-in-down",
-      description: "Receive materials",
-    },
-    {
-      title: "Customer Provided",
-      type: "Customer Provided",
-      icon: "bi-person-check",
-      description: "Customer supplied materials",
-    },
-  ];
+  const modules = MODULE_DEFS.map((m) => ({
+    ...m,
+    titleKey: `${m.titleKey}.title`,
+    descriptionKey: `${m.titleKey}.description`,
+  }));
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <div className="position-relative">
-              <ActionTile
-                tile={{
-                  ...m,
-                  color: "#4f46e5",
-                  primary: true,
-                }}
-                onClick={() => navigate(`type/${m.type}`)}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero icon={Inbox} description={t("store.mr.subtitle")} />
+      <ModuleGrid
+        items={modules}
+        onClick={(tile) => navigate(`/store/material-request/type/${tile.type}`)}
+      />
+    </DashboardShell>
   );
 }

@@ -1,0 +1,69 @@
+{
+	"hr": {
+		"header": {
+			"title": "HR",
+			"subtitle": "Employee master, attendance, payroll & recruitment"
+		},
+		"tiles": {
+			"employee": { "title": "Employee", "description": "Manage employee records" },
+			"department": { "title": "Department", "description": "Manage departments" },
+			"designation": { "title": "Designation", "description": "Manage designations" },
+			"leaveType": { "title": "Leave Type", "description": "Configure leave types" },
+			"holidayList": { "title": "Holiday List", "description": "Manage holiday calendars" },
+			"attendance": { "title": "Attendance", "description": "View attendance records" },
+			"salaryStructure": { "title": "Salary Structure", "description": "Define salary structures" },
+			"salarySlip": { "title": "Salary Slip", "description": "Generate salary slips" },
+			"jobOpening": { "title": "Job Opening", "description": "Manage job openings" },
+			"jobApplicant": { "title": "Job Applicant", "description": "Track applicants" }
+		}
+	},
+	"sales": {
+		"header": {
+			"title": "Sales",
+			"subtitle": "Customers, leads, opportunities & orders"
+		},
+		"tiles": {
+			"customer": { "title": "Customer", "description": "Manage customer records" },
+			"lead": { "title": "Lead", "description": "Track sales leads" },
+			"opportunity": { "title": "Opportunity", "description": "Manage opportunities" },
+			"quotation": { "title": "Quotation", "description": "Customer quotations" },
+			"salesOrder": { "title": "Sales Order", "description": "Manage sales orders" },
+			"salesInvoice": { "title": "Sales Invoice", "description": "Create sales invoices" },
+			"item": { "title": "Item", "description": "Manage products & services" }
+		}
+	},
+	"purchase": {
+		"header": {
+			"title": "Purchase",
+			"subtitle": "Suppliers, purchase orders & invoices"
+		},
+		"tiles": {
+			"supplier": { "title": "Supplier", "description": "Manage supplier records" },
+			"purchaseOrder": { "title": "Purchase Order", "description": "Create purchase orders" },
+			"purchaseReceipt": { "title": "Purchase Receipt", "description": "Record goods receipt" },
+			"purchaseInvoice": { "title": "Purchase Invoice", "description": "Supplier invoices" },
+			"supplierQuotation": { "title": "Supplier Quotation", "description": "Supplier quotations" },
+			"requestForQuotation": { "title": "Request for Quotation", "description": "Request supplier quotes" }
+		}
+	},
+	"demo": {
+		"header": {
+			"title": "🏭 ERP Dashboard",
+			"subtitle": "Quick access to operations"
+		},
+		"actions": {
+			"quickAction": "+ Quick Action"
+		},
+		"status": {
+			"open": "Open",
+			"complete": "Complete",
+			"pending": "Pending"
+		},
+		"rows": {
+			"materialIssue": { "subtitle": "Material Issue", "meta": "WH-A → Production" },
+			"materialReceipt": { "subtitle": "Material Receipt", "meta": "Vendor → WH-B" },
+			"transferEntry": { "subtitle": "Transfer Entry", "meta": "WH-A → WH-C" },
+			"repackEntry": { "subtitle": "Repack Entry", "meta": "WH-B → WH-A" }
+		}
+	}
+}

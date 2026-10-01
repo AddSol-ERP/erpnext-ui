@@ -1,18 +1,27 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 import { get, post } from "../../../../services/api";
 import { FormField } from "../../../../components/FormField";
+import FormSection from "../../../../components/FormSection";
+import { ClipboardList } from "lucide-react";
 import LinkField from "../../../../components/LinkField";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { gridCorners } from "../../../../lib/gridCorners";
+
+const PARAM_BP = [{ cols: 1 }, { min: "md", cols: 2 }, { min: "lg", cols: 3 }];
 
 export default function InspectionForm() {
   const { name } = useParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const isEdit = !!name;
-
-  const [loading, setLoading] = useState(false);
 
   const [doc, setDoc] = useState({
     template: "",
@@ -21,49 +30,49 @@ export default function InspectionForm() {
 
   const [parameters, setParameters] = useState([]);
 
-  /* ================= HEADER ================= */
-  useEffect(() => {
-    setHeader({
-      title: isEdit ? `Inspection ${doc.name || ""}` : "New Inspection",
+  /* ================= CALC ================= */
+  const updateReading = (pi, vi, value) => {
+    const updated = [...parameters];
+    const p = updated[pi];
 
-      subtitle: isEdit
-        ? "Review and update inspection results"
-        : "Create a new quality inspection",
+    p.values[vi] = value;
 
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Quality", path: "/quality" },
-        { label: "Inspections", path: "/quality/inspection" },
-        {
-          label: isEdit ? doc.name || "Edit" : "New",
-        },
-      ],
+    const nums = p.values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
 
-      actions: [
-        {
-          label: loading ? "Saving..." : "Save",
-          variant: "btn-success",
-          onClick: handleSave,
-          disabled: loading,
-        },
+    if (nums.length === 0) {
+      p.status = "Pending";
+      setParameters(updated);
+      return;
+    }
 
-        isEdit &&
-          !doc.docstatus && {
-            label: "Submit",
-            variant: "btn-primary",
-            onClick: handleSave,
-          },
-      ].filter(Boolean),
-    });
+    const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+    const target = (p.min_value + p.max_value) / 2;
+    const deviation = Math.abs((avg - target) / target) * 100;
 
-    return () => setHeader({});
-  }, [loading, isEdit, doc]);
+    p.avg = avg.toFixed(2);
+    p.deviation = deviation.toFixed(2);
+
+    if (deviation <= p.tolerance) {
+      p.status = "PASS";
+    } else {
+      p.status = "FAIL";
+    }
+
+    setParameters(updated);
+  };
+
+  /* ================= RESULT ================= */
+  const overallStatus = (() => {
+    if (!parameters.length) return "";
+
+    if (parameters.some((p) => p.status === "Pending")) return "Pending";
+
+    if (parameters.some((p) => p.status === "FAIL")) return "Rejected";
+
+    return "Accepted";
+  })();
 
   /* ================= LOAD ================= */
-  useEffect(() => {
-    if (isEdit) loadDoc();
-  }, [name]);
-
   const loadDoc = async () => {
     const res = await get(`resource/Quality Inspection/${name}`);
     const d = res.data;
@@ -93,7 +102,7 @@ export default function InspectionForm() {
         numeric: t.numeric,
         min_value: t.min_value,
         max_value: t.max_value,
-        tolerance: 5, // 🔥 default %
+        tolerance: 5, // default %
         values: [
           existing?.reading_1,
           existing?.reading_2,
@@ -131,54 +140,6 @@ export default function InspectionForm() {
     setParameters(mapped);
   };
 
-  /* ================= CALC ================= */
-  const updateReading = (pi, vi, value) => {
-    const updated = [...parameters];
-    const p = updated[pi];
-
-    p.values[vi] = value;
-
-    const nums = p.values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
-
-    if (nums.length === 0) {
-      p.status = "Pending";
-      setParameters(updated);
-      return;
-    }
-
-    // 🔥 AVG
-    const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
-
-    // 🔥 TARGET
-    const target = (p.min_value + p.max_value) / 2;
-
-    // 🔥 DEVIATION %
-    const deviation = Math.abs((avg - target) / target) * 100;
-
-    p.avg = avg.toFixed(2);
-    p.deviation = deviation.toFixed(2);
-
-    // 🔥 STATUS
-    if (deviation <= p.tolerance) {
-      p.status = "PASS";
-    } else {
-      p.status = "FAIL";
-    }
-
-    setParameters(updated);
-  };
-
-  /* ================= RESULT ================= */
-  const overallStatus = (() => {
-    if (!parameters.length) return "";
-
-    if (parameters.some((p) => p.status === "Pending")) return "Pending";
-
-    if (parameters.some((p) => p.status === "FAIL")) return "Rejected";
-
-    return "Accepted";
-  })();
-
   /* ================= SAVE ================= */
   const handleSave = async () => {
     const payload = {
@@ -206,128 +167,199 @@ export default function InspectionForm() {
     navigate("/quality/inspection");
   };
 
+  /* ================= HEADER ================= */
+  useEffect(() => {
+    setHeader({
+      title: isEdit
+        ? t("quality.inspectionTitle", { name: doc.name || "" })
+        : t("quality.newInspection"),
+
+      subtitle: isEdit
+        ? t("quality.inspectionEditSubtitle")
+        : t("quality.inspectionNewSubtitle"),
+
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.quality"), path: "/quality" },
+        { label: t("quality.inspections"), path: "/quality/inspection" },
+        {
+          label: isEdit ? doc.name || t("common.edit") : t("common.new"),
+        },
+      ],
+
+      actions: [
+        {
+          label: t("common.save"),
+          variant: "btn-success",
+          onClick: handleSave,
+        },
+
+        isEdit &&
+          !doc.docstatus && {
+            label: t("common.submit"),
+            variant: "btn-primary",
+            onClick: handleSave,
+          },
+      ].filter(Boolean),
+    });
+
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, doc]);
+
+  /* ================= LOAD EFFECT ================= */
+  useEffect(() => {
+    if (isEdit) {
+      // loadDoc only setStates after awaited API responses.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadDoc();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
+
   /* ================= UI ================= */
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+    <div className="mx-auto w-full max-w-[1100px]">
       {/* BASIC */}
-      <div className="card mb-3">
-        <div className="card-body row g-2">
-          <div className="col-md-6">
-            <FormField label="Template">
-              <LinkField
-                doctype="Quality Inspection Template"
-                value={doc.template}
-                onChange={handleTemplateChange}
-                disabled={isEdit}
-              />
-            </FormField>
-          </div>
+      <FormSection
+        className="mb-3"
+        title={t("quality.basicInfo")}
+        icon={ClipboardList}
+        contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2"
+      >
+          <FormField label={t("quality.template")}>
+            <LinkField
+              doctype="Quality Inspection Template"
+              value={doc.template}
+              onChange={handleTemplateChange}
+              disabled={isEdit}
+            />
+          </FormField>
 
-          <div className="col-md-6">
-            <FormField label="Item">
-              <LinkField
-                doctype="Item"
-                value={doc.item_code}
-                onChange={(v) => setDoc({ ...doc, item_code: v })}
-              />
-            </FormField>
-          </div>
-        </div>
-      </div>
+          <FormField label={t("quality.item")}>
+            <LinkField
+              doctype="Item"
+              value={doc.item_code}
+              onChange={(v) => setDoc({ ...doc, item_code: v })}
+            />
+          </FormField>
+      </FormSection>
 
       {/* PARAMETERS */}
-      <div className="row g-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {parameters.map((p, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4">
-            <div className="card">
-              <div className="card-body">
-                <div className="fw-bold text-center">{p.parameter}</div>
+          <Card
+            key={i}
+            className={gridCorners({
+              breakpoints: PARAM_BP,
+              index: i,
+              count: parameters.length,
+            })}
+          >
+            <CardContent className="p-4">
+              <div className="text-center font-bold">{p.parameter}</div>
 
-                <div className="small text-muted text-center mb-2">
-                  {p.min_value} → {p.max_value} | Tol: {p.tolerance}%
-                </div>
-
-                {/* INPUTS */}
-                {p.values.map((val, vi) => (
-                  <input
-                    key={vi}
-                    className="form-control mb-2 text-center"
-                    type="number"
-                    value={val}
-                    placeholder={`Reading ${vi + 1}`}
-                    onChange={(e) => updateReading(i, vi, e.target.value)}
-                  />
-                ))}
-
-                <button
-                  className="btn btn-sm btn-outline-primary w-100"
-                  onClick={() => {
-                    const updated = [...parameters];
-                    updated[i].values.push("");
-                    setParameters(updated);
-                  }}
-                >
-                  + Add Reading
-                </button>
-
-                {/* METRICS */}
-                {p.avg > 0 && (
-                  <div className="mt-3 small text-center">
-                    <div>
-                      Avg: <b>{p.avg}</b>
-                    </div>
-                    <div>
-                      Dev:{" "}
-                      <b
-                        className={
-                          p.deviation > p.tolerance
-                            ? "text-danger"
-                            : "text-success"
-                        }
-                      >
-                        {p.deviation}%
-                      </b>
-                    </div>
-                  </div>
-                )}
-
-                {/* STATUS */}
-                <div className="text-center mt-2">
-                  <span
-                    className={`badge ${
-                      p.status === "PASS"
-                        ? "bg-success"
-                        : p.status === "FAIL"
-                          ? "bg-danger"
-                          : "bg-secondary"
-                    }`}
-                  >
-                    {p.status}
-                  </span>
-                </div>
+              <div className="mb-2 text-center text-sm text-muted-foreground">
+                {t("quality.rangeTolerance", {
+                  min: p.min_value,
+                  max: p.max_value,
+                  tol: p.tolerance,
+                })}
               </div>
-            </div>
-          </div>
+
+              {/* INPUTS */}
+              {p.values.map((val, vi) => (
+                <Input
+                  key={vi}
+                  className="mb-2 text-center"
+                  type="number"
+                  value={val}
+                  placeholder={t("quality.reading", { n: vi + 1 })}
+                  onChange={(e) => updateReading(i, vi, e.target.value)}
+                />
+              ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  const updated = [...parameters];
+                  updated[i].values.push("");
+                  setParameters(updated);
+                }}
+              >
+                + {t("quality.addReading")}
+              </Button>
+
+              {/* METRICS */}
+              {p.avg > 0 && (
+                <div className="mt-3 text-center text-sm">
+                  <div>
+                    {t("quality.avg")}: <b>{p.avg}</b>
+                  </div>
+                  <div>
+                    {t("quality.dev")}:{" "}
+                    <b
+                      className={
+                        p.deviation > p.tolerance
+                          ? "text-destructive"
+                          : "text-emerald-600"
+                      }
+                    >
+                      {p.deviation}%
+                    </b>
+                  </div>
+                </div>
+              )}
+
+              {/* STATUS */}
+              <div className="mt-2 text-center">
+                <Badge
+                  variant="outline"
+                  className={
+                    p.status === "PASS"
+                      ? "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30"
+                      : p.status === "FAIL"
+                        ? "bg-destructive/15 text-destructive ring-destructive/30"
+                        : "bg-muted text-muted-foreground ring-border"
+                  }
+                >
+                  {p.status === "PASS"
+                    ? t("quality.statusPass")
+                    : p.status === "FAIL"
+                      ? t("quality.statusFail")
+                      : t("quality.statusPending")}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
       {/* FINAL RESULT */}
-      <div className="card mt-3">
-        <div className="card-body text-center">
-          <div className="small text-muted">Final Result</div>
+      <Card className="mt-3">
+        <CardContent className="p-4 text-center">
+          <div className="text-sm text-muted-foreground">
+            {t("quality.finalResult")}
+          </div>
           <div
-            className={`fw-bold fs-4 ${
+            className={`text-2xl font-bold ${
               overallStatus === "Accepted"
-                ? "text-success"
+                ? "text-emerald-600"
                 : overallStatus === "Rejected"
-                  ? "text-danger"
-                  : "text-secondary"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
             }`}
           >
-            {overallStatus}
+            {overallStatus === "Accepted"
+              ? t("quality.statusAccepted")
+              : overallStatus === "Rejected"
+                ? t("quality.statusRejected")
+                : t("quality.statusPending")}
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

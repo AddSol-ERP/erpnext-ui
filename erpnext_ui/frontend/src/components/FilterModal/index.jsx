@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import LinkField from "../LinkField";
+import { useTranslation } from "react-i18next";
 import AppModal from "../AppModal";
+import { Button } from "@/components/ui/button";
+import FilterFields from "./FilterFields";
 
+/**
+ * Full-screen/modal filter dialog (reports + non-toolbar surfaces).
+ * List pages use ActionBar-owned Popover/Sheet instead.
+ */
 export default function FilterModal({
   show,
   onClose,
@@ -9,16 +15,14 @@ export default function FilterModal({
   onApply,
   initialFilters = {},
 }) {
+  const { t } = useTranslation();
   const [values, setValues] = useState(initialFilters || {});
 
-  // 🔥 sync when reopening
+  // Sync local values when the modal reopens or callers change filters
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValues(initialFilters || {});
   }, [initialFilters, show]);
-
-  const update = (field, value) => {
-    setValues((prev) => ({ ...prev, [field]: value }));
-  };
 
   const clearAll = () => {
     setValues({});
@@ -28,69 +32,31 @@ export default function FilterModal({
     <AppModal
       show={show}
       onClose={onClose}
-      title="🔎 Filters"
+      title={t("common.filters")}
       width="lg"
       footer={
         <>
-          <button className="btn btn-outline-primary" onClick={clearAll}>
-            Clear
-          </button>
+          <Button variant="outline" onClick={clearAll}>
+            {t("common.clear")}
+          </Button>
 
-          <button
-            className="btn btn-primary"
+          <Button
             onClick={() => {
               onApply(values);
               onClose();
             }}
           >
-            Apply
-          </button>
+            {t("common.apply")}
+          </Button>
         </>
       }
     >
-      <div className="row g-3">
-        {(config?.filters || []).map((f) => (
-          <div key={f.field} className="col-12 col-md-6 col-lg-6">
-            <div className="form-field">
-              <div className="form-label">{f.label}</div>
-
-              {/* SELECT */}
-              {f.type === "select" && (
-                <select
-                  className="form-select"
-                  value={values?.[f.field] || ""}
-                  onChange={(e) => update(f.field, e.target.value)}
-                >
-                  <option value="">All</option>
-                  {f.options.map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </select>
-              )}
-
-              {/* DATE */}
-              {f.type === "date" && (
-                <input
-                  type="date"
-                  className="form-control"
-                  value={values?.[f.field] || ""}
-                  onChange={(e) => update(f.field, e.target.value)}
-                />
-              )}
-
-              {/* LINK */}
-              {f.type === "link" && (
-                <LinkField
-                  doctype={f.doctype}
-                  value={values?.[f.field] || ""}
-                  onChange={(val) => update(f.field, val)}
-                  placeholder={`Select ${f.label}`}
-                />
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      <FilterFields
+        config={config}
+        values={values}
+        onValuesChange={setValues}
+        className="md:grid-cols-2"
+      />
     </AppModal>
   );
 }

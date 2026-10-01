@@ -30,9 +30,9 @@ function applyTheme(config = {}) {
   // =============================
   // INPUT CONFIG
   // =============================
-  const primary = config.primary || "#00d1ff";
-  const secondary = config.secondary || "#7b61ff";
-  const mode = config.mode || "dark"; // dark | light
+  const primary = config.primary || "#4f46e5";
+  const secondary = config.secondary || "#6366f1";
+  const mode = config.mode || "light"; // dark | light
 
   // =============================
   // BASE BRAND
@@ -50,7 +50,7 @@ function applyTheme(config = {}) {
   // =============================
   const headerBg =
     mode === "dark"
-      ? `linear-gradient(180deg, ${rgba(primary, 0.08)}, #151d2f)`
+      ? `linear-gradient(180deg, ${rgba(primary, 0.08)}, #111827)`
       : `linear-gradient(180deg, ${rgba(primary, 0.06)}, #ffffff)`;
 
   setVar("--header-bg", headerBg);

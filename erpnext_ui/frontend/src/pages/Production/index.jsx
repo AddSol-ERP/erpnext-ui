@@ -1,70 +1,52 @@
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
-import ActionTile from "../../components/ActionTile";
+import { useTranslation } from "react-i18next";
+import { ClipboardList, Cog, Factory } from "lucide-react";
+import DashboardShell from "../../components/dashboard/DashboardShell";
+import DashboardHero from "../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../components/dashboard/ModuleGrid";
 
 export default function ProductionDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   useEffect(() => {
     setHeader({
-      title: "Production",
-      subtitle: "Work orders, job cards & manufacturing",
-
-      breadcrumbs: [{ label: "Home", path: "/" }, { label: "Production" }],
-
-      actions: [], // keep empty unless real actions needed
+      title: t("nav.production"),
+      subtitle: t("production.subtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.production") },
+      ],
     });
 
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const modules = [
     {
-      title: "Work Order",
-      icon: "bi-check2-square",
-      route: "work-order",
-      description: "Manage Work Orders",
-      highlight: true, // 🔥 important module
-      badge: 3, // optional (dynamic later)
+      key: "work-order",
+      title: t("production.workOrder"),
+      icon: ClipboardList,
+      route: "/production/work-order",
+      description: t("production.workOrderDesc"),
     },
     {
-      title: "Job Cards",
-      icon: "bi-gear",
-      route: "job-cards",
-      description: "Manage work orders & job cards",
+      key: "job-cards",
+      title: t("production.jobCards"),
+      icon: Cog,
+      route: "/production/job-cards",
+      description: t("production.jobCardsDesc"),
     },
   ];
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <div className="position-relative">
-              {/* 🔥 Badge (optional) */}
-              {m.badge ? (
-                <span
-                  className="badge bg-danger position-absolute"
-                  style={{ top: "10px", right: "10px", zIndex: 1 }}
-                >
-                  {m.badge}
-                </span>
-              ) : null}
-
-              <ActionTile
-                tile={{
-                  ...m,
-                  color: "#4f46e5",
-                  primary: true,
-                }}
-                onClick={() => navigate(m.route)}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero icon={Factory} description={t("production.subtitle")} />
+      <ModuleGrid items={modules} onClick={(tile) => navigate(tile.route)} />
+    </DashboardShell>
   );
 }

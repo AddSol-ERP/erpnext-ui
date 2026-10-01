@@ -1,20 +1,31 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
 import { get, post } from "../../../services/api";
 import { FormField } from "../../../components/FormField";
+import FormSection from "../../../components/FormSection";
+import FormErrorSummary from "../../../components/FormErrorSummary";
+import FormSelect from "../../../components/FormSelect";
+import { focusFirstError } from "../../../lib/formValidation";
 import LinkField from "../../../components/LinkField";
+import { FileText, Receipt, User, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function ExpenseClaimForm() {
   const { name } = useParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const isEdit = !!name;
 
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [doc, setDoc] = useState({
     employee: "",
@@ -25,49 +36,55 @@ export default function ExpenseClaimForm() {
     expenses: [],
   });
 
-  /* ================= HEADER ================= */
-  useEffect(() => {
-    setHeader({
-      title: isEdit ? `Expense Claim ${doc.name || ""}` : "New Expense Claim",
+  /* ================= APPROVER ================= */
+  const [approvers, setApprovers] = useState([]);
 
-      subtitle: isEdit
-        ? "Review and update expense details"
-        : "Create and submit a new expense claim",
+  async function fetchApprovers(employee) {
+    if (!employee) return;
 
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Requests", path: "/requests" },
-        { label: "Expense Claims", path: "/requests/expense" },
-        {
-          label: isEdit ? doc.name || "Edit" : "New",
+    try {
+      setError("");
+
+      const res = await post("method/frappe.desk.search.search_link", {
+        txt: "",
+        doctype: "User",
+        ignore_user_permissions: 0,
+        reference_doctype: "Expense Claim",
+        page_length: 10,
+        query:
+          "hrms.hr.doctype.department_approver.department_approver.get_approvers",
+        filters: {
+          employee: employee,
+          doctype: "Expense Claim",
         },
-      ],
+      });
 
-      actions: [
-        !isSubmitted && {
-          label: loading ? "Saving..." : "Save",
-          variant: "btn-success",
-          onClick: handleSave,
-        },
+      const list = res.message || [];
 
-        isEdit &&
-          !isSubmitted && {
-            label: "Submit",
-            variant: "btn-primary",
-            onClick: handleSave,
-          },
-      ].filter(Boolean),
-    });
+      if (!list.length) {
+        setApprovers([]);
+        setDoc((prev) => ({ ...prev, expense_approver: "" }));
+        setError(t("requests.expense.noApprover"));
+        return;
+      }
 
-    return () => setHeader({});
-  }, [loading, isSubmitted, doc]);
+      setApprovers(list);
+
+      // auto-select first approver
+      setDoc((prev) => ({
+        ...prev,
+        expense_approver: list[0].value,
+      }));
+    } catch (e) {
+      console.error(e);
+      setError(t("requests.expense.approverFetchFailed"));
+    }
+  }
 
   /* ================= AUTO EMPLOYEE ================= */
-  useEffect(() => {
-    if (!isEdit) autoSetEmployee();
-  }, []);
-
-  const autoSetEmployee = async () => {
+  // autoSetEmployee setStates after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function autoSetEmployee() {
     try {
       const res = await get("method/frappe.client.get_list", {
         doctype: "Employee",
@@ -92,59 +109,19 @@ export default function ExpenseClaimForm() {
     } catch (e) {
       console.error(e);
     }
-  };
+  }
 
-  /* ================= APPROVER ================= */
-  const [approvers, setApprovers] = useState([]);
-
-  const fetchApprovers = async (employee) => {
-    if (!employee) return;
-
-    try {
-      setError("");
-
-      const res = await post("method/frappe.desk.search.search_link", {
-        txt: "",
-        doctype: "User",
-        ignore_user_permissions: 0,
-        reference_doctype: "Expense Claim",
-        page_length: 10,
-        query:
-          "hrms.hr.doctype.department_approver.department_approver.get_approvers",
-        filters: {
-          employee: employee,
-          doctype: "Expense Claim",
-        },
-      });
-
-      const list = res.message || []; // ✅ CORRECT for your API
-
-      if (!list.length) {
-        setApprovers([]);
-        setDoc((prev) => ({ ...prev, expense_approver: "" }));
-        setError("No Expense Approver found. Contact HR.");
-        return;
-      }
-
-      setApprovers(list);
-
-      // auto-select first approver
-      setDoc((prev) => ({
-        ...prev,
-        expense_approver: list[0].value,
-      }));
-    } catch (e) {
-      console.error(e);
-      setError("Failed to fetch approver");
-    }
-  };
+  useEffect(() => {
+    if (isEdit) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    autoSetEmployee();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ================= LOAD ================= */
-  useEffect(() => {
-    if (isEdit) loadDoc();
-  }, [name]);
-
-  const loadDoc = async () => {
+  // loadDoc setStates only after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function loadDoc() {
     try {
       setLoading(true);
 
@@ -152,21 +129,29 @@ export default function ExpenseClaimForm() {
       const d = res.data;
 
       setDoc({
-        employee: d.employee,
-        company: d.company,
-        expense_approver: d.expense_approver,
-        posting_date: d.posting_date,
+        employee: d.employee || "",
+        company: d.company || "",
+        expense_approver: d.expense_approver || "",
+        posting_date: d.posting_date || "",
         remark: d.remark || "",
         expenses: d.expenses || [],
       });
 
       if (d.docstatus === 1) setIsSubmitted(true);
     } catch {
-      setError("Failed to load");
+      setError(t("requests.expense.loadFailed"));
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (isEdit) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadDoc();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
 
   /* ================= EXPENSE ROWS ================= */
   const addRow = () => {
@@ -185,9 +170,12 @@ export default function ExpenseClaimForm() {
   };
 
   const updateRow = (i, field, value) => {
-    const updated = [...doc.expenses];
-    updated[i][field] = value;
-    setDoc({ ...doc, expenses: updated });
+    setDoc((prev) => ({
+      ...prev,
+      expenses: prev.expenses.map((row, idx) =>
+        idx === i ? { ...row, [field]: value } : row,
+      ),
+    }));
   };
 
   const removeRow = (i) => {
@@ -205,35 +193,57 @@ export default function ExpenseClaimForm() {
 
   /* ================= VALIDATION ================= */
   const validate = () => {
-    if (!doc.employee || !doc.company) {
-      return "Employee, Company and Approver required";
-    }
+    const errs = {};
 
+    if (!doc.employee) {
+      errs.employee = t("common.fieldRequired", {
+        field: t("requests.expense.employee"),
+      });
+    }
+    if (!doc.company) {
+      errs.company = t("common.fieldRequired", {
+        field: t("requests.expense.company"),
+      });
+    }
     if (!doc.expense_approver) {
-      return "Expense Approver is required";
+      errs.expense_approver = t("requests.expense.validationApprover");
     }
 
     if (!doc.expenses.length) {
-      return "Add at least one expense";
+      errs.expenses = t("requests.expense.validationAddOne");
+    } else {
+      const badRow = doc.expenses.findIndex(
+        (row) =>
+          !row.expense_date ||
+          !row.expense_type ||
+          !row.amount ||
+          parseFloat(row.amount) <= 0,
+      );
+      if (badRow >= 0) {
+        errs.expenses =
+          parseFloat(doc.expenses[badRow].amount) <= 0 &&
+          doc.expenses[badRow].amount !== ""
+            ? t("requests.expense.validationAmount")
+            : t("requests.expense.validationFillRows");
+      }
     }
 
-    for (const row of doc.expenses) {
-      if (!row.expense_date || !row.expense_type || !row.amount) {
-        return "All expense rows must be filled";
-      }
-
-      if (parseFloat(row.amount) <= 0) {
-        return "Amount must be greater than 0";
-      }
-    }
-
-    return "";
+    const list = Object.values(errs);
+    setFieldErrors(errs);
+    return {
+      fieldErrors: errs,
+      summary: list.length > 1 ? t("common.fixErrors") : list[0] || "",
+    };
   };
 
   /* ================= SAVE ================= */
-  const handleSave = async () => {
-    const err = validate();
-    if (err) return setError(err);
+  async function handleSave() {
+    const result = validate();
+    if (Object.keys(result.fieldErrors).length) {
+      setError(result.summary);
+      requestAnimationFrame(() => focusFirstError(result.fieldErrors));
+      return;
+    }
 
     try {
       setLoading(true);
@@ -245,186 +255,278 @@ export default function ExpenseClaimForm() {
         await post("resource/Expense Claim", doc);
       }
 
-      navigate("/expense-claims");
+      navigate("/requests/expense");
     } catch {
-      setError("Save failed");
+      setError(t("common.saveFailed"));
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  /* ================= HEADER ================= */
+  useEffect(() => {
+    setHeader({
+      title: isEdit
+        ? t("requests.header.expenseEditTitle", { name })
+        : t("requests.header.expenseNewTitle"),
+
+      subtitle: isEdit
+        ? t("requests.header.expenseEditSubtitle")
+        : t("requests.header.expenseNewSubtitle"),
+
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.requests"), path: "/requests" },
+        {
+          label: t("requests.header.expenseListTitle"),
+          path: "/requests/expense",
+        },
+        { label: isEdit ? name : t("common.new") },
+      ],
+
+      actions: [
+        !isSubmitted && {
+          label: loading ? t("common.saving") : t("common.save"),
+          variant: "btn-success",
+          onClick: handleSave,
+        },
+
+        isEdit &&
+          !isSubmitted && {
+            label: t("common.submit"),
+            variant: "btn-primary",
+            onClick: handleSave,
+          },
+      ].filter(Boolean),
+    });
+
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, name, isEdit, setHeader, loading, isSubmitted]);
 
   const isDisabled = isSubmitted;
   const total = getTotal();
 
   /* ================= UI ================= */
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      {error && <div className="alert alert-danger">{error}</div>}
+    <div className="mx-auto w-full max-w-[1100px] space-y-3 pt-4">
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* BASIC */}
-      <div className="card mb-3">
-        <div className="card-body row g-2">
-          <div className="col-md-4">
-            <FormField label="Employee" required>
-              <LinkField
-                doctype="Employee"
-                value={doc.employee}
-                disabled={isDisabled}
-                onChange={async (v) => {
+      <FormSection
+        title={t("requests.expense.sectionDetails")}
+        icon={User}
+        contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4"
+      >
+        <FormField
+          label={t("requests.expense.employee")}
+          required
+          name="employee"
+          error={fieldErrors.employee}
+        >
+          {isDisabled ? (
+            <Input value={doc.employee} disabled />
+          ) : (
+            <LinkField
+              doctype="Employee"
+              value={doc.employee}
+              disabled={isDisabled}
+              onChange={async (v) => {
+                setDoc((prev) => ({
+                  ...prev,
+                  employee: v,
+                  expense_approver: "",
+                }));
+
+                try {
+                  const res = await get(`resource/Employee/${v}`, {
+                    fields: JSON.stringify(["company"]),
+                  });
+
                   setDoc((prev) => ({
                     ...prev,
                     employee: v,
-                    expense_approver: "",
+                    company: res.data?.company || "",
                   }));
-
-                  try {
-                    const res = await get(`resource/Employee/${v}`, {
-                      fields: JSON.stringify(["company"]),
-                    });
-
-                    setDoc((prev) => ({
-                      ...prev,
-                      employee: v,
-                      company: res.data?.company || "",
-                    }));
-                  } catch {}
-
-                  fetchApprovers(v);
-                }}
-              />
-            </FormField>
-          </div>
-
-          <div className="col-md-4">
-            <FormField label="Company" required>
-              <LinkField doctype="Company" value={doc.company} disabled />
-            </FormField>
-          </div>
-
-          <div className="col-md-4">
-            <FormField label="Approver" required>
-              <select
-                className="form-control"
-                value={doc.expense_approver}
-                disabled={isDisabled || approvers.length === 1}
-                onChange={(e) =>
-                  setDoc({ ...doc, expense_approver: e.target.value })
+                } catch {
+                  console.error("Failed to load company for employee", v);
                 }
-              >
-                <option value="">Select Approver</option>
 
-                {approvers.map((a) => (
-                  <option key={a.value} value={a.value}>
-                    {a.description || a.value}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-          </div>
+                fetchApprovers(v);
+              }}
+            />
+          )}
+        </FormField>
 
-          <div className="col-md-4">
-            <FormField label="Posting Date">
-              <input
-                type="date"
-                className="form-control"
-                disabled={isDisabled}
-                value={doc.posting_date}
-                onChange={(e) =>
-                  setDoc({ ...doc, posting_date: e.target.value })
-                }
-              />
-            </FormField>
-          </div>
-        </div>
-      </div>
+        <FormField
+          label={t("requests.expense.company")}
+          required
+          name="company"
+          error={fieldErrors.company}
+        >
+          <Input value={doc.company} disabled />
+        </FormField>
+
+        <FormField
+          label={t("requests.expense.approver")}
+          required
+          name="expense_approver"
+          error={fieldErrors.expense_approver}
+        >
+          <FormSelect
+            value={doc.expense_approver}
+            disabled={isDisabled || approvers.length === 1}
+            placeholder={t("requests.expense.selectApprover")}
+            onChange={(v) => setDoc({ ...doc, expense_approver: v })}
+            options={[
+              ...(doc.expense_approver &&
+              !approvers.some((a) => a.value === doc.expense_approver)
+                ? [
+                    {
+                      value: doc.expense_approver,
+                      label: doc.expense_approver,
+                    },
+                  ]
+                : []),
+              ...approvers.map((a) => ({
+                value: a.value,
+                label: a.description || a.value,
+              })),
+            ]}
+          />
+        </FormField>
+
+        <FormField
+          label={t("requests.expense.postingDate")}
+          name="posting_date"
+        >
+          <Input
+            type="date"
+            disabled={isDisabled}
+            value={doc.posting_date}
+            onChange={(e) =>
+              setDoc({ ...doc, posting_date: e.target.value })
+            }
+          />
+        </FormField>
+      </FormSection>
 
       {/* EXPENSE TABLE */}
-      <div className="card mb-3">
-        <div className="card-body">
-          <div className="d-flex justify-content-between mb-2">
-            <h6>Expenses</h6>
-            {!isDisabled && (
-              <button className="btn btn-sm btn-primary" onClick={addRow}>
-                + Add Row
-              </button>
-            )}
-          </div>
+      <FormSection
+        title={t("requests.expense.expenses")}
+        icon={Receipt}
+        action={
+          !isDisabled ? (
+            <Button size="sm" onClick={addRow}>
+              {t("common.addRow")}
+            </Button>
+          ) : null
+        }
+        contentClassName="flex flex-col gap-3"
+      >
+        <FormField
+          label={t("requests.expense.expenses")}
+          name="expenses"
+          error={fieldErrors.expenses}
+          className={fieldErrors.expenses ? "sr-only" : "sr-only"}
+        >
+          <span className="sr-only">{t("requests.expense.expenses")}</span>
+        </FormField>
 
-          {doc.expenses.map((row, i) => (
-            <div key={i} className="row g-2 mb-2 align-items-end">
-              <div className="col-md-3">
-                <input
+        {doc.expenses.map((row, i) => (
+          <div
+            key={i}
+            className="grid grid-cols-1 items-end gap-2 border-b border-border pb-3 last:border-0 last:pb-0 md:grid-cols-12"
+          >
+            <div className="md:col-span-3">
+              <FormField label={t("requests.expense.date")}>
+                <Input
                   type="date"
-                  className="form-control"
                   disabled={isDisabled}
                   value={row.expense_date}
-                  onChange={(e) => updateRow(i, "expense_date", e.target.value)}
+                  onChange={(e) =>
+                    updateRow(i, "expense_date", e.target.value)
+                  }
                 />
-              </div>
+              </FormField>
+            </div>
 
-              <div className="col-md-3">
-                <LinkField
-                  doctype="Expense Claim Type"
-                  value={row.expense_type}
-                  disabled={isDisabled}
-                  onChange={(v) => updateRow(i, "expense_type", v)}
-                />
-              </div>
+            <div className="md:col-span-3">
+              <FormField label={t("requests.expense.type")}>
+                {isDisabled ? (
+                  <Input value={row.expense_type} disabled />
+                ) : (
+                  <LinkField
+                    doctype="Expense Claim Type"
+                    value={row.expense_type}
+                    disabled={isDisabled}
+                    onChange={(v) => updateRow(i, "expense_type", v)}
+                  />
+                )}
+              </FormField>
+            </div>
 
-              <div className="col-md-2">
-                <input
+            <div className="md:col-span-2">
+              <FormField label={t("requests.expense.amount")}>
+                <Input
                   type="number"
-                  className="form-control"
                   disabled={isDisabled}
                   value={row.amount}
-                  onChange={(e) => updateRow(i, "amount", e.target.value)}
+                  onChange={(e) =>
+                    updateRow(i, "amount", e.target.value)
+                  }
                 />
-              </div>
+              </FormField>
+            </div>
 
-              <div className="col-md-3">
-                <input
+            <div className="md:col-span-3">
+              <FormField label={t("requests.expense.description")}>
+                <Input
                   type="text"
-                  className="form-control"
-                  placeholder="Description"
+                  placeholder={t("requests.expense.description")}
                   disabled={isDisabled}
                   value={row.description}
-                  onChange={(e) => updateRow(i, "description", e.target.value)}
+                  onChange={(e) =>
+                    updateRow(i, "description", e.target.value)
+                  }
                 />
-              </div>
-
-              {!isDisabled && (
-                <div className="col-md-1">
-                  <button
-                    className="btn btn-danger w-100"
-                    onClick={() => removeRow(i)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
+              </FormField>
             </div>
-          ))}
 
-          {/* TOTAL */}
-          <div className="text-end mt-3">
-            <strong>Total: ₹ {total}</strong>
+            {!isDisabled && (
+              <div className="md:col-span-1">
+                <Button
+                  variant="destructive"
+                  size="icon-sm"
+                  className="w-full"
+                  onClick={() => removeRow(i)}
+                  aria-label={t("common.delete")}
+                >
+                  <X />
+                </Button>
+              </div>
+            )}
           </div>
+        ))}
+
+        {/* TOTAL */}
+        <div className="text-end">
+          <strong className="text-sm">
+            {t("requests.expense.total", { amount: total })}
+          </strong>
         </div>
-      </div>
+      </FormSection>
 
       {/* REMARK */}
-      <div className="card">
-        <div className="card-body">
-          <FormField label="Remark">
-            <textarea
-              className="form-control"
-              disabled={isDisabled}
-              value={doc.remark}
-              onChange={(e) => setDoc({ ...doc, remark: e.target.value })}
-            />
-          </FormField>
-        </div>
-      </div>
+      <FormSection title={t("requests.expense.remark")} icon={FileText}>
+        <FormField label={t("requests.expense.remark")} name="remark">
+          <Textarea
+            disabled={isDisabled}
+            value={doc.remark}
+            onChange={(e) => setDoc({ ...doc, remark: e.target.value })}
+          />
+        </FormField>
+      </FormSection>
     </div>
   );
 }

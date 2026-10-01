@@ -26,6 +26,8 @@ export const DOCTYPE_CONFIG = {
     },
     searchFields: ["employee_name", "employee", "designation"],
     printFormat: "Employee Appointment Letter",
+    // Large master → force multi-step form (overrides auto layout)
+    form: { layout: "stepper" },
   },
   Department: {
     list: {
@@ -54,6 +56,7 @@ export const DOCTYPE_CONFIG = {
       statusField: "is_active",
     },
     searchFields: ["leave_type_name"],
+    form: { layout: "single" },
   },
   "Holiday List": {
     list: {
@@ -316,6 +319,9 @@ export const DOCTYPE_CONFIG = {
 /**
  * Get display config for a doctype.
  * Returns a default config if none is defined.
+ *
+ * Optional form layout override (GenericForm):
+ *   form: { layout: "auto" | "single" | "tabs" | "stepper" }
  */
 export function getDoctypeConfig(doctype) {
   return (

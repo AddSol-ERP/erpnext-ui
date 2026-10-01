@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
 import { useToast } from "../../context/ToastContext";
 import { get } from "../../services/api";
 import { getCurrentUser } from "../../utils/getUser";
 import { getDoctypeConfig } from "../../config/doctypes";
+import { UserX, AlertTriangle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
  * ESS Profile page.
@@ -16,6 +22,7 @@ export default function ESSProfile() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -54,23 +61,23 @@ export default function ESSProfile() {
   /* ── Header: set on mount with Back only; update with actions once profile loaded ── */
   useEffect(() => {
     setHeader({
-      title: "My Profile",
-      subtitle: "View your employee information",
+      title: t("ess.header.profileTitle"),
+      subtitle: t("ess.header.profileSubtitle"),
       breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Employee Self Service", path: "/ess" },
-        { label: "My Profile" },
+        { label: t("common.home"), path: "/" },
+        { label: t("ess.header.title"), path: "/ess" },
+        { label: t("ess.header.profileTitle") },
       ],
       actions: [
         {
-          label: "Back",
+          label: t("common.back"),
           variant: "btn-outline-secondary",
-          icon: "bi bi-arrow-left",
           onClick: () => navigate("/ess"),
         },
       ],
     });
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -79,32 +86,28 @@ export default function ESSProfile() {
       ...prev,
       actions: [
         {
-          label: "Appointment Letter",
+          label: t("ess.header.appointmentLetter"),
           variant: "btn-outline-primary",
-          icon: "bi bi-file-earmark-pdf",
           onClick: downloadPdf,
         },
         {
-          label: "Print",
+          label: t("ess.header.print"),
           variant: "btn-outline-primary",
-          icon: "bi bi-printer",
           onClick: handlePrint,
         },
         {
-          label: "Back",
+          label: t("common.back"),
           variant: "btn-outline-secondary",
-          icon: "bi bi-arrow-left",
           onClick: () => navigate("/ess"),
         },
       ],
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
+  // loadProfile setStates only after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function loadProfile() {
     setLoading(true);
     try {
       // Use hybrid resolution: window.frappe.session in ERPNext mode,
@@ -114,7 +117,7 @@ export default function ESSProfile() {
       const currentUser = userInfo?.user;
 
       if (!currentUser) {
-        toast.error("Could not identify current user");
+        toast.error(t("ess.profile.userNotFound"));
         return;
       }
 
@@ -128,137 +131,208 @@ export default function ESSProfile() {
       if (employees && employees.length > 0) {
         setProfile(employees[0]);
       } else {
-        toast.info("Employee profile not found. Try creating one.");
+        toast.info(t("ess.profile.notFoundInfo"));
       }
     } catch (e) {
       console.error("Failed to load profile:", e);
-      toast.error("Failed to load profile");
+      toast.error(t("ess.profile.loadFailed"));
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (loading) {
     return (
-      <div className="text-center py-5">
-        <div className="spinner-border" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+        <Spinner className="size-6 text-primary" />
+        <span className="text-sm">{t("ess.profile.loading")}</span>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="text-center py-5">
-        <div className="mb-3">
-          <i className="bi bi-person-exclamation" style={{ fontSize: 48 }} />
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col items-center gap-3 py-16 text-center">
+        <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <UserX className="size-7" />
         </div>
-        <h5>No Employee Profile Found</h5>
-        <p className="text-muted">
-          Your user account is not linked to an Employee record.
-          Please contact HR to set up your profile.
+        <h5 className="text-base font-semibold">
+          {t("ess.profile.notFoundTitle")}
+        </h5>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {t("ess.profile.notFoundDescription")}
         </p>
-        <button className="btn btn-primary" onClick={() => navigate("/ess")}>
-          Back to Dashboard
-        </button>
+        <Button onClick={() => navigate("/ess")}>
+          {t("ess.profile.backToDashboard")}
+        </Button>
       </div>
     );
   }
 
   const p = profile;
-  const statusColor =
+  const statusClass =
     p.status === "Active"
-      ? "bg-success"
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
       : p.status === "Inactive"
-        ? "bg-danger"
-        : "bg-secondary";
+        ? "border-destructive/40 bg-destructive/10 text-destructive"
+        : "border-border bg-muted text-muted-foreground";
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+    <div className="mx-auto w-full max-w-[1600px] pt-4">
       {/* ── Profile Header Card ── */}
-      <div className="card p-4 mb-4 d-flex flex-row align-items-center gap-4">
-        <div
-          className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center flex-shrink-0"
-          style={{ width: 80, height: 80, fontSize: 32 }}
-        >
-          {(p.employee_name || "U").charAt(0).toUpperCase()}
-        </div>
-        <div className="min-w-0">
-          <h3 className="mb-1">{p.employee_name}</h3>
-          <div className="text-muted">
-            {[p.designation, p.department].filter(Boolean).join(" · ") || "—"}
+      <Card className="mb-4">
+        <CardContent className="flex flex-row items-center gap-4 py-4">
+          <div className="flex size-20 shrink-0 items-center justify-center rounded-full bg-primary text-3xl font-semibold text-primary-foreground">
+            {(p.employee_name || "U").charAt(0).toUpperCase()}
           </div>
-          <div className="d-flex align-items-center gap-2 mt-1 small text-muted">
-            <span>ID: {p.name}</span>
-            <span className="text-muted">|</span>
-            <span className={`badge ${statusColor}`}>{p.status || "N/A"}</span>
+          <div className="min-w-0">
+            <h3 className="mb-1 text-lg font-semibold">{p.employee_name}</h3>
+            <div className="text-muted-foreground">
+              {[p.designation, p.department].filter(Boolean).join(" · ") ||
+                "—"}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>{t("ess.profile.idLabel", { id: p.name })}</span>
+              <span aria-hidden="true">|</span>
+              <Badge variant="outline" className={statusClass}>
+                {p.status || "N/A"}
+              </Badge>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* ── HR Approval Warning ── */}
       {!p.custom_hr_approved && (
-        <div className="alert alert-warning d-flex align-items-center mb-4" role="alert">
-          <i className="bi bi-exclamation-triangle-fill me-2" style={{ fontSize: "1.2rem" }} />
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <div>
-            <strong>HR Approval Pending</strong>
+            <strong>{t("ess.profile.hrApprovalTitle")}</strong>
             <div className="mt-1">
-              Your profile is not yet approved by HR. Salary will not be processed until HR approval.
+              {t("ess.profile.hrApprovalDescription")}
             </div>
           </div>
         </div>
       )}
 
       {/* ── Personal Details ── */}
-      <div className="form-section mb-4">
-        <div className="form-section-title">Personal Details</div>
-        <div className="row">
-          <ProfileField label="Employee Name" value={p.employee_name} />
-          <ProfileField label="Date of Birth" value={p.date_of_birth} />
-          <ProfileField label="Gender" value={p.gender} />
-          <ProfileField label="Employee ID" value={p.name} />
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>{t("ess.profile.sectionPersonal")}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ProfileField
+            label={t("ess.profile.fields.employeeName")}
+            value={p.employee_name}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.dateOfBirth")}
+            value={p.date_of_birth}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.gender")}
+            value={p.gender}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.employeeId")}
+            value={p.name}
+          />
+        </CardContent>
+      </Card>
 
       {/* ── Employment ── */}
-      <div className="form-section mb-4">
-        <div className="form-section-title">Employment</div>
-        <div className="row">
-          <ProfileField label="Company" value={p.company} />
-          <ProfileField label="Department" value={p.department} />
-          <ProfileField label="Designation" value={p.designation} />
-          <ProfileField label="Branch" value={p.branch} />
-          <ProfileField label="Date of Joining" value={p.date_of_joining} />
-          <ProfileField label="Contract End Date" value={p.contract_end_date} />
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>{t("ess.profile.sectionEmployment")}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ProfileField
+            label={t("ess.profile.fields.company")}
+            value={p.company}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.department")}
+            value={p.department}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.designation")}
+            value={p.designation}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.branch")}
+            value={p.branch}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.dateOfJoining")}
+            value={p.date_of_joining}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.contractEndDate")}
+            value={p.contract_end_date}
+          />
+        </CardContent>
+      </Card>
 
       {/* ── Contact ── */}
-      <div className="form-section mb-4">
-        <div className="form-section-title">Contact</div>
-        <div className="row">
-          <ProfileField label="Personal Email" value={p.personal_email} />
-          <ProfileField label="Company Email" value={p.company_email} />
-          <ProfileField label="Mobile Number" value={p.cell_number} />
-          <ProfileField label="Emergency Contact" value={p.personal_phone} />
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>{t("ess.profile.sectionContact")}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ProfileField
+            label={t("ess.profile.fields.personalEmail")}
+            value={p.personal_email}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.companyEmail")}
+            value={p.company_email}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.mobileNumber")}
+            value={p.cell_number}
+          />
+          <ProfileField
+            label={t("ess.profile.fields.emergencyContact")}
+            value={p.personal_phone}
+          />
+        </CardContent>
+      </Card>
 
       {/* ── Address ── */}
-      <div className="form-section mb-4">
-        <div className="form-section-title">Address</div>
-        <div className="row">
-          <ProfileField label="Current Address" value={p.current_address} wide />
-          <ProfileField label="Permanent Address" value={p.permanent_address} wide />
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>{t("ess.profile.sectionAddress")}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <ProfileField
+            label={t("ess.profile.fields.currentAddress")}
+            value={p.current_address}
+            wide
+          />
+          <ProfileField
+            label={t("ess.profile.fields.permanentAddress")}
+            value={p.permanent_address}
+            wide
+          />
+        </CardContent>
+      </Card>
 
       {/* ── System Info ── */}
-      <div className="text-muted small mt-4 pt-3 border-top">
-        <div className="row">
-          <div className="col-md-6">Last Updated: {p.modified}</div>
-          <div className="col-md-6">Created: {p.creation}</div>
+      <div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+        <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
+          <div>
+            {t("ess.profile.lastUpdated", { date: p.modified })}
+          </div>
+          <div>{t("ess.profile.created", { date: p.creation })}</div>
         </div>
       </div>
     </div>
@@ -267,26 +341,15 @@ export default function ESSProfile() {
 
 /* ───────────────────────────────────────────
    Profile read-only field row
-   Uses the app's standard .form-section field layout
-   but with clean label+value text instead of a disabled input.
+   Clean label+value display instead of a
+   disabled bootstrap input.
    ─────────────────────────────────────────── */
 function ProfileField({ label, value, wide }) {
   return (
-    <div className={`col-md-${wide ? 12 : 6} col-lg-${wide ? 12 : 4} mb-2`}>
-      <div className="form-field">
-        <span className="form-label">{label}</span>
-        <div
-          className="form-control"
-          style={{
-            minHeight: 38,
-            display: "flex",
-            alignItems: "center",
-            background: "var(--form-section-bg)",
-            cursor: "default",
-          }}
-        >
-          {value || "—"}
-        </div>
+    <div className={wide ? "sm:col-span-2" : ""}>
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mt-1 flex min-h-9 items-center rounded-lg bg-muted/50 px-2.5 text-sm text-foreground">
+        {value || "—"}
       </div>
     </div>
   );

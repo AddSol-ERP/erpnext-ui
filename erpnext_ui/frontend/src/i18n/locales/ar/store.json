@@ -1,0 +1,274 @@
+{
+	"store": {
+		"hub": {
+			"subtitle": "المخزون وطلبات المواد وحركة المخزون"
+		},
+		"tiles": {
+			"stockEntry": {
+				"title": "قيد المخزون",
+				"description": "صرف واستلام وتحويل المواد"
+			},
+			"materialRequest": {
+				"title": "طلب مواد",
+				"description": "طلب المواد الخام"
+			},
+			"delivery": {
+				"title": "التسليم / الشحن",
+				"description": "إدارة المواد الصادر"
+			},
+			"stockBalance": {
+				"title": "رصيد المخزون",
+				"description": "عرض توفر المخزون"
+			},
+			"itemMaster": {
+				"title": "بطاقة الأصناف",
+				"description": "إدارة الأصناف والمتغيرات"
+			},
+			"warehouse": {
+				"title": "المستودع",
+				"description": "إدارة المستودعات"
+			},
+			"stockReconciliation": {
+				"title": "تسوية المخزون",
+				"description": "تسوية كميات المخزون"
+			}
+		},
+		"mr": {
+			"title": "طلبات المواد",
+			"subtitle": "تتبع وإدارة جميع طلبات المواد",
+			"tiles": {
+				"purchase": {
+					"title": "طلب شراء",
+					"description": "طلب أصناف للشراء"
+				},
+				"transfer": {
+					"title": "تحويل مواد",
+					"description": "نقل المخزون بين المستودعات"
+				},
+				"issue": {
+					"title": "صرف مواد",
+					"description": "صرف المواد للاستخدام"
+				},
+				"receipt": {
+					"title": "استلام مواد",
+					"description": "استلام المواد"
+				},
+				"customerProvided": {
+					"title": "مقدم من العميل",
+					"description": "مواد يوفرها العميل"
+				}
+			},
+			"listTitle": "طلبات {{type}}",
+			"listSubtitle": "تتبع وإدارة الطلبات",
+			"empty": "لم يتم العثور على طلبات مواد",
+			"newTitle": "طلب مواد جديد",
+			"subtitleSubmitted": "{{type}} • مُرسل",
+			"subtitleDraft": "{{type}} • مسودة",
+			"createSubtitle": "إنشاء {{type}}",
+			"form": {
+				"items": "الأصناف",
+				"select": "اختيار"
+			}
+		},
+		"status": {
+			"draft": "مسودة",
+			"submitted": "مُرسل",
+			"cancelled": "ملغى",
+			"completed": "مكتمل",
+			"toBill": "لفوترة",
+			"stopped": "متوقف"
+		},
+		"filters": {
+			"customer": "العميل",
+			"company": "الشركة",
+			"item": "الصنف",
+			"warehouse": "المستودع"
+		},
+		"types": {
+			"purchase": "شراء",
+			"transfer": "تحويل",
+			"materialIssue": "صرف مواد",
+			"materialReceipt": "استلام مواد",
+			"customerProvided": "مقدم من العميل"
+		},
+		"form": {
+			"type": "النوع",
+			"company": "الشركة",
+			"customer": "العميل",
+			"scheduleDate": "تاريخ الجدولة",
+			"item": "الصنف",
+			"qty": "الكمية",
+			"uom": "وحدة القياس",
+			"stockUom": "وحدة قياس المخزون",
+			"conv": "معامل التحويل",
+			"source": "المصدر",
+			"warehouse": "المستودع",
+			"schedule": "الجدولة",
+			"postingDate": "تاريخ الترحيل",
+			"defaultWarehouse": "المستودع الافتراضي",
+			"driver": "السائق",
+			"vehicleNo": "رقم المركبة",
+			"transporter": "ناقل البضائع",
+			"lrNumber": "رقم إذن الشحن",
+			"items": "الأصناف",
+			"getItems": "جلب الأصناف",
+			"dispatch": "الشحن",
+			"basics": "المعلومات الأساسية"
+		},
+		"validation": {
+			"typeRequired": "النوع مطلوب",
+			"companyRequired": "الشركة مطلوبة",
+			"customerRequired": "العميل مطلوب",
+			"uomRequired": "وحدة القياس مطلوبة",
+			"invalidConversion": "معامل تحويل غير صالح",
+			"addAtLeastOneItem": "أضف صنفاً واحداً على الأقل",
+			"addItems": "أضف الأصناف",
+			"fillItemRows": "املأ صفوف الأصناف",
+			"fillAllRows": "املأ جميع صفوف الأصناف",
+			"qtyGtZero": "يجب أن تكون الكمية أكبر من 0",
+			"fromToWarehouseRequired": "مستودعا المصدر والوجهة مطلوبان",
+			"sameWarehouse": "لا يمكن أن يكون مستودع المصدر والهدف نفسهما",
+			"warehouseRequired": "المستودع مطلوب"
+		},
+		"dn": {
+			"title": "أذونات التسليم",
+			"subtitle": "الشحن وتتبع التسليم",
+			"empty": "لم يتم العثور على أذونات تسليم",
+			"editTitle": "تسليم {{name}}",
+			"newTitle": "تسليم جديد",
+			"formSubtitle": "شحن البضائع"
+		},
+		"balance": {
+			"title": "رصيد المخزون",
+			"subtitle": "حالة المخزون اللحظية",
+			"empty": "لا يوجد مخزون متاح",
+			"value": "القيمة"
+		},
+		"source": {
+			"loadItems": "تحميل الأصناف",
+			"load": "تحميل",
+			"selectSourceType": "اختر نوع المصدر",
+			"searchDocument": "بحث في المستند...",
+			"selectTypeFirst": "اختر النوع أولاً",
+			"noCustomer": "لا يوجد عميل",
+			"salesOrder": "أمر بيع",
+			"pickList": "قائمة الالتقاط",
+			"materialRequest": "طلب مواد",
+			"purchaseReceipt": "إيصال شراء",
+			"bom": "قائمة الخامات",
+			"bomShort": "BOM",
+			"purchaseInvoice": "فاتورة شراء",
+			"itemMaster": "بطاقة الأصناف",
+			"onlyQcPassed": "الأصناف المطابقة للفحص فقط",
+			"qcDone": "تم الفحص",
+			"sourceType": "نوع المصدر",
+			"selectDocument": "اختر المستند"
+		},
+		"entry": {
+			"title": "قيد المخزون",
+			"subtitleDefault": "عمليات مخزون سريعة",
+			"subtitleReceipt": "وارد → {{warehouse}}",
+			"subtitleIssue": "صادر ← {{warehouse}}",
+			"subtitleTransfer": "{{from}} → {{to}}",
+			"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+			"subtitleManufacture": "تصنيع @ {{warehouse}}",
+			"subtitleRepack": "إعادة تعبئة @ {{warehouse}}",
+			"subtitleConsume": "استهلاك ← {{warehouse}}",
+			"selectWarehouse": "اختر مستودعاً",
+			"from": "من",
+			"to": "إلى",
+			"actions": {
+				"getItems": "جلب الأصناف",
+				"clear": "مسح"
+			},
+			"basicConfig": "الإعدادات الأساسية",
+			"collapse": "طي",
+			"expand": "توسيع",
+			"entryDate": "تاريخ القيد",
+			"entryTime": "وقت القيد",
+			"items": "الأصناف",
+			"get": "جلب",
+			"entryType": "نوع القيد",
+			"selectEntryType": "اختر نوع القيد",
+			"fromWarehouse": "مستودع المصدر",
+			"toWarehouse": "مستودع الوجهة",
+			"selectFromWarehouse": "اختر مستودع المصدر",
+			"selectToWarehouse": "اختر مستودع الوجهة",
+			"scanPlaceholder": "امسح الصنف أو أدخله",
+			"totalQty": "إجمالي الكمية",
+			"submitEntry": "إرسال القيد",
+			"modes": {
+				"incoming": "وارد",
+				"outgoing": "صادر",
+				"transfer": "تحويل",
+				"adjustment": "تسوية"
+			},
+			"createdToast": "تم إنشاء قيد المخزون: {{name}}",
+			"failedToast": "فشل قيد المخزون"
+		},
+		"entryTypes": {
+			"materialIssue": "صرف مواد",
+			"materialReceipt": "استلام مواد",
+			"materialTransfer": "تحويل مواد",
+			"manufacture": "تصنيع",
+			"repack": "إعادة تعبئة",
+			"disassemble": "تفكيك",
+			"sendToSubcontractor": "إرسال للمقاول من الباطن",
+			"materialTransferForMfg": "تحويل مواد للتصنيع",
+			"materialConsumptionForMfg": "استهلاك مواد للتصنيع"
+		},
+		"item": {
+			"outOfStock": "نفد المخزون",
+			"exceedsStock": "يتجاوز المخزون",
+			"lowStock": "مخزون منخفض",
+			"available": "متاح",
+			"willBeRemoved": "سيتم حذفه",
+			"willAdjust": "سيُعدّل إلى {{qty}}",
+			"emptyList": "لم تتم إضافة أصناف",
+			"itemName": "صنف {{code}}",
+			"increase": "زيادة الكمية",
+			"decrease": "تقليل الكمية",
+			"remove": "إزالة الصنف"
+		},
+		"fix": {
+			"title": "مشكلة مخزون",
+			"outOfStock": "{{count}} أصناف نفدت من المخزون.",
+			"more": "+ {{n}} أخرى...",
+			"removeItems": "إزالة الأصناف",
+			"adjustQty": "تعديل الكمية"
+		},
+		"submitModal": {
+			"title": "تأكيد قيد المخزون",
+			"project": "المشروع",
+			"workOrder": "أمر العمل",
+			"searchProject": "بحث عن مشروع",
+			"searchWorkOrder": "بحث عن أمر عمل"
+		},
+		"demo": {
+			"title": "نموذج شامل",
+			"subtitle": "عرض لجميع أنواع الحقول",
+			"sections": {
+				"basic": "حقول أساسية",
+				"text": "حقول نصية",
+				"dateTime": "التاريخ والوقت",
+				"selection": "التحديد",
+				"attachments": "المرفقات"
+			},
+			"age": "العمر",
+			"salary": "الراتب",
+			"description": "الوصف",
+			"datetime": "التاريخ والوقت",
+			"time": "الوقت",
+			"pending": "قيد الانتظار",
+			"closed": "مغلق",
+			"department": "القسم (رابط)",
+			"searchDepartment": "بحث عن قسم...",
+			"active": "نشط",
+			"uploadFile": "رفع ملف",
+			"chooseFile": "اختيار ملف",
+			"noFileSelected": "لم يتم اختيار ملف",
+			"itemCode": "رمز الصنف",
+			"rate": "السعر"
+		}
+	}
+}

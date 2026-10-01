@@ -1,62 +1,62 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
-import ActionTile from "../../components/ActionTile";
+import { useTranslation } from "react-i18next";
+import { Clock, CalendarCheck, Receipt, Inbox } from "lucide-react";
+import DashboardShell from "../../components/dashboard/DashboardShell";
+import DashboardHero from "../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../components/dashboard/ModuleGrid";
+
+const MODULE_DEFS = [
+  {
+    key: "attendance",
+    icon: Clock,
+    route: "/requests/attendance",
+  },
+  {
+    key: "leave",
+    icon: CalendarCheck,
+    route: "/requests/leave",
+  },
+  {
+    key: "expense",
+    icon: Receipt,
+    route: "/requests/expense",
+  },
+];
 
 export default function RequestDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   useEffect(() => {
     setHeader({
-      title: "Requests",
-      subtitle: "Create and manage employee requests",
-
-      breadcrumbs: [{ label: "Home", path: "/" }, { label: "Requests" }],
-
-      actions: [],
+      title: t("requests.header.title"),
+      subtitle: t("requests.header.subtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("requests.header.title") },
+      ],
     });
 
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const modules = [
-    {
-      title: "Attendance Request",
-      description: "Fix attendance entries",
-      icon: "bi-clock-history",
-      route: "/requests/attendance",
-    },
-    {
-      title: "Leave Request",
-      description: "Apply for leave",
-      icon: "bi-calendar-check",
-      route: "/requests/leave",
-    },
-    {
-      title: "Expense Request",
-      description: "Submit expenses",
-      icon: "bi-receipt",
-      route: "/requests/expense",
-    },
-  ];
+  const modules = MODULE_DEFS.map((m) => ({
+    ...m,
+    titleKey: `requests.tiles.${m.key}.title`,
+    descriptionKey: `requests.tiles.${m.key}.description`,
+  }));
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <ActionTile
-              tile={{
-                ...m,
-                color: "#4f46e5",
-                primary: true,
-              }}
-              onClick={() => navigate(m.route)}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero
+        icon={Inbox}
+        description={t("requests.header.subtitle")}
+      />
+      <ModuleGrid items={modules} onClick={(tile) => navigate(tile.route)} />
+    </DashboardShell>
   );
 }

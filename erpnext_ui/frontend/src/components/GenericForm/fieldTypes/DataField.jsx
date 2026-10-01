@@ -1,17 +1,19 @@
-export default function DataField({ field, value, onChange, error }) {
+import { Input } from "@/components/ui/input";
+
+export default function DataField({ field, value, onChange, error, disabled = false }) {
+  const isDisabled = disabled || field.read_only;
   return (
-    <div>
-      <input
+    <div className="flex flex-col gap-1">
+      <Input
         type="text"
-        className={`form-control ${error ? "is-invalid" : ""}`}
         id={field.fieldname}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder || ""}
-        readOnly={field.read_only || field.is_virtual}
-        disabled={field.read_only}
+        readOnly={field.is_virtual || isDisabled}
+        disabled={isDisabled}
+        aria-invalid={!!error}
       />
-      {error && <div className="invalid-feedback">{error}</div>}
     </div>
   );
 }

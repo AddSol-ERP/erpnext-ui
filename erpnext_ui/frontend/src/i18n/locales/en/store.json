@@ -1,0 +1,274 @@
+{
+	"store": {
+		"hub": {
+			"subtitle": "Inventory, material requests & stock flow"
+		},
+		"tiles": {
+			"stockEntry": {
+				"title": "Stock Entry",
+				"description": "Material Issue, Receipt, Transfer"
+			},
+			"materialRequest": {
+				"title": "Material Request",
+				"description": "Request raw materials"
+			},
+			"delivery": {
+				"title": "Delivery / Dispatch",
+				"description": "Manage outgoing materials"
+			},
+			"stockBalance": {
+				"title": "Stock Balance",
+				"description": "View stock availability"
+			},
+			"itemMaster": {
+				"title": "Item Master",
+				"description": "Manage items & variants"
+			},
+			"warehouse": {
+				"title": "Warehouse",
+				"description": "Manage warehouses"
+			},
+			"stockReconciliation": {
+				"title": "Stock Reconciliation",
+				"description": "Reconcile stock quantities"
+			}
+		},
+		"mr": {
+			"title": "Material Requests",
+			"subtitle": "Track and manage all material requests",
+			"tiles": {
+				"purchase": {
+					"title": "Purchase Request",
+					"description": "Request items for purchase"
+				},
+				"transfer": {
+					"title": "Material Transfer",
+					"description": "Move stock between warehouses"
+				},
+				"issue": {
+					"title": "Material Issue",
+					"description": "Issue material for usage"
+				},
+				"receipt": {
+					"title": "Material Receipt",
+					"description": "Receive materials"
+				},
+				"customerProvided": {
+					"title": "Customer Provided",
+					"description": "Customer supplied materials"
+				}
+			},
+			"listTitle": "{{type}} Requests",
+			"listSubtitle": "Track and manage requests",
+			"empty": "No material requests found",
+			"newTitle": "New Material Request",
+			"subtitleSubmitted": "{{type}} • Submitted",
+			"subtitleDraft": "{{type}} • Draft",
+			"createSubtitle": "Create {{type}}",
+			"form": {
+				"items": "Items",
+				"select": "Select"
+			}
+		},
+		"status": {
+			"draft": "Draft",
+			"submitted": "Submitted",
+			"cancelled": "Cancelled",
+			"completed": "Completed",
+			"toBill": "To Bill",
+			"stopped": "Stopped"
+		},
+		"filters": {
+			"customer": "Customer",
+			"company": "Company",
+			"item": "Item",
+			"warehouse": "Warehouse"
+		},
+		"types": {
+			"purchase": "Purchase",
+			"transfer": "Transfer",
+			"materialIssue": "Material Issue",
+			"materialReceipt": "Material Receipt",
+			"customerProvided": "Customer Provided"
+		},
+		"form": {
+			"type": "Type",
+			"company": "Company",
+			"customer": "Customer",
+			"scheduleDate": "Schedule Date",
+			"item": "Item",
+			"qty": "Qty",
+			"uom": "UOM",
+			"stockUom": "Stock UOM",
+			"conv": "Conv",
+			"source": "Source",
+			"warehouse": "Warehouse",
+			"schedule": "Schedule",
+			"postingDate": "Posting Date",
+			"defaultWarehouse": "Default Warehouse",
+			"driver": "Driver",
+			"vehicleNo": "Vehicle No",
+			"transporter": "Transporter",
+			"lrNumber": "LR Number",
+			"items": "Items",
+			"getItems": "Get Items",
+			"dispatch": "Dispatch",
+			"basics": "Basic Information"
+		},
+		"validation": {
+			"typeRequired": "Type is required",
+			"companyRequired": "Company required",
+			"customerRequired": "Customer is required",
+			"uomRequired": "UOM required",
+			"invalidConversion": "Invalid conversion factor",
+			"addAtLeastOneItem": "Add at least one item",
+			"addItems": "Add items",
+			"fillItemRows": "Fill item rows",
+			"fillAllRows": "Fill all item rows",
+			"qtyGtZero": "Qty must be > 0",
+			"fromToWarehouseRequired": "From & To warehouse required",
+			"sameWarehouse": "Source and target warehouse cannot be same",
+			"warehouseRequired": "Warehouse required"
+		},
+		"dn": {
+			"title": "Delivery Notes",
+			"subtitle": "Dispatch & delivery tracking",
+			"empty": "No delivery notes found",
+			"editTitle": "Delivery {{name}}",
+			"newTitle": "New Delivery",
+			"formSubtitle": "Dispatch goods"
+		},
+		"balance": {
+			"title": "Stock Balance",
+			"subtitle": "Real-time inventory status",
+			"empty": "No stock available",
+			"value": "Value"
+		},
+		"source": {
+			"loadItems": "Load Items",
+			"load": "Load",
+			"selectSourceType": "Select Source Type",
+			"searchDocument": "Search document...",
+			"selectTypeFirst": "Select type first",
+			"noCustomer": "No customer",
+			"salesOrder": "Sales Order",
+			"pickList": "Pick List",
+			"materialRequest": "Material Request",
+			"purchaseReceipt": "Purchase Receipt",
+			"bom": "Bill of Materials",
+			"bomShort": "BOM",
+			"purchaseInvoice": "Purchase Invoice",
+			"itemMaster": "Item Master",
+			"onlyQcPassed": "Only QC Passed Items",
+			"qcDone": "QC Done",
+			"sourceType": "Source Type",
+			"selectDocument": "Select Document"
+		},
+		"entry": {
+			"title": "Stock Entry",
+			"subtitleDefault": "Fast inventory operations",
+			"subtitleReceipt": "Incoming → {{warehouse}}",
+			"subtitleIssue": "Outgoing ← {{warehouse}}",
+			"subtitleTransfer": "{{from}} → {{to}}",
+			"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+			"subtitleManufacture": "Manufacture @ {{warehouse}}",
+			"subtitleRepack": "Repack @ {{warehouse}}",
+			"subtitleConsume": "Consume ← {{warehouse}}",
+			"selectWarehouse": "Select warehouse",
+			"from": "From",
+			"to": "To",
+			"actions": {
+				"getItems": "Get Items",
+				"clear": "Clear"
+			},
+			"basicConfig": "Basic Configuration",
+			"collapse": "Collapse",
+			"expand": "Expand",
+			"entryDate": "Entry Date",
+			"entryTime": "Entry Time",
+			"items": "Items",
+			"get": "Get",
+			"entryType": "Entry Type",
+			"selectEntryType": "Select Entry Type",
+			"fromWarehouse": "From Warehouse",
+			"toWarehouse": "To Warehouse",
+			"selectFromWarehouse": "Select From Warehouse",
+			"selectToWarehouse": "Select To Warehouse",
+			"scanPlaceholder": "Scan or enter item",
+			"totalQty": "Total Qty",
+			"submitEntry": "Submit Entry",
+			"modes": {
+				"incoming": "Incoming",
+				"outgoing": "Outgoing",
+				"transfer": "Transfer",
+				"adjustment": "Adjustment"
+			},
+			"createdToast": "Stock Entry created: {{name}}",
+			"failedToast": "Stock Entry failed"
+		},
+		"entryTypes": {
+			"materialIssue": "Material Issue",
+			"materialReceipt": "Material Receipt",
+			"materialTransfer": "Material Transfer",
+			"manufacture": "Manufacture",
+			"repack": "Repack",
+			"disassemble": "Disassemble",
+			"sendToSubcontractor": "Send to Subcontractor",
+			"materialTransferForMfg": "Material Transfer for Manufacture",
+			"materialConsumptionForMfg": "Material Consumption for Manufacture"
+		},
+		"item": {
+			"outOfStock": "Out of stock",
+			"exceedsStock": "Exceeds stock",
+			"lowStock": "Low stock",
+			"available": "Available",
+			"willBeRemoved": "Will be removed",
+			"willAdjust": "Will adjust to {{qty}}",
+			"emptyList": "No items added",
+			"itemName": "Item {{code}}",
+			"increase": "Increase quantity",
+			"decrease": "Decrease quantity",
+			"remove": "Remove item"
+		},
+		"fix": {
+			"title": "Stock Issue",
+			"outOfStock": "{{count}} items are out of stock.",
+			"more": "+ {{n}} more...",
+			"removeItems": "Remove Items",
+			"adjustQty": "Adjust Qty"
+		},
+		"submitModal": {
+			"title": "Confirm Stock Entry",
+			"project": "Project",
+			"workOrder": "Work Order",
+			"searchProject": "Search Project",
+			"searchWorkOrder": "Search Work Order"
+		},
+		"demo": {
+			"title": "Universal Form",
+			"subtitle": "All field types demo",
+			"sections": {
+				"basic": "Basic Fields",
+				"text": "Text Fields",
+				"dateTime": "Date & Time",
+				"selection": "Selection",
+				"attachments": "Attachments"
+			},
+			"age": "Age",
+			"salary": "Salary",
+			"description": "Description",
+			"datetime": "Datetime",
+			"time": "Time",
+			"pending": "Pending",
+			"closed": "Closed",
+			"department": "Department (Link)",
+			"searchDepartment": "Search department...",
+			"active": "Active",
+			"uploadFile": "Upload File",
+			"chooseFile": "Choose File",
+			"noFileSelected": "No file selected",
+			"itemCode": "Item Code",
+			"rate": "Rate"
+		}
+	}
+}

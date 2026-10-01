@@ -1,6 +1,10 @@
+import { useTranslation } from "react-i18next";
 import { BasePreview } from "..";
+import { Badge } from "@/components/ui/badge";
 
 export default function OvertimeLogPreview({ doc }) {
+  const { t } = useTranslation();
+
   const formatDateTime = (dt) => {
     if (!dt) return "—";
     try {
@@ -16,61 +20,74 @@ export default function OvertimeLogPreview({ doc }) {
     }
   };
 
+  const statusBadge =
+    doc.status === "Approved"
+      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+      : doc.status === "Rejected"
+        ? "bg-destructive/10 text-destructive"
+        : "bg-amber-500/15 text-amber-600 dark:text-amber-400";
+
   return (
     <BasePreview>
       {/* HEADER */}
-      <div className="d-flex justify-content-between mb-3">
-        <div>
-          <div className="fw-semibold">{doc.employee_name || doc.employee}</div>
-          <div className="small text-muted">{doc.employee}</div>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate font-semibold">
+            {doc.employee_name || doc.employee}
+          </div>
+          <div className="truncate text-sm text-muted-foreground">
+            {doc.employee}
+          </div>
         </div>
 
-        <div className="text-end">
-          <span
-            className={`badge ${
-              doc.status === "Approved"
-                ? "bg-success"
-                : doc.status === "Rejected"
-                  ? "bg-danger"
-                  : "bg-warning text-dark"
-            }`}
-          >
-            {doc.status || "Draft"}
-          </span>
+        <div className="shrink-0 text-end">
+          <Badge className={statusBadge}>
+            {doc.status || t("approvals.status.draft")}
+          </Badge>
         </div>
       </div>
 
       {/* OT HOURS */}
       <div className="mb-3">
-        <div className="text-muted small">Overtime Hours</div>
-        <div className="fw-semibold" style={{ fontSize: "1.25rem" }}>
-          {doc.overtime_hours || 0} hrs
+        <div className="text-sm text-muted-foreground">
+          {t("approvals.preview.overtimeHours")}
+        </div>
+        <div className="text-xl font-semibold">
+          {t("approvals.preview.hours", { hours: doc.overtime_hours || 0 })}
         </div>
       </div>
 
       {/* ATTENDANCE DATE */}
       <div className="mb-3">
-        <div className="text-muted small">Attendance Date</div>
+        <div className="text-sm text-muted-foreground">
+          {t("approvals.preview.attendanceDate")}
+        </div>
         <div>{doc.attendance_date || "—"}</div>
       </div>
 
       {/* SHIFT */}
       {doc.shift && (
         <div className="mb-3">
-          <div className="text-muted small">Shift</div>
+          <div className="text-sm text-muted-foreground">
+            {t("approvals.preview.shift")}
+          </div>
           <div>{doc.shift}</div>
         </div>
       )}
 
       {/* IN/OUT TIMES */}
-      <div className="row mb-3">
-        <div className="col-6">
-          <div className="text-muted small">In Time</div>
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-sm text-muted-foreground">
+            {t("approvals.preview.inTime")}
+          </div>
           <div>{formatDateTime(doc.in_time)}</div>
         </div>
 
-        <div className="col-6">
-          <div className="text-muted small">Out Time</div>
+        <div>
+          <div className="text-sm text-muted-foreground">
+            {t("approvals.preview.outTime")}
+          </div>
           <div>{formatDateTime(doc.out_time)}</div>
         </div>
       </div>
@@ -78,7 +95,9 @@ export default function OvertimeLogPreview({ doc }) {
       {/* ATTENDANCE LINK */}
       {doc.attendance && (
         <div className="mb-3">
-          <div className="text-muted small">Attendance</div>
+          <div className="text-sm text-muted-foreground">
+            {t("approvals.preview.attendance")}
+          </div>
           <div>{doc.attendance}</div>
         </div>
       )}
@@ -86,16 +105,24 @@ export default function OvertimeLogPreview({ doc }) {
       {/* REMARKS */}
       {doc.remarks && (
         <div className="mb-3">
-          <div className="fw-semibold mb-1">Remarks</div>
-          <div className="small text-muted">{doc.remarks}</div>
+          <div className="mb-1 font-semibold">
+            {t("approvals.preview.remarks")}
+          </div>
+          <div className="break-words text-sm text-muted-foreground">
+            {doc.remarks}
+          </div>
         </div>
       )}
 
       {/* APPROVAL INFO */}
       {doc.approved_by && (
-        <div className="small text-muted">
-          Approved by: {doc.approved_by}
-          {doc.approval_date && ` on ${formatDateTime(doc.approval_date)}`}
+        <div className="text-sm text-muted-foreground">
+          {doc.approval_date
+            ? t("approvals.preview.approvedByOn", {
+                name: doc.approved_by,
+                date: formatDateTime(doc.approval_date),
+              })
+            : t("approvals.preview.approvedBy", { name: doc.approved_by })}
         </div>
       )}
     </BasePreview>

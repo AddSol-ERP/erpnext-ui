@@ -1,16 +1,32 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { Plus, Trash2 } from "lucide-react";
 import FieldRenderer from "./FieldRenderer";
 import { get } from "../../services/api";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function ChildTable({
   title = "Items",
   columns = [],
   value = [],
   onChange,
+  disabled = false,
 }) {
+  const { t } = useTranslation();
   const [data, setData] = useState(value || []);
 
   useEffect(() => {
+    // Mirror the controlled `value` prop into local editing state —
+    // the component keeps its own copy so cell edits batch cleanly.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setData(value || []);
   }, [value]);
 
@@ -62,6 +78,7 @@ export default function ChildTable({
   };
 
   const addRow = () => {
+    if (disabled) return;
     const newRow = {};
     columns.forEach((col) => {
       newRow[col.field] = col.default || "";
@@ -70,55 +87,65 @@ export default function ChildTable({
   };
 
   const deleteRow = (index) => {
+    if (disabled) return;
     update(data.filter((_, i) => i !== index));
   };
 
-  return (
-    <div className="child-table">
-      {/* 🔹 HEADER */}
-      <div className="d-flex justify-content-between align-items-center mb-3 form-section-title ">
-        <div className="mb-0">{title}</div>
+  const emptyMessage = (
+    <div className="py-6 text-center text-sm text-muted-foreground">
+      {t("common.noData")}
+    </div>
+  );
 
-        <button className="btn btn-primary btn-sm" onClick={addRow}>
-          <i className="bi bi-plus"></i> Add Row
-        </button>
+  return (
+    <div className="rounded-none bg-card ring-1 ring-foreground/10">
+      {/* HEADER */}
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="text-sm font-semibold">{title}</div>
+
+        {!disabled && (
+          <Button size="sm" onClick={addRow}>
+            <Plus />
+            {t("common.addRow")}
+          </Button>
+        )}
       </div>
 
       {/* =========================
-          🖥 DESKTOP TABLE
+          DESKTOP TABLE
       ========================= */}
-      <div className="table-responsive d-none d-md-block">
-        <table className="table align-middle">
-          <thead>
-            <tr>
-              <th style={{ width: "40px" }}>#</th>
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">#</TableHead>
 
               {columns.map((col) => (
-                <th key={col.field}>{col.label}</th>
+                <TableHead key={col.field}>{col.label}</TableHead>
               ))}
 
-              <th style={{ width: "50px" }}></th>
-            </tr>
-          </thead>
+              <TableHead className="w-12" />
+            </TableRow>
+          </TableHeader>
 
-          <tbody>
+          <TableBody>
             {data.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length + 2}>
-                  <div className="child-table-empty">
-                    No data available. Click "Add Row".
-                  </div>
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={columns.length + 2}>
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
             ) : (
               data.map((row, rowIndex) => (
-                <tr key={rowIndex}>
+                <TableRow key={rowIndex}>
                   {/* INDEX */}
-                  <td className="text-muted small">{rowIndex + 1}</td>
+                  <TableCell className="text-muted-foreground">
+                    {rowIndex + 1}
+                  </TableCell>
 
                   {/* FIELDS */}
                   {columns.map((col) => (
-                    <td key={col.field}>
+                    <TableCell key={col.field}>
                       <FieldRenderer
                         type={col.type}
                         value={row[col.field]}
@@ -126,62 +153,83 @@ export default function ChildTable({
                         onChange={(val) =>
                           handleChange(rowIndex, col.field, val)
                         }
+                        disabled={disabled}
                       />
-                    </td>
+                    </TableCell>
                   ))}
 
                   {/* DELETE */}
-                  <td>
-                    <button
-                      className="btn btn-icon text-danger"
-                      onClick={() => deleteRow(rowIndex)}
-                    >
-                      <i className="bi bi-trash"></i>
-                    </button>
-                  </td>
-                </tr>
+                  <TableCell>
+                    {!disabled && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => deleteRow(rowIndex)}
+                        aria-label={t("common.delete")}
+                      >
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* =========================
-          📱 MOBILE CARD VIEW
+          MOBILE CARD VIEW
       ========================= */}
-      <div className="d-block d-md-none">
+      <div className="flex flex-col gap-3 p-3 md:hidden">
         {data.length === 0 ? (
-          <div className="child-table-empty">
-            No data available. Click "Add Row".
-          </div>
+          emptyMessage
         ) : (
           data.map((row, rowIndex) => (
-            <div key={rowIndex} className="child-card">
+            <div
+              key={rowIndex}
+              className="rounded-lg border border-border bg-background p-3"
+            >
               {/* HEADER */}
-              <div className="child-card-header">
-                <span>Row {rowIndex + 1}</span>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("common.row", { n: rowIndex + 1 })}
+                </span>
 
-                <button
-                  className="btn btn-icon text-danger"
-                  onClick={() => deleteRow(rowIndex)}
-                >
-                  <i className="bi bi-trash"></i>
-                </button>
+                {!disabled && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => deleteRow(rowIndex)}
+                    aria-label={t("common.delete")}
+                  >
+                    <Trash2 />
+                  </Button>
+                )}
               </div>
 
               {/* FIELDS */}
-              {columns.map((col) => (
-                <div key={col.field} className="child-card-field">
-                  <div className="child-label">{col.label}</div>
+              <div className="flex flex-col gap-2">
+                {columns.map((col) => (
+                  <div key={col.field}>
+                    <div className="mb-1 text-xs text-muted-foreground">
+                      {col.label}
+                    </div>
 
-                  <FieldRenderer
-                    type={col.type}
-                    value={row[col.field]}
-                    options={col.options}
-                    onChange={(val) => handleChange(rowIndex, col.field, val)}
-                  />
-                </div>
-              ))}
+                    <FieldRenderer
+                      type={col.type}
+                      value={row[col.field]}
+                      options={col.options}
+                      onChange={(val) =>
+                        handleChange(rowIndex, col.field, val)
+                      }
+                      disabled={disabled}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           ))
         )}

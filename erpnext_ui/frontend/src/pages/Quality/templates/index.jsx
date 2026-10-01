@@ -1,81 +1,39 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ActionBar from "../../../components/ActionBar";
 import Pagination from "../../../components/Pagination";
-import ListLayout from "../../../components/ListLayout"; // ✅ new
+import ListLayout from "../../../components/ListLayout";
+import { ListRow } from "../../../components/List/ListRow";
+import DataTable from "../../../components/List/DataTable";
 import { get } from "../../../services/api";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
+import useListPagination from "../../../hooks/useListPagination";
 
-const PAGE_SIZE = 10;
-
-/* ===============================
-   LIST ROW
-================================ */
-function ListRow({ item, onClick }) {
-  return (
-    <div className="list-row" onClick={() => onClick(item.raw)}>
-      <div className="list-col main">
-        <div className="list-title">{item.title}</div>
-        <div className="list-sub text-muted">{item.subtitle}</div>
-      </div>
-
-      <div className="list-col actions">
-        <button className="btn btn-icon">
-          <i className="bi bi-chevron-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ===============================
-   MAIN
-================================ */
 export default function QualityTemplateList() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const [data, setData] = useState([]);
-  const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  /* HEADER */
-  useEffect(() => {
-    setHeader({
-      title: "Quality Templates",
-      subtitle: "Define and manage inspection criteria",
+  const {
+    page,
+    setPage,
+    totalItems,
+    setTotal,
+    totalPages,
+    resetPage,
+    limit_start,
+    limit_page_length,
+  } = useListPagination({ pageSize: 10 });
 
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Quality", path: "/quality" },
-        { label: "Templates" },
-      ],
-
-      actions: [
-        {
-          label: "Create",
-          variant: "btn-primary",
-          onClick: () => navigate("new"),
-        },
-      ],
-    });
-
-    return () => setHeader({});
-  }, []);
-
-  /* SEARCH (debounce) */
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  /* LOAD */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const params = {
         fields: JSON.stringify([
@@ -84,66 +42,150 @@ export default function QualityTemplateList() {
           "modified",
         ]),
         order_by: "modified desc",
-        limit_start: (page - 1) * PAGE_SIZE,
-        limit_page_length: PAGE_SIZE,
+        limit_start,
+        limit_page_length,
       };
 
-      if (debouncedSearch) {
-        params.or_filters = JSON.stringify([
-          ["quality_inspection_template_name", "like", `%${debouncedSearch}%`],
-          ["name", "like", `%${debouncedSearch}%`],
-        ]);
-      }
+      const orFilters = debouncedSearch
+        ? [
+            [
+              "quality_inspection_template_name",
+              "like",
+              `%${debouncedSearch}%`,
+            ],
+            ["name", "like", `%${debouncedSearch}%`],
+          ]
+        : [];
+      if (orFilters.length) params.or_filters = JSON.stringify(orFilters);
 
       const [listRes, countRes] = await Promise.all([
         get("resource/Quality Inspection Template", params),
         get("method/frappe.client.get_count", {
           doctype: "Quality Inspection Template",
+          ...(orFilters.length && { or_filters: JSON.stringify(orFilters) }),
         }),
       ]);
 
       setData(listRes.data || []);
-      setTotalPages(Math.ceil((countRes.message || 0) / PAGE_SIZE));
+      setTotal(countRes.message || 0);
     } catch (e) {
       console.error(e);
+      setError(e);
+      setData([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [debouncedSearch, limit_start, limit_page_length, setTotal]);
 
   useEffect(() => {
-    loadData();
-  }, [page, debouncedSearch]);
+    setHeader({
+      title: t("quality.qualityTemplates"),
+      subtitle: t("quality.templatesSubtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.quality"), path: "/quality" },
+        { label: t("quality.templatesBreadcrumb") },
+      ],
+      actions: [
+        {
+          label: t("quality.create"),
+          variant: "btn-primary",
+          onClick: () => navigate("new"),
+        },
+      ],
+    });
 
-  /* MAP */
-  const listData = data.map((row) => ({
-    title: row.quality_inspection_template_name || row.name,
-    subtitle: row.name,
-    raw: row,
-  }));
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSearch = useCallback(
+    (q) => {
+      setDebouncedSearch(q);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData();
+  }, [loadData]);
+
+  const listData = useMemo(
+    () =>
+      data.map((row) => ({
+        title: row.quality_inspection_template_name || row.name,
+        subtitle: row.name,
+        raw: row,
+      })),
+    [data],
+  );
+
+  const columns = useMemo(
+    () => [
+      {
+        id: "title",
+        header: t("common.name"),
+        cell: (row) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium">{row.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {row.subtitle}
+            </div>
+          </div>
+        ),
+      },
+    ],
+    [t],
+  );
 
   return (
     <ListLayout
-      actionBar={<ActionBar onSearch={setSearch} />}
-      pagination={
-        totalPages > 1 && (
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        )
+      contentMode="auto"
+      loading={loading}
+      error={error}
+      onRetry={loadData}
+      actionBar={
+        <ActionBar
+          onSearch={handleSearch}
+          resultCount={totalItems}
+        />
       }
-      isEmpty={listData.length === 0}
-      emptyState="No templates found"
-    >
-      <div className="list-container">
-        {listData.map((item, i) => (
-          <ListRow
-            key={i}
-            item={item}
-            onClick={() => navigate(`${item.raw.name}`)}
-          />
-        ))}
-      </div>
-    </ListLayout>
+      cards={
+        <div className="card-stack flex flex-col gap-2.5">
+          {listData.map((item, i) => (
+            <ListRow
+              key={i}
+              item={item}
+              index={limit_start + i + 1}
+              onClick={() => navigate(`${item.raw.name}`)}
+            />
+          ))}
+        </div>
+      }
+      table={
+        <DataTable
+          columns={columns}
+          data={listData}
+          rowKey={(row) => row.raw?.name}
+          onRowClick={(row) => navigate(`${row.raw.name}`)}
+          loading={loading}
+          rowOffset={limit_start}
+        />
+      }
+      pagination={
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          pageSize={limit_page_length}
+          disabled={loading}
+        />
+      }
+      isEmpty={!loading && listData.length === 0}
+      emptyTitle={t("quality.emptyTemplates")}
+    />
   );
 }

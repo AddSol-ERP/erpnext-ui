@@ -1,0 +1,308 @@
+{
+	"requests": {
+		"header": {
+			"title": "الطلبات",
+			"subtitle": "إنشاء وإدارة طلبات الموظفين",
+			"attendanceListTitle": "طلبات الحضور",
+			"attendanceListSubtitle": "مراجعة وإدارة تصحيحات الحضور",
+			"attendanceEditTitle": "طلب حضور {{name}}",
+			"attendanceNewTitle": "طلب حضور جديد",
+			"attendanceEditSubtitle": "مراجعة وتحديث تصحيح الحضور",
+			"attendanceNewSubtitle": "إنشاء طلب لتصحيح سجلات الحضور",
+			"leaveListTitle": "طلبات الإجازة",
+			"leaveListSubtitle": "تتبع وإدارة إجازات الموظفين",
+			"leaveEditTitle": "طلب إجازة {{name}}",
+			"leaveNewTitle": "طلب إجازة جديد",
+			"leaveEditSubtitle": "مراجعة وتحديث طلب الإجازة",
+			"leaveNewSubtitle": "إنشاء طلب إجازة جديد",
+			"expenseListTitle": "مطالبات المصروفات",
+			"expenseListSubtitle": "تتبع وإدارة إرساليات مصروفات الموظفين",
+			"expenseEditTitle": "مطالبة مصروفات {{name}}",
+			"expenseNewTitle": "مطالبة مصروفات جديدة",
+			"expenseEditSubtitle": "مراجعة وتحديث تفاصيل المصروفات",
+			"expenseNewSubtitle": "إنشاء وإرسال مطالبة مصروفات جديدة"
+		},
+		"tiles": {
+			"attendance": {
+				"title": "طلب حضور",
+				"description": "إصلاح قيود الحضور"
+			},
+			"leave": {
+				"title": "طلب إجازة",
+				"description": "التقدم بطلب للحصول على إجازة"
+			},
+			"expense": {
+				"title": "طلب مصروفات",
+				"description": "تقديم المصروفات"
+			}
+		},
+		"status": {
+			"approved": "موافق عليه",
+			"rejected": "مرفوض",
+			"pending": "قيد الانتظار",
+			"draft": "مسودة",
+			"submitted": "تم الإرسال",
+			"paid": "مدفوع"
+		},
+		"list": {
+			"create": "إنشاء",
+			"new": "+ جديد",
+			"emptyAttendance": "لم يتم العثور على طلبات حضور",
+			"emptyLeave": "لم يتم العثور على طلبات إجازة",
+			"emptyExpense": "لم يتم العثور على مطالبات مصروفات",
+			"activeFilters": "المرشحات: {{filters}}",
+			"reason": "السبب"
+		},
+		"filters": {
+			"employee": "الموظف",
+			"leaveType": "نوع الإجازة",
+			"fromDate": "من تاريخ",
+			"toDate": "إلى تاريخ"
+		},
+		"attendance": {
+			"employee": "الموظف",
+			"company": "الشركة",
+			"fromDate": "من تاريخ",
+			"toDate": "إلى تاريخ",
+			"halfDay": "نصف يوم",
+			"halfDayDate": "تاريخ نصف اليوم",
+			"halfDayHint": "اختر تاريخًا ضمن النطاق المحدد",
+			"includeHolidays": "تضمين العطل",
+			"shift": "الوردية",
+			"reason": "السبب",
+			"explanation": "التوضيح",
+			"workFromHome": "العمل من المنزل",
+			"onDuty": "في الخدمة",
+			"select": "اختر",
+			"validationRequired": "الموظف والتواريخ والسبب مطلوبة",
+			"validationRange": "لا يمكن أن يكون تاريخ النهاية قبل تاريخ البداية",
+			"validationHalfDayDate": "تاريخ نصف اليوم مطلوب",
+			"loadFailed": "فشل تحميل المستند",
+			"sectionDetails": "تفاصيل الحضور",
+			"sectionOptions": "خيارات"
+		},
+		"leave": {
+			"employee": "الموظف",
+			"approver": "المعتمِد",
+			"autoAssigned": "تعيين تلقائي",
+			"leaveType": "نوع الإجازة",
+			"balance": "الرصيد: {{days}} يوم",
+			"fromDate": "من تاريخ",
+			"toDate": "إلى تاريخ",
+			"totalDays": "إجمالي الأيام: {{days}}",
+			"remaining": "المتبقي: {{days}}",
+			"halfDay": "نصف يوم",
+			"reason": "السبب",
+			"noApprover": "لا يوجد معتمِد إجازة معين لهذا الموظف",
+			"approverFetchFailed": "تعذر جلب المعتمِد",
+			"loadFailed": "فشل التحميل",
+			"validationRequired": "يجب ملء جميع الحقول المطلوبة",
+			"validationApprover": "معتمِد الإجازة مطلوب",
+			"validationRange": "نطاق تواريخ غير صالح",
+			"validationBalance": "رصيد إجازة غير كافٍ",
+			"sectionDetails": "تفاصيل الإجازة",
+			"sectionNotes": "النصف يوم والسبب"
+		},
+		"expense": {
+			"employee": "الموظف",
+			"company": "الشركة",
+			"approver": "المعتمِد",
+			"selectApprover": "اختر المعتمِد",
+			"postingDate": "تاريخ الترحيل",
+			"expenses": "المصروفات",
+			"date": "التاريخ",
+			"type": "النوع",
+			"amount": "المبلغ",
+			"description": "الوصف",
+			"total": "الإجمالي: ₹ {{amount}}",
+			"remark": "ملاحظة",
+			"noApprover": "لم يتم العثور على معتمِد مصروفات. اتصل بموارد بشرية.",
+			"approverFetchFailed": "فشل جلب المعتمِد",
+			"loadFailed": "فشل التحميل",
+			"validationRequired": "الموظف والشركة والمعتمِد مطلوبون",
+			"validationApprover": "معتمِد المصروفات مطلوب",
+			"validationAddOne": "أضف مصروفًا واحدًا على الأقل",
+			"validationFillRows": "يجب ملء جميع صفوف المصروفات",
+			"validationAmount": "يجب أن يكون المبلغ أكبر من 0",
+			"sectionDetails": "تفاصيل المطالبة"
+		}
+	},
+	"ess": {
+		"header": {
+			"title": "خدمة الموظف الذاتية",
+			"subtitle": "ملفي الشخصي والحضور والإجازة والراتب",
+			"profileTitle": "ملفي الشخصي",
+			"profileSubtitle": "عرض معلوماتك كموظف",
+			"attendanceTitle": "تقويم الحضور",
+			"attendanceCrumb": "الحضور",
+			"attendanceSubtitleEmployee": "الموظف: {{name}}",
+			"attendanceSubtitle": "خدمة الموظف الذاتية",
+			"overtimeTitle": "سجلات العمل الإضافي",
+			"overtimeSubtitleEmployee": "الموظف: {{name}}",
+			"overtimeSubtitle": "سجلات عملك الإضافي",
+			"back": "رجوع",
+			"appointmentLetter": "خطاب التعيين",
+			"print": "طباعة"
+		},
+		"tiles": {
+			"profile": {
+				"title": "ملفي الشخصي",
+				"description": "عرض وإدارة ملفك الشخصي"
+			},
+			"leave": {
+				"title": "إجازتي",
+				"description": "التقدم بطلب إجازة وعرض الرصيد"
+			},
+			"leaveBalance": {
+				"title": "رصيد الإجازة",
+				"description": "عرض رصيد إجازتي لهذا العام"
+			},
+			"expenses": {
+				"title": "مصروفاتي",
+				"description": "تقديم مطالبات مصروفات"
+			},
+			"attendanceRequests": {
+				"title": "الحضور مطلوب",
+				"description": "إدارة طلبات الحضور"
+			},
+			"attendanceLogs": {
+				"title": "سجلات الحضور",
+				"description": "عرض تقويم شهري بأوقات الدخول والخروج"
+			},
+			"overtime": {
+				"title": "سجلات العمل الإضافي",
+				"description": "عرض سجلات عملك الإضافي"
+			},
+			"salarySlips": {
+				"title": "قسائم راتبي",
+				"description": "عرض قسائم الراتب"
+			},
+			"tasks": {
+				"title": "مهامي",
+				"description": "عرض المهام المُسندة"
+			}
+		},
+		"profile": {
+			"loading": "جارٍ التحميل…",
+			"notFoundTitle": "لم يتم العثور على ملف موظف",
+			"notFoundDescription": "حساب المستخدم الخاص بك غير مرتبط بسجل موظف. يرجى الاتصال بموارد البشرية لإعداد ملفك الشخصي.",
+			"backToDashboard": "العودة إلى لوحة التحكم",
+			"idLabel": "المعرف: {{id}}",
+			"hrApprovalTitle": "موافقة الموارد البشرية معلقة",
+			"hrApprovalDescription": "ملفك الشخصي لم تتم موافقته بعد من قبل الموارد البشرية. لن تتم معالجة الراتب حتى الموافقة.",
+			"sectionPersonal": "التفاصيل الشخصية",
+			"sectionEmployment": "التوظيف",
+			"sectionContact": "التواصل",
+			"sectionAddress": "العنوان",
+			"fields": {
+				"employeeName": "اسم الموظف",
+				"dateOfBirth": "تاريخ الميلاد",
+				"gender": "الجنس",
+				"employeeId": "معرّف الموظف",
+				"company": "الشركة",
+				"department": "القسم",
+				"designation": "المسمى الوظيفي",
+				"branch": "الفرع",
+				"dateOfJoining": "تاريخ الالتحاق",
+				"contractEndDate": "تاريخ انتهاء العقد",
+				"personalEmail": "البريد الإلكتروني الشخصي",
+				"companyEmail": "بريد الشركة الإلكتروني",
+				"mobileNumber": "رقم الجوال",
+				"emergencyContact": "جهة اتصال الطوارئ",
+				"currentAddress": "العنوان الحالي",
+				"permanentAddress": "العنوان الدائم"
+			},
+			"lastUpdated": "آخر تحديث: {{date}}",
+			"created": "تم الإنشاء: {{date}}",
+			"userNotFound": "تعذر تحديد المستخدم الحالي",
+			"loadFailed": "فشل تحميل الملف الشخصي",
+			"notFoundInfo": "لم يتم العثور على ملف الموظف. حاول إنشاء واحد."
+		},
+		"attendance": {
+			"loadingEmployee": "جارٍ تحميل بيانات الموظف…",
+			"noEmployee": "لم يتم العثور على سجل موظف مرتبط بحساب المستخدم الخاص بك.",
+			"loadingRecords": "جارٍ تحميل سجلات الحضور…",
+			"today": "اليوم",
+			"present": "حاضر",
+			"absent": "غائب",
+			"leave": "إجازة",
+			"halfDay": "نصف يوم",
+			"onLeave": "في إجازة",
+			"presentCount": "حاضر: {{count}}",
+			"absentCount": "غائب: {{count}}",
+			"leaveCount": "إجازة: {{count}}",
+			"halfDayCount": "نصف يوم: {{count}}",
+			"lateHalfDay": "متأخر / نصف يوم",
+			"missing": "مفقود",
+			"weeklyOff": "عطلة أسبوعية",
+			"holiday": "عطلة",
+			"future": "مستقبلي",
+			"weeklyOffShort": "W",
+			"holidayShort": "H",
+			"createLeave": "إنشاء طلب إجازة",
+			"requestCorrection": "طلب تصحيح الحضور",
+			"leaveAction": "إجازة",
+			"attendanceAction": "حضور",
+			"prevMonth": "الشهر السابق",
+			"nextMonth": "الشهر التالي",
+			"heroDesc": "الحضور الشهري مع أوقات الدخول والخروج وإجراءات سريعة",
+			"checkinLogs": "سجلات تسجيل الدخول - {{date}}",
+			"months": {
+				"january": "يناير",
+				"february": "فبراير",
+				"march": "مارس",
+				"april": "أبريل",
+				"may": "مايو",
+				"june": "يونيو",
+				"july": "يوليو",
+				"august": "أغسطس",
+				"september": "سبتمبر",
+				"october": "أكتوبر",
+				"november": "نوفمبر",
+				"december": "ديسمبر"
+			},
+			"days": {
+				"sun": "أحد",
+				"mon": "اثنين",
+				"tue": "ثلاثاء",
+				"wed": "أربعاء",
+				"thu": "خميس",
+				"fri": "جمعة",
+				"sat": "سبت"
+			},
+			"legend": {
+				"present": "حاضر",
+				"lateHalfDay": "متأخر / نصف يوم",
+				"absent": "غائب",
+				"missing": "مفقود",
+				"weeklyOff": "عطلة أسبوعية",
+				"holiday": "عطلة",
+				"future": "مستقبلي"
+			}
+		},
+		"overtime": {
+			"backToDashboard": "العودة إلى لوحة التحكم",
+			"noEmployeeTitle": "لم يتم العثور على موظف",
+			"noEmployeeDescription": "حساب المستخدم الخاص بك غير مرتبط بسجل موظف. يرجى الاتصال بموارد البشرية.",
+			"totalLogs": "إجمالي السجلات",
+			"totalOTHours": "إجمالي ساعات العمل الإضافي",
+			"approved": "موافق عليه",
+			"pending": "قيد الانتظار",
+			"noRecordsTitle": "لا توجد سجلات عمل إضافي",
+			"noRecordsDescription": "ليس لديك أي سجلات عمل إضافي بعد.",
+			"hrs": "ساعة",
+			"statusDraft": "مسودة",
+			"statusApproved": "موافق عليه",
+			"statusRejected": "مرفوض",
+			"columns": {
+				"date": "التاريخ",
+				"shift": "الوردية",
+				"inTime": "وقت الدخول",
+				"outTime": "وقت الخروج",
+				"otHours": "ساعات العمل الإضافي",
+				"status": "الحالة",
+				"remarks": "ملاحظات"
+			}
+		}
+	}
+}

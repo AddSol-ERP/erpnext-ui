@@ -1,111 +1,104 @@
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
-import ActionTile from "../../components/ActionTile";
+import { useTranslation } from "react-i18next";
+import {
+  User,
+  CalendarCheck,
+  PieChart,
+  Receipt,
+  Clock,
+  CalendarDays,
+  Hourglass,
+  Wallet,
+  CheckSquare,
+  UserCheck,
+} from "lucide-react";
+import DashboardShell from "../../components/dashboard/DashboardShell";
+import DashboardHero from "../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../components/dashboard/ModuleGrid";
+
+const MODULE_DEFS = [
+  {
+    key: "profile",
+    icon: User,
+    route: "/ess/profile",
+  },
+  {
+    key: "leave",
+    icon: CalendarCheck,
+    route: "/requests/leave",
+  },
+  {
+    key: "leaveBalance",
+    icon: PieChart,
+    route: "/ess/leave-balance",
+  },
+  {
+    key: "expenses",
+    icon: Receipt,
+    route: "/requests/expense",
+  },
+  {
+    key: "attendanceRequests",
+    icon: Clock,
+    route: "/requests/attendance",
+  },
+  {
+    key: "attendanceLogs",
+    icon: CalendarDays,
+    route: "/ess/attendance",
+  },
+  {
+    key: "overtime",
+    icon: Hourglass,
+    route: "/ess/overtime",
+  },
+  {
+    key: "salarySlips",
+    icon: Wallet,
+    route: "/ess/Salary Slip",
+  },
+  {
+    key: "tasks",
+    icon: CheckSquare,
+    route: "/ess/ToDo",
+  },
+];
 
 export default function ESSDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   useEffect(() => {
     setHeader({
-      title: "Employee Self Service",
-      subtitle: "My profile, attendance, leave & salary",
+      title: t("ess.header.title"),
+      subtitle: t("ess.header.subtitle"),
       breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Employee Self Service" },
+        { label: t("common.home"), path: "/" },
+        { label: t("ess.header.title") },
       ],
     });
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const modules = [
-    {
-      title: "My Profile",
-      icon: "bi-person-circle",
-      route: "/ess/profile",
-      description: "View and manage your profile",
-      color: "#4f46e5",
-    },
-    {
-      title: "My Leave",
-      icon: "bi-calendar-check",
-      route: "/requests/leave",
-      description: "Apply for leave & view balance",
-      color: "#4f46e5",
-    },
-    {
-      title: "Leave Balance",
-      icon: "bi-pie-chart",
-      route: "/ess/leave-balance",
-      description: "View my leave balance for the year",
-      color: "#4f46e5",
-    },
-    {
-      title: "My Expenses",
-      icon: "bi-receipt",
-      route: "/requests/expense",
-      description: "Submit expense claims",
-      color: "#4f46e5",
-    },
-    {
-      title: "Attendance Required",
-      icon: "bi-clock-history",
-      route: "/requests/attendance",
-      description: "Manage attendance requests",
-      color: "#4f46e5",
-    },
-    {
-      title: "Attendance Logs",
-      icon: "bi-calendar-month",
-      route: "/ess/attendance",
-      description: "Monthly calendar view with In/Out times",
-      color: "#4f46e5",
-    },
-    {
-      title: "Overtime Logs",
-      icon: "bi-hourglass-split",
-      route: "/ess/overtime",
-      description: "View your overtime records",
-      color: "#4f46e5",
-    },
-    {
-      title: "My Salary Slips",
-      icon: "bi-wallet2",
-      route: "/ess/Salary Slip",
-      description: "View payslips",
-      color: "#4f46e5",
-    },
-    {
-      title: "My Tasks",
-      icon: "bi-check2-square",
-      route: "/ess/ToDo",
-      description: "View assigned tasks",
-      color: "#4f46e5",
-    },
-  ];
+  const handleTileClick = (tile) => navigate(tile.route);
+
+  const modules = MODULE_DEFS.map((m) => ({
+    ...m,
+    titleKey: `ess.tiles.${m.key}.title`,
+    descriptionKey: `ess.tiles.${m.key}.description`,
+  }));
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <ActionTile
-              tile={{
-                ...m,
-                primary: true,
-              }}
-              onClick={(tile, isCreate) => {
-                if (isCreate && tile.createRoute) {
-                  navigate(tile.createRoute);
-                } else {
-                  navigate(m.route);
-                }
-              }}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero
+        icon={UserCheck}
+        description={t("ess.header.subtitle")}
+      />
+      <ModuleGrid items={modules} onClick={handleTileClick} />
+    </DashboardShell>
   );
 }

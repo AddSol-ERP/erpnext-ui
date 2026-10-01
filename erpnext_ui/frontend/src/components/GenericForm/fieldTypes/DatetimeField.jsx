@@ -1,3 +1,5 @@
+import { Input } from "@/components/ui/input";
+
 /**
  * Converts ERPNext datetime (YYYY-MM-DD HH:MM:SS) to/from
  * HTML datetime-local input format (YYYY-MM-DDTHH:MM).
@@ -14,18 +16,23 @@ function fromInput(val) {
   return val.replace("T", " ") + ":00";
 }
 
-export default function DatetimeField({ field, value, onChange, error }) {
+export default function DatetimeField({
+  field,
+  value,
+  onChange,
+  error,
+  disabled = false,
+}) {
   return (
-    <div>
-      <input
+    <div className="flex flex-col gap-1">
+      <Input
         type="datetime-local"
-        className={`form-control ${error ? "is-invalid" : ""}`}
         id={field.fieldname}
         value={toInput(value)}
         onChange={(e) => onChange(fromInput(e.target.value))}
-        disabled={field.read_only}
+        disabled={disabled || field.read_only}
+        aria-invalid={!!error}
       />
-      {error && <div className="invalid-feedback">{error}</div>}
     </div>
   );
 }

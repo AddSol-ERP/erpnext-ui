@@ -1,112 +1,98 @@
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
-import ActionTile from "../../components/ActionTile";
-import { getDoctypeConfig } from "../../config/doctypes";
+import { useTranslation } from "react-i18next";
+import {
+  Users,
+  UserPlus,
+  TrendingUp,
+  FileText,
+  ShoppingCart,
+  ReceiptText,
+  Package,
+} from "lucide-react";
+import DashboardShell from "../../components/dashboard/DashboardShell";
+import DashboardHero from "../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../components/dashboard/ModuleGrid";
+import { createTileNav } from "../../lib/tileNav";
+
+const MODULE_DEFS = [
+  {
+    key: "customer",
+    icon: Users,
+    route: "/sales/Customer",
+    createRoute: "/sales/Customer/new",
+  },
+  {
+    key: "lead",
+    icon: UserPlus,
+    route: "/sales/Lead",
+    createRoute: "/sales/Lead/new",
+  },
+  {
+    key: "opportunity",
+    icon: TrendingUp,
+    route: "/sales/Opportunity",
+    createRoute: "/sales/Opportunity/new",
+  },
+  {
+    key: "quotation",
+    icon: FileText,
+    route: "/sales/Quotation",
+    createRoute: "/sales/Quotation/new",
+  },
+  {
+    key: "salesOrder",
+    icon: ShoppingCart,
+    route: "/sales/Sales Order",
+    createRoute: "/sales/Sales Order/new",
+  },
+  {
+    key: "salesInvoice",
+    icon: ReceiptText,
+    route: "/sales/Sales Invoice",
+    createRoute: "/sales/Sales Invoice/new",
+  },
+  {
+    key: "item",
+    icon: Package,
+    route: "/sales/Item",
+    createRoute: "/sales/Item/new",
+  },
+];
 
 export default function SalesDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
-
-  const handleTileClick = (tile, isCreate) => {
-    if (isCreate && tile.createRoute) {
-      // Extract doctype from the route (last path segment before /new)
-      const doctype = tile.route.split("/").filter(Boolean).pop();
-      const config = getDoctypeConfig(doctype);
-      if (config.nativeForm) {
-        const doctypeUrl = doctype.toLowerCase().replace(/\s+/g, "-");
-        window.open(`/app/${doctypeUrl}/new-${doctypeUrl}`, "_blank");
-      } else {
-        navigate(tile.createRoute);
-      }
-    } else {
-      navigate(tile.route);
-    }
-  };
+  const { t } = useTranslation();
+  const handleTileClick = createTileNav(navigate);
 
   useEffect(() => {
     setHeader({
-      title: "Sales",
-      subtitle: "Customers, leads, opportunities & orders",
-      breadcrumbs: [{ label: "Home", path: "/" }, { label: "Sales" }],
+      title: t("sales.header.title"),
+      subtitle: t("sales.header.subtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("sales.header.title") },
+      ],
     });
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const modules = [
-    {
-      title: "Customer",
-      icon: "bi-people",
-      route: "/sales/Customer",
-      description: "Manage customer records",
-      createRoute: "/sales/Customer/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Lead",
-      icon: "bi-person-plus",
-      route: "/sales/Lead",
-      description: "Track sales leads",
-      createRoute: "/sales/Lead/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Opportunity",
-      icon: "bi-graph-up-arrow",
-      route: "/sales/Opportunity",
-      description: "Manage opportunities",
-      createRoute: "/sales/Opportunity/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Quotation",
-      icon: "bi-file-text",
-      route: "/sales/Quotation",
-      description: "Customer quotations",
-      createRoute: "/sales/Quotation/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Sales Order",
-      icon: "bi-cart-check",
-      route: "/sales/Sales Order",
-      description: "Manage sales orders",
-      createRoute: "/sales/Sales Order/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Sales Invoice",
-      icon: "bi-receipt-cutoff",
-      route: "/sales/Sales Invoice",
-      description: "Create sales invoices",
-      createRoute: "/sales/Sales Invoice/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Item",
-      icon: "bi-box",
-      route: "/sales/Item",
-      description: "Manage products & services",
-      createRoute: "/sales/Item/new",
-      color: "#4f46e5",
-    },
-  ];
+  const modules = MODULE_DEFS.map((m) => ({
+    ...m,
+    titleKey: `sales.tiles.${m.key}.title`,
+    descriptionKey: `sales.tiles.${m.key}.description`,
+  }));
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <ActionTile
-              tile={{
-                ...m,
-                primary: true,
-              }}
-              onClick={handleTileClick}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero
+        icon={TrendingUp}
+        description={t("sales.header.subtitle")}
+      />
+      <ModuleGrid items={modules} onClick={handleTileClick} />
+    </DashboardShell>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-// import { get } from "../../../services/api";
+import { useTranslation } from "react-i18next";
 
 import PurchaseOrderPreview from "./types/PurchaseOrderPreview";
 import ExpensePreview from "./types/ExpensePreview";
@@ -18,16 +18,11 @@ const PREVIEW_MAP = {
 };
 
 export default function PreviewRenderer({ doctype, doc }) {
+  const { t } = useTranslation();
   const [fullDoc, setFullDoc] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const Component = PREVIEW_MAP[doctype] || DefaultPreview;
-
-  useEffect(() => {
-    if (!doc?.name) return;
-
-    loadDoc();
-  }, [doctype, doc?.name]);
 
   const loadDoc = async () => {
     try {
@@ -42,10 +37,23 @@ export default function PreviewRenderer({ doctype, doc }) {
       setLoading(false);
     }
   };
-  console.log(fullDoc, "fullDocv", loading);
+
+  useEffect(() => {
+    if (!doc?.name) return;
+
+    // loadDoc setStates only after the awaited API response; the compiler
+    // rule conservatively flags any setState-reaching call from an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadDoc();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doctype, doc?.name]);
 
   if (loading || !fullDoc) {
-    return <div className="text-center p-4 text-muted">Loading preview...</div>;
+    return (
+      <div className="p-4 text-center text-sm text-muted-foreground">
+        {t("approvals.loadingPreview")}
+      </div>
+    );
   }
 
   return <Component doc={fullDoc} />;

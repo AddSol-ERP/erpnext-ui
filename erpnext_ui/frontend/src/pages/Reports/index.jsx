@@ -1,59 +1,59 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
-import ActionTile from "../../components/ActionTile";
+import DashboardShell from "../../components/dashboard/DashboardShell";
+import DashboardHero from "../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../components/dashboard/ModuleGrid";
+import { CalendarCheck, CalendarX, PieChart, BarChart3 } from "lucide-react";
 
 export default function ReportDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   useEffect(() => {
     setHeader({
-      title: "Reports",
-      subtitle: "View analytics, insights and operational reports",
-
-      breadcrumbs: [{ label: "Home", path: "/" }, { label: "Reports" }],
+      title: t("nav.reports"),
+      subtitle: t("reports.subtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.reports") },
+      ],
     });
 
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   const modules = [
     {
-      title: "Attendance Report",
-      description: "View attendance calendar & team data",
-      icon: "bi-calendar3",
+      key: "attendance",
+      title: t("reports.attendance"),
+      description: t("reports.attendanceDesc"),
+      icon: CalendarCheck,
       route: "/reports/attendance",
     },
     {
-      title: "Overtime Report",
-      description: "View overtime data across employees",
-      icon: "bi-hourglass-split",
+      key: "overtime",
+      title: t("reports.overtime"),
+      description: t("reports.overtimeDesc"),
+      icon: CalendarX,
       route: "/reports/overtime",
     },
     {
-      title: "Leave Balance Report",
-      description: "Used & unused leave balance by employee",
-      icon: "bi-pie-chart",
+      key: "leave-balance",
+      title: t("reports.leaveBalance"),
+      description: t("reports.leaveBalanceDesc"),
+      icon: PieChart,
       route: "/reports/leave-balance",
     },
   ];
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <ActionTile
-              tile={{
-                ...m,
-                color: "#4f46e5",
-                primary: true,
-              }}
-              onClick={() => navigate(m.route)}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero icon={BarChart3} description={t("reports.subtitle")} />
+      <ModuleGrid items={modules} onClick={(tile) => navigate(tile.route)} />
+    </DashboardShell>
   );
 }

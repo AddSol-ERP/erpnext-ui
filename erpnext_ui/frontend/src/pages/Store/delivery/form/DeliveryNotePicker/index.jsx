@@ -1,13 +1,18 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import AppModal from "../../../../../components/AppModal";
+import FormSelect from "../../../../../components/FormSelect";
 import { get } from "../../../../../services/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const SOURCE_TYPES = [
-  { label: "Sales Order", value: "Sales Order" },
-  { label: "Pick List", value: "Pick List" },
+  { value: "Sales Order", labelKey: "store.source.salesOrder" },
+  { value: "Pick List", labelKey: "store.source.pickList" },
 ];
 
 export default function DeliveryNotePicker({ show, onClose, onLoad }) {
+  const { t } = useTranslation();
   const [sourceType, setSourceType] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [documents, setDocuments] = useState([]);
@@ -22,7 +27,6 @@ export default function DeliveryNotePicker({ show, onClose, onLoad }) {
   /* ================= SEARCH ================= */
   const handleSearch = async (text) => {
     setSourceId(text);
-    console.log(sourceType, text, "======");
 
     if (!sourceType) return;
 
@@ -40,9 +44,9 @@ export default function DeliveryNotePicker({ show, onClose, onLoad }) {
         limit_page_length: 10,
       });
 
-      const formatted = (res.data || []).map((d) => ({
-        value: d.name,
-        description: d.customer,
+      const formatted = (res.data || []).map((doc) => ({
+        value: doc.name,
+        description: doc.customer,
       }));
 
       setDocuments(formatted);
@@ -109,59 +113,57 @@ export default function DeliveryNotePicker({ show, onClose, onLoad }) {
         onClose();
         resetData();
       }}
-      title="📦 Load Items"
+      title={t("store.source.loadItems")}
       footer={
         <>
-          <button
-            className="btn btn-outline-primary"
+          <Button
+            variant="outline"
             onClick={() => {
               onClose();
               resetData();
             }}
           >
-            Cancel
-          </button>
+            {t("common.cancel")}
+          </Button>
 
-          <button
-            className="btn btn-primary"
+          <Button
             disabled={!sourceType || !sourceId}
             onClick={handleLoad}
           >
-            Load
-          </button>
+            {t("store.source.load")}
+          </Button>
         </>
       }
     >
-      <div className="row g-2">
+      <div className="flex flex-col gap-2">
         {/* TYPE */}
-        <div className="col-12">
-          <select
-            className="form-select"
+        <div>
+          <FormSelect
+            aria-label={t("store.source.sourceType")}
             value={sourceType}
-            onChange={(e) => {
-              setSourceType(e.target.value);
+            onChange={(v) => {
+              setSourceType(v);
               setSourceId("");
               setDocuments([]);
             }}
-          >
-            <option value="">Select Source Type</option>
-            {SOURCE_TYPES.map((t, i) => (
-              <option key={i} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+            placeholder={t("store.source.selectSourceType")}
+            options={SOURCE_TYPES.map((sourceTypeOption) => ({
+              value: sourceTypeOption.value,
+              label: t(sourceTypeOption.labelKey),
+            }))}
+          />
         </div>
 
         {/* DOCUMENT SEARCH */}
-        <div className="col-12 position-relative">
-          <input
+        <div className="relative">
+          <Input
             type="text"
-            className="form-control"
             value={sourceId}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder={
-              sourceType ? "Search document..." : "Select type first"
+              sourceType
+                ? t("store.source.searchDocument")
+                : t("store.source.selectTypeFirst")
             }
             disabled={!sourceType}
             onBlur={() => setTimeout(() => setDocuments([]), 200)}
@@ -169,19 +171,20 @@ export default function DeliveryNotePicker({ show, onClose, onLoad }) {
           />
 
           {documents.length > 0 && (
-            <div className="dropdown-menu show w-100 p-0 shadow-sm">
+            <div className="absolute start-0 end-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
               {documents.map((doc) => (
                 <button
                   key={doc.value}
-                  className="dropdown-item"
+                  type="button"
+                  className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-start transition-colors hover:bg-accent hover:text-accent-foreground"
                   onClick={() => {
                     setSourceId(doc.value);
                     setDocuments([]);
                   }}
                 >
-                  <div className="fw-semibold">{doc.value}</div>
-                  <div className="text-muted small">
-                    {doc.description || "No customer"}
+                  <div className="text-sm font-semibold">{doc.value}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {doc.description || t("store.source.noCustomer")}
                   </div>
                 </button>
               ))}

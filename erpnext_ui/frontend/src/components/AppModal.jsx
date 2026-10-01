@@ -1,85 +1,87 @@
+import { X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { cn } from "cn";
+
+/**
+ * Width presets.
+ *
+ * Every entry is written as a full literal class string on purpose: Tailwind
+ * scans source text statically, so a preset assembled at runtime (e.g.
+ * `` `sm:${u}` ``) never makes it into the generated stylesheet.
+ *
+ * Each preset keeps the `calc(100%-2rem)` gutter below 640px and only applies
+ * the real width from the `sm:` breakpoint up. `DialogContent`'s own default
+ * is unprefixed, so there is no competing `sm:max-w-*` rule to out-order —
+ * the width applied here is deterministic.
+ */
+const widthMap = {
+  sm: "max-w-[calc(100%-2rem)] sm:max-w-sm",
+  md: "max-w-[calc(100%-2rem)] sm:max-w-xl",
+  lg: "max-w-[calc(100%-2rem)] sm:max-w-3xl",
+  xl: "max-w-[calc(100%-2rem)] sm:max-w-[80rem]",
+  full: "max-w-[calc(100%-2rem)] sm:max-w-[95vw]",
+  fullscreen:
+    "max-w-none sm:max-w-none w-[100vw] h-[100vh] rounded-none",
+};
+
+/**
+ * App-level modal built on shadcn Dialog.
+ * API unchanged: { show, onClose, title, children, footer, width }
+ *
+ * `width` presets: sm | md | lg | xl | full | fullscreen
+ */
 export default function AppModal({
   show,
   onClose,
   title,
   children,
   footer,
-  width = "md", // sm | md | lg | fullscreen
+  width = "md",
 }) {
-  if (!show) return null;
-
-  const widthMap = {
-    sm: "modal-sm",
-    md: "modal-md",
-    lg: "modal-lg",
-  };
-
-  const isFullscreen = width === "fullscreen";
-
   return (
-    <>
-      <div className="modal d-block" tabIndex="-1">
-        <div
-          className={`modal-dialog ${
-            isFullscreen
-              ? "modal-fullscreen"
-              : `modal-dialog-centered ${widthMap[width] || ""}`
-          }`}
-          style={{
-            margin: isFullscreen ? 0 : "1.75rem auto", // 👈 keeps center spacing
-          }}
-        >
-          <div
-            className="modal-content"
-            style={{
-              height: width === "fullscreen" ? "100vh" : "auto",
-              maxHeight: width === "fullscreen" ? "100vh" : "95vh",
-              background: "var(--card-bg)",
-              border: "1px solid var(--bs-border-color)",
-              borderRadius: width === "fullscreen" ? "0" : "16px",
-              backdropFilter: "blur(12px)",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
+    <Dialog open={show} onOpenChange={(open) => !open && onClose?.()}>
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          "flex max-h-[95vh] flex-col gap-0 overflow-hidden p-0",
+          widthMap[width] || widthMap.md,
+        )}
+      >
+        {/* HEADER */}
+        <DialogHeader className="border-b border-border px-5 py-4">
+          <DialogTitle className="text-base font-semibold">
+            {title}
+          </DialogTitle>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="absolute end-3 top-3.5"
+            onClick={onClose}
+            aria-label="Close"
           >
-            {/* HEADER */}
-            <div className="modal-header border-0">
-              <h5 className="modal-title">{title}</h5>
-              <button className="btn-close" onClick={onClose} />
-            </div>
+            <X />
+          </Button>
+        </DialogHeader>
 
-            {/* BODY */}
-            <div
-              className="modal-body pt-0"
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                overflowX: "hidden",
-              }}
-            >
-              {children}
-            </div>
-
-            {/* FOOTER */}
-            {footer && (
-              <div
-                className="modal-footer border-0"
-                style={{
-                  position: "sticky",
-                  bottom: 0,
-                  background: "var(--card-bg)",
-                }}
-              >
-                {footer}
-              </div>
-            )}
-          </div>
+        {/* BODY */}
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4">
+          {children}
         </div>
-      </div>
 
-      {/* BACKDROP */}
-      <div className="modal-backdrop fade show" onClick={onClose} />
-    </>
+        {/* FOOTER */}
+        {footer && (
+          <DialogFooter className="sticky bottom-0 border-t border-border bg-card px-5 py-3">
+            {footer}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

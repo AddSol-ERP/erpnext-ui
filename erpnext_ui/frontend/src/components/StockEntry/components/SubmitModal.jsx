@@ -1,5 +1,8 @@
+import { useTranslation } from "react-i18next";
 import AppModal from "../../AppModal";
 import LinkField from "../../LinkField";
+import { Button } from "@/components/ui/button";
+import { FormField } from "../../FormField";
 
 export default function SubmitModal({
   show,
@@ -10,42 +13,40 @@ export default function SubmitModal({
   workOrder,
   setWorkOrder,
 }) {
+  const { t } = useTranslation();
+
   return (
     <AppModal
       show={show}
       onClose={onClose}
-      title="Confirm Stock Entry"
+      title={t("store.submitModal.title")}
       footer={
         <>
-          <button className="btn btn-outline-primary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-primary" onClick={onSubmit}>
-            Submit
-          </button>
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={onSubmit}>{t("common.submit")}</Button>
         </>
       }
     >
-      <div className="row g-2">
-        <div className="col-12">
-          <label className="form-label">Project</label>
+      <div className="flex flex-col gap-3">
+        <FormField label={t("store.submitModal.project")}>
           <LinkField
             doctype="Project"
             value={project}
             onChange={setProject}
-            placeholder="Search Project"
+            placeholder={t("store.submitModal.searchProject")}
           />
-        </div>
+        </FormField>
 
-        <div className="col-12">
-          <label className="form-label">Work Order</label>
+        <FormField label={t("store.submitModal.workOrder")}>
           <LinkField
             doctype="Work Order"
             value={workOrder}
             onChange={setWorkOrder}
-            placeholder="Search Work Order"
+            placeholder={t("store.submitModal.searchWorkOrder")}
           />
-        </div>
+        </FormField>
       </div>
     </AppModal>
   );

@@ -1,42 +1,41 @@
 import LinkField from "../LinkField";
+import FormSelect from "../FormSelect";
+import { Input } from "@/components/ui/input";
 
-function FieldRenderer({ type, value, options, onChange }) {
+function FieldRenderer({ type, value, options, onChange, disabled = false }) {
   switch (type) {
     case "number":
       return (
-        <input
+        <Input
           type="number"
-          className="form-control"
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
         />
       );
 
-    case "select":
+    case "select": {
       const opts = typeof options === "string" ? options.split("\n") : [];
       return (
-        <select
-          className="form-select"
+        <FormSelect
           value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select</option>
-          {opts.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
+          onChange={onChange}
+          placeholder="—"
+          options={opts.map((o) => ({ value: o, label: o }))}
+          disabled={disabled}
+        />
       );
+    }
 
     case "checkbox":
       return (
-        <div className="d-flex justify-content-center">
+        <div className="flex justify-center">
           <input
             type="checkbox"
-            className="form-check-input"
+            className="size-4 accent-[var(--brand-primary)]"
             checked={!!value}
             onChange={(e) => onChange(e.target.checked ? 1 : 0)}
+            disabled={disabled}
           />
         </div>
       );
@@ -47,16 +46,17 @@ function FieldRenderer({ type, value, options, onChange }) {
           doctype={options}
           value={value}
           onChange={onChange}
-          placeholder="Search..."
+          placeholder="…"
+          disabled={disabled}
         />
       );
 
     default:
       return (
-        <input
-          className="form-control"
+        <Input
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
         />
       );
   }

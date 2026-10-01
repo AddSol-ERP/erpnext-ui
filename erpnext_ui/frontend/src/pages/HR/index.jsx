@@ -1,135 +1,115 @@
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
-import ActionTile from "../../components/ActionTile";
-import { useRole } from "../../context/RoleContext";
-import { getDoctypeConfig } from "../../config/doctypes";
+import { useTranslation } from "react-i18next";
+import {
+  User,
+  Building2,
+  Bookmark,
+  CalendarCheck,
+  CalendarHeart,
+  Clock,
+  Banknote,
+  Receipt,
+  Briefcase,
+  Contact,
+  Users,
+} from "lucide-react";
+import DashboardShell from "../../components/dashboard/DashboardShell";
+import DashboardHero from "../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../components/dashboard/ModuleGrid";
+import { createTileNav } from "../../lib/tileNav";
+
+const MODULE_DEFS = [
+  {
+    key: "employee",
+    icon: User,
+    route: "/hr/Employee",
+    createRoute: "/hr/Employee/new",
+  },
+  {
+    key: "department",
+    icon: Building2,
+    route: "/hr/Department",
+    createRoute: "/hr/Department/new",
+  },
+  {
+    key: "designation",
+    icon: Bookmark,
+    route: "/hr/Designation",
+    createRoute: "/hr/Designation/new",
+  },
+  {
+    key: "leaveType",
+    icon: CalendarCheck,
+    route: "/hr/Leave Type",
+    createRoute: "/hr/Leave Type/new",
+  },
+  {
+    key: "holidayList",
+    icon: CalendarHeart,
+    route: "/hr/Holiday List",
+    createRoute: "/hr/Holiday List/new",
+  },
+  {
+    key: "attendance",
+    icon: Clock,
+    route: "/hr/Attendance",
+  },
+  {
+    key: "salaryStructure",
+    icon: Banknote,
+    route: "/hr/Salary Structure",
+    createRoute: "/hr/Salary Structure/new",
+  },
+  {
+    key: "salarySlip",
+    icon: Receipt,
+    route: "/hr/Salary Slip",
+  },
+  {
+    key: "jobOpening",
+    icon: Briefcase,
+    route: "/hr/Job Opening",
+    createRoute: "/hr/Job Opening/new",
+  },
+  {
+    key: "jobApplicant",
+    icon: Contact,
+    route: "/hr/Job Applicant",
+    createRoute: "/hr/Job Applicant/new",
+  },
+];
 
 export default function HRDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
-  const { hasModuleAccess } = useRole();
-
-  const handleTileClick = (tile, isCreate) => {
-    if (isCreate && tile.createRoute) {
-      const doctype = tile.route.split("/").filter(Boolean).pop();
-      const config = getDoctypeConfig(doctype);
-      if (config.nativeForm) {
-        const doctypeUrl = doctype.toLowerCase().replace(/\s+/g, "-");
-        window.open(`/app/${doctypeUrl}/new-${doctypeUrl}`, "_blank");
-      } else {
-        navigate(tile.createRoute);
-      }
-    } else {
-      navigate(tile.route);
-    }
-  };
+  const { t } = useTranslation();
+  const handleTileClick = createTileNav(navigate);
 
   useEffect(() => {
     setHeader({
-      title: "HR",
-      subtitle: "Employee master, attendance, payroll & recruitment",
-      breadcrumbs: [{ label: "Home", path: "/" }, { label: "HR" }],
+      title: t("hr.header.title"),
+      subtitle: t("hr.header.subtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("hr.header.title") },
+      ],
     });
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const modules = [
-    {
-      title: "Employee",
-      icon: "bi-person-badge",
-      route: "/hr/Employee",
-      description: "Manage employee records",
-      createRoute: "/hr/Employee/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Department",
-      icon: "bi-building",
-      route: "/hr/Department",
-      description: "Manage departments",
-      createRoute: "/hr/Department/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Designation",
-      icon: "bi-bookmark-star",
-      route: "/hr/Designation",
-      description: "Manage designations",
-      createRoute: "/hr/Designation/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Leave Type",
-      icon: "bi-calendar-check",
-      route: "/hr/Leave Type",
-      description: "Configure leave types",
-      createRoute: "/hr/Leave Type/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Holiday List",
-      icon: "bi-calendar-heart",
-      route: "/hr/Holiday List",
-      description: "Manage holiday calendars",
-      createRoute: "/hr/Holiday List/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Attendance",
-      icon: "bi-clock-history",
-      route: "/hr/Attendance",
-      description: "View attendance records",
-      color: "#4f46e5",
-    },
-    {
-      title: "Salary Structure",
-      icon: "bi-cash-stack",
-      route: "/hr/Salary Structure",
-      description: "Define salary structures",
-      createRoute: "/hr/Salary Structure/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Salary Slip",
-      icon: "bi-receipt",
-      route: "/hr/Salary Slip",
-      description: "Generate salary slips",
-      color: "#4f46e5",
-    },
-    {
-      title: "Job Opening",
-      icon: "bi-briefcase",
-      route: "/hr/Job Opening",
-      description: "Manage job openings",
-      createRoute: "/hr/Job Opening/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Job Applicant",
-      icon: "bi-person-lines-fill",
-      route: "/hr/Job Applicant",
-      description: "Track applicants",
-      createRoute: "/hr/Job Applicant/new",
-      color: "#4f46e5",
-    },
-  ];
+  const modules = MODULE_DEFS.map((m) => ({
+    ...m,
+    titleKey: `hr.tiles.${m.key}.title`,
+    descriptionKey: `hr.tiles.${m.key}.description`,
+  }));
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <ActionTile
-              tile={{
-                ...m,
-                primary: true,
-              }}
-              onClick={handleTileClick}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero icon={Users} description={t("hr.header.subtitle")} />
+      <ModuleGrid items={modules} onClick={handleTileClick} />
+    </DashboardShell>
   );
 }

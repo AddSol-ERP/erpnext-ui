@@ -1,3 +1,7 @@
+import { useTranslation } from "react-i18next";
+import FormSelect from "../../FormSelect";
+import { Input } from "@/components/ui/input";
+
 export default function HeaderBar({
   scan,
   setScan,
@@ -5,11 +9,12 @@ export default function HeaderBar({
   mode,
   setMode,
 }) {
+  const { t } = useTranslation();
+
   return (
-    <div className="page-header d-flex gap-2">
-      <input
-        className="form-control"
-        placeholder="🔍 Scan or enter item"
+    <div className="flex gap-2">
+      <Input
+        placeholder={t("store.entry.scanPlaceholder")}
         value={scan}
         onChange={(e) => setScan(e.target.value)}
         onKeyDown={(e) => {
@@ -20,16 +25,17 @@ export default function HeaderBar({
         autoFocus
       />
 
-      <select
-        className="form-select"
+      <FormSelect
+        className="h-8 w-36 shrink-0"
         value={mode}
-        onChange={(e) => setMode(e.target.value)}
-      >
-        <option value="incoming">Incoming</option>
-        <option value="outgoing">Outgoing</option>
-        <option value="transfer">Transfer</option>
-        <option value="adjustment">Adjustment</option>
-      </select>
+        onChange={setMode}
+        options={[
+          ["incoming", t("store.entry.modes.incoming")],
+          ["outgoing", t("store.entry.modes.outgoing")],
+          ["transfer", t("store.entry.modes.transfer")],
+          ["adjustment", t("store.entry.modes.adjustment")],
+        ]}
+      />
     </div>
   );
 }

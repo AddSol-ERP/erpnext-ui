@@ -1,0 +1,274 @@
+{
+	"store": {
+		"hub": {
+			"subtitle": "इन्वेंटरी, मटेरियल रिक्वेस्ट और स्टॉक प्रवाह"
+		},
+		"tiles": {
+			"stockEntry": {
+				"title": "स्टॉक एंट्री",
+				"description": "मटेरियल इश्यू, रसीद, ट्रांसफर"
+			},
+			"materialRequest": {
+				"title": "मटेरियल रिक्वेस्ट",
+				"description": "कच्चा माल अनुरोध करें"
+			},
+			"delivery": {
+				"title": "डिलीवरी / डिस्पैच",
+				"description": "बाहर जाने वाली सामग्री प्रबंधित करें"
+			},
+			"stockBalance": {
+				"title": "स्टॉक बैलेंस",
+				"description": "स्टॉक उपलब्धता देखें"
+			},
+			"itemMaster": {
+				"title": "आइटम मास्टर",
+				"description": "आइटम और वेरिएंट प्रबंधित करें"
+			},
+			"warehouse": {
+				"title": "वेयरहाउस",
+				"description": "गोदाम प्रबंधित करें"
+			},
+			"stockReconciliation": {
+				"title": "स्टॉक मिलान",
+				"description": "स्टॉक मात्रा का मिलान करें"
+			}
+		},
+		"mr": {
+			"title": "मटेरियल रिक्वेस्ट",
+			"subtitle": "सभी मटेरियल रिक्वेस्ट ट्रैक और प्रबंधित करें",
+			"tiles": {
+				"purchase": {
+					"title": "खरीद अनुरोध",
+					"description": "खरीद हेतु आइटम अनुरोध करें"
+				},
+				"transfer": {
+					"title": "मटेरियल ट्रांसफर",
+					"description": "गोदामों के बीच स्टॉक स्थानांतरित करें"
+				},
+				"issue": {
+					"title": "मटेरियल इश्यू",
+					"description": "उपयोग हेतु सामग्री जारी करें"
+				},
+				"receipt": {
+					"title": "मटेरियल रसीद",
+					"description": "सामग्री प्राप्त करें"
+				},
+				"customerProvided": {
+					"title": "ग्राहक द्वारा उपलब्ध",
+					"description": "ग्राहक द्वारा उपलब्ध सामग्री"
+				}
+			},
+			"listTitle": "{{type}} अनुरोध",
+			"listSubtitle": "अनुरोध ट्रैक और प्रबंधित करें",
+			"empty": "कोई मटेरियल रिक्वेस्ट नहीं मिली",
+			"newTitle": "नई मटेरियल रिक्वेस्ट",
+			"subtitleSubmitted": "{{type}} • सबमिट किया गया",
+			"subtitleDraft": "{{type}} • ड्राफ्ट",
+			"createSubtitle": "{{type}} बनाएं",
+			"form": {
+				"items": "आइटम",
+				"select": "चुनें"
+			}
+		},
+		"status": {
+			"draft": "ड्राफ्ट",
+			"submitted": "सबमिट किया गया",
+			"cancelled": "रद्द",
+			"completed": "पूर्ण",
+			"toBill": "बिल हेतु",
+			"stopped": "रोका गया"
+		},
+		"filters": {
+			"customer": "ग्राहक",
+			"company": "कंपनी",
+			"item": "आइटम",
+			"warehouse": "गोदाम"
+		},
+		"types": {
+			"purchase": "खरीद",
+			"transfer": "ट्रांसफर",
+			"materialIssue": "मटेरियल इश्यू",
+			"materialReceipt": "मटेरियल रसीद",
+			"customerProvided": "ग्राहक द्वारा उपलब्ध"
+		},
+		"form": {
+			"type": "प्रकार",
+			"company": "कंपनी",
+			"customer": "ग्राहक",
+			"scheduleDate": "निर्धारित तिथि",
+			"item": "आइटम",
+			"qty": "मात्रा",
+			"uom": "यूओएम",
+			"stockUom": "स्टॉक यूओएम",
+			"conv": "रूपांतरण",
+			"source": "स्रोत",
+			"warehouse": "गोदाम",
+			"schedule": "निर्धारित तिथि",
+			"postingDate": "पोस्टिंग तिथि",
+			"defaultWarehouse": "डिफ़ॉल्ट गोदाम",
+			"driver": "ड्राइवर",
+			"vehicleNo": "वाहन संख्या",
+			"transporter": "ट्रांसपोर्टर",
+			"lrNumber": "एलआर संख्या",
+			"items": "आइटम",
+			"getItems": "आइटम प्राप्त करें",
+			"dispatch": "डिस्पैच",
+			"basics": "मूल जानकारी"
+		},
+		"validation": {
+			"typeRequired": "प्रकार आवश्यक है",
+			"companyRequired": "कंपनी आवश्यक है",
+			"customerRequired": "ग्राहक आवश्यक है",
+			"uomRequired": "यूओएम आवश्यक है",
+			"invalidConversion": "अमान्य रूपांतरण कारक",
+			"addAtLeastOneItem": "कम से कम एक आइटम जोड़ें",
+			"addItems": "आइटम जोड़ें",
+			"fillItemRows": "आइटम पंक्तियाँ भरें",
+			"fillAllRows": "सभी आइटम पंक्तियाँ भरें",
+			"qtyGtZero": "मात्रा 0 से अधिक होनी चाहिए",
+			"fromToWarehouseRequired": "स्रोत और गंतव्य गोदाम आवश्यक हैं",
+			"sameWarehouse": "स्रोत और लक्ष्य गोदाम एक नहीं हो सकते",
+			"warehouseRequired": "गोदाम आवश्यक है"
+		},
+		"dn": {
+			"title": "डिलीवरी नोट्स",
+			"subtitle": "डिस्पैच और डिलीवरी ट्रैकिंग",
+			"empty": "कोई डिलीवरी नोट नहीं मिला",
+			"editTitle": "डिलीवरी {{name}}",
+			"newTitle": "नई डिलीवरी",
+			"formSubtitle": "सामग्री भेजें"
+		},
+		"balance": {
+			"title": "स्टॉक बैलेंस",
+			"subtitle": "रीयल-टाइम इन्वेंटरी स्थिति",
+			"empty": "कोई स्टॉक उपलब्ध नहीं",
+			"value": "मूल्य"
+		},
+		"source": {
+			"loadItems": "आइटम लोड करें",
+			"load": "लोड करें",
+			"selectSourceType": "स्रोत प्रकार चुनें",
+			"searchDocument": "दस्तावेज़ खोजें...",
+			"selectTypeFirst": "पहले प्रकार चुनें",
+			"noCustomer": "कोई ग्राहक नहीं",
+			"salesOrder": "सेल्स ऑर्डर",
+			"pickList": "पिक लिस्ट",
+			"materialRequest": "मटेरियल रिक्वेस्ट",
+			"purchaseReceipt": "परचेज रसीद",
+			"bom": "बिल ऑफ मटेरियल्स",
+			"bomShort": "बीओएम",
+			"purchaseInvoice": "परचेज इनवॉइस",
+			"itemMaster": "आइटम मास्टर",
+			"onlyQcPassed": "केवल क्यूसी पास आइटम",
+			"qcDone": "क्यूसी पूर्ण",
+			"sourceType": "स्रोत प्रकार",
+			"selectDocument": "दस्तावेज़ चुनें"
+		},
+		"entry": {
+			"title": "स्टॉक एंट्री",
+			"subtitleDefault": "त्वरित इन्वेंटरी संचालन",
+			"subtitleReceipt": "आगमन → {{warehouse}}",
+			"subtitleIssue": "जावक ← {{warehouse}}",
+			"subtitleTransfer": "{{from}} → {{to}}",
+			"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+			"subtitleManufacture": "निर्माण @ {{warehouse}}",
+			"subtitleRepack": "रीपैक @ {{warehouse}}",
+			"subtitleConsume": "उपभोग ← {{warehouse}}",
+			"selectWarehouse": "गोदाम चुनें",
+			"from": "स्रोत",
+			"to": "गंतव्य",
+			"actions": {
+				"getItems": "आइटम प्राप्त करें",
+				"clear": "साफ़ करें"
+			},
+			"basicConfig": "मूल कॉन्फ़िगरेशन",
+			"collapse": "संकुचित करें",
+			"expand": "विस्तारित करें",
+			"entryDate": "एंट्री तिथि",
+			"entryTime": "एंट्री समय",
+			"items": "आइटम",
+			"get": "प्राप्त करें",
+			"entryType": "एंट्री प्रकार",
+			"selectEntryType": "एंट्री प्रकार चुनें",
+			"fromWarehouse": "स्रोत गोदाम",
+			"toWarehouse": "गंतव्य गोदाम",
+			"selectFromWarehouse": "स्रोत गोदाम चुनें",
+			"selectToWarehouse": "गंतव्य गोदाम चुनें",
+			"scanPlaceholder": "आइटम स्कैन करें या दर्ज करें",
+			"totalQty": "कुल मात्रा",
+			"submitEntry": "एंट्री सबमिट करें",
+			"modes": {
+				"incoming": "आगमन",
+				"outgoing": "जावक",
+				"transfer": "ट्रांसफर",
+				"adjustment": "समायोजन"
+			},
+			"createdToast": "स्टॉक एंट्री बनाई गई: {{name}}",
+			"failedToast": "स्टॉक एंट्री विफल रही"
+		},
+		"entryTypes": {
+			"materialIssue": "मटेरियल इश्यू",
+			"materialReceipt": "मटेरियल रसीद",
+			"materialTransfer": "मटेरियल ट्रांसफर",
+			"manufacture": "निर्माण",
+			"repack": "रीपैक",
+			"disassemble": "विघटन",
+			"sendToSubcontractor": "सबकॉन्ट्रैक्टर को भेजें",
+			"materialTransferForMfg": "निर्माण हेतु मटेरियल ट्रांसफर",
+			"materialConsumptionForMfg": "निर्माण हेतु मटेरियल खपत"
+		},
+		"item": {
+			"outOfStock": "स्टॉक समाप्त",
+			"exceedsStock": "स्टॉक से अधिक",
+			"lowStock": "कम स्टॉक",
+			"available": "उपलब्ध",
+			"willBeRemoved": "हटा दिया जाएगा",
+			"willAdjust": "{{qty}} पर समायोजित होगा",
+			"emptyList": "कोई आइटम नहीं जोड़ा गया",
+			"itemName": "आइटम {{code}}",
+			"increase": "मात्रा बढ़ाएँ",
+			"decrease": "मात्रा घटाएँ",
+			"remove": "आइटम हटाएँ"
+		},
+		"fix": {
+			"title": "स्टॉक समस्या",
+			"outOfStock": "{{count}} आइटम स्टॉक से बाहर हैं।",
+			"more": "+ {{n}} और...",
+			"removeItems": "आइटम हटाएँ",
+			"adjustQty": "मात्रा समायोजित करें"
+		},
+		"submitModal": {
+			"title": "स्टॉक एंट्री की पुष्टि करें",
+			"project": "प्रोजेक्ट",
+			"workOrder": "वर्क ऑर्डर",
+			"searchProject": "प्रोजेक्ट खोजें",
+			"searchWorkOrder": "वर्क ऑर्डर खोजें"
+		},
+		"demo": {
+			"title": "सार्वभौमिक फ़ॉर्म",
+			"subtitle": "सभी फ़ील्ड प्रकारों का डेमो",
+			"sections": {
+				"basic": "मूल फ़ील्ड",
+				"text": "टेक्स्ट फ़ील्ड",
+				"dateTime": "दिनांक और समय",
+				"selection": "चयन",
+				"attachments": "अनुलग्नक"
+			},
+			"age": "आयु",
+			"salary": "वेतन",
+			"description": "विवरण",
+			"datetime": "दिनांक-समय",
+			"time": "समय",
+			"pending": "लंबित",
+			"closed": "बंद",
+			"department": "विभाग (लिंक)",
+			"searchDepartment": "विभाग खोजें...",
+			"active": "सक्रिय",
+			"uploadFile": "फ़ाइल अपलोड करें",
+			"chooseFile": "फ़ाइल चुनें",
+			"noFileSelected": "कोई फ़ाइल नहीं चुनी गई",
+			"itemCode": "आइटम कोड",
+			"rate": "दर"
+		}
+	}
+}

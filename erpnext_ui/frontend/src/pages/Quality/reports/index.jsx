@@ -1,12 +1,65 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
 import { get } from "../../../services/api";
 import LinkField from "../../../components/LinkField";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from "recharts";
+import DashboardShell from "../../../components/dashboard/DashboardShell";
+import DashboardHero from "../../../components/dashboard/DashboardHero";
+import StatRow from "../../../components/dashboard/StatRow";
+import ChartPanel from "../../../components/dashboard/ChartPanel";
+import ChartGrid from "../../../components/dashboard/ChartGrid";
+import StatCard from "../../../components/StatCard";
+import {
+  ShieldCheck,
+  CircleCheck,
+  CircleX,
+  Percent,
+  ClipboardCheck,
+} from "lucide-react";
+
+const CHART_CONFIG = {
+  pass: { label: "Pass", color: "var(--chart-2)" },
+  fail: { label: "Fail", color: "var(--destructive)" },
+  count: { label: "Count", color: "var(--chart-1)" },
+};
+
+const PIE_COLORS = ["var(--chart-1)", "var(--chart-4)", "var(--chart-3)", "var(--chart-5)"];
 
 export default function QualityInspectionReport() {
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [filters, setFilters] = useState({
     from_date: "",
@@ -15,41 +68,16 @@ export default function QualityInspectionReport() {
     inspection_type: "",
   });
 
-  const [summary, setSummary] = useState({
-    total: 0,
-    pass: 0,
-    fail: 0,
-    passRate: 0,
-  });
-
-  /* ================= HEADER ================= */
-  useEffect(() => {
-    setHeader({
-      title: "Quality Dashboard",
-      subtitle: "Inspection analytics, trends and quality insights",
-
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Quality", path: "/quality" },
-        { label: "Dashboard" },
-      ],
-
-      actions: [
-        {
-          label: "Refresh",
-          variant: "btn-outline-primary",
-          onClick: () => loadData(),
-        },
-      ],
-    });
-
-    loadData();
-
-    return () => setHeader({});
-  }, []);
+  const getTypeLabel = (type) => {
+    if (type === "Incoming") return t("quality.typeIncoming");
+    if (type === "In Process") return t("quality.typeInProcess");
+    if (type === "Outgoing") return t("quality.typeOutgoing");
+    return type;
+  };
 
   /* ================= LOAD ================= */
   const loadData = async () => {
+    setLoading(true);
     try {
       let f = [["docstatus", "=", 1]];
 
@@ -76,243 +104,360 @@ export default function QualityInspectionReport() {
         ]),
         filters: JSON.stringify(f),
         limit_page_length: 2000,
+        order_by: "creation desc",
       });
 
-      const list = res.data || [];
-      setData(list);
-
-      const pass = list.filter((d) => d.status === "Accepted").length;
-      const fail = list.filter((d) => d.status === "Rejected").length;
-
-      const total = list.length;
-
-      setSummary({
-        total,
-        pass,
-        fail,
-        passRate: total ? ((pass / total) * 100).toFixed(1) : 0,
-      });
+      setData(res.data || []);
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  /* ================= GROUPING ================= */
+  /* ================= HEADER ================= */
+  useEffect(() => {
+    setHeader({
+      title: t("quality.dashboardTitle"),
+      subtitle: t("quality.dashboardSubtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.quality"), path: "/quality" },
+        { label: t("common.dashboard") },
+      ],
+      actions: [
+        {
+          label: t("common.refresh"),
+          variant: "btn-outline-primary",
+          onClick: () => loadData(),
+        },
+      ],
+    });
 
-  // 📈 Trend
-  const trend = {};
-  data.forEach((d) => {
-    const date = d.creation.split(" ")[0];
+    // loadData only setStates after an awaited API response.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData();
 
-    if (!trend[date]) trend[date] = { pass: 0, fail: 0 };
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    if (d.status === "Accepted") trend[date].pass++;
-    if (d.status === "Rejected") trend[date].fail++;
-  });
+  /* ================= DERIVED ================= */
+  const summary = useMemo(() => {
+    const pass = data.filter((d) => d.status === "Accepted").length;
+    const fail = data.filter((d) => d.status === "Rejected").length;
+    const total = data.length;
+    return {
+      total,
+      pass,
+      fail,
+      passRate: total ? ((pass / total) * 100).toFixed(1) : "0",
+    };
+  }, [data]);
 
-  // 🔴 Fail by Item
-  const failByItem = {};
-  data.forEach((d) => {
-    if (d.status === "Rejected") {
-      if (!failByItem[d.item_code]) failByItem[d.item_code] = 0;
-      failByItem[d.item_code]++;
-    }
-  });
+  const trendSeries = useMemo(() => {
+    const trend = {};
+    data.forEach((d) => {
+      const date = (d.creation || "").split(" ")[0];
+      if (!date) return;
+      if (!trend[date]) trend[date] = { date, pass: 0, fail: 0 };
+      if (d.status === "Accepted") trend[date].pass++;
+      if (d.status === "Rejected") trend[date].fail++;
+    });
+    return Object.values(trend).sort((a, b) => a.date.localeCompare(b.date));
+  }, [data]);
 
-  const topFailures = Object.entries(failByItem)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const topFailures = useMemo(() => {
+    const failByItem = {};
+    data.forEach((d) => {
+      if (d.status === "Rejected") {
+        failByItem[d.item_code] = (failByItem[d.item_code] || 0) + 1;
+      }
+    });
+    return Object.entries(failByItem)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([item, count]) => ({ item, count }));
+  }, [data]);
 
-  // 📦 Type Distribution
-  const typeDist = {};
-  data.forEach((d) => {
-    if (!typeDist[d.inspection_type]) typeDist[d.inspection_type] = 0;
-    typeDist[d.inspection_type]++;
-  });
+  const typeSeries = useMemo(() => {
+    const typeDist = {};
+    data.forEach((d) => {
+      const key = d.inspection_type || "—";
+      typeDist[key] = (typeDist[key] || 0) + 1;
+    });
+    return Object.entries(typeDist).map(([type, count]) => ({
+      type,
+      name: getTypeLabel(type),
+      count,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, t]);
 
-  // ⚠️ Recent failures
-  const recentFailures = data
-    .filter((d) => d.status === "Rejected")
-    .slice(0, 5);
+  const recentFailures = useMemo(
+    () => data.filter((d) => d.status === "Rejected").slice(0, 5),
+    [data],
+  );
+
+  const hasChartData =
+    trendSeries.length > 0 || topFailures.length > 0 || typeSeries.length > 0;
 
   /* ================= UI ================= */
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+    <DashboardShell>
+      <DashboardHero
+        icon={ShieldCheck}
+        description={t("quality.dashboardSubtitle")}
+      />
+
       {/* ================= FILTERS ================= */}
-      <div className="card mb-3">
-        <div className="card-body row g-2">
-          <div className="col-md-3">
-            <input
-              type="date"
-              className="form-control"
-              value={filters.from_date}
-              onChange={(e) =>
-                setFilters({ ...filters, from_date: e.target.value })
-              }
-            />
-          </div>
+      <div className="rounded-none bg-card p-4 ring-1 ring-foreground/10">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+          <Input
+            type="date"
+            aria-label={t("quality.fromDate")}
+            value={filters.from_date}
+            onChange={(e) =>
+              setFilters({ ...filters, from_date: e.target.value })
+            }
+          />
 
-          <div className="col-md-3">
-            <input
-              type="date"
-              className="form-control"
-              value={filters.to_date}
-              onChange={(e) =>
-                setFilters({ ...filters, to_date: e.target.value })
-              }
-            />
-          </div>
+          <Input
+            type="date"
+            aria-label={t("quality.toDate")}
+            value={filters.to_date}
+            onChange={(e) =>
+              setFilters({ ...filters, to_date: e.target.value })
+            }
+          />
 
-          <div className="col-md-3">
-            <LinkField
-              doctype="Item"
-              value={filters.item_code}
-              onChange={(v) => setFilters({ ...filters, item_code: v })}
-            />
-          </div>
+          <LinkField
+            doctype="Item"
+            value={filters.item_code}
+            onChange={(v) => setFilters({ ...filters, item_code: v })}
+          />
 
-          <div className="col-md-3">
-            <select
-              className="form-select"
-              value={filters.inspection_type}
-              onChange={(e) =>
-                setFilters({
-                  ...filters,
-                  inspection_type: e.target.value,
-                })
-              }
-            >
-              <option value="">All Types</option>
-              <option>Incoming</option>
-              <option>In Process</option>
-              <option>Outgoing</option>
-            </select>
-          </div>
+          <Select
+            value={filters.inspection_type || "all"}
+            onValueChange={(v) =>
+              setFilters({
+                ...filters,
+                inspection_type: v === "all" ? "" : v,
+              })
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t("quality.allTypes")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("quality.allTypes")}</SelectItem>
+              <SelectItem value="Incoming">
+                {t("quality.typeIncoming")}
+              </SelectItem>
+              <SelectItem value="In Process">
+                {t("quality.typeInProcess")}
+              </SelectItem>
+              <SelectItem value="Outgoing">
+                {t("quality.typeOutgoing")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
 
-          <div className="col-12">
-            <button className="btn btn-primary" onClick={loadData}>
-              Apply Filters
-            </button>
+          <div className="md:col-span-4">
+            <Button onClick={loadData}>{t("quality.applyFilters")}</Button>
           </div>
         </div>
       </div>
 
       {/* ================= KPI ================= */}
-      <div className="row g-3 mb-3">
-        <div className="col-md-3">
-          <div className="card">
-            <div className="stat-value">{summary.total}</div>
-            <div className="stat-label">Total</div>
-          </div>
-        </div>
+      <StatRow>
+        <StatCard
+          value={summary.total}
+          label={t("common.total")}
+          icon={ClipboardCheck}
+        />
+        <StatCard
+          value={summary.pass}
+          label={t("quality.statusAccepted")}
+          icon={CircleCheck}
+          color="var(--chart-2)"
+        />
+        <StatCard
+          value={summary.fail}
+          label={t("quality.statusRejected")}
+          icon={CircleX}
+          color="var(--chart-5)"
+        />
+        <StatCard
+          value={`${summary.passRate}%`}
+          label={t("quality.passRate")}
+          icon={Percent}
+          color="var(--chart-4)"
+        />
+      </StatRow>
 
-        <div className="col-md-3">
-          <div className="card success">
-            <div className="stat-value">{summary.pass}</div>
-            <div className="stat-label">Accepted</div>
-          </div>
-        </div>
+      {/* ================= CHARTS + LIST ================= */}
+      <ChartGrid>
+        {/* Daily trend — line */}
+        <ChartPanel title={t("quality.dailyTrend")}>
+          {trendSeries.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {t("quality.chartNoData")}
+            </p>
+          ) : (
+            <ChartContainer
+              config={{
+                ...CHART_CONFIG,
+                pass: { ...CHART_CONFIG.pass, label: t("quality.chartPass") },
+                fail: { ...CHART_CONFIG.fail, label: t("quality.chartFail") },
+              }}
+              className="aspect-auto h-[220px] w-full"
+            >
+              <LineChart data={trendSeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(v) => String(v).slice(5)}
+                />
+                <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={32} />
+                <ChartTooltipContent />
+                <ChartLegend />
+                <Line
+                  dataKey="pass"
+                  type="monotone"
+                  stroke="var(--chart-2)"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+                <Line
+                  dataKey="fail"
+                  type="monotone"
+                  stroke="var(--destructive)"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              </LineChart>
+            </ChartContainer>
+          )}
+        </ChartPanel>
 
-        <div className="col-md-3">
-          <div className="card danger">
-            <div className="stat-value">{summary.fail}</div>
-            <div className="stat-label">Rejected</div>
-          </div>
-        </div>
+        {/* Top failing items — horizontal bar */}
+        <ChartPanel title={t("quality.topFailingItems")}>
+          {topFailures.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {t("quality.chartNoData")}
+            </p>
+          ) : (
+            <ChartContainer
+              config={{
+                count: { ...CHART_CONFIG.count, label: t("quality.chartCount") },
+              }}
+              className="aspect-auto h-[220px] w-full"
+            >
+              <BarChart
+                data={topFailures}
+                layout="vertical"
+                margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="item"
+                  tickLine={false}
+                  axisLine={false}
+                  width={100}
+                  tick={{ fontSize: 11 }}
+                />
+                <ChartTooltipContent />
+                <Bar dataKey="count" fill="var(--destructive)" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ChartContainer>
+          )}
+        </ChartPanel>
 
-        <div className="col-md-3">
-          <div className="card info">
-            <div className="stat-value">{summary.passRate}%</div>
-            <div className="stat-label">Pass Rate</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ================= MAIN GRID ================= */}
-      <div className="row g-3">
-        {/* 📈 TREND */}
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-body">
-              <h6>Daily Trend</h6>
-
-              {Object.keys(trend).map((d) => (
-                <div
-                  key={d}
-                  className="d-flex justify-content-between border-bottom py-1"
+        {/* Inspection types — donut */}
+        <ChartPanel title={t("quality.inspectionTypes")}>
+          {typeSeries.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {t("quality.chartNoData")}
+            </p>
+          ) : (
+            <ChartContainer
+              config={Object.fromEntries(
+                typeSeries.map((d, i) => [
+                  d.type,
+                  { label: d.name, color: PIE_COLORS[i % PIE_COLORS.length] },
+                ]),
+              )}
+              className="aspect-auto h-[220px] w-full"
+            >
+              <PieChart>
+                <ChartTooltipContent />
+                <Pie
+                  data={typeSeries}
+                  dataKey="count"
+                  nameKey="name"
+                  innerRadius={55}
+                  outerRadius={85}
+                  paddingAngle={3}
                 >
-                  <div>{d}</div>
-                  <div className="d-flex gap-2">
-                    <span className="badge bg-success">P: {trend[d].pass}</span>
-                    <span className="badge bg-danger">F: {trend[d].fail}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+                  {typeSeries.map((_, i) => (
+                    <Cell
+                      key={i}
+                      fill={PIE_COLORS[i % PIE_COLORS.length]}
+                      stroke="transparent"
+                    />
+                  ))}
+                </Pie>
+                <ChartLegend content={<ChartLegendContent />} />
+              </PieChart>
+            </ChartContainer>
+          )}
+        </ChartPanel>
 
-        {/* 🔴 TOP FAIL ITEMS */}
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-body">
-              <h6>Top Failing Items</h6>
-
-              {topFailures.map(([item, count]) => (
-                <div
-                  key={item}
-                  className="d-flex justify-content-between border-bottom py-1"
-                >
-                  <div>{item}</div>
-                  <span className="badge bg-danger">{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 📦 TYPE DISTRIBUTION */}
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-body">
-              <h6>Inspection Types</h6>
-
-              {Object.entries(typeDist).map(([t, c]) => (
-                <div
-                  key={t}
-                  className="d-flex justify-content-between border-bottom py-1"
-                >
-                  <div>{t}</div>
-                  <span className="badge bg-primary">{c}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ⚠️ RECENT FAILURES */}
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-body">
-              <h6>Recent Failures</h6>
-
+        {/* Recent failures — list */}
+        <ChartPanel title={t("quality.recentFailures")}>
+          {recentFailures.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {t("quality.chartNoData")}
+            </p>
+          ) : (
+            <div className="flex flex-col">
               {recentFailures.map((r) => (
                 <div
                   key={r.name}
-                  className="d-flex justify-content-between border-bottom py-1"
+                  className="flex items-center justify-between gap-2 border-b border-border py-2 last:border-0"
                 >
-                  <div>
-                    {r.item_code}
-                    <div className="text-muted small">{r.reference_name}</div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      {r.item_code}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {r.reference_name}
+                    </div>
                   </div>
-
-                  <span className="badge bg-danger">Fail</span>
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 bg-destructive/15 text-destructive ring-destructive/30"
+                  >
+                    {t("quality.fail")}
+                  </Badge>
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          )}
+        </ChartPanel>
+      </ChartGrid>
+
+      {!hasChartData && loading ? (
+        <p className="text-center text-sm text-muted-foreground">
+          {t("common.loading")}
+        </p>
+      ) : null}
+    </DashboardShell>
   );
 }

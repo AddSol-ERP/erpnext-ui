@@ -1,15 +1,22 @@
-export default function TimeField({ field, value, onChange, error }) {
+import { Input } from "@/components/ui/input";
+
+export default function TimeField({
+  field,
+  value,
+  onChange,
+  error,
+  disabled = false,
+}) {
   return (
-    <div>
-      <input
+    <div className="flex flex-col gap-1">
+      <Input
         type="time"
-        className={`form-control ${error ? "is-invalid" : ""}`}
         id={field.fieldname}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        disabled={field.read_only}
+        disabled={disabled || field.read_only}
+        aria-invalid={!!error}
       />
-      {error && <div className="invalid-feedback">{error}</div>}
     </div>
   );
 }

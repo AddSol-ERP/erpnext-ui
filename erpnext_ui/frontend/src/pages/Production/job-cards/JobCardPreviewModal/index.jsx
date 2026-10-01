@@ -1,21 +1,33 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Timer } from "lucide-react";
 import { get, post } from "../../../../services/api";
+import { useToast } from "../../../../context/ToastContext";
 import AppModal from "../../../../components/AppModal";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
+  const { t } = useTranslation();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [fullDoc, setFullDoc] = useState(null);
-
-  useEffect(() => {
-    if (show && doc) {
-      loadDoc();
-    }
-  }, [show, doc]);
 
   const loadDoc = async () => {
     const res = await get(`resource/Job Card/${doc.name}`);
     setFullDoc(res.data);
   };
+
+  useEffect(() => {
+    if (show && doc) {
+      // loadDoc only setStates after an awaited API response.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadDoc();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, doc]);
 
   /* ===============================
      ACTIONS
@@ -50,7 +62,7 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
       onClose();
     } catch (e) {
       console.error(e);
-      alert("Action failed");
+      toast.error(t("production.actionFailed"));
     } finally {
       setLoading(false);
     }
@@ -66,13 +78,31 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
     const status = fullDoc.status;
 
     if (status === "Open") {
-      return [{ key: "start", label: "Start Job", class: "btn-primary" }];
+      return [
+        {
+          key: "start",
+          label: t("production.startJob"),
+          variant: "default",
+          className: "",
+        },
+      ];
     }
 
     if (status === "Work In Progress") {
       return [
-        { key: "pause", label: "Pause", class: "btn-warning" },
-        { key: "complete", label: "Complete", class: "btn-success" },
+        {
+          key: "pause",
+          label: t("production.pauseJob"),
+          variant: "outline",
+          className:
+            "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20",
+        },
+        {
+          key: "complete",
+          label: t("production.completeJob"),
+          variant: "default",
+          className: "bg-emerald-600 text-white hover:bg-emerald-600/85",
+        },
       ];
     }
 
@@ -80,6 +110,28 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   };
 
   const actions = getActions();
+
+  /* ===============================
+     STATUS BADGE
+  ============================== */
+
+  const statusLabel = (() => {
+    if (!fullDoc) return "";
+    if (fullDoc.status === "Work In Progress")
+      return t("production.statusInProgress");
+    if (fullDoc.status === "Open") return t("common.open");
+    if (fullDoc.status === "Completed") return t("production.statusCompleted");
+    return fullDoc.status;
+  })();
+
+  const statusClass = (() => {
+    if (!fullDoc) return "";
+    if (fullDoc.status === "Work In Progress")
+      return "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30";
+    if (fullDoc.status === "Open")
+      return "bg-amber-500/15 text-amber-600 ring-amber-500/30";
+    return "bg-muted text-muted-foreground ring-border";
+  })();
 
   /* ===============================
      CALCULATIONS
@@ -97,80 +149,62 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
     <AppModal
       show={show}
       onClose={onClose}
-      title={`Job Card · ${doc?.name}`}
+      title={t("production.jobCardTitle", { name: doc?.name })}
       width="lg"
       footer={
-        <div className="d-flex gap-2 w-100">
+        <div className="flex w-full gap-2">
           {actions.map((a) => (
-            <button
+            <Button
               key={a.key}
-              className={`btn ${a.class} flex-fill`}
+              variant={a.variant}
+              className={`flex-1 ${a.className}`}
               disabled={loading}
               onClick={() => handleAction(a.key)}
             >
-              {loading ? "Processing..." : a.label}
-            </button>
+              {loading ? t("production.processing") : a.label}
+            </Button>
           ))}
         </div>
       }
     >
       {!fullDoc ? (
-        <div className="text-center p-4">Loading...</div>
+        <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
+          <Spinner className="size-4 text-primary" />
+          {t("common.loading")}
+        </div>
       ) : (
-        <div className="d-flex flex-column gap-3">
-          {/* 🔥 STATUS HEADER */}
-          <div className="d-flex justify-content-between align-items-center">
-            <div className="fw-semibold fs-5">{fullDoc.operation}</div>
-
-            <span
-              className={`badge ${
-                fullDoc.status === "Work In Progress"
-                  ? "bg-success"
-                  : fullDoc.status === "Open"
-                    ? "bg-warning text-dark"
-                    : "bg-secondary"
-              }`}
-            >
-              {fullDoc.status}
-            </span>
+        <div className="flex flex-col gap-3">
+          {/* STATUS HEADER */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-lg font-semibold">{fullDoc.operation}</div>
+            <Badge variant="outline" className={statusClass}>
+              {statusLabel}
+            </Badge>
           </div>
 
           {/* WORK ORDER */}
-          <div className="small text-muted">
-            Work Order: {fullDoc.work_order}
+          <div className="text-xs text-muted-foreground">
+            {t("production.workOrder")}: {fullDoc.work_order}
           </div>
 
-          {/* 🔥 PROGRESS BAR */}
+          {/* PROGRESS BAR */}
           <div>
-            <div className="d-flex justify-content-between small mb-1">
-              <span>Progress</span>
+            <div className="mb-1 flex justify-between text-xs">
+              <span>{t("production.progress")}</span>
               <span>
                 {fullDoc.total_completed_qty || 0} / {fullDoc.for_quantity || 0}
               </span>
             </div>
 
-            <div
-              style={{
-                height: "8px",
-                background: "#e9ecef",
-                borderRadius: "6px",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: `${progress}%`,
-                  background: "#0d6efd",
-                  height: "100%",
-                  transition: "width 0.3s",
-                }}
-              />
-            </div>
+            <Progress value={progress} className="h-2" />
           </div>
 
-          {/* OPTIONAL: TIMER PLACEHOLDER */}
+          {/* TIMER PLACEHOLDER */}
           {fullDoc.status === "Work In Progress" && (
-            <div className="text-muted small">⏱ Job in progress...</div>
+            <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Timer className="size-3.5" />
+              {t("production.jobInProgress")}
+            </div>
           )}
         </div>
       )}

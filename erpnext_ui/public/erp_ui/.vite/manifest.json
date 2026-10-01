@@ -1,23 +1,162 @@
 {
-  "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff": {
-    "file": "bootstrap-icons.BeopsB42.woff",
-    "src": "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff"
+  "_ChartGrid.Df1FE7-k.js": {
+    "file": "ChartGrid.Df1FE7-k.js",
+    "name": "ChartGrid",
+    "imports": [
+      "_button.Clc024ma.js"
+    ]
   },
-  "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2": {
-    "file": "bootstrap-icons.mSm7cUeB.woff2",
-    "src": "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2"
+  "_LineChart.CeDTeXQn.js": {
+    "file": "LineChart.CeDTeXQn.js",
+    "name": "LineChart",
+    "imports": [
+      "_button.Clc024ma.js",
+      "_ChartGrid.Df1FE7-k.js"
+    ]
+  },
+  "_button.Clc024ma.js": {
+    "file": "button.Clc024ma.js",
+    "name": "button"
+  },
+  "_calendar-x.D9-sVDx4.js": {
+    "file": "calendar-x.D9-sVDx4.js",
+    "name": "calendar-x",
+    "imports": [
+      "_button.Clc024ma.js"
+    ]
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-cyrillic-ext-wght-normal.woff2": {
+    "file": "geist-cyrillic-ext-wght-normal.DjL33-gN.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-cyrillic-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-cyrillic-wght-normal.woff2": {
+    "file": "geist-cyrillic-wght-normal.BEAKL7Jp.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-cyrillic-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2": {
+    "file": "geist-latin-ext-wght-normal.DC-KSUi6.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2": {
+    "file": "geist-latin-wght-normal.BgDaEnEv.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-vietnamese-wght-normal.woff2": {
+    "file": "geist-vietnamese-wght-normal.6IgcOCM7.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-vietnamese-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-arabic-wght-normal.woff2": {
+    "file": "noto-sans-arabic-arabic-wght-normal.BhzieyvS.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-arabic-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-latin-ext-wght-normal.woff2": {
+    "file": "noto-sans-arabic-latin-ext-wght-normal.CIz31GGw.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-latin-wght-normal.woff2": {
+    "file": "noto-sans-arabic-latin-wght-normal.BQEJrIpl.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-math-wght-normal.woff2": {
+    "file": "noto-sans-arabic-math-wght-normal.pS2d8anF.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-math-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-symbols-wght-normal.woff2": {
+    "file": "noto-sans-arabic-symbols-wght-normal.BJ6p-EzA.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-symbols-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-wght-normal.woff2": {
+    "file": "noto-sans-devanagari-devanagari-wght-normal.DWI_L5Cu.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-latin-ext-wght-normal.woff2": {
+    "file": "noto-sans-devanagari-latin-ext-wght-normal.CLkupaxV.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-latin-wght-normal.woff2": {
+    "file": "noto-sans-devanagari-latin-wght-normal.Bxfr4UJH.woff2",
+    "src": "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-latin-wght-normal.woff2"
   },
   "src/main.jsx": {
-    "file": "main.C_uOLm_Q.js",
+    "file": "main.DFRhLPh1.js",
     "name": "main",
     "src": "src/main.jsx",
     "isEntry": true,
+    "imports": [
+      "_button.Clc024ma.js",
+      "_calendar-x.D9-sVDx4.js"
+    ],
+    "dynamicImports": [
+      "src/pages/Quality/reports/index.jsx",
+      "src/pages/Reports/attendance/AttendancePage.jsx",
+      "src/pages/Reports/overtime/OvertimeReportPage.jsx",
+      "src/pages/Reports/leave-balance/LeaveBalance.jsx"
+    ],
     "css": [
-      "main.DDjvokqX.css"
+      "main.D7sgTFJJ.css"
     ],
     "assets": [
-      "bootstrap-icons.mSm7cUeB.woff2",
-      "bootstrap-icons.BeopsB42.woff"
+      "geist-cyrillic-ext-wght-normal.DjL33-gN.woff2",
+      "geist-cyrillic-wght-normal.BEAKL7Jp.woff2",
+      "geist-vietnamese-wght-normal.6IgcOCM7.woff2",
+      "geist-latin-ext-wght-normal.DC-KSUi6.woff2",
+      "geist-latin-wght-normal.BgDaEnEv.woff2",
+      "noto-sans-arabic-arabic-wght-normal.BhzieyvS.woff2",
+      "noto-sans-arabic-math-wght-normal.pS2d8anF.woff2",
+      "noto-sans-arabic-symbols-wght-normal.BJ6p-EzA.woff2",
+      "noto-sans-arabic-latin-ext-wght-normal.CIz31GGw.woff2",
+      "noto-sans-arabic-latin-wght-normal.BQEJrIpl.woff2",
+      "noto-sans-devanagari-devanagari-wght-normal.DWI_L5Cu.woff2",
+      "noto-sans-devanagari-latin-ext-wght-normal.CLkupaxV.woff2",
+      "noto-sans-devanagari-latin-wght-normal.Bxfr4UJH.woff2"
+    ]
+  },
+  "src/pages/Quality/reports/index.jsx": {
+    "file": "reports.zIwRIWUu.js",
+    "name": "reports",
+    "src": "src/pages/Quality/reports/index.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_button.Clc024ma.js",
+      "src/main.jsx",
+      "_ChartGrid.Df1FE7-k.js",
+      "_LineChart.CeDTeXQn.js"
+    ]
+  },
+  "src/pages/Reports/attendance/AttendancePage.jsx": {
+    "file": "AttendancePage.jR5I0wZE.js",
+    "name": "AttendancePage",
+    "src": "src/pages/Reports/attendance/AttendancePage.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_button.Clc024ma.js",
+      "_calendar-x.D9-sVDx4.js",
+      "src/main.jsx",
+      "_ChartGrid.Df1FE7-k.js"
+    ]
+  },
+  "src/pages/Reports/leave-balance/LeaveBalance.jsx": {
+    "file": "LeaveBalance.BCjQtmuD.js",
+    "name": "LeaveBalance",
+    "src": "src/pages/Reports/leave-balance/LeaveBalance.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_button.Clc024ma.js",
+      "_calendar-x.D9-sVDx4.js",
+      "src/main.jsx",
+      "_ChartGrid.Df1FE7-k.js"
+    ]
+  },
+  "src/pages/Reports/overtime/OvertimeReportPage.jsx": {
+    "file": "OvertimeReportPage.D8eD7NEY.js",
+    "name": "OvertimeReportPage",
+    "src": "src/pages/Reports/overtime/OvertimeReportPage.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_button.Clc024ma.js",
+      "src/main.jsx",
+      "_ChartGrid.Df1FE7-k.js",
+      "_LineChart.CeDTeXQn.js"
     ]
   }
 }

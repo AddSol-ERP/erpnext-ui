@@ -1,41 +1,61 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/noto-sans-arabic";
+@import "@fontsource-variable/noto-sans-devanagari";
+
+/* Use data-theme attribute (set by utils/theme.js) for dark mode utilities.
+   Default app mode is light; data-theme="dark" opts into dark. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
 	/* ============================================================
-     BRAND (LOGO ALIGNED - RED PRIMARY)
+     BRAND (INDIGO DEFAULT)
      ============================================================ */
-	--brand-primary: #00d1ff;
-	--brand-primary-hover: #7b61ff;
+	--brand-primary: #4f46e5;
+	--brand-primary-hover: #6366f1;
 
-	/* Accent (tech feel) */
-	--brand-accent: #00d1ff;
-	--brand-accent-2: #7b61ff;
+	/* Accent */
+	--brand-accent: #4f46e5;
+	--brand-accent-2: #6366f1;
 
-	/* Header specific */
-	--header-bg: #151d2f;
-	--header-border: rgba(255, 255, 255, 0.06);
-	--header-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+	/* Header specific (solid light chrome — Modulix-style) */
+	--header-bg: #ffffff;
+	--header-border: rgba(15, 23, 42, 0.1);
+	--header-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
 
 	/* Optional: subtle brand tint */
-	--header-accent-glow: rgba(0, 209, 255, 0.08);
+	--header-accent-glow: rgba(79, 70, 229, 0.06);
 
 	/* ============================================================
-     BACKGROUND
+     BACKGROUND (soft cool neutral canvas)
      ============================================================ */
-	--bs-body-bg: #0b1220;
-	--bs-body-color: #e6edf7;
+	--bs-body-bg: #f4f6f9;
+	--bs-body-color: #0f172a;
+
+	/* Topbar / bottom PageToolbar chrome (white, matches sidebar) */
+	--chrome: #ffffff;
+	--chrome-foreground: #0f172a;
+	--chrome-muted: #64748b;
+	--chrome-border: rgba(15, 23, 42, 0.1);
+
+	/* Table header — soft brand highlight on white card */
+	--table-header-bg: color-mix(in srgb, var(--brand-primary) 4%, #ffffff);
 
 	/* Glass */
-	--glass-bg: rgba(255, 255, 255, 0.04);
-	--glass-border: rgba(255, 255, 255, 0.778);
+	--glass-bg: rgba(0, 0, 0, 0.03);
+	--glass-border: rgba(0, 0, 0, 0.08);
 
 	/* ============================================================
      TEXT SYSTEM
      ============================================================ */
-	--text-primary: #e6edf7;
-	--text-secondary: #9aa4b2;
-	--text-muted: #7c8799;
+	--text-primary: #0f172a;
+	--text-secondary: #475569;
+	--text-muted: #64748b;
 
 	/* ============================================================
-     BOOTSTRAP COLORS (OVERRIDDEN)
+     STATUS COLORS
      ============================================================ */
 	--bs-primary: var(--brand-primary);
 	--bs-success: #22c55e;
@@ -46,13 +66,13 @@
 	/* ============================================================
      BORDERS
      ============================================================ */
-	--bs-border-color: rgba(255, 255, 255, 0.08);
+	--bs-border-color: rgba(15, 23, 42, 0.1);
 
 	/* ============================================================
      CARDS
      ============================================================ */
-	--bs-card-bg: #1a2332;
-	--bs-card-border-color: rgba(255, 255, 255, 0.08);
+	--bs-card-bg: #ffffff;
+	--bs-card-border-color: rgba(15, 23, 42, 0.08);
 
 	/* ============================================================
      BUTTON SYSTEM
@@ -60,11 +80,11 @@
 	--btn-radius: 10px;
 	--btn-height: 38px;
 
-	/* PRIMARY (now logo-based) */
+	/* PRIMARY */
 	--btn-primary-bg: var(--brand-primary);
 	--btn-primary-hover: var(--brand-primary-hover);
 	--btn-primary-text: #ffffff;
-	--btn-primary-shadow: 0 4px 14px rgba(0, 209, 255, 0.2);
+	--btn-primary-shadow: 0 4px 14px rgba(79, 70, 229, 0.22);
 
 	/* OUTLINE / SOFT */
 	--btn-bg: var(--glass-bg);
@@ -76,32 +96,32 @@
 	/* ============================================================
      EFFECTS
      ============================================================ */
-	--shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.25);
-	--shadow-strong: 0 12px 40px rgba(0, 0, 0, 0.45);
+	--shadow-soft: 0 6px 20px rgba(15, 23, 42, 0.08);
+	--shadow-strong: 0 12px 40px rgba(15, 23, 42, 0.12);
 
-	--glow-primary: 0 0 20px rgba(225, 29, 46, 0.35);
-	--glow-accent: 0 0 20px rgba(0, 209, 255, 0.25);
+	--glow-primary: 0 0 20px rgba(79, 70, 229, 0.2);
+	--glow-accent: 0 0 20px rgba(79, 70, 229, 0.18);
 
 	/* Title gradient */
-	--title-gradient-start: #ffffff;
-	--title-gradient-end: #9aa4b2;
+	--title-gradient-start: #0f172a;
+	--title-gradient-end: #475569;
 
-	/* Optional brand mix (future use) */
+	/* Optional brand mix */
 	--title-gradient-accent: var(--brand-primary);
 
 	/* Icon box */
-	--icon-box-bg: rgba(255, 255, 255, 0.05);
+	--icon-box-bg: rgba(79, 70, 229, 0.08);
 
 	/* Body background effects */
-	--body-radial-color: rgba(59, 130, 246, 0.08);
+	--body-radial-color: rgba(79, 70, 229, 0.05);
 
-	/* Optional (brand-based version for later) */
-	--body-radial-brand: rgba(0, 209, 255, 0.08);
+	/* Optional (brand-based version) */
+	--body-radial-brand: rgba(79, 70, 229, 0.04);
 
 	/* Card */
-	--card-bg: rgba(255, 255, 255, 0.03);
-	--card-border: rgba(255, 255, 255, 0.06);
-	--card-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+	--card-bg: #ffffff;
+	--card-border: rgba(15, 23, 42, 0.08);
+	--card-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
 	--card-blur: blur(12px);
 	--card-radius: 14px;
 	--card-padding: 16px;
@@ -110,41 +130,41 @@
 	/* Card hover */
 	--card-hover-transform: translateY(-4px);
 
-	--card-hover-shadow-main: 0 12px 40px rgba(0, 0, 0, 0.45);
-	--card-hover-shadow-glow: 0 0 12px rgba(59, 130, 246, 0.15);
+	--card-hover-shadow-main: 0 12px 40px rgba(15, 23, 42, 0.1);
+	--card-hover-shadow-glow: 0 0 12px rgba(79, 70, 229, 0.12);
 
 	/* Optional brand version */
-	--card-hover-glow-brand: 0 0 12px rgba(0, 209, 255, 0.15);
+	--card-hover-glow-brand: 0 0 12px rgba(79, 70, 229, 0.12);
 
 	/* Outline hover */
-	--btn-outline-hover-bg: rgba(0, 209, 255, 0.08);
+	--btn-outline-hover-bg: rgba(79, 70, 229, 0.08);
 
 	/* Soft button */
-	--btn-soft-bg: rgba(0, 209, 255, 0.08);
-	--btn-soft-hover-bg: rgba(0, 209, 255, 0.16);
+	--btn-soft-bg: rgba(79, 70, 229, 0.08);
+	--btn-soft-hover-bg: rgba(79, 70, 229, 0.14);
 
 	/* Active states */
 	--btn-active-text: #ffffff;
 	--btn-active-scale: scale(0.98);
 
 	/* Shadows */
-	--btn-active-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
-	--btn-primary-active-shadow: 0 6px 18px rgba(59, 130, 246, 0.35);
-	--btn-filter-active-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+	--btn-active-shadow: 0 0 0 2px rgba(79, 70, 229, 0.25);
+	--btn-primary-active-shadow: 0 6px 18px rgba(79, 70, 229, 0.3);
+	--btn-filter-active-shadow: 0 4px 12px rgba(79, 70, 229, 0.22);
 
 	/* Icon active */
-	--btn-icon-active-bg: rgba(59, 130, 246, 0.15);
+	--btn-icon-active-bg: rgba(79, 70, 229, 0.12);
 
 	/* List header */
-	--list-header-bg: rgba(255, 255, 255, 0.03);
+	--list-header-bg: #ffffff;
 	--list-header-blur: blur(12px);
 	--list-header-radius: 12px;
 	--list-header-padding: 12px 14px;
 	--list-header-margin: 12px;
 
 	/* List row */
-	--list-row-bg: rgba(255, 255, 255, 0.03);
-	--list-row-hover-bg: rgba(255, 255, 255, 0.06);
+	--list-row-bg: #ffffff;
+	--list-row-hover-bg: #f1f5f9;
 
 	--list-row-blur: blur(10px);
 	--list-row-radius: 12px;
@@ -155,29 +175,29 @@
 	--list-row-transition: all 0.2s ease;
 
 	/* Status colors */
-	--status-open-bg: rgba(59, 130, 246, 0.15);
+	--status-open-bg: rgba(79, 70, 229, 0.12);
 	--status-open-text: var(--bs-primary);
 
-	--status-pending-bg: rgba(245, 158, 11, 0.15);
+	--status-pending-bg: rgba(245, 158, 11, 0.14);
 	--status-pending-text: var(--bs-warning);
 
-	--status-complete-bg: rgba(34, 197, 94, 0.15);
+	--status-complete-bg: rgba(34, 197, 94, 0.14);
 	--status-complete-text: var(--bs-success);
 
-	--status-danger-bg: rgba(239, 68, 68, 0.15);
+	--status-danger-bg: rgba(239, 68, 68, 0.12);
 	--status-danger-text: var(--bs-danger);
 
-	--status-dark-bg: rgba(100, 116, 139, 0.15);
-	--status-dark-text: #94a3b8;
+	--status-dark-bg: rgba(100, 116, 139, 0.14);
+	--status-dark-text: #475569;
 
-	--status-warning-bg: rgba(245, 158, 11, 0.15);
+	--status-warning-bg: rgba(245, 158, 11, 0.14);
 	--status-warning-text: var(--bs-warning);
 
-	--status-info-bg: rgba(6, 182, 212, 0.15);
+	--status-info-bg: rgba(6, 182, 212, 0.12);
 	--status-info-text: var(--bs-info);
 
 	/* Action bar */
-	--action-bar-bg: rgba(255, 255, 255, 0.02);
+	--action-bar-bg: #ffffff;
 	--action-bar-blur: blur(10px);
 	--action-bar-radius: 12px;
 	--action-bar-padding: 12px 14px;
@@ -192,59 +212,59 @@
 
 	--action-search-radius: 10px;
 
-	--action-search-bg: rgba(255, 255, 255, 0.04);
+	--action-search-bg: #ffffff;
 	--action-search-blur: blur(10px);
 
 	--action-search-transition: all 0.25s ease;
 
 	/* Search hover */
-	--action-search-hover-border: rgba(0, 209, 255, 0.3);
+	--action-search-hover-border: rgba(79, 70, 229, 0.35);
 
 	/* Search focus */
-	--action-search-focus-bg: rgba(255, 255, 255, 0.06);
+	--action-search-focus-bg: #ffffff;
 
 	--action-search-focus-shadow:
-		0 0 0 2px rgba(0, 209, 255, 0.15), 0 4px 20px rgba(0, 209, 255, 0.15);
+		0 0 0 2px rgba(79, 70, 229, 0.15), 0 4px 20px rgba(79, 70, 229, 0.12);
 
 	/* Filter active */
-	--btn-filter-active-shadow: 0 4px 12px rgba(0, 209, 255, 0.25);
+	--btn-filter-active-shadow: 0 4px 12px rgba(79, 70, 229, 0.22);
 
 	/* Form focus */
-	--form-focus-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+	--form-focus-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
 
 	/* Form section */
-	--form-section-bg: rgba(255, 255, 255, 0.03);
+	--form-section-bg: #ffffff;
 	--form-section-blur: blur(10px);
 	--form-section-radius: 14px;
 	--form-section-padding: 16px;
 	--form-section-transition: 0.3s ease;
 
 	/* Hover */
-	--form-section-hover-border: rgba(0, 209, 255, 0.2);
+	--form-section-hover-border: rgba(79, 70, 229, 0.3);
 
 	/* Form inputs */
 	--input-height: 38px;
 	--input-radius: 10px;
 
-	--input-bg: rgba(255, 255, 255, 0.04);
+	--input-bg: #ffffff;
 	--input-blur: blur(8px);
 
 	--input-transition: all 0.2s ease;
 
 	/* Input focus (accent) */
-	--input-focus-bg: rgba(255, 255, 255, 0.06);
+	--input-focus-bg: #ffffff;
 
-	--input-focus-shadow: 0 0 0 2px rgba(0, 209, 255, 0.15), 0 4px 18px rgba(0, 209, 255, 0.15);
+	--input-focus-shadow: 0 0 0 2px rgba(79, 70, 229, 0.18), 0 4px 18px rgba(79, 70, 229, 0.1);
 
 	/* Child table container */
-	--child-table-bg: rgba(255, 255, 255, 0.02);
+	--child-table-bg: #ffffff;
 	--child-table-blur: blur(10px);
 	--child-table-radius: 12px;
 	--child-table-padding: 14px;
 
 	/* Child table header */
-	--child-table-head-bg: rgba(255, 255, 255, 0.04);
-	--child-table-head-text: rgba(255, 255, 255, 0.65);
+	--child-table-head-bg: rgba(15, 23, 42, 0.03);
+	--child-table-head-text: rgba(15, 23, 42, 0.65);
 
 	--child-table-head-font-size: 11px;
 	--child-table-head-letter-spacing: 0.5px;
@@ -252,48 +272,91 @@
 	--child-table-head-padding: 8px 10px;
 
 	/* Child table rows */
-	--child-row-border: rgba(255, 255, 255, 0.06);
-	--child-row-hover-bg: rgba(255, 255, 255, 0.04);
-	--child-row-active-bg: rgba(225, 29, 46, 0.08);
+	--child-row-border: rgba(15, 23, 42, 0.06);
+	--child-row-hover-bg: #f8fafc;
+	--child-row-active-bg: rgba(79, 70, 229, 0.08);
 
 	--child-row-transition: background 0.2s ease;
 
 	/* Child table cells */
-	--child-cell-border: rgba(255, 255, 255, 0.04);
+	--child-cell-border: rgba(15, 23, 42, 0.05);
 
 	/* Child inputs */
-	--child-input-bg: rgba(255, 255, 255, 0.06);
-	--child-input-bg-hover: rgba(255, 255, 255, 0.08);
-	--child-input-bg-focus: rgba(255, 255, 255, 0.1);
+	--child-input-bg: #ffffff;
+	--child-input-bg-hover: #f1f5f9;
+	--child-input-bg-focus: #ffffff;
 
-	--child-input-border: rgba(255, 255, 255, 0.08);
-	--child-input-border-hover: rgba(255, 255, 255, 0.15);
+	--child-input-border: rgba(15, 23, 42, 0.1);
+	--child-input-border-hover: rgba(15, 23, 42, 0.18);
 
-	/* Focus glow (keeping your red tone intact) */
-	--child-input-focus-ring: rgba(225, 29, 46, 0.4);
-	--child-input-focus-glow: rgba(225, 29, 46, 0.25);
+	--child-input-focus-ring: rgba(79, 70, 229, 0.4);
+	--child-input-focus-glow: rgba(79, 70, 229, 0.18);
 
 	/* Delete button */
-	--child-delete-hover-bg: rgba(239, 68, 68, 0.12);
+	--child-delete-hover-bg: rgba(239, 68, 68, 0.1);
 
 	/* Child card (mobile) */
-	--child-card-bg: rgba(255, 255, 255, 0.03);
+	--child-card-bg: rgba(15, 23, 42, 0.02);
 
 	/* Child focus row */
-	--child-row-focus-bg: rgba(225, 29, 46, 0.06);
+	--child-row-focus-bg: rgba(79, 70, 229, 0.06);
 
 	/* File upload */
-	--upload-bg: rgba(255, 255, 255, 0.04);
-	--upload-hover-bg: rgba(225, 29, 46, 0.08);
-	--upload-active-ring: rgba(225, 29, 46, 0.25);
+	--upload-bg: rgba(15, 23, 42, 0.03);
+	--upload-hover-bg: rgba(79, 70, 229, 0.08);
+	--upload-active-ring: rgba(79, 70, 229, 0.3);
 
 	/* Disabled inputs */
-	--input-disabled-bg: rgba(255, 255, 255, 0.02);
+	--input-disabled-bg: #f1f5f9;
 	--input-disabled-border: var(--bs-border-color);
 	--input-disabled-text: var(--text-muted);
 	--input-disabled-opacity: 0.7;
 	--drawer-bg: #ffffff;
 	--drawer-color: #212529;
+
+	/* ============================================================
+     SHADCN / TAILWIND SEMANTIC TOKENS (LIGHT IS DEFAULT MODE)
+     Dark mode overrides live in :root[data-theme="dark"] below.
+     --primary/--ring track the runtime brand color written by
+     utils/theme.js (--brand-primary), so shadcn components follow
+     the user-selected brand automatically.
+     ============================================================ */
+	--background: #f4f6f9;
+	--foreground: #0f172a;
+	--card: #ffffff;
+	--card-foreground: #0f172a;
+	--popover: #ffffff;
+	--popover-foreground: #0f172a;
+	--primary: var(--brand-primary);
+	--primary-foreground: #ffffff;
+	--secondary: #f1f5f9;
+	--secondary-foreground: #0f172a;
+	--muted: #f1f5f9;
+	--muted-foreground: #64748b;
+	--accent: #f1f5f9;
+	--accent-foreground: #0f172a;
+	--destructive: #ef4444;
+	--border: rgba(15, 23, 42, 0.12);
+	--input: rgba(15, 23, 42, 0.15);
+	--ring: var(--brand-primary);
+	/* Brand-aware chart series (light) — pass/fail/neutral palette */
+	--chart-1: var(--brand-primary);
+	--chart-2: #10b981;
+	--chart-3: #f59e0b;
+	--chart-4: #06b6d4;
+	--chart-5: #8b5cf6;
+	--radius: 0.625rem;
+	/* White sidebar chrome (Modulix-style light frame) */
+	--sidebar: #ffffff;
+	--sidebar-foreground: #0f172a;
+	--sidebar-primary: var(--brand-primary);
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #f1f5f9;
+	--sidebar-accent-foreground: #0f172a;
+	--sidebar-border: rgba(15, 23, 42, 0.12);
+	--sidebar-ring: var(--brand-primary);
+	/* Soft elevation onto canvas — x flips under [dir="rtl"] below */
+	--sidebar-shadow: 8px 0 24px -8px rgba(15, 23, 42, 0.1);
 }
 
 /*
@@ -312,26 +375,8 @@
 
 /* ===============================
    HEADER
-================================ */
-.page-header {
-	position: sticky;
-	top: 0;
-	z-index: 100;
-
-	padding: 14px 18px;
-	margin-bottom: 18px;
-
-	/* 🔥 Now variable-based */
-	background: var(--header-bg);
-
-	backdrop-filter: blur(12px);
-
-	border-bottom: 1px solid var(--header-border);
-
-	box-shadow: var(--header-shadow);
-}
-
-/* ❌ REMOVE gradient from container */
+   (Legacy .page-header rules removed — PageHeader is Tailwind-only)
+=============================== */
 .page-title {
 	display: flex;
 	align-items: center;
@@ -1307,12 +1352,7 @@ textarea.form-control {
 	flex-direction: column;
 }
 
-/* Sticky header */
-.page-header {
-	position: sticky;
-	top: 0;
-	z-index: 20;
-}
+/* Sticky header — legacy .page-header sticky rules removed (AppShell owns layout) */
 
 /* Scroll content */
 .page-content {
@@ -1424,75 +1464,144 @@ body {
 	background-attachment: fixed;
 }
 
-:root[data-theme="light"] {
+:root[data-theme="dark"] {
 	/* ===============================
      BASE BACKGROUND
   ============================== */
-	--bs-body-bg: #f8fafc;
-	--bs-body-color: #0f172a;
+	--bs-body-bg: #0a0f1a;
+	--bs-body-color: #e6edf7;
+
+	/* Topbar / bottom PageToolbar chrome (lifted dark) */
+	--chrome: #111827;
+	--chrome-foreground: #e6edf7;
+	--chrome-muted: rgba(255, 255, 255, 0.6);
+	--chrome-border: rgba(255, 255, 255, 0.08);
+
+	/* Table header — brand highlight on elevated dark card */
+	--table-header-bg: color-mix(in srgb, var(--brand-primary) 8%, #151b2b);
 
 	/* ===============================
      TEXT
   ============================== */
-	--text-primary: #0f172a;
-	--text-secondary: #475569;
-	--text-muted: #64748b;
+	--text-primary: #e6edf7;
+	--text-secondary: #9aa4b2;
+	--text-muted: #7c8799;
 
 	/* ===============================
-     GLASS → becomes SOLID in light
+     GLASS
   ============================== */
-	--glass-bg: rgba(0, 0, 0, 0.03);
-	--glass-border: rgba(0, 0, 0, 0.08);
+	--glass-bg: rgba(255, 255, 255, 0.04);
+	--glass-border: rgba(255, 255, 255, 0.08);
 
 	/* ===============================
      BORDERS
   ============================== */
-	--bs-border-color: rgba(0, 0, 0, 0.08);
+	--bs-border-color: rgba(255, 255, 255, 0.08);
 
 	/* ===============================
      CARD
   ============================== */
-	--card-bg: #ffffff;
-	--card-border: rgba(0, 0, 0, 0.08);
-	--card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+	--card-bg: rgba(255, 255, 255, 0.03);
+	--card-border: rgba(255, 255, 255, 0.06);
+	--card-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 
 	/* ===============================
      LIST / PANELS
   ============================== */
-	--list-row-bg: #ffffff;
-	--list-row-hover-bg: #f1f5f9;
+	--list-row-bg: rgba(255, 255, 255, 0.03);
+	--list-row-hover-bg: rgba(255, 255, 255, 0.06);
 
-	--list-header-bg: #ffffff;
+	--list-header-bg: rgba(255, 255, 255, 0.03);
 
-	--action-bar-bg: #ffffff;
+	--action-bar-bg: rgba(255, 255, 255, 0.02);
 
 	/* ===============================
      INPUTS
   ============================== */
-	--input-bg: #ffffff;
-	--input-focus-bg: #ffffff;
+	--input-bg: rgba(255, 255, 255, 0.04);
+	--input-focus-bg: rgba(255, 255, 255, 0.06);
 
 	/* ===============================
      CHILD TABLE
   ============================== */
-	--child-table-bg: #ffffff;
-	--child-table-head-bg: rgba(0, 0, 0, 0.03);
-	--child-table-head-text: rgba(0, 0, 0, 0.55);
-	--child-row-border: rgba(0, 0, 0, 0.06);
-	--child-cell-border: rgba(0, 0, 0, 0.04);
-	--child-row-hover-bg: #f8fafc;
+	--child-table-bg: rgba(255, 255, 255, 0.02);
+	--child-table-head-bg: rgba(255, 255, 255, 0.04);
+	--child-table-head-text: rgba(255, 255, 255, 0.65);
+	--child-row-border: rgba(255, 255, 255, 0.06);
+	--child-cell-border: rgba(255, 255, 255, 0.04);
+	--child-row-hover-bg: rgba(255, 255, 255, 0.04);
 
-	--child-input-bg: #ffffff;
-	--child-input-bg-hover: #f1f5f9;
-	--child-input-bg-focus: #ffffff;
-	--child-input-border: rgba(0, 0, 0, 0.1);
-	--child-input-border-hover: rgba(0, 0, 0, 0.18);
-	--child-card-bg: rgba(0, 0, 0, 0.02);
+	--child-input-bg: rgba(255, 255, 255, 0.06);
+	--child-input-bg-hover: rgba(255, 255, 255, 0.08);
+	--child-input-bg-focus: rgba(255, 255, 255, 0.1);
+	--child-input-border: rgba(255, 255, 255, 0.08);
+	--child-input-border-hover: rgba(255, 255, 255, 0.15);
+	--child-card-bg: rgba(255, 255, 255, 0.03);
 
 	/* ===============================
-     BACKGROUND EFFECT (LIGHT SAFE)
+     BACKGROUND EFFECT
   ============================== */
-	--body-radial-color: rgba(0, 0, 0, 0.03);
+	--body-radial-color: rgba(59, 130, 246, 0.08);
+	--body-radial-brand: rgba(79, 70, 229, 0.1);
+
+	--header-bg: #111827;
+	--header-border: rgba(255, 255, 255, 0.06);
+	--header-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+	--header-accent-glow: rgba(79, 70, 229, 0.12);
+
+	--icon-box-bg: rgba(255, 255, 255, 0.05);
+	--title-gradient-start: #ffffff;
+	--title-gradient-end: #9aa4b2;
+
+	--btn-primary-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+	--shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.25);
+	--shadow-strong: 0 12px 40px rgba(0, 0, 0, 0.45);
+
+	/* ===============================
+     SHADCN / TAILWIND SEMANTIC TOKENS (DARK)
+  ============================== */
+	--background: #0a0f1a;
+	--foreground: #e6edf7;
+	--card: #151b2b;
+	--card-foreground: #e6edf7;
+	--popover: #151b2b;
+	--popover-foreground: #e6edf7;
+	--primary: var(--brand-primary);
+	--primary-foreground: #ffffff;
+	--secondary: rgba(255, 255, 255, 0.08);
+	--secondary-foreground: #e6edf7;
+	--muted: rgba(255, 255, 255, 0.06);
+	--muted-foreground: #9aa4b2;
+	--accent: rgba(255, 255, 255, 0.08);
+	--accent-foreground: #e6edf7;
+	--destructive: #ef4444;
+	--border: rgba(255, 255, 255, 0.08);
+	--input: rgba(255, 255, 255, 0.12);
+	--ring: var(--brand-primary);
+	/* Brand-aware chart series (dark) — brighter for contrast on #0b1220 */
+	--chart-1: color-mix(in srgb, var(--brand-primary) 85%, white);
+	--chart-2: #34d399;
+	--chart-3: #fbbf24;
+	--chart-4: #22d3ee;
+	--chart-5: #a78bfa;
+	--sidebar: #0b1220;
+	--sidebar-foreground: #e6edf7;
+	--sidebar-primary: var(--brand-primary);
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: rgba(255, 255, 255, 0.08);
+	--sidebar-accent-foreground: #e6edf7;
+	--sidebar-border: rgba(255, 255, 255, 0.08);
+	--sidebar-ring: var(--brand-primary);
+	--sidebar-shadow: 8px 0 24px -8px rgba(0, 0, 0, 0.35);
+}
+
+/* RTL: flip sidebar elevation x-offset so shadow falls onto the canvas */
+[dir="rtl"] {
+	--sidebar-shadow: -8px 0 24px -8px rgba(15, 23, 42, 0.1);
+}
+
+:root[data-theme="dark"][dir="rtl"] {
+	--sidebar-shadow: -8px 0 24px -8px rgba(0, 0, 0, 0.35);
 }
 
 .app-footer-credit {
@@ -1603,7 +1712,7 @@ body {
 	align-items: center;
 	justify-content: center;
 
-	background: rgba(0, 209, 255, 0.1);
+	background: rgba(79, 70, 229, 0.1);
 	color: var(--brand-primary);
 	font-size: 14px;
 }
@@ -1866,128 +1975,8 @@ body {
 
 /* ===============================
    HEADER MICRO INTERACTIONS
-================================ */
-
-/* Smooth everything */
-.page-header * {
-	transition: all 0.2s ease;
-}
-
-/* -------------------------
-   NAV ICON BUTTONS (Back/Home)
--------------------------- */
-.page-header .btn-icon {
-	opacity: 0.65;
-	transform: translateY(0);
-}
-
-/* Hover */
-.page-header .btn-icon:hover {
-	opacity: 1;
-	transform: translateY(-1px);
-
-	background: var(--btn-soft-bg);
-	color: var(--brand-accent);
-
-	box-shadow: 0 4px 12px rgba(0, 209, 255, 0.15);
-}
-
-/* Click */
-.page-header .btn-icon:active {
-	transform: scale(0.95);
-	box-shadow: none;
-}
-
-/* -------------------------
-   BREADCRUMB
--------------------------- */
-.page-header span {
-	transition:
-		color 0.2s ease,
-		opacity 0.2s ease;
-}
-
-/* Hover breadcrumb */
-.page-header span[style*="cursor: pointer"]:hover {
-	color: var(--brand-accent) !important;
-	opacity: 1 !important;
-}
-
-/* Active (last breadcrumb) */
-.page-header span[style*="var(--text-primary)"] {
-	font-weight: 600;
-}
-
-/* -------------------------
-   ACTION BUTTONS
--------------------------- */
-.page-header .btn {
-	transform: translateY(0);
-}
-
-/* Hover lift */
-.page-header .btn:hover {
-	transform: translateY(-1px);
-}
-
-/* Active press */
-.page-header .btn:active {
-	transform: scale(0.97);
-}
-
-/* -------------------------
-   FILTER BUTTONS
--------------------------- */
-.page-header .btn-filter {
-	position: relative;
-	overflow: hidden;
-}
-
-/* Subtle glow on hover */
-.page-header .btn-filter:hover {
-	box-shadow: 0 0 10px rgba(0, 209, 255, 0.15);
-}
-
-/* Active state stronger */
-.page-header .btn-filter.active {
-	box-shadow: 0 0 12px rgba(0, 209, 255, 0.25);
-}
-
-/* -------------------------
-   TITLE
--------------------------- */
-.page-header div[style*="font-size: 18px"] {
-	letter-spacing: 0.3px;
-}
-
-/* Subtle highlight on hover (premium feel) */
-.page-header div[style*="font-size: 18px"]:hover {
-	color: var(--brand-accent);
-}
-
-/* -------------------------
-   SUBTITLE
--------------------------- */
-.page-header div[style*="font-size: 12px"] {
-	opacity: 0.85;
-}
-
-/* -------------------------
-   HEADER HOVER (VERY SUBTLE)
--------------------------- */
-.page-header:hover {
-	box-shadow: var(--header-shadow), var(--glow-accent);
-}
-
-/* -------------------------
-   MOBILE TOUCH FEEDBACK
--------------------------- */
-@media (max-width: 768px) {
-	.page-header .btn:active,
-	.page-header .btn-icon:active {
-		transform: scale(0.96);
-	}
-}
+   (Legacy .page-header descendant rules removed — PageHeader is Tailwind-only)
+=============================== */
 
 /* 🔹 group spacing */
 .header-tools {
@@ -2037,4 +2026,78 @@ body {
 
 .cursor-pointer {
 	cursor: pointer !important;
+}
+
+@theme inline {
+	--font-heading: var(--font-sans);
+	--font-sans: 'Geist Variable', 'Noto Sans Arabic Variable', 'Noto Sans Devanagari Variable', sans-serif;
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--color-chrome: var(--chrome);
+	--color-chrome-foreground: var(--chrome-foreground);
+	--color-chrome-muted: var(--chrome-muted);
+	--color-table-header: var(--table-header-bg);
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+	}
+  body {
+    @apply bg-background text-foreground;
+	}
+  html {
+    @apply font-sans;
+	}
+}
+
+/* Print: content only — chrome is hidden via print:hidden on header/sidebar/toolbar */
+@media print {
+  body {
+    background: #fff !important;
+  }
+}
+
+/* ============================================================
+   CARD STACK — vertical card lists
+   All children stay sharp (square corners).
+   ============================================================ */
+.card-stack > * {
+  border-radius: 0;
 }

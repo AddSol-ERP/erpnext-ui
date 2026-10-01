@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import MainLayout from "./layout/MainLayout";
@@ -25,16 +26,22 @@ import LeaveApplicationForm from "./pages/requests/leave/LeaveApplicationForm";
 import ExpenseClaimList from "./pages/requests/expense/ExpenseClaimList";
 import ExpenseClaimForm from "./pages/requests/expense/ExpenseClaimForm";
 import ReportDashboard from "./pages/Reports";
-import AttendancePage from "./pages/Reports/attendance/AttendancePage";
-import OvertimeReportPage from "./pages/Reports/overtime/OvertimeReportPage";
-import LeaveBalance from "./pages/Reports/leave-balance/LeaveBalance";
 import MaterialRequestDashboard from "./pages/Store/material-request";
 import MaterialRequestList from "./pages/Store/material-request/list";
 import MaterialRequestForm from "./pages/Store/material-request/form";
-import QualityInspectionReport from "./pages/Quality/reports";
 import DeliveryNoteList from "./pages/Store/delivery";
 import DeliveryNoteForm from "./pages/Store/delivery/form";
 import StockBalance from "./pages/Store/stock-balance";
+
+// Lazy: pulls recharts out of the initial bundle
+const QualityInspectionReport = lazy(() => import("./pages/Quality/reports"));
+const AttendancePage = lazy(() => import("./pages/Reports/attendance/AttendancePage"));
+const OvertimeReportPage = lazy(
+  () => import("./pages/Reports/overtime/OvertimeReportPage")
+);
+const LeaveBalance = lazy(
+  () => import("./pages/Reports/leave-balance/LeaveBalance")
+);
 
 // NEW ROLE HUBS
 import HRDashboard from "./pages/HR";
@@ -97,7 +104,11 @@ export default function App() {
           />
           <Route
             path="/quality/reports"
-            element={<QualityInspectionReport />}
+            element={
+              <Suspense fallback={null}>
+                <QualityInspectionReport />
+              </Suspense>
+            }
           />
           {/* Quality generic routes for new doctypes */}
           <Route path="/quality/:doctype" element={<GenericListPage />} />
@@ -165,9 +176,30 @@ export default function App() {
             element={<ExpenseClaimForm />}
           />
           <Route path="/reports" element={<ReportDashboard />} />
-          <Route path="/reports/attendance" element={<AttendancePage />} />
-          <Route path="/reports/overtime" element={<OvertimeReportPage />} />
-          <Route path="/reports/leave-balance" element={<LeaveBalance context="reports" />} />
+          <Route
+            path="/reports/attendance"
+            element={
+              <Suspense fallback={null}>
+                <AttendancePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/reports/overtime"
+            element={
+              <Suspense fallback={null}>
+                <OvertimeReportPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/reports/leave-balance"
+            element={
+              <Suspense fallback={null}>
+                <LeaveBalance context="reports" />
+              </Suspense>
+            }
+          />
 
           {/* ================================
               HR HUB
@@ -200,7 +232,14 @@ export default function App() {
           <Route path="/ess/profile" element={<ESSProfile />} />
           <Route path="/ess/attendance" element={<ESSCalendar />} />
           <Route path="/ess/overtime" element={<OvertimeLogs />} />
-          <Route path="/ess/leave-balance" element={<LeaveBalance context="ess" />} />
+          <Route
+            path="/ess/leave-balance"
+            element={
+              <Suspense fallback={null}>
+                <LeaveBalance context="ess" />
+              </Suspense>
+            }
+          />
           <Route path="/ess/:doctype" element={<GenericListPage />} />
           <Route path="/ess/:doctype/new" element={<GenericFormPage />} />
           <Route path="/ess/:doctype/:name" element={<GenericFormPage />} />

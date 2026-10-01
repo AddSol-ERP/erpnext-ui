@@ -1,103 +1,91 @@
 import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
-import ActionTile from "../../components/ActionTile";
-import { getDoctypeConfig } from "../../config/doctypes";
+import { useTranslation } from "react-i18next";
+import {
+  Truck,
+  ShoppingCart,
+  Package,
+  Receipt,
+  FileText,
+  HelpCircle,
+} from "lucide-react";
+import DashboardShell from "../../components/dashboard/DashboardShell";
+import DashboardHero from "../../components/dashboard/DashboardHero";
+import ModuleGrid from "../../components/dashboard/ModuleGrid";
+import { createTileNav } from "../../lib/tileNav";
+
+const MODULE_DEFS = [
+  {
+    key: "supplier",
+    icon: Truck,
+    route: "/purchase/Supplier",
+    createRoute: "/purchase/Supplier/new",
+  },
+  {
+    key: "purchaseOrder",
+    icon: ShoppingCart,
+    route: "/purchase/Purchase Order",
+    createRoute: "/purchase/Purchase Order/new",
+  },
+  {
+    key: "purchaseReceipt",
+    icon: Package,
+    route: "/purchase/Purchase Receipt",
+    createRoute: "/purchase/Purchase Receipt/new",
+  },
+  {
+    key: "purchaseInvoice",
+    icon: Receipt,
+    route: "/purchase/Purchase Invoice",
+    createRoute: "/purchase/Purchase Invoice/new",
+  },
+  {
+    key: "supplierQuotation",
+    icon: FileText,
+    route: "/purchase/Supplier Quotation",
+    createRoute: "/purchase/Supplier Quotation/new",
+  },
+  {
+    key: "requestForQuotation",
+    icon: HelpCircle,
+    route: "/purchase/Request for Quotation",
+    createRoute: "/purchase/Request for Quotation/new",
+  },
+];
 
 export default function PurchaseDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
-
-  const handleTileClick = (tile, isCreate) => {
-    if (isCreate && tile.createRoute) {
-      const doctype = tile.route.split("/").filter(Boolean).pop();
-      const config = getDoctypeConfig(doctype);
-      if (config.nativeForm) {
-        const doctypeUrl = doctype.toLowerCase().replace(/\s+/g, "-");
-        window.open(`/app/${doctypeUrl}/new-${doctypeUrl}`, "_blank");
-      } else {
-        navigate(tile.createRoute);
-      }
-    } else {
-      navigate(tile.route);
-    }
-  };
+  const { t } = useTranslation();
+  const handleTileClick = createTileNav(navigate);
 
   useEffect(() => {
     setHeader({
-      title: "Purchase",
-      subtitle: "Suppliers, purchase orders & invoices",
-      breadcrumbs: [{ label: "Home", path: "/" }, { label: "Purchase" }],
+      title: t("purchase.header.title"),
+      subtitle: t("purchase.header.subtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("purchase.header.title") },
+      ],
     });
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const modules = [
-    {
-      title: "Supplier",
-      icon: "bi-truck",
-      route: "/purchase/Supplier",
-      description: "Manage supplier records",
-      createRoute: "/purchase/Supplier/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Purchase Order",
-      icon: "bi-cart4",
-      route: "/purchase/Purchase Order",
-      description: "Create purchase orders",
-      createRoute: "/purchase/Purchase Order/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Purchase Receipt",
-      icon: "bi-box-seam",
-      route: "/purchase/Purchase Receipt",
-      description: "Record goods receipt",
-      createRoute: "/purchase/Purchase Receipt/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Purchase Invoice",
-      icon: "bi-receipt",
-      route: "/purchase/Purchase Invoice",
-      description: "Supplier invoices",
-      createRoute: "/purchase/Purchase Invoice/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Supplier Quotation",
-      icon: "bi-file-earmark-text",
-      route: "/purchase/Supplier Quotation",
-      description: "Supplier quotations",
-      createRoute: "/purchase/Supplier Quotation/new",
-      color: "#4f46e5",
-    },
-    {
-      title: "Request for Quotation",
-      icon: "bi-question-circle",
-      route: "/purchase/Request for Quotation",
-      description: "Request supplier quotes",
-      createRoute: "/purchase/Request for Quotation/new",
-      color: "#4f46e5",
-    },
-  ];
+  const modules = MODULE_DEFS.map((m) => ({
+    ...m,
+    titleKey: `purchase.tiles.${m.key}.title`,
+    descriptionKey: `purchase.tiles.${m.key}.description`,
+  }));
 
   return (
-    <div className="pt-4" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      <div className="row">
-        {modules.map((m, i) => (
-          <div key={i} className="col-12 col-md-6 col-lg-4 mb-4 cursor-pointer">
-            <ActionTile
-              tile={{
-                ...m,
-                primary: true,
-              }}
-              onClick={handleTileClick}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <DashboardShell>
+      <DashboardHero
+        icon={Truck}
+        description={t("purchase.header.subtitle")}
+      />
+      <ModuleGrid items={modules} onClick={handleTileClick} />
+    </DashboardShell>
   );
 }

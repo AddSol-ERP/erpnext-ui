@@ -1,52 +1,35 @@
 import { useEffect, useState } from "react";
+import { ClipboardList, ListChecks } from "lucide-react";
 import { get, post } from "../../../../services/api";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
+import { useToast } from "../../../../context/ToastContext";
 import LinkField from "../../../../components/LinkField";
 import { FormField } from "../../../../components/FormField";
+import FormSection from "../../../../components/FormSection";
+import FormErrorSummary from "../../../../components/FormErrorSummary";
+import FormSelect from "../../../../components/FormSelect";
+import { focusFirstError } from "../../../../lib/formValidation";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 export default function QualityTemplateForm() {
   const navigate = useNavigate();
   const { name } = useParams();
   const { setHeader } = useHeader();
+  const toast = useToast();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [doc, setDoc] = useState({
     quality_inspection_template_name: "",
     item_quality_inspection_parameter: [],
   });
-
-  /* ================= HEADER ================= */
-  useEffect(() => {
-    setHeader({
-      title: name ? `Template ${doc.name || ""}` : "New Template",
-
-      subtitle: name
-        ? "Update inspection parameters"
-        : "Create a template for quality inspection",
-
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Quality", path: "/quality" },
-        { label: "Templates", path: "/quality/templates" },
-        {
-          label: name ? doc.name || "Edit" : "New",
-        },
-      ],
-
-      actions: [
-        {
-          label: loading ? "Saving..." : "Save",
-          variant: "btn-success",
-          onClick: handleSave,
-          disabled: loading,
-        },
-      ],
-    });
-
-    return () => setHeader({});
-  }, [name, loading, doc]);
 
   /* ================= LOAD ================= */
 
@@ -55,10 +38,6 @@ export default function QualityTemplateForm() {
     if (r.numeric) return { ...r, mode: "numeric" };
     return { ...r, mode: "value" };
   };
-
-  useEffect(() => {
-    if (name) loadDoc();
-  }, [name]);
 
   const loadDoc = async () => {
     try {
@@ -76,7 +55,7 @@ export default function QualityTemplateForm() {
       });
     } catch (e) {
       console.error(e);
-      alert("Failed to load template");
+      toast.error(t("quality.loadFailedTemplate"));
     } finally {
       setLoading(false);
     }
@@ -157,17 +136,29 @@ export default function QualityTemplateForm() {
   };
 
   const handleSave = async () => {
+    const errs = {};
+
+    if (!doc.quality_inspection_template_name) {
+      errs.quality_inspection_template_name = t(
+        "quality.templateNameRequired",
+      );
+    }
+    if (!doc.item_quality_inspection_parameter.length) {
+      errs.item_quality_inspection_parameter = t(
+        "quality.addOneParameter",
+      );
+    }
+
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      const list = Object.values(errs);
+      setError(list.length > 1 ? t("common.fixErrors") : list[0]);
+      requestAnimationFrame(() => focusFirstError(errs));
+      return;
+    }
+
+    setError("");
     try {
-      if (!doc.quality_inspection_template_name) {
-        alert("Template name required");
-        return;
-      }
-
-      if (!doc.item_quality_inspection_parameter.length) {
-        alert("Add at least one parameter");
-        return;
-      }
-
       setLoading(true);
 
       const payload = preparePayload();
@@ -178,138 +169,184 @@ export default function QualityTemplateForm() {
         await post("resource/Quality Inspection Template", payload);
       }
 
-      alert("Saved successfully");
+      toast.success(t("quality.savedSuccess"));
       navigate("/quality-templates");
     } catch (e) {
       console.error(e);
-      alert("Save failed");
+      toast.error(t("quality.saveFailed"));
     } finally {
       setLoading(false);
     }
   };
 
+  /* ================= HEADER ================= */
+  useEffect(() => {
+    setHeader({
+      title: name
+        ? t("quality.templateTitle", { name: doc.name || "" })
+        : t("quality.newTemplate"),
+
+      subtitle: name
+        ? t("quality.templateEditSubtitle")
+        : t("quality.templateNewSubtitle"),
+
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.quality"), path: "/quality" },
+        { label: t("quality.templatesBreadcrumb"), path: "/quality/templates" },
+        {
+          label: name ? doc.name || t("common.edit") : t("common.new"),
+        },
+      ],
+
+      actions: [
+        {
+          label: loading ? t("common.saving") : t("common.save"),
+          variant: "btn-success",
+          onClick: handleSave,
+          disabled: loading,
+        },
+      ],
+    });
+
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, loading, doc]);
+
+  /* ================= LOAD EFFECT ================= */
+  useEffect(() => {
+    if (name) {
+      // loadDoc only setStates after awaited API responses.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadDoc();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
+
   /* ================= UI ================= */
 
   return (
-    <div className="form-container" style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      {/* BASIC */}
-      <div className="form-section">
-        <div className="form-section-title">Basic Info</div>
+    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 pt-4">
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
-        <div className="row">
-          <div className="col-md-6">
-            <FormField label="Template Name" required>
-              <input
-                className="form-control"
-                value={doc.quality_inspection_template_name}
-                onChange={(e) =>
-                  setDoc({
-                    ...doc,
-                    quality_inspection_template_name: e.target.value,
-                  })
-                }
-              />
-            </FormField>
-          </div>
+      {/* BASIC */}
+      <FormSection title={t("quality.basicInfo")} icon={ClipboardList}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField
+            label={t("quality.templateName")}
+            required
+            name="quality_inspection_template_name"
+            error={fieldErrors.quality_inspection_template_name}
+          >
+            <Input
+              value={doc.quality_inspection_template_name}
+              onChange={(e) =>
+                setDoc({
+                  ...doc,
+                  quality_inspection_template_name: e.target.value,
+                })
+              }
+            />
+          </FormField>
         </div>
-      </div>
+      </FormSection>
 
       {/* PARAMETERS */}
-      <div className="form-section">
-        <div className="form-section-title d-flex justify-content-between">
-          <span>Inspection Parameters</span>
-          <button className="btn btn-sm btn-primary" onClick={addRow}>
-            + Add
-          </button>
-        </div>
+      <FormSection
+        title={t("quality.inspectionParameters")}
+        icon={ListChecks}
+        action={
+          <Button size="sm" onClick={addRow}>
+            + {t("quality.add")}
+          </Button>
+        }
+        contentClassName="flex flex-col gap-3"
+      >
+        <FormField
+          name="item_quality_inspection_parameter"
+          error={fieldErrors.item_quality_inspection_parameter}
+          className={
+            fieldErrors.item_quality_inspection_parameter ? "" : "sr-only"
+          }
+        >
+          <span className="sr-only">{t("quality.inspectionParameters")}</span>
+        </FormField>
 
         {doc.item_quality_inspection_parameter.map((row, idx) => (
-          <div key={idx} className="border rounded p-3 mb-3">
-            <div className="row">
+          <div key={idx} className="rounded-lg border border-border p-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* PARAM */}
-              <div className="col-md-4">
-                <FormField label="Parameter" required>
-                  <LinkField
-                    doctype="Quality Inspection Parameter"
-                    value={row.specification}
-                    onChange={(v) => updateRow(idx, "specification", v)}
-                  />
-                </FormField>
-              </div>
+              <FormField label={t("quality.parameter")} required>
+                <LinkField
+                  doctype="Quality Inspection Parameter"
+                  value={row.specification}
+                  onChange={(v) => updateRow(idx, "specification", v)}
+                />
+              </FormField>
 
               {/* MODE */}
-              <div className="col-md-4">
-                <FormField label="Type">
-                  <select
-                    className="form-select"
-                    value={row.mode}
-                    onChange={(e) => updateRow(idx, "mode", e.target.value)}
-                  >
-                    <option value="numeric">Range</option>
-                    <option value="value">Value</option>
-                    <option value="formula">Formula</option>
-                  </select>
-                </FormField>
-              </div>
+              <FormField label={t("quality.type")}>
+                <FormSelect
+                  value={row.mode}
+                  onChange={(v) => updateRow(idx, "mode", v)}
+                  options={[
+                    ["numeric", t("quality.typeRange")],
+                    ["value", t("quality.typeValue")],
+                    ["formula", t("quality.typeFormula")],
+                  ]}
+                />
+              </FormField>
 
               {/* REMOVE */}
-              <div className="col-md-4 d-flex align-items-end justify-content-end">
-                <button
-                  className="btn btn-sm btn-outline-danger"
+              <div className="flex items-end justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
                   onClick={() => removeRow(idx)}
                 >
-                  Remove
-                </button>
+                  {t("quality.remove")}
+                </Button>
               </div>
             </div>
 
             {/* VALUE INPUTS */}
-            <div className="row mt-2">
+            <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
               {row.mode === "numeric" && (
                 <>
-                  <div className="col-md-3">
-                    <FormField label="Min">
-                      <input
-                        className="form-control"
-                        value={row.min_value || ""}
-                        onChange={(e) =>
-                          updateRow(idx, "min_value", e.target.value)
-                        }
-                      />
-                    </FormField>
-                  </div>
+                  <FormField label={t("quality.min")}>
+                    <Input
+                      value={row.min_value || ""}
+                      onChange={(e) =>
+                        updateRow(idx, "min_value", e.target.value)
+                      }
+                    />
+                  </FormField>
 
-                  <div className="col-md-3">
-                    <FormField label="Max">
-                      <input
-                        className="form-control"
-                        value={row.max_value || ""}
-                        onChange={(e) =>
-                          updateRow(idx, "max_value", e.target.value)
-                        }
-                      />
-                    </FormField>
-                  </div>
+                  <FormField label={t("quality.max")}>
+                    <Input
+                      value={row.max_value || ""}
+                      onChange={(e) =>
+                        updateRow(idx, "max_value", e.target.value)
+                      }
+                    />
+                  </FormField>
                 </>
               )}
 
               {row.mode === "value" && (
-                <div className="col-md-6">
-                  <FormField label="Value">
-                    <input
-                      className="form-control"
-                      value={row.value || ""}
-                      onChange={(e) => updateRow(idx, "value", e.target.value)}
-                    />
-                  </FormField>
-                </div>
+                <FormField label={t("quality.value")}>
+                  <Input
+                    value={row.value || ""}
+                    onChange={(e) => updateRow(idx, "value", e.target.value)}
+                  />
+                </FormField>
               )}
 
               {row.mode === "formula" && (
-                <div className="col-md-12">
-                  <FormField label="Formula">
-                    <textarea
-                      className="form-control"
+                <div className="md:col-span-2">
+                  <FormField label={t("quality.formula")}>
+                    <Textarea
                       value={row.acceptance_formula || ""}
                       onChange={(e) =>
                         updateRow(idx, "acceptance_formula", e.target.value)
@@ -321,7 +358,7 @@ export default function QualityTemplateForm() {
             </div>
           </div>
         ))}
-      </div>
+      </FormSection>
     </div>
   );
 }

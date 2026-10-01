@@ -11,11 +11,7 @@ export function RoleProvider({ children }) {
   const [currentUser, setCurrentUser] = useState("");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchUserRoles();
-  }, []);
-
-  const fetchUserRoles = async () => {
+  async function fetchUserRoles() {
     try {
       const session = await getCurrentUser(get);
 
@@ -34,7 +30,13 @@ export function RoleProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    // fetchUserRoles setStates only after awaited API responses.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchUserRoles();
+  }, []);
 
   const hasModuleAccess = (moduleKey) => {
     return accessibleModules.includes(moduleKey);

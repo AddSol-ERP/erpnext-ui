@@ -1,0 +1,308 @@
+{
+	"requests": {
+		"header": {
+			"title": "अनुरोध",
+			"subtitle": "कर्मचारी अनुरोध बनाएँ और प्रबंधित करें",
+			"attendanceListTitle": "उपस्थिति अनुरोध",
+			"attendanceListSubtitle": "उपस्थिति सुधार समीक्षा और प्रबंधित करें",
+			"attendanceEditTitle": "उपस्थिति अनुरोध {{name}}",
+			"attendanceNewTitle": "नया उपस्थिति अनुरोध",
+			"attendanceEditSubtitle": "उपस्थिति सुधार समीक्षा करें और अपडेट करें",
+			"attendanceNewSubtitle": "उपस्थिति रिकॉर्ड सुधारने के लिए अनुरोध बनाएँ",
+			"leaveListTitle": "अवकाश आवेदन",
+			"leaveListSubtitle": "कर्मचारी अवकाश ट्रैक और प्रबंधित करें",
+			"leaveEditTitle": "अवकाश आवेदन {{name}}",
+			"leaveNewTitle": "नया अवकाश आवेदन",
+			"leaveEditSubtitle": "अवकाश अनुरोध समीक्षा करें और अपडेट करें",
+			"leaveNewSubtitle": "नया अवकाश अनुरोध बनाएँ",
+			"expenseListTitle": "व्यय दावे",
+			"expenseListSubtitle": "कर्मचारी व्यय जमा ट्रैक और प्रबंधित करें",
+			"expenseEditTitle": "व्यय दावा {{name}}",
+			"expenseNewTitle": "नया व्यय दावा",
+			"expenseEditSubtitle": "व्यय विवरण समीक्षा करें और अपडेट करें",
+			"expenseNewSubtitle": "नया व्यय दावा बनाएँ और सबमिट करें"
+		},
+		"tiles": {
+			"attendance": {
+				"title": "उपस्थिति अनुरोध",
+				"description": "उपस्थिति प्रविष्टियाँ सुधारें"
+			},
+			"leave": {
+				"title": "अवकाश अनुरोध",
+				"description": "अवकाश के लिए आवेदन करें"
+			},
+			"expense": {
+				"title": "व्यय अनुरोध",
+				"description": "व्यय जमा करें"
+			}
+		},
+		"status": {
+			"approved": "स्वीकृत",
+			"rejected": "अस्वीकृत",
+			"pending": "लंबित",
+			"draft": "मसौदा",
+			"submitted": "सबमिट किया गया",
+			"paid": "भुगतान किया गया"
+		},
+		"list": {
+			"create": "बनाएँ",
+			"new": "+ नया",
+			"emptyAttendance": "कोई उपस्थिति अनुरोध नहीं मिला",
+			"emptyLeave": "कोई अवकाश आवेदन नहीं मिला",
+			"emptyExpense": "कोई व्यय दावा नहीं मिला",
+			"activeFilters": "फ़िल्टर: {{filters}}",
+			"reason": "कारण"
+		},
+		"filters": {
+			"employee": "कर्मचारी",
+			"leaveType": "अवकाश प्रकार",
+			"fromDate": "आरंभ तिथि",
+			"toDate": "अंतिम तिथि"
+		},
+		"attendance": {
+			"employee": "कर्मचारी",
+			"company": "कंपनी",
+			"fromDate": "आरंभ तिथि",
+			"toDate": "अंतिम तिथि",
+			"halfDay": "आधा दिन",
+			"halfDayDate": "आधा दिन तिथि",
+			"halfDayHint": "चयनित अवधि के भीतर एक तिथि चुनें",
+			"includeHolidays": "अवकाश शामिल करें",
+			"shift": "शिफ्ट",
+			"reason": "कारण",
+			"explanation": "व्याख्या",
+			"workFromHome": "घर से काम",
+			"onDuty": "ड्यूटी पर",
+			"select": "चुनें",
+			"validationRequired": "कर्मचारी, तिथियाँ और कारण आवश्यक हैं",
+			"validationRange": "अंतिम तिथि आरंभ तिथि से पहले नहीं हो सकती",
+			"validationHalfDayDate": "आधा दिन तिथि आवश्यक है",
+			"loadFailed": "दस्तावेज़ लोड करने में विफल",
+			"sectionDetails": "उपस्थिति विवरण",
+			"sectionOptions": "विकल्प"
+		},
+		"leave": {
+			"employee": "कर्मचारी",
+			"approver": "स्वीकर्ता",
+			"autoAssigned": "स्वतः नियुक्त",
+			"leaveType": "अवकाश प्रकार",
+			"balance": "शेष: {{days}} दिन",
+			"fromDate": "आरंभ तिथि",
+			"toDate": "अंतिम तिथि",
+			"totalDays": "कुल दिन: {{days}}",
+			"remaining": "शेष: {{days}}",
+			"halfDay": "आधा दिन",
+			"reason": "कारण",
+			"noApprover": "इस कर्मचारी के लिए कोई अवकाश स्वीकर्ता नियुक्त नहीं है",
+			"approverFetchFailed": "स्वीकर्ता प्राप्त करने में असमर्थ",
+			"loadFailed": "लोड करने में विफल",
+			"validationRequired": "सभी आवश्यक फ़ील्ड भरने होंगे",
+			"validationApprover": "अवकाश स्वीकर्ता आवश्यक है",
+			"validationRange": "अमान्य तिथि सीमा",
+			"validationBalance": "अपर्याप्त अवकाश शेष",
+			"sectionDetails": "अवकाश विवरण",
+			"sectionNotes": "आधा दिन और कारण"
+		},
+		"expense": {
+			"employee": "कर्मचारी",
+			"company": "कंपनी",
+			"approver": "स्वीकर्ता",
+			"selectApprover": "स्वीकर्ता चुनें",
+			"postingDate": "पोस्टिंग तिथि",
+			"expenses": "व्यय",
+			"date": "तिथि",
+			"type": "प्रकार",
+			"amount": "राशि",
+			"description": "विवरण",
+			"total": "कुल: ₹ {{amount}}",
+			"remark": "टिप्पणी",
+			"noApprover": "कोई व्यय स्वीकर्ता नहीं मिला। HR से संपर्क करें।",
+			"approverFetchFailed": "स्वीकर्ता प्राप्त करने में विफल",
+			"loadFailed": "लोड करने में विफल",
+			"validationRequired": "कर्मचारी, कंपनी और स्वीकर्ता आवश्यक हैं",
+			"validationApprover": "व्यय स्वीकर्ता आवश्यक है",
+			"validationAddOne": "कम से कम एक व्यय जोड़ें",
+			"validationFillRows": "सभी व्यय पंक्तियाँ भरी होनी चाहिए",
+			"validationAmount": "राशि 0 से अधिक होनी चाहिए",
+			"sectionDetails": "दावे का विवरण"
+		}
+	},
+	"ess": {
+		"header": {
+			"title": "कर्मचारी स्व-सेवा",
+			"subtitle": "मेरी प्रोफ़ाइल, उपस्थिति, अवकाश और वेतन",
+			"profileTitle": "मेरी प्रोफ़ाइल",
+			"profileSubtitle": "अपनी कर्मचारी जानकारी देखें",
+			"attendanceTitle": "उपस्थिति कैलेंडर",
+			"attendanceCrumb": "उपस्थिति",
+			"attendanceSubtitleEmployee": "कर्मचारी: {{name}}",
+			"attendanceSubtitle": "कर्मचारी स्व-सेवा",
+			"overtimeTitle": "ओवरटाइम लॉग",
+			"overtimeSubtitleEmployee": "कर्मचारी: {{name}}",
+			"overtimeSubtitle": "आपके ओवरटाइम रिकॉर्ड",
+			"back": "वापस",
+			"appointmentLetter": "नियुक्ति पत्र",
+			"print": "प्रिंट"
+		},
+		"tiles": {
+			"profile": {
+				"title": "मेरी प्रोफ़ाइल",
+				"description": "अपनी प्रोफ़ाइल देखें और प्रबंधित करें"
+			},
+			"leave": {
+				"title": "मेरा अवकाश",
+				"description": "अवकाश के लिए आवेदन करें और शेष देखें"
+			},
+			"leaveBalance": {
+				"title": "अवकाश शेष",
+				"description": "इस वर्ष का मेरा अवकाश शेष देखें"
+			},
+			"expenses": {
+				"title": "मेरे व्यय",
+				"description": "व्यय दावे जमा करें"
+			},
+			"attendanceRequests": {
+				"title": "उपस्थिति आवश्यक",
+				"description": "उपस्थिति अनुरोध प्रबंधित करें"
+			},
+			"attendanceLogs": {
+				"title": "उपस्थिति लॉग",
+				"description": "इन/आउट समय के साथ मासिक कैलेंडर दृश्य"
+			},
+			"overtime": {
+				"title": "ओवरटाइम लॉग",
+				"description": "अपने ओवरटाइम रिकॉर्ड देखें"
+			},
+			"salarySlips": {
+				"title": "मेरी वेतन पर्चियाँ",
+				"description": "वेतन पर्चियाँ देखें"
+			},
+			"tasks": {
+				"title": "मेरे कार्य",
+				"description": "सौंपे गए कार्य देखें"
+			}
+		},
+		"profile": {
+			"loading": "लोड हो रहा है…",
+			"notFoundTitle": "कोई कर्मचारी प्रोफ़ाइल नहीं मिली",
+			"notFoundDescription": "आपका उपयोगकर्ता खाता किसी कर्मचारी रिकॉर्ड से लिंक नहीं है। कृपया अपनी प्रोफ़ाइल सेट करने के लिए HR से संपर्क करें।",
+			"backToDashboard": "डैशबोर्ड पर वापस जाएँ",
+			"idLabel": "आईडी: {{id}}",
+			"hrApprovalTitle": "HR स्वीकृति लंबित",
+			"hrApprovalDescription": "आपकी प्रोफ़ाइल अभी HR द्वारा स्वीकृत नहीं है। HR स्वीकृति तक वेतन संसाधित नहीं होगा।",
+			"sectionPersonal": "व्यक्तिगत विवरण",
+			"sectionEmployment": "रोज़गार",
+			"sectionContact": "संपर्क",
+			"sectionAddress": "पता",
+			"fields": {
+				"employeeName": "कर्मचारी नाम",
+				"dateOfBirth": "जन्म तिथि",
+				"gender": "लिंग",
+				"employeeId": "कर्मचारी आईडी",
+				"company": "कंपनी",
+				"department": "विभाग",
+				"designation": "पदनाम",
+				"branch": "शाखा",
+				"dateOfJoining": "नियुक्ति तिथि",
+				"contractEndDate": "अनुबंध समाप्ति तिथि",
+				"personalEmail": "व्यक्तिगत ईमेल",
+				"companyEmail": "कंपनी ईमेल",
+				"mobileNumber": "मोबाइल नंबर",
+				"emergencyContact": "आपातकालीन संपर्क",
+				"currentAddress": "वर्तमान पता",
+				"permanentAddress": "स्थायी पता"
+			},
+			"lastUpdated": "अंतिम अपडेट: {{date}}",
+			"created": "बनाया गया: {{date}}",
+			"userNotFound": "वर्तमान उपयोगकर्ता पहचानने में असमर्थ",
+			"loadFailed": "प्रोफ़ाइल लोड करने में विफल",
+			"notFoundInfo": "कर्मचारी प्रोफ़ाइल नहीं मिली। बनाने का प्रयास करें।"
+		},
+		"attendance": {
+			"loadingEmployee": "कर्मचारी डेटा लोड हो रहा है…",
+			"noEmployee": "आपके उपयोगकर्ता खाते से कोई लिंक्ड कर्मचारी रिकॉर्ड नहीं मिला।",
+			"loadingRecords": "उपस्थिति रिकॉर्ड लोड हो रहे हैं…",
+			"today": "आज",
+			"present": "उपस्थित",
+			"absent": "अनुपस्थित",
+			"leave": "अवकाश",
+			"halfDay": "आधा दिन",
+			"onLeave": "अवकाश पर",
+			"presentCount": "उपस्थित: {{count}}",
+			"absentCount": "अनुपस्थित: {{count}}",
+			"leaveCount": "अवकाश: {{count}}",
+			"halfDayCount": "आधा दिन: {{count}}",
+			"lateHalfDay": "देर / आधा दिन",
+			"missing": "अनुपस्थिति",
+			"weeklyOff": "साप्ताहिक अवकाश",
+			"holiday": "अवकाश",
+			"future": "भविष्य",
+			"weeklyOffShort": "W",
+			"holidayShort": "H",
+			"createLeave": "अवकाश आवेदन बनाएँ",
+			"requestCorrection": "उपस्थिति सुधार अनुरोध",
+			"leaveAction": "अवकाश",
+			"attendanceAction": "उपस्थि.",
+			"prevMonth": "पिछला माह",
+			"nextMonth": "अगला माह",
+			"heroDesc": "इन/आउट समय और त्वरित कार्यों के साथ मासिक उपस्थिति",
+			"checkinLogs": "चेक-इन लॉग - {{date}}",
+			"months": {
+				"january": "जनवरी",
+				"february": "फ़रवरी",
+				"march": "मार्च",
+				"april": "अप्रैल",
+				"may": "मई",
+				"june": "जून",
+				"july": "जुलाई",
+				"august": "अगस्त",
+				"september": "सितम्बर",
+				"october": "अक्टूबर",
+				"november": "नवम्बर",
+				"december": "दिसम्बर"
+			},
+			"days": {
+				"sun": "रवि",
+				"mon": "सोम",
+				"tue": "मंगल",
+				"wed": "बुध",
+				"thu": "गुरु",
+				"fri": "शुक्र",
+				"sat": "शनि"
+			},
+			"legend": {
+				"present": "उपस्थित",
+				"lateHalfDay": "देर / आधा दिन",
+				"absent": "अनुपस्थित",
+				"missing": "अनुपस्थिति",
+				"weeklyOff": "साप्ताहिक अवकाश",
+				"holiday": "अवकाश",
+				"future": "भविष्य"
+			}
+		},
+		"overtime": {
+			"backToDashboard": "डैशबोर्ड पर वापस जाएँ",
+			"noEmployeeTitle": "कोई कर्मचारी नहीं मिला",
+			"noEmployeeDescription": "आपका उपयोगकर्ता खाता किसी कर्मचारी रिकॉर्ड से लिंक नहीं है। कृपया HR से संपर्क करें।",
+			"totalLogs": "कुल लॉग",
+			"totalOTHours": "कुल ओटी घंटे",
+			"approved": "स्वीकृत",
+			"pending": "लंबित",
+			"noRecordsTitle": "कोई ओवरटाइम रिकॉर्ड नहीं",
+			"noRecordsDescription": "आपके पास अभी कोई ओवरटाइम लॉग नहीं है।",
+			"hrs": "घंटे",
+			"statusDraft": "मसौदा",
+			"statusApproved": "स्वीकृत",
+			"statusRejected": "अस्वीकृत",
+			"columns": {
+				"date": "तिथि",
+				"shift": "शिफ्ट",
+				"inTime": "इन टाइम",
+				"outTime": "आउट टाइम",
+				"otHours": "ओटी घंटे",
+				"status": "स्थिति",
+				"remarks": "टिप्पणियाँ"
+			}
+		}
+	}
+}

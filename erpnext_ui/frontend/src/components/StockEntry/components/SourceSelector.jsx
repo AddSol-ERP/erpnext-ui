@@ -1,6 +1,11 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import FormSelect from "../../FormSelect";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function SourceSelector({ loadSource }) {
+  const { t } = useTranslation();
   const [sourceType, setSourceType] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [qcDone, setQcDone] = useState(false);
@@ -12,72 +17,72 @@ export default function SourceSelector({ loadSource }) {
   };
 
   return (
-    <div className="action-bar">
-      <div className="row g-2 align-items-center">
+    <div className="rounded-none bg-card p-3 ring-1 ring-foreground/10">
+      <div className="grid grid-cols-2 items-end gap-2 md:grid-cols-4">
         {/* SOURCE TYPE */}
-        <div className="col-12 col-md-3">
-          <select
-            className="form-select"
+        <div className="col-span-2 flex flex-col gap-1.5 md:col-span-1">
+          <FormSelect
+            aria-label={t("store.source.sourceType")}
             value={sourceType}
-            onChange={(e) => {
-              setSourceType(e.target.value);
+            onChange={(v) => {
+              setSourceType(v);
               setSourceId("");
             }}
-          >
-            <option value="">Source Type</option>
-            <option value="mr">Material Request</option>
-            <option value="bom">BOM</option>
-            <option value="pr">Purchase Receipt</option>
-          </select>
+            placeholder={t("store.source.sourceType")}
+            options={[
+              ["mr", t("store.source.materialRequest")],
+              ["bom", t("store.source.bomShort")],
+              ["pr", t("store.source.purchaseReceipt")],
+            ]}
+          />
         </div>
 
         {/* DOCUMENT */}
-        <div className="col-12 col-md-4">
-          <select
-            className="form-select"
+        <div className="col-span-2 flex flex-col gap-1.5 md:col-span-1">
+          <FormSelect
+            aria-label={t("store.source.selectDocument")}
             value={sourceId}
-            onChange={(e) => setSourceId(e.target.value)}
+            onChange={setSourceId}
             disabled={!sourceType}
-          >
-            <option value="">
-              {sourceType ? "Select Document" : "Select Type first"}
-            </option>
-
-            {(options[sourceType] || []).map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
+            placeholder={
+              sourceType
+                ? t("store.source.selectDocument")
+                : t("store.source.selectTypeFirst")
+            }
+            options={(options[sourceType] || []).map((id) => ({
+              value: id,
+              label: id,
+            }))}
+          />
         </div>
 
         {/* QC TOGGLE */}
-        <div className="col-6 col-md-2">
-          <div className="form-check mt-2">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="qcDone"
-              checked={qcDone}
-              onChange={(e) => setQcDone(e.target.checked)}
-            />
-            <label className="form-check-label" htmlFor="qcDone">
-              QC Done
-            </label>
-          </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="qcDoneSelector"
+            checked={qcDone}
+            onCheckedChange={(checked) => setQcDone(checked === true)}
+          />
+          <label
+            htmlFor="qcDoneSelector"
+            className="text-sm font-medium text-foreground"
+          >
+            {t("store.source.qcDone")}
+          </label>
         </div>
 
         {/* LOAD */}
-        <div className="col-6 col-md-3">
-          <button
-            className="btn btn-outline-primary w-100"
+        <div>
+          <Button
+            variant="outline"
+            className="w-full"
             disabled={!sourceType || !sourceId}
             onClick={() =>
               loadSource(sourceType, sourceId, { qc_done: qcDone })
             }
           >
-            Load
-          </button>
+            {t("store.source.load")}
+          </Button>
         </div>
       </div>
     </div>

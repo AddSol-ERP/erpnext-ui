@@ -1,20 +1,29 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { ClipboardList, Plus, Table2, Trash2, Truck } from "lucide-react";
 import { useHeader } from "../../../../context/HeaderContext";
 import { get, post } from "../../../../services/api";
 import { FormField } from "../../../../components/FormField";
+import FormSection from "../../../../components/FormSection";
+import FormErrorSummary from "../../../../components/FormErrorSummary";
+import { focusFirstError } from "../../../../lib/formValidation";
 import LinkField from "../../../../components/LinkField";
 import DeliveryNotePicker from "./DeliveryNotePicker";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function DeliveryNoteForm() {
   const { name } = useParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
   const [showSource, setShowSource] = useState(false);
   const isEdit = !!name;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [doc, setDoc] = useState({
     customer: "",
@@ -31,54 +40,7 @@ export default function DeliveryNoteForm() {
     docstatus: 0,
   });
 
-  /* ================= HEADER ================= */
-  useEffect(() => {
-    setHeader({
-      title: isEdit ? `Delivery ${name}` : "New Delivery",
-      subtitle: "Dispatch goods",
-
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Store", path: "/store" },
-        { label: "Delivery", path: "/store/delivery" },
-        { label: isEdit ? name : "New" },
-      ],
-
-      actions: [
-        {
-          label: "← Back",
-          variant: "btn-outline-primary",
-          onClick: () => navigate(-1),
-        },
-        !doc.docstatus && {
-          label: loading ? "Saving..." : "💾 Save",
-          variant: "btn-success",
-          onClick: handleSave,
-        },
-        isEdit &&
-          doc.docstatus === 0 && {
-            label: "Submit",
-            variant: "btn-primary",
-            onClick: handleSubmit,
-          },
-      ].filter(Boolean),
-    });
-
-    return () => setHeader({});
-  }, [loading, doc]);
-
-  /* ================= INIT ================= */
-  useEffect(() => {
-    if (isEdit) loadDoc();
-    else {
-      setDoc((p) => ({
-        ...p,
-        posting_date: new Date().toISOString().split("T")[0],
-      }));
-      autoCompany();
-    }
-  }, [name]);
-
+  /* ================= HELPERS ================= */
   const autoCompany = async () => {
     try {
       const res = await get("method/frappe.client.get_list", {
@@ -90,10 +52,11 @@ export default function DeliveryNoteForm() {
       if (res.message?.length) {
         setDoc((p) => ({ ...p, company: res.message[0].name }));
       }
-    } catch {}
+    } catch {
+      // company stays empty — validated on save
+    }
   };
 
-  /* ================= LOAD ================= */
   const loadDoc = async () => {
     try {
       setLoading(true);
@@ -115,7 +78,7 @@ export default function DeliveryNoteForm() {
         docstatus: d.docstatus,
       });
     } catch {
-      setError("Failed to load");
+      setError(t("common.failedToLoad", { name: t("store.dn.title") }));
     } finally {
       setLoading(false);
     }
@@ -138,9 +101,12 @@ export default function DeliveryNoteForm() {
   };
 
   const updateRow = (i, field, value) => {
-    const updated = [...doc.items];
-    updated[i][field] = value;
-    setDoc({ ...doc, items: updated });
+    setDoc((p) => ({
+      ...p,
+      items: p.items.map((row, idx) =>
+        idx === i ? { ...row, [field]: value } : row,
+      ),
+    }));
   };
 
   const removeRow = (i) => {
@@ -152,42 +118,74 @@ export default function DeliveryNoteForm() {
 
   /* ================= ITEM AUTO-POPULATE ================= */
   const handleItemChange = async (i, itemCode) => {
-    const updated = [...doc.items];
-    updated[i].item_code = itemCode;
+    updateRow(i, "item_code", itemCode);
 
     // Auto-fill UOM from Item master
     try {
       const res = await get(`resource/Item/${encodeURIComponent(itemCode)}`);
       const item = res.data;
+
       if (item) {
-        updated[i].uom = item.stock_uom || "";
+        const uom = item.stock_uom || "";
+
+        setDoc((p) => ({
+          ...p,
+          items: p.items.map((row, idx) =>
+            idx === i ? { ...row, uom } : row,
+          ),
+        }));
       }
     } catch (e) {
       console.warn("Failed to fetch item details:", e);
     }
-
-    setDoc({ ...doc, items: updated });
   };
 
   /* ================= VALIDATION ================= */
   const validate = () => {
-    if (!doc.customer) return "Customer required";
-    if (!doc.company) return "Company required";
-    if (!doc.items.length) return "Add items";
+    const errs = {};
 
-    for (const row of doc.items) {
-      if (!row.item_code || !row.qty) return "Fill item rows";
-      if (parseFloat(row.qty) <= 0) return "Qty must be > 0";
-      if (!row.warehouse) return "Warehouse required";
+    if (!doc.customer) {
+      errs.customer = t("store.validation.customerRequired");
+    }
+    if (!doc.company) {
+      errs.company = t("store.validation.companyRequired");
     }
 
-    return "";
+    if (!doc.items.length) {
+      errs.items = t("store.validation.addItems");
+    } else {
+      for (const row of doc.items) {
+        if (!row.item_code || !row.qty) {
+          errs.items = t("store.validation.fillItemRows");
+          break;
+        }
+        if (parseFloat(row.qty) <= 0) {
+          errs.items = t("store.validation.qtyGtZero");
+          break;
+        }
+        if (!row.warehouse) {
+          errs.items = t("store.validation.warehouseRequired");
+          break;
+        }
+      }
+    }
+
+    const list = Object.values(errs);
+    setFieldErrors(errs);
+    return {
+      fieldErrors: errs,
+      summary: list.length > 1 ? t("common.fixErrors") : list[0] || "",
+    };
   };
 
   /* ================= SAVE ================= */
   const handleSave = async () => {
-    const err = validate();
-    if (err) return setError(err);
+    const result = validate();
+    if (Object.keys(result.fieldErrors).length) {
+      setError(result.summary);
+      requestAnimationFrame(() => focusFirstError(result.fieldErrors));
+      return;
+    }
 
     try {
       setLoading(true);
@@ -204,7 +202,7 @@ export default function DeliveryNoteForm() {
 
       navigate(`/store/delivery/${res.data.name}`);
     } catch {
-      setError("Save failed");
+      setError(t("common.saveFailed"));
     } finally {
       setLoading(false);
     }
@@ -222,15 +220,69 @@ export default function DeliveryNoteForm() {
 
       loadDoc();
     } catch {
-      setError("Submit failed");
+      setError(t("common.submitFailed"));
     } finally {
       setLoading(false);
     }
   };
 
+  /* ================= HEADER ================= */
+  useEffect(() => {
+    setHeader({
+      title: isEdit
+        ? t("store.dn.editTitle", { name })
+        : t("store.dn.newTitle"),
+      subtitle: t("store.dn.formSubtitle"),
+
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.store"), path: "/store" },
+        { label: t("store.dn.title"), path: "/store/delivery" },
+        { label: isEdit ? name : t("common.new") },
+      ],
+
+      actions: [
+        {
+          label: t("common.back"),
+          variant: "btn-outline-primary",
+          onClick: () => navigate(-1),
+        },
+        !doc.docstatus && {
+          label: loading ? t("common.saving") : t("common.save"),
+          variant: "btn-success",
+          onClick: handleSave,
+        },
+        isEdit &&
+          doc.docstatus === 0 && {
+            label: t("common.submit"),
+            variant: "btn-primary",
+            onClick: handleSubmit,
+          },
+      ].filter(Boolean),
+    });
+
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, doc]);
+
+  /* ================= INIT ================= */
+  useEffect(() => {
+    // loadDoc/default setDoc only touch state after mount setup.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isEdit) loadDoc();
+    else {
+      setDoc((p) => ({
+        ...p,
+        posting_date: new Date().toISOString().split("T")[0],
+      }));
+      autoCompany();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
+
   /* ================= UI ================= */
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3 pt-4">
       {showSource && (
         <DeliveryNotePicker
           show={showSource}
@@ -244,182 +296,197 @@ export default function DeliveryNoteForm() {
           }}
         />
       )}
-      {error && <div className="alert alert-danger">{error}</div>}
+
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* BASIC */}
-      <div className="card mb-3">
-        <div className="card-body row g-2">
-          <div className="col-md-4">
-            <FormField label="Customer" required>
-              <LinkField
-                doctype="Customer"
-                value={doc.customer}
-                onChange={(v) => setDoc({ ...doc, customer: v })}
-              />
-            </FormField>
-          </div>
+      <FormSection
+        title={t("store.form.basics")}
+        icon={ClipboardList}
+        contentClassName="grid grid-cols-1 gap-3 md:grid-cols-4"
+      >
+        <FormField
+          label={t("store.form.customer")}
+          required
+          name="customer"
+          error={fieldErrors.customer}
+        >
+          <LinkField
+            doctype="Customer"
+            value={doc.customer}
+            onChange={(v) => setDoc({ ...doc, customer: v })}
+          />
+        </FormField>
 
-          <div className="col-md-4">
-            <FormField label="Company" required>
-              <LinkField
-                doctype="Company"
-                value={doc.company}
-                onChange={(v) => setDoc({ ...doc, company: v })}
-              />
-            </FormField>
-          </div>
+        <FormField
+          label={t("store.form.company")}
+          required
+          name="company"
+          error={fieldErrors.company}
+        >
+          <LinkField
+            doctype="Company"
+            value={doc.company}
+            onChange={(v) => setDoc({ ...doc, company: v })}
+          />
+        </FormField>
 
-          <div className="col-md-4">
-            <FormField label="Posting Date">
-              <input
-                type="date"
-                className="form-control"
-                value={doc.posting_date}
-                onChange={(e) =>
-                  setDoc({ ...doc, posting_date: e.target.value })
-                }
-              />
-            </FormField>
-          </div>
+        <FormField
+          label={t("store.form.postingDate")}
+          name="posting_date"
+        >
+          <Input
+            type="date"
+            value={doc.posting_date}
+            onChange={(e) =>
+              setDoc({ ...doc, posting_date: e.target.value })
+            }
+          />
+        </FormField>
 
-          <div className="col-md-4">
-            <FormField label="Default Warehouse">
-              <LinkField
-                doctype="Warehouse"
-                value={doc.set_warehouse}
-                onChange={(v) => setDoc({ ...doc, set_warehouse: v })}
-              />
-            </FormField>
-          </div>
-        </div>
-      </div>
+        <FormField
+          label={t("store.form.defaultWarehouse")}
+          name="set_warehouse"
+        >
+          <LinkField
+            doctype="Warehouse"
+            value={doc.set_warehouse}
+            onChange={(v) => setDoc({ ...doc, set_warehouse: v })}
+          />
+        </FormField>
+      </FormSection>
 
       {/* ITEMS */}
-      <div className="card mb-3">
-        <div className="card-body">
-          <div className="d-flex justify-content-between mb-2">
-            <h6>Items</h6>
+      <FormSection
+        title={t("store.form.items")}
+        icon={Table2}
+        action={
+          !doc.docstatus ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSource(true)}
+              >
+                {t("store.form.getItems")}
+              </Button>
+
+              <Button size="sm" onClick={addRow}>
+                <Plus />
+                {t("common.addRow")}
+              </Button>
+            </div>
+          ) : null
+        }
+        contentClassName="flex flex-col gap-3"
+      >
+        <FormField
+          name="items"
+          error={fieldErrors.items}
+          className={fieldErrors.items ? "" : "sr-only"}
+        >
+          <span className="sr-only">{t("store.form.items")}</span>
+        </FormField>
+
+        {doc.items.map((row, i) => (
+          <div
+            key={i}
+            className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-background p-3 md:grid-cols-12 md:items-end"
+          >
+            <div className="col-span-2 md:col-span-3">
+              <FormField label={t("store.form.item")} required>
+                <LinkField
+                  doctype="Item"
+                  value={row.item_code}
+                  onChange={(v) => handleItemChange(i, v)}
+                />
+              </FormField>
+            </div>
+
+            <div className="md:col-span-2">
+              <FormField label={t("store.form.qty")} required>
+                <Input
+                  type="number"
+                  value={row.qty}
+                  onChange={(e) => updateRow(i, "qty", e.target.value)}
+                />
+              </FormField>
+            </div>
+
+            <div className="md:col-span-2">
+              <FormField label={t("store.form.uom")}>
+                <Input
+                  value={row.uom}
+                  onChange={(e) => updateRow(i, "uom", e.target.value)}
+                />
+              </FormField>
+            </div>
+
+            <div className="col-span-2 md:col-span-3">
+              <FormField label={t("store.form.warehouse")} required>
+                <LinkField
+                  doctype="Warehouse"
+                  value={row.warehouse}
+                  onChange={(v) => updateRow(i, "warehouse", v)}
+                />
+              </FormField>
+            </div>
 
             {!doc.docstatus && (
-              <div className="d-flex gap-2">
-                <button
-                  className="btn btn-sm btn-outline-primary"
-                  onClick={() => setShowSource(true)}
+              <div className="col-span-2 flex items-end md:col-span-2">
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => removeRow(i)}
+                  aria-label={t("common.delete")}
                 >
-                  📦 Get Items
-                </button>
-
-                <button className="btn btn-sm btn-primary" onClick={addRow}>
-                  + Add Row
-                </button>
+                  <Trash2 />
+                </Button>
               </div>
             )}
           </div>
-
-          {doc.items.map((row, i) => (
-            <div key={i} className="row g-2 mb-2 align-items-end">
-              <div className="col-md-3">
-                <FormField label="Item" required>
-                  <LinkField
-                    doctype="Item"
-                    value={row.item_code}
-                    onChange={(v) => handleItemChange(i, v)}
-                  />
-                </FormField>
-              </div>
-
-              <div className="col-md-2">
-                <FormField label="Qty" required>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={row.qty}
-                    onChange={(e) => updateRow(i, "qty", e.target.value)}
-                  />
-                </FormField>
-              </div>
-
-              <div className="col-md-2">
-                <FormField label="UOM">
-                  <input
-                    className="form-control"
-                    value={row.uom}
-                    onChange={(e) => updateRow(i, "uom", e.target.value)}
-                  />
-                </FormField>
-              </div>
-
-              <div className="col-md-3">
-                <FormField label="Warehouse" required>
-                  <LinkField
-                    doctype="Warehouse"
-                    value={row.warehouse}
-                    onChange={(v) => updateRow(i, "warehouse", v)}
-                  />
-                </FormField>
-              </div>
-
-              {!doc.docstatus && (
-                <div className="col-md-2">
-                  <button
-                    className="btn btn-danger w-100"
-                    onClick={() => removeRow(i)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+        ))}
+      </FormSection>
 
       {/* DISPATCH */}
-      <div className="card">
-        <div className="card-body row g-2">
-          <div className="col-md-3">
-            <FormField label="Driver">
-              <input
-                className="form-control"
-                value={doc.driver}
-                onChange={(e) => setDoc({ ...doc, driver: e.target.value })}
-              />
-            </FormField>
-          </div>
+      <FormSection
+        title={t("store.form.dispatch")}
+        icon={Truck}
+        contentClassName="grid grid-cols-1 gap-3 md:grid-cols-4"
+      >
+        <FormField label={t("store.form.driver")} name="driver">
+          <Input
+            value={doc.driver}
+            onChange={(e) => setDoc({ ...doc, driver: e.target.value })}
+          />
+        </FormField>
 
-          <div className="col-md-3">
-            <FormField label="Vehicle No">
-              <input
-                className="form-control"
-                value={doc.vehicle_no}
-                onChange={(e) => setDoc({ ...doc, vehicle_no: e.target.value })}
-              />
-            </FormField>
-          </div>
+        <FormField label={t("store.form.vehicleNo")} name="vehicle_no">
+          <Input
+            value={doc.vehicle_no}
+            onChange={(e) => setDoc({ ...doc, vehicle_no: e.target.value })}
+          />
+        </FormField>
 
-          <div className="col-md-3">
-            <FormField label="Transporter">
-              <input
-                className="form-control"
-                value={doc.transporter}
-                onChange={(e) =>
-                  setDoc({ ...doc, transporter: e.target.value })
-                }
-              />
-            </FormField>
-          </div>
+        <FormField
+          label={t("store.form.transporter")}
+          name="transporter"
+        >
+          <Input
+            value={doc.transporter}
+            onChange={(e) =>
+              setDoc({ ...doc, transporter: e.target.value })
+            }
+          />
+        </FormField>
 
-          <div className="col-md-3">
-            <FormField label="LR Number">
-              <input
-                className="form-control"
-                value={doc.lr_number}
-                onChange={(e) => setDoc({ ...doc, lr_number: e.target.value })}
-              />
-            </FormField>
-          </div>
-        </div>
-      </div>
+        <FormField label={t("store.form.lrNumber")} name="lr_number">
+          <Input
+            value={doc.lr_number}
+            onChange={(e) => setDoc({ ...doc, lr_number: e.target.value })}
+          />
+        </FormField>
+      </FormSection>
     </div>
   );
 }

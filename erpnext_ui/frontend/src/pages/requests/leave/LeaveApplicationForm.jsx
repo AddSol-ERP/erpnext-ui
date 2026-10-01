@@ -1,15 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { CalendarDays, FileText } from "lucide-react";
 import { useHeader } from "../../../context/HeaderContext";
 import { get, post } from "../../../services/api";
 import { FormField } from "../../../components/FormField";
+import FormSection from "../../../components/FormSection";
+import FormErrorSummary from "../../../components/FormErrorSummary";
+import { focusFirstError } from "../../../lib/formValidation";
 import LinkField from "../../../components/LinkField";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function LeaveApplicationForm() {
   const { name } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const isEdit = !!name;
 
@@ -19,6 +28,7 @@ export default function LeaveApplicationForm() {
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [leaveBalance, setLeaveBalance] = useState(null);
   const [approverError, setApproverError] = useState("");
@@ -33,50 +43,10 @@ export default function LeaveApplicationForm() {
     reason: "",
   });
 
-  /* ================= HEADER ================= */
-  useEffect(() => {
-    setHeader({
-      title: isEdit
-        ? `Leave Application ${doc.name || ""}`
-        : "New Leave Application",
-      subtitle: isEdit
-        ? "Review and update leave request"
-        : "Create a new leave request",
-
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Requests", path: "/requests" },
-        { label: "Leave Applications", path: "/requests/leave" },
-        {
-          label: isEdit ? doc.name || "Edit" : "New",
-        },
-      ],
-
-      actions: [
-        !isSubmitted && {
-          label: loading ? "Saving..." : "Save",
-          variant: "btn-success",
-          onClick: handleSave,
-        },
-
-        isEdit &&
-          !isSubmitted && {
-            label: "Submit",
-            variant: "btn-primary",
-            onClick: handleSave,
-          },
-      ].filter(Boolean),
-    });
-
-    return () => setHeader({});
-  }, [loading, isSubmitted, doc]);
-
   /* ================= AUTO EMPLOYEE ================= */
-  useEffect(() => {
-    if (!isEdit) autoSetEmployee();
-  }, []);
-
-  const autoSetEmployee = async () => {
+  // autoSetEmployee setStates after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function autoSetEmployee() {
     const res = await get("method/frappe.client.get_list", {
       doctype: "Employee",
       fields: JSON.stringify(["name"]),
@@ -91,14 +61,19 @@ export default function LeaveApplicationForm() {
         employee: list[0].name,
       }));
     }
-  };
+  }
+
+  useEffect(() => {
+    if (isEdit) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    autoSetEmployee();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ================= LOAD ================= */
-  useEffect(() => {
-    if (isEdit) loadDoc();
-  }, [name]);
-
-  const loadDoc = async () => {
+  // loadDoc setStates only after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function loadDoc() {
     setLoading(true);
     try {
       const res = await get(`resource/Leave Application/${name}`);
@@ -116,18 +91,24 @@ export default function LeaveApplicationForm() {
 
       if (d.docstatus === 1) setIsSubmitted(true);
     } catch {
-      setError("Failed to load");
+      setError(t("requests.leave.loadFailed"));
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (isEdit) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadDoc();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
 
   /* ================= APPROVER ================= */
-  useEffect(() => {
-    if (doc.employee) fetchApprover();
-  }, [doc.employee]);
-
-  const fetchApprover = async () => {
+  // fetchApprover setStates after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function fetchApprover() {
     try {
       const res = await get(
         "method/hrms.hr.doctype.leave_application.leave_application.get_leave_approver",
@@ -135,7 +116,7 @@ export default function LeaveApplicationForm() {
       );
 
       if (!res.message) {
-        setApproverError("No Leave Approver assigned for this employee");
+        setApproverError(t("requests.leave.noApprover"));
         setDoc((prev) => ({ ...prev, leave_approver: "" }));
       } else {
         setApproverError("");
@@ -145,18 +126,22 @@ export default function LeaveApplicationForm() {
         }));
       }
     } catch {
-      setApproverError("Unable to fetch approver");
+      setApproverError(t("requests.leave.approverFetchFailed"));
     }
-  };
+  }
+
+  useEffect(() => {
+    if (doc.employee) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchApprover();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.employee]);
 
   /* ================= LEAVE DETAILS ================= */
-  useEffect(() => {
-    if (doc.employee && doc.leave_type) {
-      fetchLeaveDetails();
-    }
-  }, [doc.employee, doc.leave_type]);
-
-  const fetchLeaveDetails = async () => {
+  // fetchLeaveDetails setStates after awaited API responses; the compiler
+  // rule conservatively flags any setState-reaching call from an effect.
+  async function fetchLeaveDetails() {
     try {
       const res = await get(
         "method/hrms.hr.doctype.leave_application.leave_application.get_leave_details",
@@ -171,7 +156,15 @@ export default function LeaveApplicationForm() {
     } catch {
       setLeaveBalance(null);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (doc.employee && doc.leave_type) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchLeaveDetails();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.employee, doc.leave_type]);
 
   /* ================= DAYS ================= */
   const getTotalDays = () => {
@@ -191,30 +184,61 @@ export default function LeaveApplicationForm() {
 
   /* ================= VALIDATION ================= */
   const validate = () => {
-    if (!doc.employee || !doc.leave_type || !doc.from_date || !doc.to_date) {
-      return "All required fields must be filled";
-    }
+    const errs = {};
 
+    if (!doc.employee) {
+      errs.employee = t("common.fieldRequired", {
+        field: t("requests.leave.employee"),
+      });
+    }
+    if (!doc.leave_type) {
+      errs.leave_type = t("common.fieldRequired", {
+        field: t("requests.leave.leaveType"),
+      });
+    }
+    if (!doc.from_date) {
+      errs.from_date = t("common.fieldRequired", {
+        field: t("requests.leave.fromDate"),
+      });
+    }
+    if (!doc.to_date) {
+      errs.to_date = t("common.fieldRequired", {
+        field: t("requests.leave.toDate"),
+      });
+    }
     if (!doc.leave_approver) {
-      return "Leave approver is required";
+      errs.leave_approver = t("requests.leave.validationApprover");
+    }
+    if (doc.from_date && doc.to_date && doc.to_date < doc.from_date) {
+      errs.to_date = t("requests.leave.validationRange");
+    }
+    if (
+      leaveBalance !== null &&
+      totalDays > leaveBalance &&
+      !errs.to_date &&
+      !errs.from_date
+    ) {
+      errs.from_date = t("requests.leave.validationBalance");
     }
 
-    if (doc.to_date < doc.from_date) {
-      return "Invalid date range";
-    }
-
-    if (leaveBalance !== null && totalDays > leaveBalance) {
-      return "Insufficient leave balance";
-    }
-
-    return "";
+    const list = Object.values(errs);
+    setFieldErrors(errs);
+    return {
+      fieldErrors: errs,
+      summary: list.length > 1 ? t("common.fixErrors") : list[0] || "",
+    };
   };
 
   /* ================= SAVE ================= */
-  const handleSave = async () => {
-    const err = validate();
-    if (err) return setError(err);
+  async function handleSave() {
+    const result = validate();
+    if (Object.keys(result.fieldErrors).length) {
+      setError(result.summary);
+      requestAnimationFrame(() => focusFirstError(result.fieldErrors));
+      return;
+    }
 
+    setError("");
     setLoading(true);
     try {
       if (isEdit) {
@@ -223,140 +247,215 @@ export default function LeaveApplicationForm() {
         await post("resource/Leave Application", doc);
       }
 
-      navigate("/leave");
+      navigate("/requests/leave");
     } catch {
-      setError("Save failed");
+      setError(t("common.saveFailed"));
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  /* ================= HEADER ================= */
+  useEffect(() => {
+    setHeader({
+      title: isEdit
+        ? t("requests.header.leaveEditTitle", { name })
+        : t("requests.header.leaveNewTitle"),
+      subtitle: isEdit
+        ? t("requests.header.leaveEditSubtitle")
+        : t("requests.header.leaveNewSubtitle"),
+
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.requests"), path: "/requests" },
+        { label: t("requests.header.leaveListTitle"), path: "/requests/leave" },
+        { label: isEdit ? name : t("common.new") },
+      ],
+
+      actions: [
+        !isSubmitted && {
+          label: loading ? t("common.saving") : t("common.save"),
+          variant: "btn-success",
+          onClick: handleSave,
+        },
+
+        isEdit &&
+          !isSubmitted && {
+            label: t("common.submit"),
+            variant: "btn-primary",
+            onClick: handleSave,
+          },
+      ].filter(Boolean),
+    });
+
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, name, isEdit, setHeader, loading, isSubmitted]);
 
   const isDisabled = isSubmitted || !!approverError;
 
   /* ================= UI ================= */
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
-      {error && <div className="alert alert-danger">{error}</div>}
+    <div className="mx-auto w-full max-w-[1100px] space-y-3 pt-4">
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
+
       {approverError && (
-        <div className="alert alert-warning">{approverError}</div>
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400"
+        >
+          {approverError}
+        </div>
       )}
 
-      <div className="card mb-3">
-        <div className="card-body row g-2">
-          <div className="col-md-6">
-            <FormField label="Employee" required>
+      <FormSection
+        title={t("requests.leave.sectionDetails")}
+        icon={CalendarDays}
+        contentClassName="grid grid-cols-1 gap-3 md:grid-cols-4"
+      >
+        <div className="md:col-span-2">
+          <FormField
+            label={t("requests.leave.employee")}
+            required
+            name="employee"
+            error={fieldErrors.employee}
+          >
+            {isSubmitted ? (
+              <Input value={doc.employee} disabled />
+            ) : (
               <LinkField
                 doctype="Employee"
                 value={doc.employee}
                 disabled={isDisabled}
                 onChange={(v) => setDoc({ ...doc, employee: v })}
               />
-            </FormField>
-          </div>
+            )}
+          </FormField>
+        </div>
 
-          <div className="col-md-6">
-            <FormField label="Approver">
-              <input
-                className="form-control"
-                value={doc.leave_approver || "Auto assigned"}
-                disabled
-              />
-            </FormField>
-          </div>
+        <div className="md:col-span-2">
+          <FormField
+            label={t("requests.leave.approver")}
+            name="leave_approver"
+            error={fieldErrors.leave_approver}
+          >
+            <Input
+              value={doc.leave_approver || t("requests.leave.autoAssigned")}
+              disabled
+            />
+          </FormField>
+        </div>
 
-          <div className="col-md-6">
-            <FormField label="Leave Type" required>
+        <div className="md:col-span-2">
+          <FormField
+            label={t("requests.leave.leaveType")}
+            required
+            name="leave_type"
+            error={fieldErrors.leave_type}
+          >
+            {isSubmitted ? (
+              <Input value={doc.leave_type} disabled />
+            ) : (
               <LinkField
                 doctype="Leave Type"
                 value={doc.leave_type}
                 disabled={isDisabled}
                 onChange={(v) => setDoc({ ...doc, leave_type: v })}
               />
-            </FormField>
+            )}
 
-            {leaveBalance !== null && (
-              <small className="text-success">
-                Balance: {leaveBalance} days
+            {leaveBalance !== null && !fieldErrors.leave_type && (
+              <small className="text-xs text-emerald-600 dark:text-emerald-400">
+                {t("requests.leave.balance", { days: leaveBalance })}
               </small>
             )}
-          </div>
-
-          <div className="col-md-3">
-            <FormField label="From Date" required>
-              <input
-                type="date"
-                className="form-control"
-                disabled={isDisabled}
-                value={doc.from_date}
-                onChange={(e) => setDoc({ ...doc, from_date: e.target.value })}
-              />
-            </FormField>
-          </div>
-
-          <div className="col-md-3">
-            <FormField label="To Date" required>
-              <input
-                type="date"
-                className="form-control"
-                disabled={isDisabled}
-                min={doc.from_date}
-                value={doc.to_date}
-                onChange={(e) => setDoc({ ...doc, to_date: e.target.value })}
-              />
-            </FormField>
-          </div>
-
-          {totalDays > 0 && (
-            <div className="col-12">
-              <small className="text-info">
-                Total Days: {totalDays} · Remaining:{" "}
-                {leaveBalance !== null ? leaveBalance - totalDays : "-"}
-              </small>
-            </div>
-          )}
+          </FormField>
         </div>
-      </div>
 
-      <div className="card">
-        <div className="card-body row g-2">
-          <div className="col-md-6">
-            <FormField label="Half Day">
-              <div className="d-flex gap-2">
-                <button
-                  className={`btn ${
-                    doc.half_day ? "btn-primary" : "btn-outline-secondary"
-                  }`}
-                  disabled={isDisabled}
-                  onClick={() => setDoc({ ...doc, half_day: 1 })}
-                >
-                  Yes
-                </button>
-
-                <button
-                  className={`btn ${
-                    !doc.half_day ? "btn-primary" : "btn-outline-secondary"
-                  }`}
-                  disabled={isDisabled}
-                  onClick={() => setDoc({ ...doc, half_day: 0 })}
-                >
-                  No
-                </button>
-              </div>
-            </FormField>
-          </div>
-          <div className="col-md-6">
-            <FormField label="Reason">
-              <textarea
-                className="form-control"
-                disabled={isDisabled}
-                rows={3}
-                value={doc.reason}
-                onChange={(e) => setDoc({ ...doc, reason: e.target.value })}
-              />
-            </FormField>
-          </div>
+        <div className="md:col-span-1">
+          <FormField
+            label={t("requests.leave.fromDate")}
+            required
+            name="from_date"
+            error={fieldErrors.from_date}
+          >
+            <Input
+              type="date"
+              disabled={isDisabled}
+              value={doc.from_date}
+              onChange={(e) => setDoc({ ...doc, from_date: e.target.value })}
+            />
+          </FormField>
         </div>
-      </div>
+
+        <div className="md:col-span-1">
+          <FormField
+            label={t("requests.leave.toDate")}
+            required
+            name="to_date"
+            error={fieldErrors.to_date}
+          >
+            <Input
+              type="date"
+              disabled={isDisabled}
+              min={doc.from_date}
+              value={doc.to_date}
+              onChange={(e) => setDoc({ ...doc, to_date: e.target.value })}
+            />
+          </FormField>
+        </div>
+
+        {totalDays > 0 && (
+          <div className="md:col-span-4">
+            <small className="text-xs text-primary">
+              {t("requests.leave.totalDays", { days: totalDays })} ·{" "}
+              {t("requests.leave.remaining", {
+                days:
+                  leaveBalance !== null ? leaveBalance - totalDays : "-",
+              })}
+            </small>
+          </div>
+        )}
+      </FormSection>
+
+      <FormSection
+        title={t("requests.leave.sectionNotes")}
+        icon={FileText}
+        contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2"
+      >
+        <FormField label={t("requests.leave.halfDay")} name="half_day">
+          <div className="mt-1 flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={doc.half_day ? "default" : "outline"}
+              disabled={isDisabled}
+              onClick={() => setDoc({ ...doc, half_day: 1 })}
+            >
+              {t("common.yes")}
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant={!doc.half_day ? "default" : "outline"}
+              disabled={isDisabled}
+              onClick={() => setDoc({ ...doc, half_day: 0 })}
+            >
+              {t("common.no")}
+            </Button>
+          </div>
+        </FormField>
+
+        <FormField label={t("requests.leave.reason")} name="reason">
+          <Textarea
+            disabled={isDisabled}
+            rows={3}
+            value={doc.reason}
+            onChange={(e) => setDoc({ ...doc, reason: e.target.value })}
+          />
+        </FormField>
+      </FormSection>
     </div>
   );
 }

@@ -70,13 +70,8 @@ export const detectConsecutiveShiftWork = (
 
   const currentShiftEnd = new Date(currentShift.end_time);
   const nextShiftStart = new Date(nextShift.start_time);
-  const nextShiftEnd = new Date(nextShift.end_time);
 
   const lastPunchDate = new Date(lastPunch);
-  const afterBuffer = nextShift.allow_check_out_after_shift_end_time || 0;
-  const nextShiftWindowEnd = new Date(
-    nextShiftEnd.getTime() + afterBuffer * 60 * 1000,
-  );
 
   // Check if last punch is after current shift end (indicating work into next shift)
   if (lastPunchDate > currentShiftEnd) {

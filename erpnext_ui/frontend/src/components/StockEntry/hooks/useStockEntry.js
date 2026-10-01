@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { loadEntryTypesAPI } from "../api/LoadEntryType";
 import { get, post } from "../../../services/api";
 import { useToast } from "../../../context/ToastContext";
 
 export function useStockEntry() {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState("incoming");
   const [items, setItems] = useState([]);
@@ -66,6 +68,38 @@ export function useStockEntry() {
     return map;
   };
 
+  const getBulkValuation = async (items) => {
+    const payload = items.map((i) => ({
+      item_code: i.code,
+      qty: i.qty,
+      batch_no: i.batch_no,
+    }));
+
+    const res = await get(
+      "method/shopfloor.api.stock_entry.get_bulk_valuation",
+      {
+        items: JSON.stringify(payload),
+        warehouse: fromWarehouse,
+      },
+    );
+
+    return res.message;
+  };
+
+  const enrichValuation = async (items) => {
+    const valuationMap = await getBulkValuation(items);
+
+    return items.map((i) => {
+      const val = valuationMap[i.code] || {};
+
+      return {
+        ...i,
+        valuation_rate: val.valuation_rate,
+        valuation_status: val.status,
+      };
+    });
+  };
+
   const enrichStock = async (items, warehouse) => {
     if (!warehouse || !items.length) return items;
 
@@ -82,6 +116,13 @@ export function useStockEntry() {
         reservedQty: stock.reserved_qty || 0,
       };
     });
+  };
+
+  const getStockMode = (sourceType) => {
+    if (["Purchase Receipt", "Purchase Invoice"].includes(sourceType))
+      return "none";
+
+    return "strict";
   };
 
   // =============================
@@ -114,7 +155,6 @@ export function useStockEntry() {
 
     let enriched = await enrichStock(updated, fromWarehouse);
 
-    // 🔥 ADD THIS
     enriched = await enrichValuation(enriched);
 
     setItems(enriched);
@@ -129,7 +169,7 @@ export function useStockEntry() {
     // MOCK ITEM FETCH (replace with API)
     const item = {
       code: value,
-      name: "Item " + value,
+      name: t("store.item.itemName", { code: value }),
     };
 
     addItem(item);
@@ -149,7 +189,7 @@ export function useStockEntry() {
 
         const available = (i.stockQty || 0) - (i.reservedQty || 0);
 
-        // 🔥 only restrict in strict mode
+        // only restrict in strict mode
         if (i.stockMode === "strict") {
           return {
             ...i,
@@ -184,7 +224,6 @@ export function useStockEntry() {
       enriched = await enrichStock(items, fromWarehouse);
     }
 
-    // 🔥 ADD THIS
     enriched = await enrichValuation(enriched);
 
     setItems(
@@ -206,68 +245,12 @@ export function useStockEntry() {
     };
 
     updateAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromWarehouse]);
 
   // =============================
   // SUBMIT
   // =============================
-  const submit = async () => {
-    const invalid = getInvalidItems();
-
-    if (invalid.length) {
-      setInvalidItems(invalid);
-      setShowFixModal(true);
-      setShowSubmit(false);
-      return;
-    }
-
-    const payload = buildPayload();
-
-    try {
-      const res = await post("resource/Stock Entry", payload);
-
-      // optional submit (docstatus = 1)
-      await post(`resource/Stock Entry/${res.data.name}`, {
-        run_method: "submit",
-      });
-
-      toast.success("✅ Stock Entry Created: " + res.data.name);
-
-      setItems([]);
-      closeSubmitModal();
-    } catch (err) {
-      toast.error("✅ Stock Entry Failed");
-    }
-  };
-
-  useEffect(() => {
-    const load = async () => {
-      const data = await loadEntryTypesAPI();
-      setEntryTypes(data);
-    };
-
-    load();
-  }, []);
-
-  const openSource = () => setShowSource(true);
-  const closeSource = () => setShowSource(false);
-
-  const totalQty = items.reduce((a, b) => a + b.qty, 0);
-
-  const expandSetup = () => setIsSetupManuallyExpanded(true);
-  const compactSetup = () => setIsSetupManuallyExpanded(false);
-
-  const updateUOM = (code, uom) => {
-    setItems((prev) => prev.map((i) => (i.code === code ? { ...i, uom } : i)));
-  };
-
-  const getStockMode = (sourceType) => {
-    if (["Purchase Receipt", "Purchase Invoice"].includes(sourceType))
-      return "none";
-
-    return "strict";
-  };
-
   const getValidItems = () => {
     return items.filter((i) => {
       const available = (i.stockQty || 0) - (i.reservedQty || 0);
@@ -298,7 +281,7 @@ export function useStockEntry() {
           uom: i.uom,
         };
 
-        // 🔥 Warehouse mapping (IMPORTANT)
+        // Warehouse mapping (IMPORTANT)
         if (selectedType === "Material Receipt") {
           item.t_warehouse = toWarehouse;
         } else if (selectedType === "Material Issue") {
@@ -317,13 +300,13 @@ export function useStockEntry() {
           item.t_warehouse = toWarehouse;
         }
 
-        // 🔥 Incoming valuation
+        // Incoming valuation
         if (selectedType === "Material Receipt") {
           item.basic_rate = i.valuation_rate || 0;
           item.valuation_rate = i.valuation_rate || 0;
         }
 
-        // 🔥 Outgoing fallback safety
+        // Outgoing fallback safety
         if (selectedType !== "Material Receipt") {
           item.allow_zero_valuation_rate =
             i.valuation_status === "fallback" ? 1 : 0;
@@ -339,6 +322,58 @@ export function useStockEntry() {
       const available = (i.stockQty || 0) - (i.reservedQty || 0);
       return i.stockMode === "strict" && i.qty > available;
     });
+  };
+
+  const submit = async () => {
+    const invalid = getInvalidItems();
+
+    if (invalid.length) {
+      setInvalidItems(invalid);
+      setShowFixModal(true);
+      setShowSubmit(false);
+      return;
+    }
+
+    const payload = buildPayload();
+
+    try {
+      const res = await post("resource/Stock Entry", payload);
+
+      // optional submit (docstatus = 1)
+      await post(`resource/Stock Entry/${res.data.name}`, {
+        run_method: "submit",
+      });
+
+      toast.success(
+        t("store.entry.createdToast", { name: res.data.name }),
+      );
+
+      setItems([]);
+      closeSubmitModal();
+    } catch {
+      toast.error(t("store.entry.failedToast"));
+    }
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await loadEntryTypesAPI();
+      setEntryTypes(data);
+    };
+
+    load();
+  }, []);
+
+  const openSource = () => setShowSource(true);
+  const closeSource = () => setShowSource(false);
+
+  const totalQty = items.reduce((a, b) => a + b.qty, 0);
+
+  const expandSetup = () => setIsSetupManuallyExpanded(true);
+  const compactSetup = () => setIsSetupManuallyExpanded(false);
+
+  const updateUOM = (code, uom) => {
+    setItems((prev) => prev.map((i) => (i.code === code ? { ...i, uom } : i)));
   };
 
   const removeInvalidItems = () => {
@@ -373,38 +408,6 @@ export function useStockEntry() {
 
     setShowFixModal(false);
     setShowSubmit(true);
-  };
-
-  const enrichValuation = async (items) => {
-    const valuationMap = await getBulkValuation(items);
-
-    return items.map((i) => {
-      const val = valuationMap[i.code] || {};
-
-      return {
-        ...i,
-        valuation_rate: val.valuation_rate,
-        valuation_status: val.status,
-      };
-    });
-  };
-
-  const getBulkValuation = async (items) => {
-    const payload = items.map((i) => ({
-      item_code: i.code,
-      qty: i.qty,
-      batch_no: i.batch_no,
-    }));
-
-    const res = await get(
-      "method/shopfloor.api.stock_entry.get_bulk_valuation",
-      {
-        items: JSON.stringify(payload),
-        warehouse: fromWarehouse,
-      },
-    );
-
-    return res.message;
   };
 
   return {

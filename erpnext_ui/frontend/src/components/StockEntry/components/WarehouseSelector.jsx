@@ -1,60 +1,63 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { get } from "../../../services/api";
+import FormSelect from "../../FormSelect";
+import { FormField } from "../../FormField";
 
 export default function WarehouseSelector({
-  mode,
   fromWarehouse,
   setFromWarehouse,
   toWarehouse,
   setToWarehouse,
 }) {
+  const { t } = useTranslation();
   const [wareHouseList, setWareHouseList] = useState([]);
-  useEffect(() => {
-    getWareHouses();
-  }, []);
 
   const getWareHouses = async () => {
     let res = await get(`resource/Warehouse`);
     setWareHouseList(res?.data);
   };
 
+  useEffect(() => {
+    // getWareHouses only setStates after the awaited API response.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    getWareHouses();
+  }, []);
+
+  const warehouseOptions = (wareHouseList || []).map((w) => ({
+    value: w.name,
+    label: w.name,
+  }));
+
   return (
     <>
-      <div className="col-12 col-md-6">
-        <label className="form-label">From Warehouse</label>
-        <select
-          className="form-select"
+      <FormField
+        label={t("store.entry.fromWarehouse")}
+        name="from_warehouse"
+        htmlFor="stock-entry-from-warehouse"
+      >
+        <FormSelect
+          id="stock-entry-from-warehouse"
           value={fromWarehouse}
-          onChange={(e) => setFromWarehouse(e.target.value)}
-        >
-          <option value="">Select From Warehouse</option>
-          {wareHouseList.map((warehouse, warehouseIdx) => {
-            return (
-              <option key={`from-${warehouseIdx}`} value={warehouse.name}>
-                {warehouse.name}
-              </option>
-            );
-          })}
-        </select>
-      </div>
+          onChange={setFromWarehouse}
+          placeholder={t("store.entry.selectFromWarehouse")}
+          options={warehouseOptions}
+        />
+      </FormField>
 
-      <div className="col-12 col-md-6">
-        <label className="form-label">To Warehouse</label>
-        <select
-          className="form-select"
+      <FormField
+        label={t("store.entry.toWarehouse")}
+        name="to_warehouse"
+        htmlFor="stock-entry-to-warehouse"
+      >
+        <FormSelect
+          id="stock-entry-to-warehouse"
           value={toWarehouse}
-          onChange={(e) => setToWarehouse(e.target.value)}
-        >
-          <option value="">Select To Warehouse</option>
-          {wareHouseList.map((warehouse, warehouseIdx) => {
-            return (
-              <option key={`to-${warehouseIdx}`} value={warehouse.name}>
-                {warehouse.name}
-              </option>
-            );
-          })}
-        </select>
-      </div>
+          onChange={setToWarehouse}
+          placeholder={t("store.entry.selectToWarehouse")}
+          options={warehouseOptions}
+        />
+      </FormField>
     </>
   );
 }

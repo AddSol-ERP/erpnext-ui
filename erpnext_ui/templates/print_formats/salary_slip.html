@@ -1,0 +1,255 @@
+{#-
+	Salary Slip print format.
+
+	Notes for future edits:
+	* Totals MUST be accumulated with `namespace(...)`. A bare `{% set %}` inside a
+	  `{% for %}` block is scoped to the iteration and always reads back as 0.
+	* Printable components are resolved in a single query. Do not call
+	  frappe.get_doc() per row - that is N+1 queries per printed payslip.
+	* Only components flagged `custom_show_in_print` on Salary Component are
+	  rendered, and every total below is computed from that filtered set only.
+-#}
+
+{% set printable_components = frappe.db.get_all(
+	"Salary Component",
+	filters={"custom_show_in_print": 1},
+	pluck="name"
+) %}
+
+{% set currency = doc.currency or frappe.db.get_default("currency") %}
+
+{% set earnings_rows = [] %}
+{% for row in doc.earnings or [] %}
+	{% if row.salary_component in printable_components %}
+		{% set _ = earnings_rows.append(row) %}
+	{% endif %}
+{% endfor %}
+
+{% set deduction_rows = [] %}
+{% for row in doc.deductions or [] %}
+	{% if row.salary_component in printable_components %}
+		{% set _ = deduction_rows.append(row) %}
+	{% endif %}
+{% endfor %}
+
+{%- set totals = namespace(earnings=0, deductions=0) -%}
+{%- for row in earnings_rows -%}
+	{%- set totals.earnings = totals.earnings + (row.amount or 0) -%}
+{%- endfor -%}
+{%- for row in deduction_rows -%}
+	{%- set totals.deductions = totals.deductions + (row.amount or 0) -%}
+{%- endfor -%}
+
+{%- set net_pay = totals.earnings - totals.deductions -%}
+{%- set fmt = frappe.utils.fmt_money -%}
+
+<div class="salary-slip">
+	<style>
+		.salary-slip {
+			font-family: Arial, Helvetica, sans-serif;
+			font-size: 12px;
+			color: #1f272e;
+			max-width: 800px;
+			margin: 0 auto;
+			padding: 24px 30px;
+		}
+		.salary-slip .ss-title {
+			text-align: center;
+			font-size: 15px;
+			font-weight: 700;
+			margin: 8px 0 4px;
+		}
+		.salary-slip table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-bottom: 12px;
+		}
+		.salary-slip .ss-meta td {
+			padding: 2px 8px 2px 0;
+			vertical-align: top;
+		}
+		.salary-slip .ss-meta .ss-label {
+			font-weight: 700;
+			white-space: nowrap;
+			width: 130px;
+		}
+		.salary-slip .ss-table th,
+		.salary-slip .ss-table td {
+			border: 1px solid #d3d8de;
+			padding: 5px 8px;
+		}
+		.salary-slip .ss-table thead th {
+			background: #f4f6f8;
+			font-weight: 700;
+			text-align: left;
+		}
+		.salary-slip .ss-amount {
+			text-align: right;
+			white-space: nowrap;
+		}
+		.salary-slip .ss-total td {
+			font-weight: 700;
+			background: #fafbfc;
+		}
+		.salary-slip .ss-empty {
+			text-align: center;
+			color: #8d99a6;
+			padding: 8px;
+		}
+		.salary-slip .ss-summary {
+			margin-top: 6px;
+		}
+		.salary-slip .ss-summary .ss-label {
+			display: inline-block;
+			font-weight: 700;
+			min-width: 130px;
+		}
+		.salary-slip .ss-footer {
+			margin-top: 24px;
+			font-style: italic;
+			color: #6c7680;
+		}
+	</style>
+
+	<div class="ss-letterhead" style="text-align: center; margin-bottom: 10px;">
+		{{ letter_head }}
+	</div>
+
+	<div class="ss-title">
+		Pay Slip for the month of {{ frappe.utils.formatdate(doc.start_date, "MMMM yyyy") }}
+	</div>
+
+	{#- Employee details -#}
+	<table class="ss-meta">
+		<tr>
+			<td class="ss-label">Employee Name:</td>
+			<td>{{ doc.employee_name or "" }}</td>
+			<td class="ss-label">Employee ID:</td>
+			<td>{{ doc.employee or "" }}</td>
+		</tr>
+		<tr>
+			<td class="ss-label">Designation:</td>
+			<td>{{ doc.designation or "" }}</td>
+			<td class="ss-label">Department:</td>
+			<td>{{ doc.department or "" }}</td>
+		</tr>
+		<tr>
+			<td class="ss-label">Branch:</td>
+			<td>{{ doc.branch or "" }}</td>
+			<td class="ss-label">DOJ:</td>
+			<td>
+				{{ frappe.utils.formatdate(doc.date_of_joining or doc.start_date, "dd-MM-yyyy") }}
+			</td>
+		</tr>
+		<tr>
+			<td class="ss-label">PAN No:</td>
+			<td>{{ doc.pan_number or "-" }}</td>
+			<td class="ss-label">Client Code:</td>
+			<td>{{ doc.client_code or "-" }}</td>
+		</tr>
+		<tr>
+			<td class="ss-label">Bank A/C No:</td>
+			<td>{{ doc.bank_account_no or "-" }}</td>
+			<td class="ss-label">UAN No:</td>
+			<td>{{ doc.uan or "-" }}</td>
+		</tr>
+		<tr>
+			<td class="ss-label">PF No:</td>
+			<td>{{ doc.pf_number or "-" }}</td>
+			<td class="ss-label">ESIC No:</td>
+			<td>{{ doc.esic_no or "-" }}</td>
+		</tr>
+		<tr>
+			<td class="ss-label">Present Days:</td>
+			<td>{{ doc.payment_days or 0 }}</td>
+		</tr>
+	</table>
+
+	{#- Earnings / Deductions - totals cover only printable components -#}
+	<table class="ss-table">
+		<thead>
+			<tr>
+				<th style="width: 45%;">Earnings</th>
+				<th class="ss-amount" style="width: 10%;">Amount</th>
+				<th style="width: 35%;">Deductions</th>
+				<th class="ss-amount" style="width: 10%;">Amount</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% if not earnings_rows and not deduction_rows %}
+				<tr>
+					<td colspan="4" class="ss-empty">No salary components are marked for print.</td>
+				</tr>
+			{% else %}
+				{%- set earnings_len = earnings_rows | length -%}
+				{%- set deduction_len = deduction_rows | length -%}
+				{%- set max_len = [earnings_len, deduction_len] | max -%}
+				{% for i in range(max_len) %}
+					<tr>
+						<td>{% if i < earnings_len %}{{ earnings_rows[i].salary_component }}{% endif %}</td>
+						<td class="ss-amount">
+							{%- if i < earnings_len %}{{ fmt(earnings_rows[i].amount, currency=currency) }}{% endif -%}
+						</td>
+						<td>{% if i < deduction_len %}{{ deduction_rows[i].salary_component }}{% endif %}</td>
+						<td class="ss-amount">
+							{%- if i < deduction_len %}{{ fmt(deduction_rows[i].amount, currency=currency) }}{% endif -%}
+						</td>
+					</tr>
+				{% endfor %}
+			{% endif %}
+
+			<tr class="ss-total">
+				<td>Total</td>
+				<td class="ss-amount">{{ fmt(totals.earnings, currency=currency) }}</td>
+				<td>Total</td>
+				<td class="ss-amount">{{ fmt(totals.deductions, currency=currency) }}</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<div class="ss-summary">
+		<span class="ss-label">Net Pay:</span>
+		{{ fmt(net_pay, currency=currency) }}
+	</div>
+
+	<div class="ss-summary">
+		<span class="ss-label">In Words:</span>
+		{{ frappe.utils.money_in_words(net_pay, currency) }}
+	</div>
+
+	{#- Leave balance (Salary Slip Leave) -#}
+	{% if doc.leave_details %}
+		<div class="ss-title" style="margin-top: 18px;">
+			Leave Balance for the month of {{ frappe.utils.formatdate(doc.start_date, "MMMM yyyy") }}
+		</div>
+
+		<table class="ss-table">
+			<thead>
+				<tr>
+					<th>Leave Type</th>
+					<th class="ss-amount">Allocated</th>
+					<th class="ss-amount">Expired</th>
+					<th class="ss-amount">Used</th>
+					<th class="ss-amount">Pending</th>
+					<th class="ss-amount">Available</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in doc.leave_details %}
+					<tr>
+						<td>{{ row.leave_type or "" }}</td>
+						<td class="ss-amount">{{ row.total_allocated_leaves or 0 }}</td>
+						<td class="ss-amount">{{ row.expired_leaves or 0 }}</td>
+						<td class="ss-amount">{{ row.used_leaves or 0 }}</td>
+						<td class="ss-amount">{{ row.pending_leaves or 0 }}</td>
+						<td class="ss-amount">{{ row.available_leaves or 0 }}</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	{% endif %}
+
+	<div class="ss-footer">
+		This is a system generated payslip, hence signature is not required.
+	</div>
+</div>

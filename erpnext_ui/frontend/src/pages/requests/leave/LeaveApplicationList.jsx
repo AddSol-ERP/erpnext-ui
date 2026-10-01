@@ -1,114 +1,116 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
 import ActionBar from "../../../components/ActionBar";
 import Pagination from "../../../components/Pagination";
-import FilterModal from "../../../components/FilterModal";
 import ListLayout from "../../../components/ListLayout";
+import { ListRow } from "../../../components/List/ListRow";
+import DataTable from "../../../components/List/DataTable";
+import { StatusBadge } from "../../../components/List/StatusBadge";
+import useListPagination from "../../../hooks/useListPagination";
 import { get } from "../../../services/api";
-
-const PAGE_SIZE = 10;
-
-/* ================= ROW ================= */
-function ListRow({ item, onClick }) {
-  return (
-    <div className="list-row" onClick={() => onClick(item.raw)}>
-      <div className="list-col main">
-        <div className="list-title">{item.title}</div>
-        <div className="list-sub text-muted">{item.subtitle}</div>
-      </div>
-
-      <div className="list-col meta">{item.meta}</div>
-
-      <div className="list-col actions">
-        <span className={`badge status-${item.status}`}>
-          {item.statusLabel}
-        </span>
-        <button className="btn btn-icon">
-          <i className="bi bi-chevron-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
+import { listFilterHandlers } from "../../../lib/filterChips";
 
 /* ================= STATUS ================= */
 const getStatus = (row) => {
   if (row.status === "Approved")
-    return { label: "Approved", color: "complete" };
-  if (row.status === "Rejected") return { label: "Rejected", color: "danger" };
-  if (row.status === "Open") return { label: "Pending", color: "pending" };
+    return { key: "requests.status.approved", color: "complete" };
+  if (row.status === "Rejected")
+    return { key: "requests.status.rejected", color: "danger" };
+  if (row.status === "Open")
+    return { key: "requests.status.pending", color: "pending" };
 
-  return { label: "Draft", color: "open" };
+  return { key: "requests.status.draft", color: "open" };
 };
 
-/* ================= FILTER ================= */
-const filterConfig = {
-  filters: [
-    {
-      label: "Leave Type",
-      field: "leave_type",
-      type: "link",
-      doctype: "Leave Type",
-    },
-    {
-      label: "Status",
-      field: "status",
-      type: "select",
-      options: ["Open", "Approved", "Rejected"],
-    },
-  ],
-};
-
+/* ================= MAIN ================= */
 export default function LeaveApplicationList() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const [data, setData] = useState([]);
-  const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [showFilter, setShowFilter] = useState(false);
+  const {
+    page,
+    setPage,
+    totalItems,
+    setTotal,
+    totalPages,
+    resetPage,
+    limit_start,
+    limit_page_length,
+  } = useListPagination({ pageSize: 10 });
+
   const [selectedFilters, setSelectedFilters] = useState({});
 
-  /* HEADER */
+  const filterUi = useMemo(
+    () => listFilterHandlers(setSelectedFilters, resetPage),
+    [resetPage],
+  );
+
+  /* ================= FILTER CONFIG ================= */
+  const filterConfig = {
+    filters: [
+      {
+        label: t("requests.filters.leaveType"),
+        field: "leave_type",
+        type: "link",
+        doctype: "Leave Type",
+      },
+      {
+        label: t("common.status"),
+        field: "status",
+        type: "select",
+        options: [
+          { value: "Open", label: t("requests.status.pending") },
+          { value: "Approved", label: t("requests.status.approved") },
+          { value: "Rejected", label: t("requests.status.rejected") },
+        ],
+      },
+    ],
+  };
+
+  /* ================= HEADER ================= */
   useEffect(() => {
     setHeader({
-      title: "Leave Applications",
-      subtitle: "Track and manage employee leaves",
-
+      title: t("requests.header.leaveListTitle"),
+      subtitle: t("requests.header.leaveListSubtitle"),
       breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Requests", path: "/requests" },
-        { label: "Leave Applications" },
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.requests"), path: "/requests" },
+        { label: t("requests.header.leaveListTitle") },
       ],
-
       actions: [
         {
-          label: "+ New",
+          label: t("requests.list.create"),
           onClick: () => navigate("/requests/leave/new"),
         },
       ],
     });
 
     return () => setHeader({});
-  }, []);
+  }, [navigate, setHeader, t]);
 
-  /* SEARCH */
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [search]);
+  /* ================= SEARCH (ActionBar debounce) ================= */
+  const handleSearch = useCallback(
+    (q) => {
+      setDebouncedSearch(q);
+      resetPage();
+    },
+    [resetPage],
+  );
 
-  /* LOAD */
-  const loadData = async () => {
+  /* ================= LOAD ================= */
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      let filters = [["docstatus", "!=", 2]];
+      const filters = [["docstatus", "!=", 2]];
 
       Object.entries(selectedFilters).forEach(([k, v]) => {
         if (v) filters.push([k, "=", v]);
@@ -128,8 +130,8 @@ export default function LeaveApplicationList() {
         ]),
         filters: JSON.stringify(filters),
         order_by: "modified desc",
-        limit_start: (page - 1) * PAGE_SIZE,
-        limit_page_length: PAGE_SIZE,
+        limit_start,
+        limit_page_length,
       };
 
       if (debouncedSearch) {
@@ -144,78 +146,135 @@ export default function LeaveApplicationList() {
         get("method/frappe.client.get_count", {
           doctype: "Leave Application",
           filters: JSON.stringify(filters),
+          ...(debouncedSearch && {
+            or_filters: JSON.stringify([
+              ["employee", "like", `%${debouncedSearch}%`],
+              ["employee_name", "like", `%${debouncedSearch}%`],
+            ]),
+          }),
         }),
       ]);
 
       setData(listRes.data || []);
-      setTotalPages(Math.ceil((countRes.message || 0) / PAGE_SIZE));
+      setTotal(countRes.message || 0);
     } catch (e) {
       console.error(e);
+      setError(e);
+      setData([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [debouncedSearch, selectedFilters, limit_start, limit_page_length, setTotal]);
 
   useEffect(() => {
+    // loadData only setStates after awaited API responses; the compiler
+    // rule conservatively flags any setState-reaching call from an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
-  }, [page, debouncedSearch, selectedFilters]);
+  }, [loadData]);
 
-  /* MAP */
-  const listData = data.map((row) => {
-    const status = getStatus(row);
+  /* ================= MAP + COLUMNS ================= */
+  const listData = useMemo(
+    () =>
+      data.map((row) => {
+        const status = getStatus(row);
+        return {
+          title: row.employee_name || row.employee,
+          subtitle: `${row.leave_type} • ${row.from_date}${
+            row.to_date !== row.from_date ? " → " + row.to_date : ""
+          }`,
+          meta: row.modified,
+          statusColor: status.color,
+          statusLabel: t(status.key),
+          raw: row,
+        };
+      }),
+    [data, t],
+  );
 
-    return {
-      title: row.employee_name || row.employee,
-      subtitle: `${row.leave_type} • ${row.from_date}${
-        row.to_date !== row.from_date ? " → " + row.to_date : ""
-      }`,
-      meta: row.modified,
-      status: status.color,
-      statusLabel: status.label,
-      raw: row,
-    };
-  });
+  const columns = useMemo(
+    () => [
+      {
+        id: "title",
+        header: t("common.name"),
+        cell: (row) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium">{row.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {row.subtitle}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: t("common.status"),
+        cell: (row) => (
+          <StatusBadge tone={row.statusColor}>{row.statusLabel}</StatusBadge>
+        ),
+      },
+      {
+        id: "meta",
+        header: t("common.modified"),
+        hideBelow: "lg",
+        cell: (row) => (
+          <span className="text-xs text-muted-foreground">{row.meta}</span>
+        ),
+      },
+    ],
+    [t],
+  );
 
+  /* ================= UI ================= */
   return (
-    <>
-      <FilterModal
-        show={showFilter}
-        onClose={() => setShowFilter(false)}
-        config={filterConfig}
-        initialFilters={selectedFilters}
-        onApply={(f) => {
-          setSelectedFilters(f);
-          setPage(1);
-        }}
-      />
-
-      <ListLayout
-        actionBar={
-          <ActionBar
-            onSearch={setSearch}
-            onFilter={() => setShowFilter(true)}
-          />
-        }
-        pagination={
-          totalPages > 1 && (
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          )
-        }
-        isEmpty={listData.length === 0}
-        emptyState="No leave applications found"
-      >
-        <div className="list-container">
+    <ListLayout
+      contentMode="auto"
+      loading={loading}
+      error={error}
+      onRetry={loadData}
+      actionBar={
+        <ActionBar
+          onSearch={handleSearch}
+          resultCount={totalItems}
+          filterConfig={filterConfig}
+          selectedFilters={selectedFilters}
+          {...filterUi}
+        />
+      }
+      cards={
+        <div className="card-stack flex flex-col gap-2">
           {listData.map((item, i) => (
             <ListRow
-              key={i}
+              key={item.raw?.name ?? i}
               item={item}
-              onClick={() => navigate(item.raw.name)}
+              index={limit_start + i + 1}
+              onClick={(doc) => navigate(doc.name)}
             />
           ))}
         </div>
-      </ListLayout>
-    </>
+      }
+      table={
+        <DataTable
+          columns={columns}
+          data={listData}
+          rowKey={(row) => row.raw?.name}
+          onRowClick={(row) => navigate(row.raw.name)}
+          loading={loading}
+          rowOffset={limit_start}
+        />
+      }
+      pagination={
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          pageSize={limit_page_length}
+          disabled={loading}
+        />
+      }
+      isEmpty={!loading && listData.length === 0}
+      emptyTitle={t("requests.list.emptyLeave")}
+    />
   );
 }

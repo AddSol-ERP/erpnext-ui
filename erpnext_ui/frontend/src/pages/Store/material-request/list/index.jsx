@@ -1,15 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 
 import ActionBar from "../../../../components/ActionBar";
 import Pagination from "../../../../components/Pagination";
-import FilterModal from "../../../../components/FilterModal";
 import ListLayout from "../../../../components/ListLayout";
-
+import { ListRow } from "../../../../components/List/ListRow";
+import DataTable from "../../../../components/List/DataTable";
+import { StatusBadge } from "../../../../components/List/StatusBadge";
+import useListPagination from "../../../../hooks/useListPagination";
 import { get } from "../../../../services/api";
-
-const PAGE_SIZE = 10;
+import { listFilterHandlers } from "../../../../lib/filterChips";
 
 /* ================= STATUS ================= */
 const getStatus = (row) => {
@@ -17,89 +19,116 @@ const getStatus = (row) => {
 
   if (row.docstatus === 1) {
     if (row.status === "Stopped") return { label: "Stopped", color: "danger" };
-
     return { label: row.status || "Submitted", color: "complete" };
   }
 
   return { label: "Cancelled", color: "danger" };
 };
 
-/* ================= FILTER ================= */
-const filterConfig = {
-  filters: [
-    {
-      label: "Status",
-      field: "status",
-      type: "select",
-      options: ["Draft", "Submitted", "Stopped", "Cancelled"],
-    },
-    {
-      label: "Company",
-      field: "company",
-      type: "link",
-      doctype: "Company",
-    },
-  ],
+const STATUS_LABEL_KEYS = {
+  Draft: "store.status.draft",
+  Stopped: "store.status.stopped",
+  Submitted: "store.status.submitted",
+  Cancelled: "store.status.cancelled",
+};
+
+const TYPE_LABEL_KEYS = {
+  purchase: "store.types.purchase",
+  transfer: "store.types.transfer",
+  "material-issue": "store.types.materialIssue",
+  "material-receipt": "store.types.materialReceipt",
+  "customer-provided": "store.types.customerProvided",
 };
 
 export default function MaterialRequestList() {
   const { type } = useParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const [data, setData] = useState([]);
-
-  const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const {
+    page,
+    setPage,
+    totalItems,
+    setTotal,
+    totalPages,
+    resetPage,
+    limit_start,
+    limit_page_length,
+  } = useListPagination({ pageSize: 10 });
 
-  const [showFilter, setShowFilter] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState({});
 
-  /* ================= HEADER ================= */
+  const filterUi = useMemo(
+    () => listFilterHandlers(setSelectedFilters, resetPage),
+    [resetPage],
+  );
+
+  const formattedType = (type || "")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const typeKey =
+    TYPE_LABEL_KEYS[formattedType.toLowerCase().replace(/\s+/g, "-")];
+  const typeLabel = typeKey ? t(typeKey) : formattedType;
+
+  const filterConfig = {
+    filters: [
+      {
+        label: t("common.status"),
+        field: "status",
+        type: "select",
+        options: ["Draft", "Submitted", "Stopped", "Cancelled"],
+      },
+      {
+        label: t("store.filters.company"),
+        field: "company",
+        type: "link",
+        doctype: "Company",
+      },
+    ],
+  };
+
   useEffect(() => {
-    const formattedType = (type || "")
-      .replace(/-/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-
     setHeader({
-      title: `${formattedType} Requests`,
-      subtitle: "Track and manage requests",
-
+      title: t("store.mr.listTitle", { type: typeLabel }),
+      subtitle: t("store.mr.listSubtitle"),
       breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Store", path: "/store" },
-        { label: "Material Requests", path: "/store/material-request" },
-        { label: formattedType },
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.store"), path: "/store" },
+        { label: t("store.mr.title"), path: "/store/material-request" },
+        { label: typeLabel },
       ],
-
       actions: [
         {
-          label: "+ New",
+          label: t("common.new"),
           onClick: () => navigate(`/store/material-request/type/${type}/new`),
         },
       ],
     });
 
     return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
 
-  /* ================= SEARCH ================= */
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
+  const handleSearch = useCallback(
+    (q) => {
+      setDebouncedSearch(q);
+      resetPage();
+    },
+    [resetPage],
+  );
 
-    return () => clearTimeout(t);
-  }, [search]);
-
-  /* ================= LOAD ================= */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      let filters = [
+      const filters = [
         ["material_request_type", "=", type],
         ["docstatus", "!=", 2],
       ];
@@ -119,108 +148,146 @@ export default function MaterialRequestList() {
         ]),
         filters: JSON.stringify(filters),
         order_by: "modified desc",
-        limit_start: (page - 1) * PAGE_SIZE,
-        limit_page_length: PAGE_SIZE,
+        limit_start,
+        limit_page_length,
       };
 
-      if (debouncedSearch) {
-        params.or_filters = JSON.stringify([
-          ["name", "like", `%${debouncedSearch}%`],
-        ]);
-      }
+      const orFilters = debouncedSearch
+        ? [["name", "like", `%${debouncedSearch}%`]]
+        : [];
+      if (orFilters.length) params.or_filters = JSON.stringify(orFilters);
 
       const [listRes, countRes] = await Promise.all([
         get("resource/Material Request", params),
         get("method/frappe.client.get_count", {
           doctype: "Material Request",
           filters: JSON.stringify(filters),
+          ...(orFilters.length && { or_filters: JSON.stringify(orFilters) }),
         }),
       ]);
 
       setData(listRes.data || []);
-      setTotalPages(Math.ceil((countRes.message || 0) / PAGE_SIZE));
+      setTotal(countRes.message || 0);
     } catch (e) {
       console.error(e);
+      setError(e);
+      setData([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [
+    type,
+    debouncedSearch,
+    selectedFilters,
+    limit_start,
+    limit_page_length,
+    setTotal,
+  ]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
-  }, [page, debouncedSearch, selectedFilters, type]);
+  }, [loadData]);
 
-  /* ================= MAP ================= */
-  const listData = data.map((row) => {
-    const status = getStatus(row);
+  const listData = useMemo(
+    () =>
+      data.map((row) => {
+        const status = getStatus(row);
+        const statusKey = STATUS_LABEL_KEYS[status.label];
+        return {
+          title: row.name,
+          subtitle: `${row.company || ""} • ${row.transaction_date}`,
+          meta: row.modified,
+          statusColor: status.color,
+          statusLabel: statusKey ? t(statusKey) : status.label,
+          raw: row,
+        };
+      }),
+    [data, t],
+  );
 
-    return {
-      title: row.name,
-      subtitle: `${row.company || ""} • ${row.transaction_date}`,
-      meta: row.modified,
-      status: status.color,
-      statusLabel: status.label,
-      raw: row,
-    };
-  });
-
-  /* ================= UI ================= */
-  return (
-    <>
-      <FilterModal
-        show={showFilter}
-        onClose={() => setShowFilter(false)}
-        config={filterConfig}
-        initialFilters={selectedFilters}
-        onApply={(f) => {
-          setSelectedFilters(f);
-          setPage(1);
-        }}
-      />
-
-      <ListLayout
-        actionBar={
-          <ActionBar
-            onSearch={setSearch}
-            onFilter={() => setShowFilter(true)}
-          />
-        }
-        pagination={
-          totalPages > 1 && (
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          )
-        }
-        isEmpty={listData.length === 0}
-        emptyState="No material requests found"
-      >
-        <div className="list-container">
-          {listData.map((item, i) => (
-            <div
-              key={i}
-              className="list-row"
-              onClick={() => navigate(`${item.raw.name}`)}
-            >
-              <div className="list-col main">
-                <div className="list-title">{item.title}</div>
-                <div className="list-sub text-muted">{item.subtitle}</div>
-              </div>
-
-              <div className="list-col meta">{item.meta}</div>
-
-              <div className="list-col actions">
-                <span className={`badge status-${item.status}`}>
-                  {item.statusLabel}
-                </span>
-                <button className="btn btn-icon">
-                  <i className="bi bi-chevron-right" />
-                </button>
-              </div>
+  const columns = useMemo(
+    () => [
+      {
+        id: "name",
+        header: t("common.name"),
+        cell: (row) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium">{row.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {row.subtitle}
             </div>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: t("common.status"),
+        cell: (row) => (
+          <StatusBadge tone={row.statusColor}>{row.statusLabel}</StatusBadge>
+        ),
+      },
+      {
+        id: "meta",
+        header: t("common.modified"),
+        hideBelow: "lg",
+        cell: (row) => (
+          <span className="text-xs text-muted-foreground">{row.meta}</span>
+        ),
+      },
+    ],
+    [t],
+  );
+
+  return (
+    <ListLayout
+      contentMode="auto"
+      loading={loading}
+      error={error}
+      onRetry={loadData}
+      actionBar={
+        <ActionBar
+          onSearch={handleSearch}
+          resultCount={totalItems}
+          filterConfig={filterConfig}
+          selectedFilters={selectedFilters}
+          {...filterUi}
+        />
+      }
+      cards={
+        <div className="card-stack flex flex-col gap-2">
+          {listData.map((item, i) => (
+            <ListRow
+              key={i}
+              item={item}
+              index={limit_start + i + 1}
+              onClick={(doc) => navigate(`${doc.name}`)}
+            />
           ))}
         </div>
-      </ListLayout>
-    </>
+      }
+      table={
+        <DataTable
+          columns={columns}
+          data={listData}
+          rowKey={(row) => row.raw?.name}
+          onRowClick={(row) => navigate(row.raw.name)}
+          loading={loading}
+          rowOffset={limit_start}
+        />
+      }
+      pagination={
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          pageSize={limit_page_length}
+          disabled={loading}
+        />
+      }
+      isEmpty={!loading && listData.length === 0}
+      emptyTitle={t("store.mr.empty")}
+    />
   );
 }

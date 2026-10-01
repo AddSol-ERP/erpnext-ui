@@ -1,17 +1,25 @@
-export default function TextField({ field, value, onChange, error }) {
+import { Textarea } from "@/components/ui/textarea";
+
+export default function TextField({
+  field,
+  value,
+  onChange,
+  error,
+  disabled = false,
+}) {
+  const isDisabled = disabled || field.read_only;
   return (
-    <div>
-      <textarea
-        className={`form-control ${error ? "is-invalid" : ""}`}
+    <div className="flex flex-col gap-1">
+      <Textarea
         id={field.fieldname}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder || ""}
         rows={field.fieldtype === "Text" ? 4 : 2}
-        readOnly={field.read_only}
-        disabled={field.read_only}
+        readOnly={isDisabled}
+        disabled={isDisabled}
+        aria-invalid={!!error}
       />
-      {error && <div className="invalid-feedback">{error}</div>}
     </div>
   );
 }

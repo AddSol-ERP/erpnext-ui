@@ -1,16 +1,25 @@
-export default function FloatField({ field, value, onChange, error }) {
+import { Input } from "@/components/ui/input";
+
+export default function FloatField({
+  field,
+  value,
+  onChange,
+  error,
+  disabled = false,
+}) {
   return (
-    <div>
-      <input
+    <div className="flex flex-col gap-1">
+      <Input
         type="number"
         step="any"
-        className={`form-control ${error ? "is-invalid" : ""}`}
         id={field.fieldname}
         value={value ?? ""}
-        onChange={(e) => onChange(e.target.value ? parseFloat(e.target.value) : null)}
-        disabled={field.read_only}
+        onChange={(e) =>
+          onChange(e.target.value ? parseFloat(e.target.value) : null)
+        }
+        disabled={disabled || field.read_only}
+        aria-invalid={!!error}
       />
-      {error && <div className="invalid-feedback">{error}</div>}
     </div>
   );
 }

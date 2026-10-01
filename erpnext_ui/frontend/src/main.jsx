@@ -1,9 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import "bootstrap/dist/css/bootstrap.min.css";
-import "bootstrap-icons/font/bootstrap-icons.css";
 import "./index.css";
+import "./i18n";
+import I18nProvider from "./i18n/I18nProvider";
 import { HeaderProvider } from "./context/HeaderContext";
 import { ToastProvider } from "./context/ToastContext";
 import { RoleProvider } from "./context/RoleContext";
@@ -18,10 +18,10 @@ function initializeTheme() {
       applyTheme(config);
     } catch (e) {
       console.error("Failed to load saved theme:", e);
-      applyTheme({ primary: "#00d1ff", secondary: "#7b61ff", mode: "dark" });
+      applyTheme({ primary: "#4f46e5", secondary: "#6366f1", mode: "light" });
     }
   } else {
-    applyTheme({ primary: "#00d1ff", secondary: "#7b61ff", mode: "dark" });
+    applyTheme({ primary: "#4f46e5", secondary: "#6366f1", mode: "light" });
   }
 }
 
@@ -33,13 +33,15 @@ const rootElement = document.getElementById("root");
 if (rootElement) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    <ToastProvider>
-      <HeaderProvider>
-        <RoleProvider>
-          <App />
-        </RoleProvider>
-      </HeaderProvider>
-    </ToastProvider>,
+    <I18nProvider>
+      <ToastProvider>
+        <HeaderProvider>
+          <RoleProvider>
+            <App />
+          </RoleProvider>
+        </HeaderProvider>
+      </ToastProvider>
+    </I18nProvider>,
   );
 }
 
@@ -52,13 +54,15 @@ const mountErpUI = function (id) {
 
   const root = ReactDOM.createRoot(el);
   root.render(
-    <ToastProvider>
-      <HeaderProvider>
-        <RoleProvider>
-          <App />
-        </RoleProvider>
-      </HeaderProvider>
-    </ToastProvider>,
+    <I18nProvider>
+      <ToastProvider>
+        <HeaderProvider>
+          <RoleProvider>
+            <App />
+          </RoleProvider>
+        </HeaderProvider>
+      </ToastProvider>
+    </I18nProvider>,
   );
 };
 

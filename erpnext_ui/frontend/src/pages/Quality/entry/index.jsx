@@ -1,116 +1,82 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
 import { useNavigate } from "react-router-dom";
 import { get } from "../../../services/api";
-import FilterModal from "../../../components/FilterModal";
 import ListLayout from "../../../components/ListLayout";
 import ActionBar from "../../../components/ActionBar";
 import Pagination from "../../../components/Pagination";
+import { ListRow } from "../../../components/List/ListRow";
+import DataTable from "../../../components/List/DataTable";
+import { StatusBadge } from "../../../components/List/StatusBadge";
+import useListPagination from "../../../hooks/useListPagination";
+import { listFilterHandlers } from "../../../lib/filterChips";
 
-const PAGE_SIZE = 10;
-
-/* ================= ROW ================= */
-function ListRow({ item, onClick }) {
-  return (
-    <div className="list-row" onClick={() => onClick(item.raw)}>
-      <div className="list-col main">
-        <div className="list-title">{item.title}</div>
-        <div className="list-sub text-muted">{item.subtitle}</div>
-      </div>
-
-      <div className="list-col meta d-none d-md-block">{item.meta}</div>
-
-      <div className="list-col actions">
-        <span className={`badge status-${item.status}`}>
-          {item.statusLabel}
-        </span>
-
-        <button className="btn btn-icon">
-          <i className="bi bi-chevron-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ================= STATUS ================= */
-const getStatus = (row) => {
-  if (row.status === "Accepted") return { label: "PASS", color: "complete" };
-
-  if (row.status === "Rejected") return { label: "FAIL", color: "danger" };
-
-  return { label: "Draft", color: "open" };
+const getStatus = (row, t) => {
+  if (row.status === "Accepted")
+    return { label: t("quality.statusPass"), color: "complete" };
+  if (row.status === "Rejected")
+    return { label: t("quality.statusFail"), color: "danger" };
+  return { label: t("quality.statusDraft"), color: "open" };
 };
 
-/* ================= FILTER ================= */
-const filterConfig = {
-  filters: [
-    {
-      label: "Result",
-      field: "status",
-      type: "select",
-      options: ["PASS", "FAIL"],
-    },
-    {
-      label: "Template",
-      field: "quality_inspection_template",
-      type: "link",
-      doctype: "Quality Inspection Template",
-    },
-  ],
+const getTypeLabel = (type, t) => {
+  if (type === "Incoming") return t("quality.typeIncoming");
+  if (type === "In Process") return t("quality.typeInProcess");
+  if (type === "Outgoing") return t("quality.typeOutgoing");
+  return type || "-";
 };
 
-/* ================= MAIN ================= */
 export default function InspectionList() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const [data, setData] = useState([]);
-  const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [showFilter, setShowFilter] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState({});
 
-  /* HEADER */
-  useEffect(() => {
-    setHeader({
-      title: "Inspections",
-      subtitle: "Monitor and manage quality inspection records",
+  const {
+    page,
+    setPage,
+    totalItems,
+    setTotal,
+    totalPages,
+    resetPage,
+    limit_start,
+    limit_page_length,
+  } = useListPagination({ pageSize: 10 });
 
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: "Quality", path: "/quality" },
-        { label: "Inspections" },
-      ],
+  const filterUi = useMemo(
+    () => listFilterHandlers(setSelectedFilters, resetPage),
+    [resetPage],
+  );
 
-      actions: [
-        {
-          label: "New Inspection",
-          variant: "btn-primary",
-          onClick: () => navigate("/quality/inspection/new"),
-        },
-      ],
-    });
+  const filterConfig = {
+    filters: [
+      {
+        label: t("quality.result"),
+        field: "status",
+        type: "select",
+        options: ["PASS", "FAIL"],
+      },
+      {
+        label: t("quality.template"),
+        field: "quality_inspection_template",
+        type: "link",
+        doctype: "Quality Inspection Template",
+      },
+    ],
+  };
 
-    return () => setHeader({});
-  }, []);
-
-  /* SEARCH (debounce) */
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  /* LOAD */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      let filters = [["docstatus", "!=", 2]];
+      const filters = [["docstatus", "!=", 2]];
 
       Object.entries(selectedFilters).forEach(([k, v]) => {
         if (v) filters.push([k, "=", v]);
@@ -129,98 +95,177 @@ export default function InspectionList() {
         ]),
         filters: JSON.stringify(filters),
         order_by: "modified desc",
-        limit_start: (page - 1) * PAGE_SIZE,
-        limit_page_length: PAGE_SIZE,
+        limit_start,
+        limit_page_length,
       };
 
-      if (debouncedSearch) {
-        params.or_filters = JSON.stringify([
-          ["name", "like", `%${debouncedSearch}%`],
-          ["quality_inspection_template", "like", `%${debouncedSearch}%`],
-        ]);
-      }
+      const orFilters = debouncedSearch
+        ? [
+            ["name", "like", `%${debouncedSearch}%`],
+            ["quality_inspection_template", "like", `%${debouncedSearch}%`],
+          ]
+        : [];
+      if (orFilters.length) params.or_filters = JSON.stringify(orFilters);
 
       const [listRes, countRes] = await Promise.all([
         get("resource/Quality Inspection", params),
         get("method/frappe.client.get_count", {
           doctype: "Quality Inspection",
           filters: JSON.stringify(filters),
-          ...(debouncedSearch && {
-            or_filters: JSON.stringify([
-              ["name", "like", `%${debouncedSearch}%`],
-              ["quality_inspection_template", "like", `%${debouncedSearch}%`],
-            ]),
-          }),
+          ...(orFilters.length && { or_filters: JSON.stringify(orFilters) }),
         }),
       ]);
 
       setData(listRes.data || []);
-      const count = countRes.message || 0;
-      setTotalPages(Math.ceil(count / PAGE_SIZE));
+      setTotal(countRes.message || 0);
     } catch (e) {
       console.error(e);
+      setError(e);
+      setData([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [
+    debouncedSearch,
+    selectedFilters,
+    limit_start,
+    limit_page_length,
+    setTotal,
+  ]);
 
   useEffect(() => {
+    setHeader({
+      title: t("quality.inspections"),
+      subtitle: t("quality.inspectionsSubtitle"),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: t("nav.quality"), path: "/quality" },
+        { label: t("quality.inspections") },
+      ],
+      actions: [
+        {
+          label: t("quality.newInspection"),
+          variant: "btn-primary",
+          onClick: () => navigate("/quality/inspection/new"),
+        },
+      ],
+    });
+
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSearch = useCallback(
+    (q) => {
+      setDebouncedSearch(q);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
-  }, [page, debouncedSearch, selectedFilters]);
+  }, [loadData]);
 
-  /* MAP */
-  const listData = data.map((row) => {
-    const status = getStatus(row);
+  const listData = useMemo(
+    () =>
+      data.map((row) => {
+        const status = getStatus(row, t);
+        return {
+          title: row.name,
+          subtitle: `${row.item_code || "-"} · ${getTypeLabel(row.inspection_type, t)}`,
+          meta: `${row.reference_name || "-"} · ${row.report_date || "-"}`,
+          status: status.color,
+          statusLabel: status.label,
+          raw: row,
+        };
+      }),
+    [data, t],
+  );
 
-    return {
-      title: row.name,
-      subtitle: `${row.item_code || "-"} · ${row.inspection_type}`,
-      meta: `${row.reference_name || "-"} · ${row.report_date || "-"}`,
-      status: status.color,
-      statusLabel: status.label,
-      raw: row,
-    };
-  });
+  const columns = useMemo(
+    () => [
+      {
+        id: "name",
+        header: t("common.name"),
+        cell: (row) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium">{row.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {row.subtitle}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "meta",
+        header: t("common.date"),
+        hideBelow: "md",
+        cell: (row) => (
+          <span className="text-xs text-muted-foreground">{row.meta}</span>
+        ),
+      },
+      {
+        id: "status",
+        header: t("common.status"),
+        cell: (row) => (
+          <StatusBadge tone={row.status}>{row.statusLabel}</StatusBadge>
+        ),
+      },
+    ],
+    [t],
+  );
 
-  /* UI */
   return (
-    <>
-      <FilterModal
-        show={showFilter}
-        onClose={() => setShowFilter(false)}
-        config={filterConfig}
-        initialFilters={selectedFilters}
-        onApply={(f) => {
-          setSelectedFilters(f);
-          setPage(1);
-        }}
-      />
-
-      <ListLayout
-        actionBar={
-          <ActionBar
-            onSearch={setSearch}
-            onFilter={() => setShowFilter(true)}
-          />
-        }
-        pagination={
-          totalPages > 1 ? (
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
+    <ListLayout
+      contentMode="auto"
+      loading={loading}
+      error={error}
+      onRetry={loadData}
+      actionBar={
+        <ActionBar
+          onSearch={handleSearch}
+          resultCount={totalItems}
+          filterConfig={filterConfig}
+          selectedFilters={selectedFilters}
+          {...filterUi}
+        />
+      }
+      cards={
+        <div className="card-stack flex flex-col gap-2.5">
+          {listData.map((item, i) => (
+            <ListRow
+              key={i}
+              item={item}
+              index={limit_start + i + 1}
+              onClick={() => navigate(`/quality/inspection/${item.raw.name}`)}
             />
-          ) : null
-        }
-        isEmpty={listData.length === 0}
-        emptyState="No inspections found"
-      >
-        {listData.map((item, i) => (
-          <ListRow
-            key={i}
-            item={item}
-            onClick={() => navigate(`/quality/inspection/${item.raw.name}`)}
-          />
-        ))}
-      </ListLayout>
-    </>
+          ))}
+        </div>
+      }
+      table={
+        <DataTable
+          columns={columns}
+          data={listData}
+          rowKey={(row) => row.raw?.name}
+          onRowClick={(row) => navigate(`/quality/inspection/${row.raw.name}`)}
+          loading={loading}
+          rowOffset={limit_start}
+        />
+      }
+      pagination={
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          pageSize={limit_page_length}
+          disabled={loading}
+        />
+      }
+      isEmpty={!loading && listData.length === 0}
+      emptyTitle={t("quality.emptyInspections")}
+    />
   );
 }

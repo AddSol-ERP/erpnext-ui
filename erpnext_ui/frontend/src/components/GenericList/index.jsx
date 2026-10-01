@@ -1,11 +1,18 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
 import { getDoctypeConfig } from "../../config/doctypes";
 import ActionBar from "../ActionBar";
 import Pagination from "../Pagination";
-import FilterModal from "../FilterModal";
+import ListLayout from "../ListLayout";
+import { ListRow } from "../List/ListRow";
+import DataTable from "../List/DataTable";
+import { StatusBadge } from "../List/StatusBadge";
+import useListPagination from "../../hooks/useListPagination";
+import { listFilterHandlers } from "../../lib/filterChips";
+import { Plus, RefreshCcw } from "lucide-react";
 
 /** Extract the hub name from the first segment of the current path. */
 function useHub() {
@@ -14,18 +21,15 @@ function useHub() {
   return segments[0] || "";
 }
 
-const PAGE_SIZE = 10;
 const BASE_FIELDS = ["name", "owner", "creation", "modified", "docstatus"];
 
 /**
  * Status color mapping for status badges.
  */
 const STATUS_COLORS = {
-  // Draft / Open
   Draft: "open",
   "Not Started": "open",
   Open: "open",
-  // Pending / In Progress
   "To Receive and Bill": "pending",
   "To Receive": "pending",
   "To Bill": "pending",
@@ -33,14 +37,12 @@ const STATUS_COLORS = {
   "In Process": "pending",
   Applied: "pending",
   "Waiting for Approval": "pending",
-  // Success / Approved
   Approved: "complete",
   Completed: "complete",
   Delivered: "complete",
   Present: "complete",
   Submitted: "pending",
   Active: "complete",
-  // Danger / Rejected / Cancelled
   Cancelled: "danger",
   Rejected: "danger",
   Closed: "danger",
@@ -49,21 +51,16 @@ const STATUS_COLORS = {
   "Half Day": "warning",
 };
 
-/**
- * Resolve display status for a row given its doctype config.
- */
 function resolveStatus(row, statusField) {
   if (!statusField) return { label: "", color: "" };
 
   let raw = row[statusField];
 
-  // Handle docstatus field
   if (statusField === "docstatus") {
     const map = { 0: "Draft", 1: "Submitted", 2: "Cancelled" };
     raw = map[row.docstatus] || "Draft";
   }
 
-  // Handle disabled / is_active boolean fields
   if (typeof raw === "boolean" || raw === 0 || raw === 1) {
     if (raw === true || raw === 1)
       return { label: "Active", color: "complete" };
@@ -76,36 +73,6 @@ function resolveStatus(row, statusField) {
 }
 
 /* ===============================
-   LIST ROW
-=============================== */
-function ListRow({ item, onClick }) {
-  return (
-    <div className="list-row" onClick={() => onClick(item.raw)}>
-      <div className="list-col main">
-        <div className="list-title">{item.title}</div>
-        {item.subtitle && (
-          <div className="list-sub text-muted">{item.subtitle}</div>
-        )}
-      </div>
-
-      <div className="list-col meta d-none d-md-block">{item.meta}</div>
-
-      <div className="list-col actions">
-        {item.statusLabel && (
-          <span className={`badge status-${item.statusColor}`}>
-            {item.statusLabel}
-          </span>
-        )}
-
-        <button className="btn btn-icon">
-          <i className="bi bi-chevron-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ===============================
    GENERIC LIST PAGE
 =============================== */
 export default function GenericListPage() {
@@ -113,85 +80,34 @@ export default function GenericListPage() {
   const hub = useHub();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { t } = useTranslation();
 
   const [data, setData] = useState([]);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [showFilter, setShowFilter] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState({});
   const [filterConfig, setFilterConfig] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const {
+    page,
+    setPage,
+    totalItems,
+    setTotal,
+    totalPages,
+    resetPage,
+    limit_start,
+    limit_page_length,
+  } = useListPagination({ pageSize: 10 });
 
   const config = useMemo(() => getDoctypeConfig(doctype), [doctype]);
   const fieldsCache = useRef({});
   const decodedDoctype = decodeURIComponent(doctype);
 
-  /* ===============================
-     HEADER
-  ============================== */
-  useEffect(() => {
-    const hubName = hub ? hub.charAt(0).toUpperCase() + hub.slice(1) : "";
-    const actions = [];
-
-    // "New" button: nativeForm → ERPNext in new tab, readOnly → hidden, else → our GenericForm
-    if (config.nativeForm) {
-      actions.push({
-        label: "New",
-        variant: "btn-primary",
-        icon: "bi bi-plus-lg",
-        onClick: () =>
-          window.open(
-            `/app/${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}/new-${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}`,
-            "_blank",
-          ),
-      });
-    } else if (!config.readOnly) {
-      actions.push({
-        label: "New",
-        variant: "btn-primary",
-        icon: "bi bi-plus-lg",
-        onClick: () =>
-          navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}/new`),
-      });
-    }
-
-    actions.push({
-      label: "Refresh",
-      variant: "btn-outline-primary",
-      icon: "bi bi-arrow-clockwise",
-      onClick: loadData,
-    });
-
-    setHeader({
-      title: decodedDoctype,
-      subtitle: `${hubName} module`,
-      breadcrumbs: [
-        { label: "Home", path: "/" },
-        { label: hubName, path: `/${hub}` },
-        { label: decodedDoctype },
-      ],
-      actions,
-    });
-    return () => setHeader({});
-  }, [doctype, hub, page, config.readOnly, config.nativeForm]);
-
-  /* ===============================
-     BUILD FILTERS FROM METADATA
-  ============================== */
-  useEffect(() => {
-    const loadFilters = async () => {
-      try {
-        const res = await get(`resource/DocType/${decodedDoctype}`);
-        const fields = res.data?.fields || [];
-        const config = buildFilterConfig(fields);
-        setFilterConfig(config);
-      } catch {
-        setFilterConfig({ filters: [] });
-      }
-    };
-    loadFilters();
-  }, [doctype]);
+  const filterUi = useMemo(
+    () => listFilterHandlers(setSelectedFilters, resetPage),
+    [resetPage],
+  );
 
   const buildFilterConfig = (fields) => {
     const PRIORITY_FIELDS = [
@@ -214,7 +130,6 @@ export default function GenericListPage() {
     const allowedTypes = ["Link", "Select", "Date"];
     let filters = [];
 
-    // Priority fields first
     PRIORITY_FIELDS.forEach((key) => {
       const f = fields.find((x) => x.fieldname === key);
       if (!f) return;
@@ -244,7 +159,6 @@ export default function GenericListPage() {
       }
     });
 
-    // Fill remaining slots
     for (const f of fields) {
       if (filters.length >= 8) break;
       if (!f.fieldname || filters.find((x) => x.field === f.fieldname))
@@ -281,9 +195,6 @@ export default function GenericListPage() {
     return { filters };
   };
 
-  /* ===============================
-     BUILD FIELDS LIST
-  ============================== */
   const getFields = useCallback(async () => {
     if (fieldsCache.current[decodedDoctype]) {
       return fieldsCache.current[decodedDoctype];
@@ -302,13 +213,9 @@ export default function GenericListPage() {
     return fields;
   }, [decodedDoctype, config]);
 
-  /* ===============================
-     BUILD QUERY FILTERS
-  ============================== */
   const buildFilters = useCallback(() => {
     const filters = [];
 
-    // Apply selected filters from FilterModal
     Object.entries(selectedFilters).forEach(([field, value]) => {
       if (!value) return;
       filters.push([field, "=", value]);
@@ -323,11 +230,9 @@ export default function GenericListPage() {
     return fields.map((f) => [f, "like", `%${search}%`]);
   }, [search, config]);
 
-  /* ===============================
-     LOAD DATA
-  ============================== */
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const fields = await getFields();
       const filters = buildFilters();
@@ -337,8 +242,8 @@ export default function GenericListPage() {
         fields: JSON.stringify(fields),
         filters: JSON.stringify(filters),
         order_by: "modified desc",
-        limit_start: (page - 1) * PAGE_SIZE,
-        limit_page_length: PAGE_SIZE,
+        limit_start,
+        limit_page_length,
       };
 
       if (orFilters.length) {
@@ -355,44 +260,104 @@ export default function GenericListPage() {
       ]);
 
       setData(listRes.data || []);
-      setTotalPages(Math.ceil((countRes.message || 0) / PAGE_SIZE));
+      setTotal(countRes.message || 0);
     } catch (e) {
       console.error(`Failed to load ${decodedDoctype}:`, e);
+      setError(e);
       setData([]);
     } finally {
       setLoading(false);
     }
   }, [
     decodedDoctype,
-    page,
-    search,
-    selectedFilters,
     getFields,
     buildFilters,
     buildOrFilters,
+    limit_start,
+    limit_page_length,
+    setTotal,
   ]);
 
   useEffect(() => {
+    const hubName = hub ? hub.charAt(0).toUpperCase() + hub.slice(1) : "";
+    const actions = [];
+
+    if (config.nativeForm) {
+      actions.push({
+        label: t("common.new"),
+        variant: "btn-primary",
+        icon: Plus,
+        onClick: () =>
+          window.open(
+            `/app/${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}/new-${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}`,
+            "_blank",
+          ),
+      });
+    } else if (!config.readOnly) {
+      actions.push({
+        label: t("common.new"),
+        variant: "btn-primary",
+        icon: Plus,
+        onClick: () =>
+          navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}/new`),
+      });
+    }
+
+    actions.push({
+      label: t("common.refresh"),
+      variant: "btn-outline-primary",
+      icon: RefreshCcw,
+      onClick: loadData,
+    });
+
+    setHeader({
+      title: decodedDoctype,
+      subtitle: t("common.module", { name: hubName }),
+      breadcrumbs: [
+        { label: t("common.home"), path: "/" },
+        { label: hubName, path: `/${hub}` },
+        { label: decodedDoctype },
+      ],
+      actions,
+    });
+    return () => setHeader({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doctype, hub, page, config.readOnly, config.nativeForm]);
+
+  useEffect(() => {
+    const loadFilters = async () => {
+      try {
+        const res = await get(`resource/DocType/${decodedDoctype}`);
+        const fields = res.data?.fields || [];
+        setFilterConfig(buildFilterConfig(fields));
+      } catch {
+        setFilterConfig({ filters: [] });
+      }
+    };
+    loadFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doctype]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
 
-  // Reset to page 1 on search/filter change
-  useEffect(() => {
-    setPage(1);
-  }, [search, selectedFilters]);
+  const handleSearch = useCallback(
+    (q) => {
+      setSearch(q);
+      resetPage();
+    },
+    [resetPage],
+  );
 
-  /* ===============================
-     ROW CLICK
-  ============================== */
   const handleRowClick = (doc) => {
     if (config.nativeForm) {
-      // Open ERPNext native form in new tab
       window.open(
         `/app/${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}/${doc.name}`,
         "_blank",
       );
     } else if (config.readOnly) {
-      // Navigate to print preview for read-only doctypes
       navigate(
         `/${hub}/print/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(doc.name)}`,
       );
@@ -403,9 +368,6 @@ export default function GenericListPage() {
     }
   };
 
-  /* ===============================
-     MAP DATA TO LIST ROWS
-  ============================== */
   const mapToList = (row) => {
     const cfg = config.list;
     const status = resolveStatus(row, cfg.statusField);
@@ -422,56 +384,88 @@ export default function GenericListPage() {
 
   const listData = data.map(mapToList);
 
-  return (
-    <div
-      className="d-flex flex-column h-100"
-      style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}
-    >
-      {/* FILTER MODAL */}
-      {filterConfig && (
-        <FilterModal
-          show={showFilter}
-          onClose={() => setShowFilter(false)}
-          config={filterConfig}
-          initialFilters={selectedFilters}
-          onApply={(filters) => setSelectedFilters(filters)}
-        />
-      )}
-
-      {/* ACTION BAR */}
-      <div className="flex-shrink-0">
-        <ActionBar onSearch={setSearch} onFilter={() => setShowFilter(true)} />
-      </div>
-
-      {/* LIST BODY */}
-      <div className="flex-grow-1 list-scroll">
-        <div className="list-container">
-          {loading ? (
-            <div className="text-center py-5">
-              <div className="spinner-border" role="status">
-                <span className="visually-hidden">Loading...</span>
-              </div>
+  const columns = [
+    {
+      id: "title",
+      header: t("common.name"),
+      cell: (row) => (
+        <div className="min-w-0">
+          <div className="truncate font-medium">{row.title}</div>
+          {row.subtitle ? (
+            <div className="truncate text-xs text-muted-foreground">
+              {row.subtitle}
             </div>
-          ) : listData.length === 0 ? (
-            <div className="list-empty">No records found</div>
-          ) : (
-            listData.map((item, idx) => (
-              <ListRow key={idx} item={item} onClick={handleRowClick} />
-            ))
-          )}
+          ) : null}
         </div>
-      </div>
+      ),
+    },
+    {
+      id: "meta",
+      header: t("common.modified"),
+      hideBelow: "lg",
+      cell: (row) => (
+        <span className="text-xs text-muted-foreground">{row.meta}</span>
+      ),
+    },
+    {
+      id: "status",
+      header: t("common.status"),
+      cell: (row) =>
+        row.statusLabel ? (
+          <StatusBadge tone={row.statusColor}>{row.statusLabel}</StatusBadge>
+        ) : null,
+    },
+  ];
 
-      {/* PAGINATION */}
-      {totalPages > 1 && (
-        <div className="flex-shrink-0 pagination-sticky">
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
+  return (
+    <ListLayout
+      contentMode="auto"
+      loading={loading}
+      error={error}
+      onRetry={loadData}
+      actionBar={
+        <ActionBar
+          onSearch={handleSearch}
+          resultCount={totalItems}
+          filterConfig={filterConfig}
+          selectedFilters={selectedFilters}
+          {...filterUi}
+        />
+      }
+      cards={
+        <div className="flex flex-col">
+          {listData.map((item, idx) => (
+            <ListRow
+              key={idx}
+              item={item}
+              index={limit_start + idx + 1}
+              onClick={handleRowClick}
+            />
+          ))}
         </div>
-      )}
-    </div>
+      }
+      table={
+        <DataTable
+          columns={columns}
+          data={listData}
+          rowKey={(row) => row.raw?.name}
+          onRowClick={(row) => handleRowClick(row.raw)}
+          loading={loading}
+          rowOffset={limit_start}
+        />
+      }
+      pagination={
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          pageSize={limit_page_length}
+          disabled={loading}
+        />
+      }
+      isEmpty={!loading && listData.length === 0}
+      emptyTitle={t("common.noRecords")}
+    />
   );
 }

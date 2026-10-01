@@ -1,8 +1,15 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { FileText } from "lucide-react";
 import AppModal from "../../AppModal";
 import { get } from "../../../services/api";
+import FormSelect from "../../FormSelect";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function SourceModal({ show, onClose, loadSource }) {
+  const { t } = useTranslation();
   const [sourceType, setSourceType] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [qcDone, setQcDone] = useState(false);
@@ -11,25 +18,12 @@ export default function SourceModal({ show, onClose, loadSource }) {
   const searchTimeout = useRef(null);
 
   const SOURCE_TYPES = [
-    { label: "Material Request", value: "Material Request" },
-    { label: "Purchase Receipt", value: "Purchase Receipt" },
-    { label: "Bill of Materials", value: "BOM" },
-    { label: "Purchase Invoice", value: "Purchase Invoice" },
-    { label: "Item Master", value: "Item" },
+    { label: t("store.source.materialRequest"), value: "Material Request" },
+    { label: t("store.source.purchaseReceipt"), value: "Purchase Receipt" },
+    { label: t("store.source.bom"), value: "BOM" },
+    { label: t("store.source.purchaseInvoice"), value: "Purchase Invoice" },
+    { label: t("store.source.itemMaster"), value: "Item" },
   ];
-
-  const handleLoad = async () => {
-    const doc = await fetchSourceItems(sourceType, sourceId);
-
-    let items = mapItems(sourceType, doc);
-
-    // 🔥 enrich UOM options
-    items = await enrichWithUOM(items);
-
-    loadSource(items, sourceType);
-    resetData();
-    onClose();
-  };
 
   const resetData = () => {
     setSourceType("");
@@ -52,7 +46,7 @@ export default function SourceModal({ show, onClose, loadSource }) {
     return res.data;
   };
 
-  const mapItems = (doctype, doc, qcDone) => {
+  const mapItems = (doctype, doc, qcFilter) => {
     let items = [];
 
     if (doctype === "Material Request") {
@@ -60,7 +54,9 @@ export default function SourceModal({ show, onClose, loadSource }) {
     }
 
     if (doctype === "Purchase Receipt") {
-      items = doc.items.filter((i) => (qcDone ? i.quality_inspection : true));
+      items = doc.items.filter((i) =>
+        qcFilter ? i.quality_inspection : true,
+      );
     }
 
     if (doctype === "BOM") {
@@ -88,8 +84,8 @@ export default function SourceModal({ show, onClose, loadSource }) {
 
       conversionFactor: i.conversion_factor,
 
-      // 🔥 IMPORTANT
-      uomOptions: [i.uom], // default (will expand later)
+      // default (will expand later)
+      uomOptions: [i.uom],
     }));
   };
 
@@ -107,6 +103,19 @@ export default function SourceModal({ show, onClose, loadSource }) {
         };
       }),
     );
+  };
+
+  const handleLoad = async () => {
+    const doc = await fetchSourceItems(sourceType, sourceId);
+
+    let items = mapItems(sourceType, doc);
+
+    // enrich UOM options
+    items = await enrichWithUOM(items);
+
+    loadSource(items, sourceType);
+    resetData();
+    onClose();
   };
 
   const handleSearch = (value) => {
@@ -209,36 +218,31 @@ export default function SourceModal({ show, onClose, loadSource }) {
         onClose();
         resetData();
       }}
-      title="📦 Load Items"
+      title={t("store.source.loadItems")}
       footer={
         <>
-          <button
-            className="btn btn-outline-primary"
+          <Button
+            variant="outline"
             onClick={() => {
               onClose();
               resetData();
             }}
           >
-            Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={!sourceType || !sourceId}
-            onClick={handleLoad}
-          >
-            Load
-          </button>
+            {t("common.cancel")}
+          </Button>
+          <Button disabled={!sourceType || !sourceId} onClick={handleLoad}>
+            {t("store.source.load")}
+          </Button>
         </>
       }
     >
-      <div className="row g-2">
+      <div className="flex flex-col gap-2">
         {/* TYPE */}
-        <div className="col-12">
-          <select
-            className="form-select"
+        <div>
+          <FormSelect
+            aria-label={t("store.source.sourceType")}
             value={sourceType}
-            onChange={async (e) => {
-              const type = e.target.value;
+            onChange={async (type) => {
               setSourceType(type);
               setSourceId("");
 
@@ -247,66 +251,56 @@ export default function SourceModal({ show, onClose, loadSource }) {
                 setDocuments(docs);
               }
             }}
-          >
-            <option value="">Select Source Type</option>
-            {SOURCE_TYPES.map((source_type, source_type_idx) => {
-              return (
-                <option
-                  key={`source-${source_type_idx}`}
-                  value={source_type.value}
-                >
-                  {source_type.label}
-                </option>
-              );
-            })}
-          </select>
+            placeholder={t("store.source.selectSourceType")}
+            options={SOURCE_TYPES.map((sourceTypeOption) => ({
+              value: sourceTypeOption.value,
+              label: sourceTypeOption.label,
+            }))}
+          />
         </div>
 
         {/* DOCUMENT */}
-        <div className="col-12">
-          <input
+        <div className="relative">
+          <Input
             type="text"
-            className="form-control"
             value={sourceId}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder={
-              sourceType ? "Search document..." : "Select type first"
+              sourceType
+                ? t("store.source.searchDocument")
+                : t("store.source.selectTypeFirst")
             }
             disabled={!sourceType}
             onBlur={() => setTimeout(() => setDocuments([]), 200)}
             onFocus={handleFocus}
           />
+
           {documents.length > 0 && (
-            <div className="dropdown-menu show w-100 p-0 shadow-sm">
+            <div className="absolute start-0 end-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
               {documents.map((doc) => (
                 <button
                   key={doc.value}
-                  className="dropdown-item rich-item"
+                  type="button"
+                  className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-start transition-colors hover:bg-accent hover:text-accent-foreground"
                   onClick={() => {
                     setSourceId(doc.value);
                     setDocuments([]);
                   }}
                 >
-                  <div className="d-flex align-items-start gap-2">
-                    {/* ICON */}
-                    <div className="rich-icon">
-                      <i className="bi bi-file-earmark-text"></i>
+                  {/* ICON */}
+                  <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+
+                  {/* CONTENT */}
+                  <div className="min-w-0 flex-grow">
+                    <div className="truncate text-sm font-semibold">
+                      {doc.value}
                     </div>
 
-                    {/* CONTENT */}
-                    <div className="flex-grow-1 overflow-hidden">
-                      {/* ID */}
-                      <div className="fw-semibold text-truncate">
-                        {doc.value}
-                      </div>
-
-                      {/* DESCRIPTION */}
-                      <div
-                        className="text-muted small line-clamp-2"
-                        title={doc.description}
-                      >
-                        {doc.description}
-                      </div>
+                    <div
+                      className="line-clamp-2 text-xs text-muted-foreground"
+                      title={doc.description}
+                    >
+                      {doc.description}
                     </div>
                   </div>
                 </button>
@@ -316,19 +310,18 @@ export default function SourceModal({ show, onClose, loadSource }) {
         </div>
 
         {/* QC */}
-        <div className="col-12">
-          <div className="form-check">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="qcDone"
-              checked={qcDone}
-              onChange={(e) => setQcDone(e.target.checked)}
-            />
-            <label className="form-check-label" htmlFor="qcDone">
-              Only QC Passed Items
-            </label>
-          </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="qcDone"
+            checked={qcDone}
+            onCheckedChange={(checked) => setQcDone(checked === true)}
+          />
+          <label
+            htmlFor="qcDone"
+            className="text-sm font-medium text-foreground"
+          >
+            {t("store.source.onlyQcPassed")}
+          </label>
         </div>
       </div>
     </AppModal>
