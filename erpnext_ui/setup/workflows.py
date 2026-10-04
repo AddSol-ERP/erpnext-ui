@@ -552,12 +552,22 @@ def create_workflow_if_missing(config):
 
         row.state = state["state"]
         row.doc_status = state["doc_status"]
-        row.allow_edit = state["allow_edit"]
 
-        # Both optional: several states deliberately carry neither (Attendance
-        # Request has no status column at all, and an Expense Claim should keep
-        # its defaulted `approval_status` while still under review). Assigning
-        # unconditionally would write empty strings into a Select/Data field.
+        # All three remaining fields are optional, and configs legitimately omit
+        # them:
+        #   - Attendance Request has no status column at all
+        #   - an Expense Claim keeps its defaulted `approval_status` while under
+        #     review, so only terminal states set update_field
+        #   - the Employee approval workflow omits allow_edit entirely, because
+        #     it has no server-side enforcement (validate_workflow only checks
+        #     transitions) and setting it would make records read-only in the
+        #     ERPNext desk but not in this app
+        #
+        # Assigning unconditionally both crashes on an omitted key and writes
+        # empty strings into Select/Link fields, which ERPNext rejects.
+        if state.get("allow_edit"):
+            row.allow_edit = state["allow_edit"]
+
         if state.get("update_field"):
             row.update_field = state["update_field"]
             row.update_value = state["update_value"]
