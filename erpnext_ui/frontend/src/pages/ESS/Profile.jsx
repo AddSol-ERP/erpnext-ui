@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
@@ -6,7 +6,10 @@ import { useToast } from "../../context/ToastContext";
 import { get } from "../../services/api";
 import { getCurrentUser } from "../../utils/getUser";
 import { getDoctypeConfig } from "../../config/doctypes";
-import { UserX, AlertTriangle } from "lucide-react";
+import { resolveHrApprovalGate } from "../../lib/profileFlags";
+import EmployeeDocuments from "./EmployeeDocuments";
+import AppModal from "../../components/AppModal";
+import { UserX, AlertTriangle, FolderOpen } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +29,13 @@ export default function ESSProfile() {
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [docsOpen, setDocsOpen] = useState(false);
+
+  // Stable identities, not just tidiness: the header-actions effect below only
+  // depends on [profile], so referencing a fresh closure here would re-run that
+  // effect (and flash the header) every time the modal opens or closes.
+  const openDocs = useCallback(() => setDocsOpen(true), []);
+  const closeDocs = useCallback(() => setDocsOpen(false), []);
 
   // Read configured print format from doctypes.js
   const employeeConfig = getDoctypeConfig("Employee");
@@ -94,6 +104,12 @@ export default function ESSProfile() {
           label: t("ess.header.print"),
           variant: "btn-outline-primary",
           onClick: handlePrint,
+        },
+        {
+          label: t("ess.header.documents"),
+          variant: "btn-outline-primary",
+          icon: FolderOpen,
+          onClick: openDocs,
         },
         {
           label: t("common.back"),
@@ -176,6 +192,12 @@ export default function ESSProfile() {
   }
 
   const p = profile;
+
+  // Presence of `workflow_state` is what tells us this site configured an
+  // Employee approval workflow at all. Absent or null means show nothing --
+  // see resolveHrApprovalGate for why a bare `!state` is wrong.
+  const { showWarning: showHrApprovalWarning } = resolveHrApprovalGate(profile);
+
   const statusClass =
     p.status === "Active"
       ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
@@ -208,8 +230,10 @@ export default function ESSProfile() {
         </CardContent>
       </Card>
 
-      {/* ── HR Approval Warning ── */}
-      {!p.custom_hr_approved && (
+      {/* ── HR Approval Warning ──
+          Only rendered when an Employee workflow is configured AND this record
+          is not yet Approved. Sites without the workflow never see it. */}
+      {showHrApprovalWarning && (
         <div
           role="alert"
           className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400"
@@ -335,6 +359,21 @@ export default function ESSProfile() {
           <div>{t("ess.profile.created", { date: p.creation })}</div>
         </div>
       </div>
+
+      {/* ── Employee Documents ──
+          Opened from the Documents action in the page header rather than shown
+          inline, so the profile stays a read-only summary and the upload /
+          preview / delete controls live in one dismissible layer.
+          AppModal only mounts its children while open, so the document list is
+          fetched on first open instead of on every profile load. */}
+      <AppModal
+        show={docsOpen}
+        onClose={closeDocs}
+        title={t("ess.profile.sectionDocuments")}
+        width="md"
+      >
+        {docsOpen && <EmployeeDocuments />}
+      </AppModal>
     </div>
   );
 }

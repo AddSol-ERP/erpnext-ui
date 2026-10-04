@@ -202,7 +202,7 @@ export default function LeaveApplicationList() {
     try {
       // POST, not GET: this mutates state and needs the CSRF token.
       // Generic across doctypes -- { doctype, name } is the whole contract.
-      await deleteDocument({ doctype: "Leave Application", name });
+      await deleteDocument({ doctype: "Leave Application", name: row.name });
 
       toast.success(t("common.deletedSuccess", { name: row.name }));
 

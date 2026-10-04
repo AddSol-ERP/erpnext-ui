@@ -11,6 +11,7 @@ import LeaveApplicationForm from "@/pages/requests/leave/LeaveApplicationForm";
 import AttendanceRequestForm from "@/pages/requests/attendance/AttendanceRequestForm";
 import ExpenseClaimForm from "@/pages/requests/expense/ExpenseClaimForm";
 import GenericForm from "@/components/GenericForm/index.jsx";
+import EmployeeDocuments from "@/pages/ESS/EmployeeDocuments";
 import { DocStatusField } from "@/components/DocStatusField";
 import { statusTone } from "@/components/List/statusTones";
 
@@ -96,6 +97,41 @@ try {
 } catch (e) {
   fail++;
   console.log(`  FAIL  DocStatusField (no status) ${e.message}`);
+}
+
+/* ---------- EmployeeDocuments: ESS profile documents modal body ---------- */
+// Effects do not run under renderToString, so this exercises the initial
+// (loading) render only. That is still worth pinning: it proves the component
+// mounts without throwing, that its ref callbacks and hidden file inputs are
+// valid, and that nothing reaches the network synchronously.
+//
+// EmployeeDocuments is rendered STANDALONE, not inside AppModal. AppModal is
+// built on Radix Dialog, whose DialogPortal calls createPortal(document.body);
+// under renderToString with no real DOM that yields an EMPTY string, so a
+// dialog-wrapped component cannot be smoke-rendered at all. Wrapping it here
+// would make this case pass for the wrong reason (0 chars, no assertions
+// reached) while looking green.
+try {
+  const html = renderToString(
+    <I18nextProvider i18n={i18n}>
+      <ToastProvider>
+        <EmployeeDocuments />
+      </ToastProvider>
+    </I18nextProvider>,
+  );
+  if (!html.length) throw new Error("rendered nothing");
+  // Assert the RESOLVED English text, not the raw i18n key: the harness has
+  // real resources loaded, so a raw-key check would not prove the key resolves.
+  if (!html.includes(i18n.t("ess.profile.documents.description"))) {
+    throw new Error("documents intro missing");
+  }
+  if (!html.includes(i18n.t("ess.profile.documents.loading"))) {
+    throw new Error("loading state missing");
+  }
+  console.log(`  PASS  EmployeeDocuments (body) -> ${html.length} chars`);
+} catch (e) {
+  fail++;
+  console.log(`  FAIL  EmployeeDocuments (body) ${e.constructor.name}: ${e.message}`);
 }
 
 console.log(fail ? `\n${fail} render failure(s)` : "\nall forms render");

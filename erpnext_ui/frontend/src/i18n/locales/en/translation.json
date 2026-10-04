@@ -85,7 +85,11 @@
 		"deleteConfirmTitle": "Confirm delete",
 		"deleting": "Deleting…",
 		"draft": "Draft",
-		"approvalStatus": "Approval Status"
+		"approvalStatus": "Approval Status",
+		"cancelConfirm": "Are you sure you want to cancel {name}?",
+		"cancelling": "Cancelling...",
+		"cancelledSuccess": "{name} cancelled successfully",
+		"cancelFailed": "Failed to cancel"
 	},
 	"nav": {
 		"approvals": "Approvals",

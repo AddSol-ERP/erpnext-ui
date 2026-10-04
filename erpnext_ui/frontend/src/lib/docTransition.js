@@ -123,6 +123,48 @@ export function canSubmitDocument({ doctype, doc } = {}) {
   return gate.allowed.includes(doc?.[gate.field]);
 }
 
+/**
+ * Which document-lifecycle actions to render, straight from `docstatus`.
+ *
+ * Frappe's own state machine (frappe/model/document.py, `docstatus`):
+ *
+ *   0 Draft     -> fully editable, can be deleted, no ledger effect
+ *   1 Submitted -> read-only (except "Allow on Submit"), CANNOT be deleted;
+ *                  Frappe refuses with "Submitted Record cannot be deleted.
+ *                  You must Cancel it first", so offering Delete here only
+ *                  produces a button that is guaranteed to fail
+ *   2 Cancelled -> read-only, reverses ledger entries, deletable
+ *
+ * `isEdit` distinguishes a stored document from a new form. A new form has no
+ * document at all, so `docstatus` is `undefined` -- reading it directly would
+ * yield `NaN` and silently hide every draft-only action, stranding the user on
+ * a form with no way out. It is therefore treated as a draft for navigation
+ * (Back applies) but as having nothing to delete or cancel.
+ */
+export function resolveDocstatusActions({ isEdit, docstatus, hasWorkflow = false } = {}) {
+  // `|| 0` rather than `?? 0`: both map a missing docstatus to Draft, and this
+  // also normalises the string "0" that some Frappe responses return.
+  const ds = Number(docstatus) || 0;
+
+  return {
+    docstatus: ds,
+    // Back only makes sense before the document is submitted or cancelled.
+    showBack: !isEdit || ds === 0,
+    // Cancel is the way out of a submitted document, but only when no Workflow
+    // governs the doctype. Once ANY transition targets a doc_status "2" state,
+    // Frappe's `can_cancel_document` starts returning False -- the Workflow has
+    // taken ownership of cancellation and expects its own Cancel action, so a
+    // bare `frappe.client.cancel` would set docstatus 2 while leaving
+    // `workflow_state` at "Approved". The transition button is the only correct
+    // control in that case, and rendering both gives two identical Cancel
+    // buttons for one decision.
+    showCancel: Boolean(isEdit) && ds === 1 && !hasWorkflow,
+    // Draft or Cancelled only; never Submitted. Unaffected by a Workflow: Delete
+    // is not a forward transition, so the Workflow has no opinion about it.
+    showDelete: Boolean(isEdit) && (ds === 0 || ds === 2),
+  };
+}
+
 export function resolveForwardActions({
   isEdit,
   isSubmitted = false,
@@ -203,30 +245,28 @@ export async function getWorkflowActions({ doc }) {
       return { hasWorkflow: false, actions: [] };
     }
 
-    // get_transitions can repeat a transition when several roles may run it;
-    // keep the first of each action.
+    // `get_transitions` can return the same transition more than once (several
+    // roles may run it), so collapse exact duplicates. The key deliberately
+    // includes state and next_state, not just the action name: an admin may
+    // legitimately route one action from one state to two different next
+    // states, and keying on `action` alone would silently drop one of them.
     const unique = Object.values(
       list
         .filter((t) => t?.action)
         .reduce((acc, t) => {
-          if (!acc[t.action]) {
-            acc[t.action] = { action: t.action, from: t.state, to: t.next_state };
+          const key = JSON.stringify([t.state, t.action, t.next_state]);
+          if (!acc[key]) {
+            acc[key] = { action: t.action, from: t.state, to: t.next_state };
           }
           return acc;
         }, {}),
     );
 
-    // Present the decision an approver actually has to make first: rejecting
-    // before approving, with anything neutral in between. Without this the
-    // order is whatever the backend happened to iterate.
-    const rank = (action) => {
-      const a = String(action).toLowerCase();
-      if (a.includes("reject")) return 0;
-      if (a.includes("approve")) return 2;
-      return 1;
-    };
-
-    return { hasWorkflow: true, actions: unique.sort((a, b) => rank(a.action) - rank(b.action)) };
+    // Order comes from the Workflow document, i.e. the order the admin defined
+    // the transitions in. It is deliberately NOT re-sorted here: guessing at a
+    // "reject before approve" reading would hardcode semantics that belong to
+    // the workflow, and would mis-order custom actions it knows nothing about.
+    return { hasWorkflow: true, actions: unique };
   } catch {
     // "Workflow State not set" means no workflow; anything else (permission,
     // network) is treated identically so the user is never blocked.

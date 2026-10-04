@@ -12,10 +12,105 @@ def setup_workflows():
         get_leave_application_workflow(),
         get_attendance_request_workflow(),
         get_expense_claim_workflow(),
+        get_employee_approval_workflow(),
     ]
 
     for config in workflows:
         create_workflow_if_missing(config)
+
+
+def get_employee_approval_workflow():
+    """
+    New Employees start life waiting for HR sign-off.
+
+    Every state is `doc_status: "0"`, and that is not a stylistic choice -- it is
+    the only shape Employee supports. Employee is NOT submittable: its DocType
+    JSON has no `is_submittable`, and all 108 of its fields have an empty
+    `allow_on_submit`. So `apply_workflow` takes the draft-to-draft branch and
+    calls plain `doc.save()` (frappe/model/workflow.py), which means no
+    `submit()`, no `cancel()`, and none of ERPNext's submit-time validation on a
+    master record that payroll, attendance and leave all reference.
+
+    Approval is therefore expressed purely through `workflow_state`.
+
+    Why not `status` (Active / Inactive / Suspended / Left)? Three reasons, all
+    verified in erpnext/setup/doctype/employee/employee.py:
+
+      1. There is no "pending" value to write. `validate_status` rejects
+         anything outside those four options, so an `update_field` of
+         "Pending HR Approval" would throw on every approval.
+      2. `update_user_status()` flips the linked User's `enabled` flag on every
+         Employee save whenever status is not "Active". Gating on status would
+         disable the very employees the ESS warning is meant to tell.
+      3. `status` defaults to "Active" and is what payroll generation filters
+         on, so it is the wrong tool for an approval concept.
+
+    `allow_edit` is intentionally omitted. It has no server-side enforcement
+    (`validate_workflow` only checks transitions), and our GenericForm does not
+    implement it, so setting it would make records read-only in ERPNext desk but
+    not in this app -- an inconsistency that risks locking employees out of their
+    own record.
+    """
+    return {
+        "workflow_name": "Employee HR Approval",
+        "doctype": "Employee",
+
+        "states": [
+            # ORDER IS LOAD-BEARING. `validate_workflow` falls back to
+            # `workflow.states[0].state` when workflow_state is unset
+            # (frappe/model/workflow.py), so this row is the entry point for
+            # every newly created Employee.
+            {"state": "Pending HR Approval", "doc_status": "0"},
+            {"state": "Approved", "doc_status": "0"},
+            {"state": "Rejected", "doc_status": "0"},
+        ],
+
+        "transitions": [
+            # Workflow Transition.allowed is a single-role Link, so granting two
+            # roles needs two rows. `get_transitions` filters by the logged-in
+            # role, so each user only ever sees their own row.
+            {
+                "state": "Pending HR Approval",
+                "action": "Approve",
+                "next_state": "Approved",
+                "allowed": "HR Manager",
+            },
+            {
+                "state": "Pending HR Approval",
+                "action": "Approve",
+                "next_state": "Approved",
+                "allowed": "HR User",
+            },
+            {
+                "state": "Pending HR Approval",
+                "action": "Reject",
+                "next_state": "Rejected",
+                "allowed": "HR Manager",
+            },
+            {
+                "state": "Pending HR Approval",
+                "action": "Reject",
+                "next_state": "Rejected",
+                "allowed": "HR User",
+            },
+            # "Resubmit" is not one of the three Action Masters Frappe seeds
+            # (Approve / Reject / Review), so the ensure step in
+            # create_workflow_if_missing has to create it before this row can
+            # link to it.
+            {
+                "state": "Rejected",
+                "action": "Resubmit",
+                "next_state": "Pending HR Approval",
+                "allowed": "HR Manager",
+            },
+            {
+                "state": "Rejected",
+                "action": "Resubmit",
+                "next_state": "Pending HR Approval",
+                "allowed": "HR User",
+            },
+        ],
+    }
 
 
 def get_leave_application_workflow():
@@ -23,31 +118,76 @@ def get_leave_application_workflow():
         "workflow_name": "Leave Application Approval",
         "doctype": "Leave Application",
 
+        # `update_field` / `update_value` are what `apply_workflow` writes on
+        # every transition (frappe/model/workflow.py):
+        #
+        #     if next_state.update_field:
+        #         doc.set(next_state.update_field, next_state.update_value)
+        #
+        # so they, not the form, own `status` on a Workflow doctype. Leaving
+        # them set on the draft states is what makes a submitted leave carry
+        # "Approved"/"Rejected" rather than staying "Open", which is the value
+        # HRMS's `LeaveApplication.on_submit` insists on.
         "states": [
             {
                 "state": "Draft",
                 "doc_status": "0",
+                "update_field": "status",
+                "update_value": "Open",
                 "allow_edit": "Employee",
             },
             {
                 "state": "Pending Leave Approver",
                 "doc_status": "0",
+                "update_field": "status",
+                "update_value": "Open",
                 "allow_edit": "Leave Approver",
             },
             {
                 "state": "Pending HR Approval",
                 "doc_status": "0",
+                "update_field": "status",
+                "update_value": "Open",
                 "allow_edit": "HR Manager",
             },
             {
                 "state": "Approved",
                 "doc_status": "1",
+                "update_field": "status",
+                "update_value": "Approved",
                 "allow_edit": "HR Manager",
             },
             {
                 "state": "Rejected",
-                "doc_status": "0",
+                # Submitted, not a draft: HRMS only allows submission when
+                # `status` is already "Approved" or "Rejected", and a rejected
+                # leave is final. A doc_status of "0" here would leave a
+                # rejected request editable and re-submittable.
+                "doc_status": "1",
+                "update_field": "status",
+                "update_value": "Rejected",
                 "allow_edit": "Leave Approver",
+            },
+            {
+                "state": "Cancelled",
+                "doc_status": "2",
+                "update_field": "status",
+                "update_value": "Cancelled",
+                "allow_edit": "Leave Approver",
+            },
+            # Second Cancelled row, kept deliberately. Frappe resolves a state
+            # row with `state_row = [...]; state_row = state_row[0]`
+            # (frappe/model/workflow.py), so only the FIRST row for a given
+            # state is ever consulted and this one is inert. It is retained
+            # because it documents intent and costs nothing; `get_transitions`
+            # already collapses the two identical Cancel transitions below by
+            # role, so no duplicate button reaches the user.
+            {
+                "state": "Cancelled",
+                "doc_status": "2",
+                "update_field": "status",
+                "update_value": "Cancelled",
+                "allow_edit": "HR Manager",
             },
         ],
 
@@ -82,6 +222,25 @@ def get_leave_application_workflow():
                 "next_state": "Rejected",
                 "allowed": "HR Manager",
             },
+            # Cancelling is a Workflow transition, not a bare `doc.cancel()`.
+            # Once any transition targets a doc_status "2" state,
+            # `can_cancel_document` starts returning False (workflow.py), which
+            # is Frappe telling callers the Workflow owns cancellation. Going
+            # through the transition is also the only path that keeps
+            # `workflow_state` and `status` consistent -- a plain cancel would
+            # set docstatus 2 while leaving workflow_state at "Approved".
+            {
+                "state": "Approved",
+                "action": "Cancel",
+                "next_state": "Cancelled",
+                "allowed": "HR Manager",
+            },
+            {
+                "state": "Approved",
+                "action": "Cancel",
+                "next_state": "Cancelled",
+                "allowed": "Leave Approver",
+            },
         ],
     }
 
@@ -91,11 +250,20 @@ def get_attendance_request_workflow():
         "workflow_name": "Attendance Request Approval",
         "doctype": "Attendance Request",
 
+        # No `update_field` / `update_value` anywhere: Attendance Request has no
+        # status column of its own, so its outcome lives purely in
+        # `workflow_state` plus `docstatus`. `apply_workflow` only writes those
+        # two, which is exactly right here.
         "states": [
             {
                 "state": "Draft",
                 "doc_status": "0",
                 "allow_edit": "Employee",
+            },
+            {
+                "state": "Pending Reporting Manager Approval",
+                "doc_status": "0",
+                "allow_edit": "Leave Approver",
             },
             {
                 "state": "Pending HR Approval",
@@ -108,8 +276,15 @@ def get_attendance_request_workflow():
                 "allow_edit": "HR Manager",
             },
             {
+                # Draft, unlike Leave/Expense: the request is meant to stay
+                # editable so it can be corrected and resubmitted.
                 "state": "Rejected",
                 "doc_status": "0",
+                "allow_edit": "HR Manager",
+            },
+            {
+                "state": "Cancelled",
+                "doc_status": "2",
                 "allow_edit": "HR Manager",
             },
         ],
@@ -118,8 +293,17 @@ def get_attendance_request_workflow():
             {
                 "state": "Draft",
                 "action": "Submit",
-                "next_state": "Pending HR Approval",
+                "next_state": "Pending Reporting Manager Approval",
                 "allowed": "Employee",
+            },
+            {
+                # "Verified" is a custom Action Master, not one of the three
+                # Frappe seeds (Approve / Reject / Review), so the setup step
+                # below has to create it before this row can link.
+                "state": "Pending Reporting Manager Approval",
+                "action": "Verified",
+                "next_state": "Pending HR Approval",
+                "allowed": "Leave Approver",
             },
             {
                 "state": "Pending HR Approval",
@@ -133,6 +317,16 @@ def get_attendance_request_workflow():
                 "next_state": "Rejected",
                 "allowed": "HR Manager",
             },
+            {
+                # Routes cancellation through the Workflow for the same reason
+                # as Leave: once a transition targets a doc_status "2" state,
+                # `can_cancel_document` returns False and a bare `doc.cancel()`
+                # would desync workflow_state from docstatus.
+                "state": "Approved",
+                "action": "Cancel",
+                "next_state": "Cancelled",
+                "allowed": "HR Manager",
+            },
         ],
     }
 
@@ -142,6 +336,11 @@ def get_expense_claim_workflow():
         "workflow_name": "Expense Claim Approval",
         "doctype": "Expense Claim",
 
+        # ERPNext models the outcome in `approval_status`, not `status`, and only
+        # the terminal states write it. Leaving Draft and Pending HR Approval
+        # without an `update_field` is deliberate: a claim should stay whatever
+        # ERPNext defaulted it to ("Draft") while it is still in review, and only
+        # become Approved/Rejected once a decision is actually recorded.
         "states": [
             {
                 "state": "Draft",
@@ -156,11 +355,17 @@ def get_expense_claim_workflow():
             {
                 "state": "Approved",
                 "doc_status": "1",
+                "update_field": "approval_status",
+                "update_value": "Approved",
                 "allow_edit": "HR Manager",
             },
             {
+                # Submitted, not a draft, so a rejected claim is final and stops
+                # offering Submit.
                 "state": "Rejected",
-                "doc_status": "0",
+                "doc_status": "1",
+                "update_field": "approval_status",
+                "update_value": "Rejected",
                 "allow_edit": "HR Manager",
             },
         ],
@@ -224,7 +429,7 @@ def create_workflow_if_missing(config):
         return
 
     # ---------------------------------------------------------
-    # 3. Validate roles
+    # 3. Ensure Roles exist
     # ---------------------------------------------------------
 
     roles = set()
@@ -237,24 +442,42 @@ def create_workflow_if_missing(config):
         if transition.get("allowed"):
             roles.add(transition["allowed"])
 
-    missing_roles = [
-        role
-        for role in roles
-        if not frappe.db.exists("Role", role)
-    ]
+    # These roles are created rather than skipped on.
+    #
+    # `Workflow Transition.allowed` and `Workflow Document State.allow_edit` are
+    # REQUIRED Links to Role, so a missing role makes the workflow insert throw
+    # LinkValidationError. The previous behaviour was to log a warning and
+    # `return`, abandoning the whole workflow -- and because "Leave Approver" is
+    # not an ERPNext core role (it ships with HRMS or is customer-created), any
+    # site without it silently ended up with NO Leave workflow at all. The
+    # frontend then showed a plain Submit button, because get_transitions
+    # returns [] and reports no workflow: a silent functional regression with
+    # only a log line to show for it.
+    #
+    # Creating the roles we depend on is more consequential than creating
+    # Workflow Action Masters, because a Role is site-wide and carries
+    # permissions. It is still the right trade: the app cannot function without
+    # these roles, they grant no permissions by themselves, and admins remain
+    # free to assign them.
+    for role in sorted(roles):
+        if frappe.db.exists("Role", role):
+            continue
 
-    if missing_roles:
-        frappe.logger().warning(
-            f"Cannot create workflow for {doctype}. "
-            f"Missing roles: {', '.join(missing_roles)}"
-        )
-        return
+        frappe.get_doc({
+            "doctype": "Role",
+            "role_name": role,
+            "desk_access": 1,
+            "is_custom": 1,
+        }).insert(ignore_permissions=True)
+
+        frappe.logger().info(f"Created missing Role for workflow: {role}")
 
     # ---------------------------------------------------------
     # 4. Ensure Workflow States exist
     # ---------------------------------------------------------
 
     state_names = set()
+    action_names = set()
 
     for state in config["states"]:
         state_names.add(state["state"])
@@ -262,6 +485,7 @@ def create_workflow_if_missing(config):
     for transition in config["transitions"]:
         state_names.add(transition["state"])
         state_names.add(transition["next_state"])
+        action_names.add(transition["action"])
 
     for state_name in state_names:
 
@@ -274,6 +498,34 @@ def create_workflow_if_missing(config):
         doc = frappe.get_doc({
             "doctype": "Workflow State",
             "workflow_state_name": state_name,
+        })
+
+        doc.insert(ignore_permissions=True)
+
+    # ---------------------------------------------------------
+    # 4b. Ensure Workflow Action Masters exist
+    # ---------------------------------------------------------
+
+    # `Workflow Transition.action` is a REQUIRED Link to Workflow Action Master,
+    # and Frappe seeds only three of them (frappe/utils/install.py):
+    #
+    #     Approve, Reject, Review
+    #
+    # "Submit", "Cancel" and any custom action are therefore absent on a fresh
+    # site, and inserting a transition that links to a missing Action Master
+    # raises LinkValidationError. Creating the referenced masters here keeps the
+    # workflow insertable without anyone hand-creating them in the desk first.
+    for action_name in action_names:
+
+        if frappe.db.exists(
+            "Workflow Action Master",
+            action_name
+        ):
+            continue
+
+        doc = frappe.get_doc({
+            "doctype": "Workflow Action Master",
+            "workflow_action_name": action_name,
         })
 
         doc.insert(ignore_permissions=True)
@@ -301,6 +553,14 @@ def create_workflow_if_missing(config):
         row.state = state["state"]
         row.doc_status = state["doc_status"]
         row.allow_edit = state["allow_edit"]
+
+        # Both optional: several states deliberately carry neither (Attendance
+        # Request has no status column at all, and an Expense Claim should keep
+        # its defaulted `approval_status` while still under review). Assigning
+        # unconditionally would write empty strings into a Select/Data field.
+        if state.get("update_field"):
+            row.update_field = state["update_field"]
+            row.update_value = state["update_value"]
 
     # ---------------------------------------------------------
     # 7. Transitions

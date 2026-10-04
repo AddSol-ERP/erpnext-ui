@@ -20,6 +20,7 @@ import {
   getWorkflowActions,
   saveDocument,
   submitDocument,
+  workflowActionLabelKey,
 } from "../../../lib/docTransition";
 import {
   LEAVE_APPROVED,
@@ -366,10 +367,16 @@ export default function ApprovalPreview({
   if (workflowActions.length > 0) {
     for (const a of workflowActions) {
       const isReject = a.action.toLowerCase().includes("reject");
+      // Same labelling rule as the request forms: translate the actions we know,
+      // show anything else verbatim so an admin-authored action is never
+      // mistranslated or hidden.
+      const labelKey = workflowActionLabelKey(a.action);
       footerActions.push({
-        key: `workflow:${a.action}`,
-        // Workflow transition labels come from the backend, verbatim.
-        label: a.action,
+        // Keyed by state + next_state as well as the action, because one action
+        // can legitimately route to two different next states from two states;
+        // keying on the action alone would make React reuse the wrong element.
+        key: `workflow:${a.from} ${a.action} ${a.to}`,
+        label: labelKey ? t(labelKey) : a.action,
         icon: isReject ? XCircle : CheckCircle,
         destructive: isReject,
         primary: !isReject,

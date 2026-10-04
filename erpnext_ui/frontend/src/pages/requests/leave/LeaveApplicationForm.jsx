@@ -9,9 +9,11 @@ import {
   canSubmitDocument,
   deleteDocument,
   getWorkflowActions,
+  resolveDocstatusActions,
   resolveForwardActions,
   saveDocument,
   submitDocument,
+  cancelDocument,
   workflowActionLabelKey,
 } from "../../../lib/docTransition";
 import { getApprovalMeta } from "../../../lib/approvalMeta";
@@ -24,7 +26,6 @@ import {
 } from "../../../lib/leaveApproval";
 import { useDocStatus } from "../../../hooks/useDocStatus";
 import { FormField } from "../../../components/FormField";
-import { DocStatusField } from "../../../components/DocStatusField";
 import FormSection from "../../../components/FormSection";
 import FormErrorSummary from "../../../components/FormErrorSummary";
 import ConfirmDialog from "../../../components/ConfirmDialog";
@@ -58,6 +59,12 @@ export default function LeaveApplicationForm() {
   const [deleting, setDeleting] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  // Cancelling is its own in-flight state, separate from `approving`: the two
+  // are never shown at once (Cancel only exists at docstatus 1, Approve only at
+  // docstatus 0), so one shared flag would let the other operation's label
+  // linger on the button.
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Submit / Workflow transition state.
   // `hasWorkflow` is a doctype-level fact (meta carries `workflow_state`), so
@@ -120,6 +127,11 @@ export default function LeaveApplicationForm() {
     from_date: prefilledDate,
     to_date: prefilledDate,
     half_day: 0,
+    // Seeded rather than defaulted at render time. HRMS defaults `status` to
+    // "Open" server-side, but the select below falls back to that value for
+    // display only; without seeding it here a Save made before the select is
+    // ever touched would PUT `status: ""` and ERPNext rejects the empty value.
+    status: "Open",
     // HRMS Leave Application stores the reason in `description`
     // (Small Text, label "Reason"). The form previously sent `reason`,
     // which is not a field on the doctype and was silently discarded.
@@ -130,6 +142,17 @@ export default function LeaveApplicationForm() {
   // 1 (Submitted) does, and a flag set only when `docstatus === 1` would leave
   // a cancelled document editable and offering Submit.
   const isSubmitted = Number(doc.docstatus) > 0;
+
+  // Which lifecycle buttons this document can offer. Centralised so this form,
+  // the Expense form and the Attendance form cannot drift apart.
+  const { showBack, showCancel, showDelete } = resolveDocstatusActions({
+    isEdit,
+    docstatus: doc.docstatus,
+    // When a Workflow governs this doctype it owns cancellation (see
+    // `resolveDocstatusActions`), so the docstatus-derived Cancel is dropped
+    // and the Workflow's own Cancel transition is the only control offered.
+    hasWorkflow,
+  });
 
   // Always points at the newest document. The header holds a `handleSave`
   // captured in an earlier render (its effect intentionally does not depend on
@@ -576,6 +599,34 @@ export default function LeaveApplicationForm() {
     }
   };
 
+  /**
+   * Open the confirmation for cancelling the stored document.
+   *
+   * `showCancel` (docstatus 1) has already gated the button; the repeat check
+   * keeps a stale click (the header can outlive a re-render) from cancelling
+   * something the current docstatus does not allow.
+   */
+  function handleCancel() {
+    if (!isEdit || !name || !showCancel) return;
+    setCancelOpen(true);
+  }
+
+  async function confirmCancel() {
+    setCancelling(true);
+    try {
+      await cancelDocument({ doctype: "Leave Application", name });
+      await loadDoc();
+      toast.success(t("common.cancelledSuccess", { name }));
+    } catch (e) {
+      const message = e?.message || t("common.cancelFailed");
+      toast.error(message);
+      setError(message);
+    } finally {
+      setCancelling(false);
+      setCancelOpen(false);
+    }
+  }
+
   /* ================= DELETE ================= */
   // Deliberately always offered on an existing document: whether the signed-in
   // user may delete it is the server's call. `frappe.client.delete` raises
@@ -682,18 +733,28 @@ export default function LeaveApplicationForm() {
           onClick: () => handleSubmit(),
         },
 
-        // Leave the form without saving. Available on new forms too, so there
-        // is always a way out that does not create a document.
-        {
-          label: t("common.cancel"),
+        // Leave the form without saving. Offered on a new form too, so there is
+        // always a way out that does not create a document.
+        showBack && {
+          label: t("common.back"),
           variant: "btn-outline-primary",
           disabled: loading || submitting,
           onClick: () => navigate("/requests/leave"),
         },
 
-        // Delete the saved document. Edit-only, and the server decides whether
-        // it is allowed (a submitted document is refused with its own message).
-        isEdit && {
+        // Cancel the stored document (docstatus 1 -> 2). This is a real
+        // lifecycle change, confirmed before it runs.
+        showCancel && {
+          label: cancelling ? t("common.cancelling") : t("common.cancel"),
+          variant: "btn-outline-danger",
+          disabled: loading || submitting || cancelling,
+          onClick: handleCancel,
+        },
+
+        // Delete the saved document. Draft or Cancelled only: Frappe refuses a
+        // submitted document outright ("You must Cancel it first"), so the
+        // button is omitted there rather than left to fail.
+        showDelete && {
           label: deleting ? t("common.deleting") : t("common.delete"),
           variant: "btn-outline-danger",
           disabled: loading || submitting,
@@ -723,6 +784,10 @@ export default function LeaveApplicationForm() {
     showApprove,
     showReject,
     approving,
+    cancelling,
+    showBack,
+    showCancel,
+    showDelete,
     currentUser,
   ]);
 
@@ -739,6 +804,20 @@ export default function LeaveApplicationForm() {
           if (!approving) setRejectOpen(false);
         }}
         onConfirm={() => handleApproval(LEAVE_REJECTED)}
+      />
+
+      <ConfirmDialog
+        open={cancelOpen}
+        loading={cancelling}
+        title={t("common.cancel")}
+        confirmLabel={t("common.cancel")}
+        onCancel={() => {
+          if (!cancelling) setCancelOpen(false);
+        }}
+        onConfirm={confirmCancel}
+        message={t("common.cancelConfirm", {
+          name: t("requests.leave.doctypeName"),
+        })}
       />
 
       <ConfirmDialog
@@ -894,7 +973,24 @@ export default function LeaveApplicationForm() {
         </div>
 
         <div className="md:col-span-1">
-          <DocStatusField label={t("common.status")} status={status} />
+          <FormField label={t("common.status")} name="status">
+            <FormSelect
+              value={doc.status || "Open"}
+              onChange={(v) => updateField("status", v)}
+              // With a Workflow configured, `apply_workflow` rewrites `status`
+              // from the next state's update_value on EVERY transition, so
+              // anything typed here would be overwritten the moment the document
+              // moves. Read-only in that case; still editable with no Workflow,
+              // which is the only situation where a human has to set it.
+              disabled={hasWorkflow || isSubmitted || loading || submitting}
+              options={[
+                { value: "Open", label: "Open" },
+                { value: "Approved", label: "Approved" },
+                { value: "Rejected", label: "Rejected" },
+                { value: "Cancelled", label: "Cancelled" },
+              ]}
+            />
+          </FormField>
         </div>
 
         {totalDays > 0 && (

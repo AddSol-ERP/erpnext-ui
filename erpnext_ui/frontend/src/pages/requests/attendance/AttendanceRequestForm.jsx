@@ -6,7 +6,10 @@ import { useHeader } from "../../../context/HeaderContext";
 import { useToast } from "../../../context/ToastContext";
 import { get } from "../../../services/api";
 import {
+  cancelDocument,
+  deleteDocument,
   getWorkflowActions,
+  resolveDocstatusActions,
   resolveForwardActions,
   saveDocument,
   submitDocument,
@@ -19,6 +22,7 @@ import { DocStatusField } from "../../../components/DocStatusField";
 import FormSection from "../../../components/FormSection";
 import FormErrorSummary from "../../../components/FormErrorSummary";
 import FormSelect from "../../../components/FormSelect";
+import ConfirmDialog from "../../../components/ConfirmDialog";
 import { focusFirstError } from "../../../lib/formValidation";
 import {
   applyEmployeeScope,
@@ -72,6 +76,13 @@ export default function AttendanceRequestForm() {
   // Submit permanently hidden.
   const [dirty, setDirty] = useState(false);
 
+  // Cancel and Delete confirmation state. Both are lifecycle changes to a
+  // stored document, so both are confirmed before they run.
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   /**
    * The single place the form's own fields change. Routing user input through
    * here is what marks the document dirty, so Frappe's rule (hide Submit while
@@ -120,6 +131,23 @@ export default function AttendanceRequestForm() {
   // 1 (Submitted) does, and a flag set only when `docstatus === 1` would leave
   // a cancelled document editable and offering Submit.
   const isSubmitted = Number(doc.docstatus) > 0;
+
+  // Which lifecycle buttons this document can offer. Centralised so this form,
+  // the Leave form and the Expense form cannot drift apart.
+  //
+  // Note there is deliberately no status select here: Attendance Request has no
+  // `status` field of its own, so its lifecycle lives entirely in `docstatus`
+  // (and `workflow_state` when a Workflow is configured). The read-only
+  // `DocStatusField` below reflects that, and `useDocStatus` resolves the right
+  // column from meta rather than assuming one.
+  const { showBack, showCancel, showDelete } = resolveDocstatusActions({
+    isEdit,
+    docstatus: doc.docstatus,
+    // When a Workflow governs this doctype it owns cancellation (see
+    // `resolveDocstatusActions`), so the docstatus-derived Cancel is dropped
+    // and the Workflow's own Cancel transition is the only control offered.
+    hasWorkflow,
+  });
 
   // Always points at the newest document. The header holds a `handleSave`
   // captured in an earlier render (its effect intentionally does not depend on
@@ -316,6 +344,80 @@ export default function AttendanceRequestForm() {
     }
   }
 
+  /* ================= CANCEL ================= */
+  /**
+   * Open the confirmation for cancelling the stored document.
+   *
+   * `showCancel` (docstatus 1) has already gated the button; the repeat check
+   * keeps a stale click (the header can outlive a re-render) from cancelling
+   * something the current docstatus does not allow.
+   */
+  function handleCancel() {
+    if (!isEdit || !name || !showCancel) return;
+    setCancelOpen(true);
+  }
+
+  /** Runs only after the user confirms. Reloads so the form locks read-only. */
+  async function confirmCancel() {
+    if (!isEdit || !name) return;
+
+    setCancelling(true);
+    try {
+      await cancelDocument({ doctype: "Attendance Request", name });
+      await loadDoc();
+
+      toast.success(
+        t("common.cancelledSuccess", {
+          name: t("requests.attendance.doctypeName"),
+        }),
+      );
+    } catch (e) {
+      const message = e?.message || t("common.cancelFailed");
+      toast.error(message);
+      // Keep the reason on the page too, in case the toast is missed.
+      setError(message);
+    } finally {
+      setCancelling(false);
+      setCancelOpen(false);
+    }
+  }
+
+  /* ================= DELETE ================= */
+  // Offered on an existing draft or cancelled document; `showDelete` already
+  // excludes docstatus 1, which Frappe refuses outright ("Submitted Record
+  // cannot be deleted. You must Cancel it first"). Whether the signed-in user
+  // may actually delete it remains the server's call, and its message is shown
+  // as-is rather than failing silently.
+  function handleDelete() {
+    if (!isEdit || !name || !showDelete) return;
+    setConfirmOpen(true);
+  }
+
+  /** Runs only after the user confirms in the modal. */
+  async function confirmDelete() {
+    if (!isEdit || !name) return;
+
+    setDeleting(true);
+    setLoading(true);
+    try {
+      await deleteDocument({ doctype: "Attendance Request", name });
+
+      toast.success(
+        t("common.deletedSuccess", {
+          name: t("requests.attendance.doctypeName"),
+        }),
+      );
+      navigate("/requests/attendance");
+    } catch (e) {
+      toast.error(e?.message || t("common.deleteFailed"));
+      setError(e?.message || t("common.deleteFailed"));
+    } finally {
+      setDeleting(false);
+      setLoading(false);
+      setConfirmOpen(false);
+    }
+  }
+
   /* ================= DISABLED STATE ================= */
   // A submitted document is fully locked; only self-only users are pinned to
   // their own Employee.
@@ -475,6 +577,33 @@ export default function AttendanceRequestForm() {
           disabled: submitting,
           onClick: () => handleSubmit(),
         },
+
+        // Leave the form without saving. Offered on a new form too, so there is
+        // always a way out that does not create a document.
+        showBack && {
+          label: t("common.back"),
+          variant: "btn-outline-primary",
+          disabled: loading || submitting,
+          onClick: () => navigate("/requests/attendance"),
+        },
+
+        // Cancel the stored document (docstatus 1 -> 2), confirmed first.
+        showCancel && {
+          label: cancelling ? t("common.cancelling") : t("common.cancel"),
+          variant: "btn-outline-danger",
+          disabled: loading || submitting || cancelling,
+          onClick: handleCancel,
+        },
+
+        // Delete the saved document. Draft or Cancelled only: Frappe refuses a
+        // submitted document outright ("You must Cancel it first"), so the
+        // button is omitted there rather than left to fail.
+        showDelete && {
+          label: deleting ? t("common.deleting") : t("common.delete"),
+          variant: "btn-outline-danger",
+          disabled: loading || submitting,
+          onClick: handleDelete,
+        },
       ].filter(Boolean),
     });
 
@@ -495,11 +624,44 @@ export default function AttendanceRequestForm() {
     dirty,
     showSubmit,
     showTransitions,
+    cancelling,
+    deleting,
+    showBack,
+    showCancel,
+    showDelete,
   ]);
 
   /* ================= UI ================= */
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-3 pt-4">
+      <ConfirmDialog
+        open={cancelOpen}
+        loading={cancelling}
+        title={t("common.cancel")}
+        confirmLabel={t("common.cancel")}
+        onCancel={() => {
+          if (!cancelling) setCancelOpen(false);
+        }}
+        onConfirm={confirmCancel}
+        message={t("common.cancelConfirm", {
+          name: t("requests.attendance.doctypeName"),
+        })}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        loading={deleting}
+        title={t("common.deleteConfirmTitle")}
+        confirmLabel={t("common.delete")}
+        onCancel={() => {
+          if (!deleting) setConfirmOpen(false);
+        }}
+        onConfirm={confirmDelete}
+        message={t("common.deleteConfirm", {
+          name: t("requests.attendance.doctypeName"),
+        })}
+      />
+
       <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* BASIC */}

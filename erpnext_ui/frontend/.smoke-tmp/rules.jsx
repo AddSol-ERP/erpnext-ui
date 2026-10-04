@@ -1,5 +1,6 @@
 import {
   resolveForwardActions,
+  resolveDocstatusActions,
   canSubmitDocument,
   LEAVE_SUBMITTABLE_STATUSES,
 } from "../src/lib/docTransition.js";
@@ -7,6 +8,7 @@ import {
   canActAsLeaveApprover,
   resolveLeaveApprovalActions,
 } from "../src/lib/leaveApproval.js";
+import { resolveHrApprovalGate } from "../src/lib/profileFlags.js";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => (c ? pass++ : (fail++, console.log("  FAIL:", n, "got:", JSON.stringify(got))));
@@ -157,6 +159,133 @@ for (const st of ["Open", "Approved", "Rejected", "Cancelled"]) {
   ok(`agreement: ${st} leave -> form and preview both ${formShows ? "offer" : "withhold"} Submit`,
      formShows === previewActions("Leave Application", { status: st }).includes("submit"));
 }
+
+/* ---------- docstatus -> Back / Cancel / Delete (all three forms) ---------- */
+// The exact bug that shipped once: `Number(undefined) === 0` is false, so
+// gating Back on `docstatus === 0` hid the only way off a NEW form.
+const D = (isEdit, docstatus) => resolveDocstatusActions({ isEdit, docstatus });
+
+let d = D(false, undefined);
+ok("docstatus: new form has no docstatus", d.docstatus === 0);
+ok("docstatus: new form still offers Back", d.showBack);
+ok("docstatus: new form has nothing to cancel", !d.showCancel);
+ok("docstatus: new form has nothing to delete", !d.showDelete);
+
+d = D(true, 0);
+ok("docstatus: draft offers Back", d.showBack);
+ok("docstatus: draft cannot be cancelled", !d.showCancel);
+ok("docstatus: draft can be deleted", d.showDelete);
+
+d = D(true, 1);
+ok("docstatus: submitted has no Back", !d.showBack);
+ok("docstatus: submitted offers Cancel", d.showCancel);
+ok("docstatus: submitted is NOT deletable", !d.showDelete);
+
+d = D(true, 2);
+ok("docstatus: cancelled has no Back", !d.showBack);
+ok("docstatus: cancelled cannot be re-cancelled", !d.showCancel);
+ok("docstatus: cancelled can be deleted", d.showDelete);
+
+// Frappe sends docstatus as a number, but tolerate the shapes a raw API
+// response can carry rather than silently rendering an empty toolbar.
+ok("docstatus: string \"1\" is submitted", D(true, "1").showCancel && !D(true, "1").showDelete);
+ok("docstatus: string \"0\" is draft", D(true, "0").showBack && D(true, "0").showDelete);
+ok("docstatus: null is treated as draft", D(true, null).showBack);
+ok("docstatus: no args safe", resolveDocstatusActions().showBack === true && resolveDocstatusActions().showDelete === false);
+
+// Back is navigation, Delete is destructive, so a draft legitimately offers
+// both. What must never happen is two COMPETING ways out of the same state:
+// Back (leave without touching) alongside Cancel (reverse a submission), or two
+// destructive actions at once.
+for (const ds of [0, 1, 2]) {
+  const r = D(true, ds);
+  ok(`docstatus ${ds}: Back and Cancel never compete`, !(r.showBack && r.showCancel));
+  ok(`docstatus ${ds}: at most one destructive action`,
+     [r.showCancel, r.showDelete].filter(Boolean).length <= 1);
+}
+ok("docstatus 0: draft offers Back and Delete together", D(true, 0).showBack && D(true, 0).showDelete);
+
+// --- a Workflow owns cancellation, so no duplicate Cancel button ----------
+// Once any transition targets a doc_status "2" state, Frappe's
+// `can_cancel_document` returns False: the Workflow has taken over
+// cancellation. Rendering the docstatus Cancel alongside the Workflow's Cancel
+// transition would put two identical Cancel buttons on one screen for a single
+// decision, and the docstatus one would leave workflow_state desynced from
+// docstatus.
+const W = (isEdit, docstatus) => resolveDocstatusActions({ isEdit, docstatus, hasWorkflow: true });
+
+let w = W(true, 1);
+ok("workflow+submitted: docstatus Cancel suppressed", !w.showCancel);
+ok("workflow+submitted: Back still suppressed", !w.showBack);
+ok("workflow+submitted: still NOT deletable", !w.showDelete);
+
+// Delete and Back are not forward transitions, so a Workflow has no opinion
+// about them; they must survive the workflow check.
+w = W(true, 0);
+ok("workflow+draft: Back survives", w.showBack);
+ok("workflow+draft: Delete survives", w.showDelete);
+ok("workflow+draft: no docstatus Cancel anyway", !w.showCancel);
+
+w = W(true, 2);
+ok("workflow+cancelled: Delete survives", w.showDelete);
+ok("workflow+cancelled: no docstatus Cancel", !w.showCancel);
+
+// The doctype-level rule is what matters: a Workflow governs the doctype even
+// for the logged-in role that has zero available transitions, and that role
+// must still not be offered a bare cancel.
+ok("workflow: hasWorkflow defaults to false (opt-in, no silent suppression)",
+   resolveDocstatusActions({ isEdit: true, docstatus: 1 }).showCancel === true);
+ok("workflow: Back/Cancel still never compete under a workflow", !W(true, 0).showBack || !W(true, 0).showCancel);
+ok("workflow: at most one destructive action under a workflow",
+   [0, 1, 2].every((ds) => [W(true, ds).showCancel, W(true, ds).showDelete].filter(Boolean).length <= 1));
+ok("docstatus 1: submitted offers Cancel alone", (() => {
+  const r = D(true, 1);
+  return r.showCancel && !r.showBack && !r.showDelete;
+})());
+ok("docstatus 2: cancelled offers Delete alone", (() => {
+  const r = D(true, 2);
+  return r.showDelete && !r.showBack && !r.showCancel;
+})());
+// Cancelling is the only route out of Submitted, and it is what makes the
+// document deletable afterwards -- so 1 -> Cancel -> 2 -> Delete must hold.
+ok("docstatus: submitted can only be escaped via Cancel, never Delete",
+   D(true, 1).showCancel && !D(true, 1).showDelete && D(true, 2).showDelete);
+
+// ============================================================
+// ESS HR approval gate
+// ----------------------------------------------------------
+// The regression this replaces: `!profile.workflow_state` cannot
+// distinguish "pending" from "field does not exist", because
+// !undefined === true, so every employee at every site without the
+// workflow was shown the warning.
+ok("gate: no workflow configured (key absent) hides the banner",
+   resolveHrApprovalGate({ name: "HR-EMP-00001" }).showWarning === false);
+ok("gate: no workflow configured -> hasGate false",
+   resolveHrApprovalGate({ name: "HR-EMP-00001" }).hasGate === false);
+ok("gate: null state hides the banner (record predates the workflow)",
+   resolveHrApprovalGate({ workflow_state: null }).showWarning === false);
+ok("gate: Pending HR Approval shows the warning",
+   resolveHrApprovalGate({ workflow_state: "Pending HR Approval" }).showWarning === true);
+ok("gate: Rejected shows the warning",
+   resolveHrApprovalGate({ workflow_state: "Rejected" }).showWarning === true);
+ok("gate: Approved hides the warning",
+   resolveHrApprovalGate({ workflow_state: "Approved" }).showWarning === false);
+ok("gate: warning shows for ANY non-Approved state (future-proof)",
+   ["Pending HR Approval", "Rejected", "Something New"].every(
+     (s) => resolveHrApprovalGate({ workflow_state: s }).showWarning === true));
+ok("gate: state is echoed through for consumers",
+   resolveHrApprovalGate({ workflow_state: "Rejected" }).state === "Rejected");
+ok("gate: absent state is normalised to null, not undefined",
+   resolveHrApprovalGate({}).state === null);
+ok("gate: missing profile object does not throw",
+   resolveHrApprovalGate(undefined).showWarning === false);
+ok("gate: empty string is a real state, so it warns (not treated as absent)",
+   resolveHrApprovalGate({ workflow_state: "" }).showWarning === true);
+ok("gate: a legacy custom_hr_approved flag alone must NOT trigger the banner",
+   resolveHrApprovalGate({ custom_hr_approved: false }).showWarning === false);
+ok("gate: Approved wins even when a legacy flag disagrees",
+   resolveHrApprovalGate({ workflow_state: "Approved", custom_hr_approved: false })
+     .showWarning === false);
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -85,7 +85,11 @@
 		"deleteConfirmTitle": "تأكيد الحذف",
 		"deleting": "جارٍ الحذف…",
 		"draft": "مسودة",
-		"approvalStatus": "حالة الموافقة"
+		"approvalStatus": "حالة الموافقة",
+		"cancelConfirm": "هل أنت متأكد أنك تريد إلغاء {name}؟",
+		"cancelling": "جارٍ الإلغاء...",
+		"cancelledSuccess": "تم إلغاء {name} بنجاح",
+		"cancelFailed": "فشل الإلغاء"
 	},
 	"nav": {
 		"approvals": "الموافقات",

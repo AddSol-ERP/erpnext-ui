@@ -67,6 +67,7 @@
 			"toDate": "إلى تاريخ"
 		},
 		"attendance": {
+			"doctypeName": "طلب الحضور",
 			"employee": "الموظف",
 			"company": "الشركة",
 			"fromDate": "من تاريخ",
@@ -121,6 +122,7 @@
 			"rejectConfirmBody": "سيتم وضع علامة مرفوض على الطلب. ويمكن تغيير الحالة لاحقًا."
 		},
 		"expense": {
+			"doctypeName": "طلب المصروفات",
 			"employee": "الموظف",
 			"company": "الشركة",
 			"approver": "المعتمِد",
@@ -159,7 +161,8 @@
 			"overtimeSubtitle": "سجلات عملك الإضافي",
 			"back": "رجوع",
 			"appointmentLetter": "خطاب التعيين",
-			"print": "طباعة"
+			"print": "طباعة",
+			"documents": "المستندات"
 		},
 		"tiles": {
 			"profile": {
@@ -211,6 +214,22 @@
 			"sectionEmployment": "التوظيف",
 			"sectionContact": "التواصل",
 			"sectionAddress": "العنوان",
+			"sectionDocuments": "المستندات",
+			"documents": {
+				"description": "قم بتحميل المستندات المطلوبة لسجل الموظف.",
+				"loading": "جارٍ تحميل المستندات...",
+				"notUploaded": "لم يتم التحميل",
+				"upload": "تحميل",
+				"replace": "استبدال",
+				"delete": "حذف",
+				"uploaded": "تم تحميل {{name}}",
+				"deleted": "تم حذف {{name}}",
+				"uploadFailed": "تعذر تحميل المستند.",
+				"deleteFailed": "تعذر حذف المستند.",
+				"loadFailed": "تعذر تحميل مستنداتك.",
+				"noneConfigured": "لا توجد أنواع مستندات مُهيأة",
+				"noneConfiguredHint": "لم يقم المسؤول بتفعيل رفع المستندات لسجلات الموظفين."
+			},
 			"fields": {
 				"employeeName": "اسم الموظف",
 				"dateOfBirth": "تاريخ الميلاد",

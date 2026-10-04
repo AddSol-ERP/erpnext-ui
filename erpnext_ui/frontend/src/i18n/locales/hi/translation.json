@@ -85,7 +85,11 @@
 		"deleteConfirmTitle": "हटाने की पुष्टि",
 		"deleting": "हटाया जा रहा है…",
 		"draft": "प्रारूप",
-		"approvalStatus": "अनुमोदन स्थिति"
+		"approvalStatus": "अनुमोदन स्थिति",
+		"cancelConfirm": "क्या आप वाकई {name} को रद्द करना चाहते हैं?",
+		"cancelling": "रद्द किया जा रहा है...",
+		"cancelledSuccess": "{name} सफलतापूर्वक रद्द कर दिया गया",
+		"cancelFailed": "रद्द करना विफल रहा"
 	},
 	"nav": {
 		"approvals": "अनुमोदन",

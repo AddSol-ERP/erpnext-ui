@@ -67,6 +67,7 @@
 			"toDate": "अंतिम तिथि"
 		},
 		"attendance": {
+			"doctypeName": "उपस्थिति अनुरोध",
 			"employee": "कर्मचारी",
 			"company": "कंपनी",
 			"fromDate": "आरंभ तिथि",
@@ -121,6 +122,7 @@
 			"rejectConfirmBody": "इससे आवेदन की स्थिति अस्वीकृत हो जाएगी। स्थिति को बाद में बदला जा सकता है।"
 		},
 		"expense": {
+			"doctypeName": "व्यय दावा",
 			"employee": "कर्मचारी",
 			"company": "कंपनी",
 			"approver": "स्वीकर्ता",
@@ -159,7 +161,8 @@
 			"overtimeSubtitle": "आपके ओवरटाइम रिकॉर्ड",
 			"back": "वापस",
 			"appointmentLetter": "नियुक्ति पत्र",
-			"print": "प्रिंट"
+			"print": "प्रिंट",
+			"documents": "दस्तावेज़"
 		},
 		"tiles": {
 			"profile": {
@@ -211,6 +214,22 @@
 			"sectionEmployment": "रोज़गार",
 			"sectionContact": "संपर्क",
 			"sectionAddress": "पता",
+			"sectionDocuments": "दस्तावेज़",
+			"documents": {
+				"description": "अपने कर्मचारी रिकॉर्ड के लिए आवश्यक दस्तावेज़ अपलोड करें।",
+				"loading": "दस्तावेज़ लोड हो रहे हैं...",
+				"notUploaded": "अपलोड नहीं किया गया",
+				"upload": "अपलोड",
+				"replace": "बदलें",
+				"delete": "हटाएँ",
+				"uploaded": "{{name}} अपलोड किया गया",
+				"deleted": "{{name}} हटाया गया",
+				"uploadFailed": "दस्तावेज़ अपलोड नहीं हो सका।",
+				"deleteFailed": "दस्तावेज़ हटाया नहीं जा सका।",
+				"loadFailed": "आपके दस्तावेज़ लोड नहीं हो सके।",
+				"noneConfigured": "कोई दस्तावेज़ प्रकार कॉन्फ़िगर नहीं है",
+				"noneConfiguredHint": "आपके प्रशासक ने कर्मचारी रिकॉर्ड के लिए दस्तावेज़ अपलोड सक्षम नहीं किए हैं।"
+			},
 			"fields": {
 				"employeeName": "कर्मचारी नाम",
 				"dateOfBirth": "जन्म तिथि",

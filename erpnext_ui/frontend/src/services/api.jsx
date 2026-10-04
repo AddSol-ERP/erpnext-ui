@@ -210,6 +210,74 @@ export async function put(method, data = {}) {
   return request("PUT", method, data);
 }
 
+/**
+ * POST a multipart/form-data payload.
+ *
+ * Separate from `request()` because that function hardcodes
+ * `Content-Type: application/json` and `JSON.stringify`s its body, which would
+ * corrupt a FormData upload: the browser has to generate the multipart boundary
+ * itself, so setting Content-Type manually yields
+ * "multipart/form-data; boundary=undefined" and Frappe rejects the body.
+ *
+ * The CSRF token is sent twice on purpose. Frappe accepts it from either the
+ * `X-Frappe-CSRF-Token` header or a `csrf_token` form field
+ * (`frappe/auth.py` -> `validate_csrf_token` pops it out of `form_dict`), and
+ * the two paths fail differently:
+ *
+ *   - same-origin (VITE_API_BASE_URL = "/api"): the session cookie applies, so
+ *     Frappe validates the token strictly. The header covers this.
+ *   - cross-origin dev with VITE_API_TOKEN: there may be no saved token at all,
+ *     in which case Frappe skips the check, but if a token *was* issued the
+ *     request is still rejected without one.
+ *
+ * Sending both means neither setup depends on which of the two the server ends
+ * up reading.
+ */
+export async function uploadFile(method, formData, canRetryCsrf = true) {
+  const headers = {
+    ...(import.meta.env.VITE_API_TOKEN && {
+      Authorization: import.meta.env.VITE_API_TOKEN,
+    }),
+  };
+
+  // NOTE: no Content-Type. The browser sets it along with the boundary.
+
+  const token = await getCsrfToken();
+  if (token) {
+    headers["X-Frappe-CSRF-Token"] = token;
+    formData.append("csrf_token", token);
+  }
+
+  const res = await fetch(`${getBaseUrl()}/${method}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const json = await res.json().catch(() => ({}));
+
+  // A re-login or session rotation invalidates the cached token; same
+  // single-retry recovery as the JSON path.
+  if (json.exc === "CSRFTokenError" && canRetryCsrf) {
+    clearCsrfToken();
+    return uploadFile(method, formData, false);
+  }
+
+  const failed = !res.ok || Boolean(json.exc);
+
+  if (failed) {
+    const parsed = parseServerMessages(json);
+    throw new ApiError(friendlyMessage(json, parsed, res.status), {
+      exc: json.exc || "",
+      status: res.status,
+      fieldMessages: parsed.fieldMessages,
+      messages: parsed.messages,
+    });
+  }
+
+  return json;
+}
+
 // ============================================
 // 🔹 ATTENDANCE REGULARIZATION APIs
 // ============================================

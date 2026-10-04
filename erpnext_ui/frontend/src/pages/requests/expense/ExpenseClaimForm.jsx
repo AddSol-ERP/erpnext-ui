@@ -6,18 +6,20 @@ import { useToast } from "../../../context/ToastContext";
 import { get } from "../../../services/api";
 import {
   getWorkflowActions,
+  resolveDocstatusActions,
   resolveForwardActions,
   saveDocument,
   submitDocument,
+  cancelDocument,
   workflowActionLabelKey,
 } from "../../../lib/docTransition";
 import { getApprovalMeta } from "../../../lib/approvalMeta";
 import { useDocStatus } from "../../../hooks/useDocStatus";
 import { FormField } from "../../../components/FormField";
-import { DocStatusField } from "../../../components/DocStatusField";
 import FormSection from "../../../components/FormSection";
 import FormErrorSummary from "../../../components/FormErrorSummary";
 import FormSelect from "../../../components/FormSelect";
+import ConfirmDialog from "../../../components/ConfirmDialog";
 import { focusFirstError } from "../../../lib/formValidation";
 import {
   applyEmployeeScope,
@@ -58,6 +60,21 @@ export default function ExpenseClaimForm() {
   // are not edits; a diff would call a freshly-opened document dirty and leave
   // Submit permanently hidden.
   const [dirty, setDirty] = useState(false);
+  // Seeded rather than defaulted at render time: ERPNext defaults
+  // `approval_status` to "Draft" server-side, but the select falls back to that
+  // value for display only. Without seeding it here, a Save made before the
+  // select is ever touched would PUT `approval_status: ""`.
+  const [doc, setDoc] = useState({
+    employee: "",
+    company: "",
+    expense_approver: "",
+    posting_date: "",
+    remark: "",
+    approval_status: "Draft",
+    expenses: [],
+  });
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   /**
    * The single place the form's own fields change. Routing user input through
@@ -79,19 +96,20 @@ export default function ExpenseClaimForm() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const [doc, setDoc] = useState({
-    employee: "",
-    company: "",
-    expense_approver: "",
-    posting_date: "",
-    remark: "",
-    expenses: [],
-  });
-
   // Derived, not latched: docstatus 2 (Cancelled) locks the form exactly as
   // 1 (Submitted) does, and a flag set only when `docstatus === 1` would leave
   // a cancelled document editable and offering Submit.
   const isSubmitted = Number(doc.docstatus) > 0;
+
+  // Which lifecycle buttons this document can offer. Centralised so this form,
+  // the Leave form and the Attendance form cannot drift apart.
+  const { showBack, showCancel } = resolveDocstatusActions({
+    isEdit,
+    docstatus: doc.docstatus,
+    // A Workflow owns cancellation once it routes to a doc_status "2" state,
+    // so the docstatus Cancel yields to the Workflow's Cancel transition.
+    hasWorkflow,
+  });
 
   // Always points at the newest document. The header holds a `handleSave`
   // captured in an earlier render (its effect intentionally does not depend on
@@ -469,6 +487,34 @@ export default function ExpenseClaimForm() {
     }
   };
 
+  /**
+   * Open the confirmation for cancelling the stored document.
+   *
+   * `showCancel` (docstatus 1) has already gated the button; the repeat check
+   * keeps a stale click (the header can outlive a re-render) from cancelling
+   * something the current docstatus does not allow.
+   */
+  function handleCancel() {
+    if (!isEdit || !name || !showCancel) return;
+    setCancelOpen(true);
+  }
+
+  async function confirmCancel() {
+    setCancelling(true);
+    try {
+      await cancelDocument({ doctype: "Expense Claim", name });
+      toast.success(t("common.cancelledSuccess", { name }));
+      navigate("/requests/expense");
+    } catch (e) {
+      const message = e?.message || t("common.cancelFailed");
+      toast.error(message);
+      setError(message);
+    } finally {
+      setCancelling(false);
+      setCancelOpen(false);
+    }
+  }
+
   /* ================= HEADER ================= */
   useEffect(() => {
     setHeader({
@@ -523,6 +569,23 @@ export default function ExpenseClaimForm() {
           disabled: !canSave || submitting,
           onClick: () => handleSubmit(),
         },
+
+        // Leave the form without saving. Offered on a new form too, so there is
+        // always a way out that does not create a document.
+        showBack && {
+          label: t("common.back"),
+          variant: "btn-outline-primary",
+          disabled: loading || submitting,
+          onClick: () => navigate("/requests/expense"),
+        },
+
+        // Cancel the stored document (docstatus 1 -> 2), confirmed first.
+        showCancel && {
+          label: cancelling ? t("common.cancelling") : t("common.cancel"),
+          variant: "btn-outline-danger",
+          disabled: loading || submitting || cancelling,
+          onClick: handleCancel,
+        },
       ].filter(Boolean),
     });
 
@@ -543,11 +606,26 @@ export default function ExpenseClaimForm() {
     dirty,
     showSubmit,
     showTransitions,
+    cancelling,
+    showBack,
+    showCancel,
   ]);
 
   /* ================= UI ================= */
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-3 pt-4">
+      <ConfirmDialog
+        open={cancelOpen}
+        loading={cancelling}
+        onCancel={() => {
+          if (!cancelling) setCancelOpen(false);
+        }}
+        onConfirm={confirmCancel}
+        message={t("common.cancelConfirm", {
+          name: t("requests.expense.doctypeName"),
+        })}
+      />
+
       <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* BASIC */}
@@ -638,10 +716,23 @@ export default function ExpenseClaimForm() {
         </FormField>
 
         <div className="lg:col-span-4">
-          <DocStatusField
-            label={t("common.approvalStatus")}
-            status={status}
-          />
+          <FormField label={t("common.approvalStatus")} name="approval_status">
+            <FormSelect
+              value={doc.approval_status || "Draft"}
+              onChange={(v) => updateField("approval_status", v)}
+              // With a Workflow configured, `apply_workflow` rewrites
+              // `approval_status` from the next state's update_value on every
+              // transition, so anything typed here is overwritten the moment the
+              // document moves. Read-only in that case; still editable with no
+              // Workflow, which is the only case a human has to set it.
+              disabled={hasWorkflow || isSubmitted || loading || submitting}
+              options={[
+                { value: "Draft", label: "Draft" },
+                { value: "Approved", label: "Approved" },
+                { value: "Rejected", label: "Rejected" },
+              ]}
+            />
+          </FormField>
         </div>
       </FormSection>
 

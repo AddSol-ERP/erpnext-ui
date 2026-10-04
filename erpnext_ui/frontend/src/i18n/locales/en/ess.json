@@ -67,6 +67,7 @@
 			"toDate": "To Date"
 		},
 		"attendance": {
+			"doctypeName": "Attendance Request",
 			"employee": "Employee",
 			"company": "Company",
 			"fromDate": "From Date",
@@ -121,6 +122,7 @@
 			"rejectConfirmBody": "This will mark the leave as Rejected. You can change the status again afterwards."
 		},
 		"expense": {
+			"doctypeName": "Expense Claim",
 			"employee": "Employee",
 			"company": "Company",
 			"approver": "Approver",
@@ -159,7 +161,8 @@
 			"overtimeSubtitle": "Your overtime records",
 			"back": "Back",
 			"appointmentLetter": "Appointment Letter",
-			"print": "Print"
+			"print": "Print",
+			"documents": "Documents"
 		},
 		"tiles": {
 			"profile": {
@@ -211,6 +214,22 @@
 			"sectionEmployment": "Employment",
 			"sectionContact": "Contact",
 			"sectionAddress": "Address",
+			"sectionDocuments": "Documents",
+			"documents": {
+				"description": "Upload the documents required for your employee record.",
+				"loading": "Loading documents...",
+				"notUploaded": "Not uploaded",
+				"upload": "Upload",
+				"replace": "Replace",
+				"delete": "Delete",
+				"uploaded": "{{name}} uploaded",
+				"deleted": "{{name}} deleted",
+				"uploadFailed": "Could not upload the document.",
+				"deleteFailed": "Could not delete the document.",
+				"loadFailed": "Could not load your documents.",
+				"noneConfigured": "No document types configured",
+				"noneConfiguredHint": "Your administrator has not enabled any document uploads for employee records."
+			},
 			"fields": {
 				"employeeName": "Employee Name",
 				"dateOfBirth": "Date of Birth",
