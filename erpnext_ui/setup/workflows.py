@@ -60,9 +60,11 @@ def get_employee_approval_workflow():
             # `workflow.states[0].state` when workflow_state is unset
             # (frappe/model/workflow.py), so this row is the entry point for
             # every newly created Employee.
-            {"state": "Pending HR Approval", "doc_status": "0"},
-            {"state": "Approved", "doc_status": "0"},
-            {"state": "Rejected", "doc_status": "0"},
+            {"state": "Pending HR Approval", "doc_status": "0", "allow_edit": "HR User"},
+            {"state": "Pending HR Approval", "doc_status": "0", "allow_edit": "HR Manager"},
+            {"state": "Pending HR Approval", "doc_status": "0", "allow_edit": "Employee"},
+            {"state": "Approved", "doc_status": "0", "allow_edit": "HR Manager"},
+            {"state": "Rejected", "doc_status": "0", "allow_edit": "HR Manager"},
         ],
 
         "transitions": [

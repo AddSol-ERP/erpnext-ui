@@ -29,8 +29,15 @@ import { FileText, Trash2, Upload } from "lucide-react";
  * configured: the trigger button lives in the page header, which cannot know the
  * type list without a second fetch, so an empty config shows an empty state here
  * instead.
+ *
+ * Props:
+ *   onUploaded: optional callback fired after a successful upload. The server
+ *     moves the Employee into "Pending HR Approval" on upload, so the parent
+ *     must re-read the profile for the HR approval banner to appear. It MUST
+ *     refresh without tearing down the modal -- see Profile.loadProfile's
+ *     `silent` option, since a loading swap unmounts this whole subtree.
  */
-export default function EmployeeDocuments() {
+export default function EmployeeDocuments({ onUploaded }) {
   const { t } = useTranslation();
   const { toast } = useToast();
 
@@ -108,6 +115,10 @@ export default function EmployeeDocuments() {
         t("ess.profile.documents.uploaded", { name: type.label }),
       );
       await refresh();
+
+      // Server moved us to "Pending HR Approval"; tell the parent so the banner
+      // updates without the modal closing.
+      await onUploaded?.();
     } catch (err) {
       toast.error(err?.message || t("ess.profile.documents.uploadFailed"));
     } finally {

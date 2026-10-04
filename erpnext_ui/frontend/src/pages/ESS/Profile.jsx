@@ -123,8 +123,14 @@ export default function ESSProfile() {
 
   // loadProfile setStates only after awaited API responses; the compiler
   // rule conservatively flags any setState-reaching call from an effect.
-  async function loadProfile() {
-    setLoading(true);
+  //
+  // `silent` re-reads the Employee WITHOUT flipping `loading`. That matters for
+  // the Documents modal: `loading` true returns early with a full-page spinner
+  // (see below), which replaces the whole tree and would unmount the modal
+  // mid-interaction. A silent refresh updates the HR approval banner behind the
+  // still-open modal.
+  async function loadProfile({ silent = false } = {}) {
+    if (!silent) setLoading(true);
     try {
       // Use hybrid resolution: window.frappe.session in ERPNext mode,
       // custom whitelisted API fallback in dev mode.
@@ -153,7 +159,7 @@ export default function ESSProfile() {
       console.error("Failed to load profile:", e);
       toast.error(t("ess.profile.loadFailed"));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -372,7 +378,13 @@ export default function ESSProfile() {
         title={t("ess.profile.sectionDocuments")}
         width="md"
       >
-        {docsOpen && <EmployeeDocuments />}
+        {docsOpen && (
+          <EmployeeDocuments
+            onUploaded={async () => {
+              await loadProfile({ silent: true });
+            }}
+          />
+        )}
       </AppModal>
     </div>
   );

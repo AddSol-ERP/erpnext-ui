@@ -2,6 +2,21 @@ import os
 import re
 
 import frappe
+from frappe.model import workflow as workflow_model
+
+
+# The state an Employee moves into when they upload a document, so HR has
+# something to review. Must match a state on the active Employee Workflow --
+# setup_workflows() seeds "Employee HR Approval", whose entry state is this one.
+#
+# It is written with frappe.db.set_value rather than a document save on purpose.
+# frappe.model.workflow.validate_workflow() throws WorkflowPermissionError for
+# any workflow_state change that is not the current state or a reachable
+# transition, and there is deliberately no Approved -> Pending transition: giving
+# the Employee role one would let any employee transition any Employee record.
+# This is therefore a state signal, not an audited workflow transition -- it
+# records no actor and bypasses validate_workflow by design.
+PENDING_APPROVAL_STATE = "Pending HR Approval"
 
 
 # ------------------------------------------------------------------
@@ -165,6 +180,43 @@ def _is_image(file_name):
     return _extension_of(file_name) in IMAGE_EXTENSIONS
 
 
+def _set_pending_hr_approval(employee):
+    """Move an Employee into the pending-approval state after a document change.
+
+    Resolves the state defensively instead of trusting the constant: a site
+    without an active Employee Workflow, or one whose workflow does not declare
+    this state, is left untouched rather than written with a dangling Link value.
+
+    Args:
+        employee (str): Employee record name.
+
+    Returns:
+        bool: True if the state was written.
+    """
+    workflow_name = workflow_model.get_workflow_name("Employee")
+    if not workflow_name:
+        return False
+
+    states = [
+        row.state
+        for row in frappe.get_cached_doc("Workflow", workflow_name).states
+    ]
+
+    if PENDING_APPROVAL_STATE not in states:
+        return False
+
+    # update_modified so the ESS profile's "Last updated" reflects the change.
+    frappe.db.set_value(
+        "Employee",
+        employee,
+        "workflow_state",
+        PENDING_APPROVAL_STATE,
+        update_modified=True,
+    )
+
+    return True
+
+
 def _describe(file_doc):
     """Project a File row into the shape the UI consumes."""
     type_key, display_name = _split_document_file_name(file_doc.file_name)
@@ -306,6 +358,27 @@ def upload_employee_document(type_key, file):
     # permission on the attached Employee, so this endpoint cannot be used to
     # attach files to somebody else's record.
     file_doc.save(ignore_permissions=False)
+
+    # Only now that the document is stored, re-open HR review. Wrapped because
+    # this is a side effect of a completed upload: letting it propagate would
+    # roll back a document the user already successfully uploaded, which is a
+    # worse outcome than the document landing without a pending-review signal.
+    try:
+        if _set_pending_hr_approval(employee):
+            frappe.logger().info(
+                "Document upload moved {0} to '{1}'.".format(
+                    employee, PENDING_APPROVAL_STATE
+                )
+            )
+        else:
+            frappe.logger().warning(
+                "Document upload for {0} did not set '{1}': no active Employee "
+                "Workflow declares that state.".format(
+                    employee, PENDING_APPROVAL_STATE
+                )
+            )
+    except Exception:
+        frappe.log_error(frappe.get_traceback())
 
     return _describe(file_doc)
 
