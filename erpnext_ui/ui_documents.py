@@ -289,12 +289,11 @@ def list_employee_documents():
 
 
 @frappe.whitelist(allow_guest=False)
-def upload_employee_document(type_key, file):
+def upload_employee_document(type_key):
     """Attach an uploaded document to the logged-in employee's record.
 
-    Args:
-        type_key (str): one of the configured type keys.
-        file: the uploaded file object from the multipart request.
+    The uploaded file is read from the multipart request via ``frappe.request.files``.
+    No positional ``file`` argument is needed from the caller.
 
     Returns:
         dict: the created document descriptor.
@@ -311,13 +310,82 @@ def upload_employee_document(type_key, file):
     if not config:
         frappe.throw("Unknown document type: {0}".format(type_key))
 
-    if not file:
+    # --- read the uploaded file from the multipart form ---
+    uploaded = frappe.request.files.get('file')
+    if not uploaded:
         frappe.throw("No file was uploaded.")
 
-    # basename() first: the browser-supplied name is untrusted input and must
-    # not be able to introduce path segments.
-    original_name = os.path.basename(file.filename or "")
+    # frappe.request.files returns a list (even for a single file)
+    file = uploaded[0] if isinstance(uploaded, list) else uploaded
+    # file is a dict with keys: filename, body (bytes), headers
+
+    original_name = os.path.basename(file.get('filename') or "")
     extension = _extension_of(original_name)
+
+    # validate extension
+    allowed = config["extensions"]
+    if extension not in allowed:
+        frappe.throw(
+            "{0} must be one of: {1}".format(
+                config["label"], ", ".join(allowed)
+            )
+        )
+
+    # read content (bytes)
+    content = file.get('body')
+    if not content:
+        frappe.throw(" uploaded file is empty.")
+
+    max_bytes = config["max_size_mb"] * 1024 * 1024
+    if len(content) > max_bytes:
+        frappe.throw(
+            "{0} must be {1} MB or smaller.".format(
+                config["label"], config["max_size_mb"]
+            )
+        )
+
+    # `is_private = 1` is not cosmetic. File.has_permission returns True for
+    # any non-private file to any authenticated user, and these are identity
+    # documents (Aadhaar, PAN, bank proof) that must not be readable by peers.
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": "[{0}]{1}".format(type_key, original_name),
+        "attached_to_doctype": "Employee",
+        "attached_to_name": employee,
+        "attached_to_field": "attachments",
+        "file_url": "",
+        "is_private": 1,
+        "content": content,
+        "file_size": len(content),
+    })
+
+    # ignore_permissions is deliberately NOT set: Frappe then enforces write
+    # permission on the attached Employee, so this endpoint cannot be used to
+    # attach files to somebody else's record.
+    file_doc.save(ignore_permissions=False)
+
+    # Only now that the document is stored, re-open HR review. Wrapped because
+    # this is a side effect of a completed upload: letting it propagate would
+    # roll back a document the user already successfully uploaded, which is a
+    # worse outcome than the document landing without a pending-review signal.
+    try:
+        if _set_pending_hr_approval(employee):
+            frappe.logger().info(
+                "Document upload moved {0} to '{1}'.".format(
+                    employee, PENDING_APPROVAL_STATE
+                )
+            )
+        else:
+            frappe.logger().warning(
+                "Document upload for {0} did not set '{1}': no active Employee "
+                "Workflow declares that state.".format(
+                    employee, PENDING_APPROVAL_STATE
+                )
+            )
+    except Exception:
+        frappe.log_error(frappe.get_traceback())
+
+    return _describe(file_doc)
 
     allowed = config["extensions"]
     if extension not in allowed:
