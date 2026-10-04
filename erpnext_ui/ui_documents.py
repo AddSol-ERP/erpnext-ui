@@ -317,9 +317,9 @@ def upload_employee_document(type_key):
 
     # frappe.request.files returns a list (even for a single file)
     file = uploaded[0] if isinstance(uploaded, list) else uploaded
-    # file is a dict with keys: filename, body (bytes), headers
+    # file is a Werkzeug FileStorage object; use .filename and .body
 
-    original_name = os.path.basename(file.get('filename') or "")
+    original_name = os.path.basename(file.filename or "")
     extension = _extension_of(original_name)
 
     # validate extension
@@ -332,7 +332,7 @@ def upload_employee_document(type_key):
         )
 
     # read content (bytes)
-    content = file.get('body')
+    content = file.body
     if not content:
         frappe.throw(" uploaded file is empty.")
 
