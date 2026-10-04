@@ -10,9 +10,10 @@ import {
   LogOut,
 } from "lucide-react";
 import applyTheme from "../../utils/theme";
-import { get } from "../../services/api";
+import { get, post } from "../../services/api";
 import { getUserSync, getCurrentUser } from "../../utils/getUser";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "../List/StatusBadge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -101,7 +102,12 @@ export function TopBarNav({ backFallback = "/" }) {
 /**
  * Center title + breadcrumbs for the single top bar.
  */
-export function TitleBlock({ title = "", subtitle = "", breadcrumbs = [] }) {
+export function TitleBlock({
+  title = "",
+  subtitle = "",
+  breadcrumbs = [],
+  status = null,
+}) {
   const navigate = useNavigate();
 
   if (!title && !breadcrumbs.length) return null;
@@ -110,6 +116,17 @@ export function TitleBlock({ title = "", subtitle = "", breadcrumbs = [] }) {
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-baseline gap-2">
         <div className="truncate text-base font-semibold leading-tight md:text-lg">{title}</div>
+
+        {/* Read-only lifecycle badge, supplied by the form via setHeader. */}
+        {status?.label && (
+          <StatusBadge
+            tone={status.tone}
+            className="translate-y-px shrink-0 align-middle"
+          >
+            {status.label}
+          </StatusBadge>
+        )}
+
         {subtitle && (
           <div className="hidden truncate text-xs text-muted-foreground md:block">• {subtitle}</div>
         )}
@@ -149,14 +166,10 @@ export function GlobalTools() {
       window.frappe.app.logout();
       return;
     }
-    fetch("/api/method/logout", {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Frappe-CSRF-Token": window.frappe?.csrf_token || "",
-      },
-    })
+    // Routed through the shared API helper so the session's CSRF token is
+    // attached -- logout is a POST and Frappe validates it like any other
+    // write. `window.frappe.csrf_token` does not exist on the SPA.
+    post("method/logout")
       .then(() => {
         window.location.href = "/login";
       })

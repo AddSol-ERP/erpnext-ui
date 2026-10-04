@@ -48,6 +48,105 @@ export default function PurchaseOrderPreview({ doc }) {
         </div>
       </div>
 
+      {/* ============ TERMS & PAYMENT TERMS ============
+          Surfaced immediately below the header, before the line items, so the
+          approver can read the commercial terms first and act without hunting
+          for them. `doc` here is the full document fetched by PreviewRenderer,
+          so `terms` (Text Editor HTML) and `payment_schedule` are both present
+          -- the list row does not carry them. */}
+      {(doc.terms || doc.payment_schedule?.length > 0) && (
+        <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-5">
+          {/* TERMS AND CONDITIONS */}
+          {doc.terms && (
+            <div className="rounded-lg border border-border p-3 xl:col-span-3">
+              <div className="mb-1.5 text-sm font-semibold">
+                {t("approvals.termsAndConditions")}
+              </div>
+
+              <div
+                className="max-h-44 overflow-y-auto break-words text-sm leading-relaxed text-muted-foreground [&_ol]:mb-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-1.5 [&_table]:w-full [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_ul]:mb-1 [&_ul]:list-disc [&_ul]:pl-5"
+                dangerouslySetInnerHTML={{ __html: doc.terms }}
+              />
+            </div>
+          )}
+
+          {/* PAYMENT TERMS */}
+          {doc.payment_schedule?.length > 0 && (
+            <div
+              className={`rounded-lg border border-border p-3 ${doc.terms ? "xl:col-span-2" : "xl:col-span-5"}`}
+            >
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-semibold">
+                  {t("approvals.preview.paymentTerms")}
+                </span>
+
+                {doc.payment_terms_template && (
+                  <span className="text-xs text-muted-foreground">
+                    {t("approvals.preview.termsTemplate")}:{" "}
+                    {doc.payment_terms_template}
+                  </span>
+                )}
+              </div>
+
+              <div className="max-h-44 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-start text-xs uppercase text-muted-foreground">
+                      <th className="py-1 pe-2 text-start font-medium">
+                        {t("approvals.preview.term")}
+                      </th>
+                      <th className="py-1 pe-2 text-start font-medium">
+                        {t("approvals.preview.dueDate")}
+                      </th>
+                      <th className="py-1 pe-2 text-start font-medium">
+                        {t("approvals.preview.portion")}
+                      </th>
+                      <th className="py-1 pe-2 text-end font-medium">
+                        {t("approvals.preview.amount")}
+                      </th>
+                      <th className="py-1 text-end font-medium">
+                        {t("approvals.preview.discount")}
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {doc.payment_schedule.map((p) => (
+                      <tr
+                        key={p.name}
+                        className="border-b border-border/50 last:border-0"
+                      >
+                        <td className="py-1 pe-2">
+                          <div className="font-medium">{p.payment_term}</div>
+                          {p.description && (
+                            <div className="text-xs text-muted-foreground">
+                              {p.description}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-1 pe-2 whitespace-nowrap">
+                          {p.due_date || "-"}
+                        </td>
+                        <td className="py-1 pe-2 whitespace-nowrap">
+                          {p.invoice_portion ? `${p.invoice_portion}%` : "-"}
+                        </td>
+                        <td className="py-1 pe-2 text-end whitespace-nowrap">
+                          {symbol}
+                          {p.payment_amount}
+                        </td>
+                        <td className="py-1 text-end whitespace-nowrap">
+                          {p.discount || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
         {/* LEFT */}
         <div className="md:col-span-7 2xl:col-span-8">
@@ -157,28 +256,6 @@ export default function PurchaseOrderPreview({ doc }) {
                 </span>
               </div>
             </div>
-
-            {/* PAYMENT */}
-            {doc.payment_schedule?.length > 0 && (
-              <div>
-                <div className="mb-1 text-sm font-semibold">
-                  {t("approvals.preview.payment")}
-                </div>
-
-                {doc.payment_schedule.map((p) => (
-                  <div
-                    key={p.name}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span>{p.due_date}</span>
-                    <span>
-                      {symbol}
-                      {p.payment_amount}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>

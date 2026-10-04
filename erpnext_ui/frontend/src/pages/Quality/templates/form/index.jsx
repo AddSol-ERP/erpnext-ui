@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipboardList, ListChecks } from "lucide-react";
-import { get, post } from "../../../../services/api";
+import { get } from "../../../../services/api";
+import { saveDocument } from "../../../../lib/docTransition";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
@@ -30,6 +31,20 @@ export default function QualityTemplateForm() {
     quality_inspection_template_name: "",
     item_quality_inspection_parameter: [],
   });
+
+  // Always points at the newest document. The Save button is registered into
+  // the page toolbar by an effect that deliberately does not depend on `doc`
+  // (re-running it per keystroke would thrash the toolbar), so the registered
+  // handler closes over the document as of an early render -- validation and
+  // the saved payload then used stale data. Handlers read through this ref.
+  const docRef = useRef(doc);
+
+  // Synced in an effect, not during render: the React Compiler lint rule
+  // forbids mutating a ref while rendering. Handlers run after a commit.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+
 
   /* ================= LOAD ================= */
 
@@ -104,11 +119,11 @@ export default function QualityTemplateForm() {
 
   /* ================= SAVE ================= */
 
-  const preparePayload = () => {
+  const preparePayload = (d = docRef.current) => {
     return {
-      quality_inspection_template_name: doc.quality_inspection_template_name,
+      quality_inspection_template_name: d.quality_inspection_template_name,
       item_quality_inspection_parameter:
-        doc.item_quality_inspection_parameter.map((r) => {
+        d.item_quality_inspection_parameter.map((r) => {
           let row = {
             doctype: "Item Quality Inspection Parameter",
             specification: r.specification,
@@ -136,14 +151,15 @@ export default function QualityTemplateForm() {
   };
 
   const handleSave = async () => {
+    const current = docRef.current;
     const errs = {};
 
-    if (!doc.quality_inspection_template_name) {
+    if (!current.quality_inspection_template_name) {
       errs.quality_inspection_template_name = t(
         "quality.templateNameRequired",
       );
     }
-    if (!doc.item_quality_inspection_parameter.length) {
+    if (!current.item_quality_inspection_parameter.length) {
       errs.item_quality_inspection_parameter = t(
         "quality.addOneParameter",
       );
@@ -163,11 +179,11 @@ export default function QualityTemplateForm() {
 
       const payload = preparePayload();
 
-      if (name) {
-        await post(`resource/Quality Inspection Template/${name}`, payload);
-      } else {
-        await post("resource/Quality Inspection Template", payload);
-      }
+      await saveDocument({
+        doctype: "Quality Inspection Template",
+        name: name || undefined,
+        doc: payload,
+      });
 
       toast.success(t("quality.savedSuccess"));
       navigate("/quality-templates");

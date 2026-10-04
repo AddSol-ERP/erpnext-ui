@@ -1,13 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
-import { get, post } from "../../../services/api";
+import { useToast } from "../../../context/ToastContext";
+import { get } from "../../../services/api";
+import {
+  getWorkflowActions,
+  resolveForwardActions,
+  saveDocument,
+  submitDocument,
+  workflowActionLabelKey,
+} from "../../../lib/docTransition";
+import { getApprovalMeta } from "../../../lib/approvalMeta";
+import { useDocStatus } from "../../../hooks/useDocStatus";
 import { FormField } from "../../../components/FormField";
+import { DocStatusField } from "../../../components/DocStatusField";
 import FormSection from "../../../components/FormSection";
 import FormErrorSummary from "../../../components/FormErrorSummary";
 import FormSelect from "../../../components/FormSelect";
 import { focusFirstError } from "../../../lib/formValidation";
+import {
+  applyEmployeeScope,
+  fetchEmployeeFields,
+  fetchEmployeeScope,
+  isEmployeeLocked,
+} from "../../../lib/employeeScope";
+import { fetchNamedApprovers } from "../../../lib/namedApprovers";
 import LinkField from "../../../components/LinkField";
 import { FileText, Receipt, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,12 +36,46 @@ export default function ExpenseClaimForm() {
   const { name } = useParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const toast = useToast();
   const { t } = useTranslation();
 
   const isEdit = !!name;
 
+  // Submit / Workflow transition state. `hasWorkflow` is a doctype-level
+  // fact (meta carries `workflow_state`) so it is knowable on a new form;
+  // `transitions` is document-level and needs a saved document.
+  const [hasWorkflow, setHasWorkflow] = useState(false);
+  const [transitions, setTransitions] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [workflowChecked, setWorkflowChecked] = useState(false);
+  // Frappe hides Submit while a document has unsaved changes (`can_submit()`
+  // requires `!doc.__unsaved`): both submit paths act on the STORED document, so
+  // submitting a dirty form would silently discard the edits.
+  //
+  // Tracked from real user input rather than by diffing against the loaded
+  // document. This form also writes to `doc` on its own -- employee scope
+  // defaults, auto-selected named approvers, half-day validation -- and those
+  // are not edits; a diff would call a freshly-opened document dirty and leave
+  // Submit permanently hidden.
+  const [dirty, setDirty] = useState(false);
+
+  /**
+   * The single place the form's own fields change. Routing user input through
+   * here is what marks the document dirty, so Frappe's rule (hide Submit while
+   * there are unsaved changes) stays true even when other code paths below
+   * write to `doc`.
+   */
+  const updateField = (fieldname, value) => {
+    setDirty(true);
+    setDoc((prev) => ({
+      ...prev,
+      // Accepting an updater keeps callers from reading a stale `doc` when they
+      // derive the next value from the current one.
+      [fieldname]: typeof value === "function" ? value(prev[fieldname]) : value,
+    }));
+  };
+
   const [loading, setLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
@@ -36,85 +88,110 @@ export default function ExpenseClaimForm() {
     expenses: [],
   });
 
+  // Derived, not latched: docstatus 2 (Cancelled) locks the form exactly as
+  // 1 (Submitted) does, and a flag set only when `docstatus === 1` would leave
+  // a cancelled document editable and offering Submit.
+  const isSubmitted = Number(doc.docstatus) > 0;
+
+  // Always points at the newest document. The header holds a `handleSave`
+  // captured in an earlier render (its effect intentionally does not depend on
+  // `doc`), so Save must read the live state through this ref rather than
+  // through a captured `doc`. Without it, every value typed after mount was
+  // invisible to validation and the form reported those fields as required.
+  const docRef = useRef(doc);
+
+  // Read-only lifecycle badge for the form header. Must sit after the `doc`
+  // state above -- reading it earlier is a temporal-dead-zone crash.
+  const status = useDocStatus({ doctype: "Expense Claim", doc });
+
+  // Synced in an effect rather than during render: the React Compiler lint
+  // rule forbids mutating a ref while rendering. Save always runs after a
+  // commit (it is a click handler), so the ref is current by then.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+
+  /* ================= EMPLOYEE SCOPE ================= */
+  const [scope, setScope] = useState({
+    user: "",
+    myEmployee: "",
+    myCompany: "",
+    canSelect: false,
+    loaded: false,
+  });
+
   /* ================= APPROVER ================= */
   const [approvers, setApprovers] = useState([]);
+  const [approverError, setApproverError] = useState("");
 
+  // fetchApprovers setState after awaited API responses; the compiler rule
+  // conservatively flags any setState-reaching call from an effect.
   async function fetchApprovers(employee) {
     if (!employee) return;
 
-    try {
-      setError("");
+    const { approvers: list, error: message } = await fetchNamedApprovers(
+      employee,
+      "Expense Claim",
+    );
 
-      const res = await post("method/frappe.desk.search.search_link", {
-        txt: "",
-        doctype: "User",
-        ignore_user_permissions: 0,
-        reference_doctype: "Expense Claim",
-        page_length: 10,
-        query:
-          "hrms.hr.doctype.department_approver.department_approver.get_approvers",
-        filters: {
-          employee: employee,
-          doctype: "Expense Claim",
-        },
-      });
+    setApprovers(list);
+    setApproverError(list.length ? "" : message);
 
-      const list = res.message || [];
+    setDoc((prev) => {
+      const stillValid = list.some((a) => a.value === prev.expense_approver);
+      if (stillValid) return prev;
 
-      if (!list.length) {
-        setApprovers([]);
-        setDoc((prev) => ({ ...prev, expense_approver: "" }));
-        setError(t("requests.expense.noApprover"));
-        return;
-      }
-
-      setApprovers(list);
-
-      // auto-select first approver
-      setDoc((prev) => ({
+      return {
         ...prev,
-        expense_approver: list[0].value,
-      }));
-    } catch (e) {
-      console.error(e);
-      setError(t("requests.expense.approverFetchFailed"));
-    }
+        // Auto-select when there is exactly one option, otherwise leave blank
+        // so the user makes an explicit choice.
+        expense_approver: list.length === 1 ? list[0].value : "",
+      };
+    });
   }
 
-  /* ================= AUTO EMPLOYEE ================= */
-  // autoSetEmployee setStates after awaited API responses; the compiler
-  // rule conservatively flags any setState-reaching call from an effect.
-  async function autoSetEmployee() {
-    try {
-      const res = await get("method/frappe.client.get_list", {
-        doctype: "Employee",
-        fields: JSON.stringify(["name", "company"]),
-        limit_page_length: 2,
+  // Selecting an employee re-derives both the company (Expense Claim requires
+  // it and it is not read-only) and the approver list.
+  async function selectEmployee(employee) {
+    if (!employee) return;
+
+    const data = await fetchEmployeeFields(employee, ["company"]);
+
+    setDoc((prev) => ({
+      ...prev,
+      employee,
+      company: data.company || "",
+      expense_approver: "",
+    }));
+
+    fetchApprovers(employee);
+  }
+
+  // loadScope setState after awaited API responses; the compiler rule
+  // conservatively flags any setState-reaching call from an effect.
+  async function loadScope() {
+    const resolved = await fetchEmployeeScope();
+    setScope(resolved);
+
+    if (!isEdit) {
+      const patch = applyEmployeeScope({}, resolved, {
+        posting_date: new Date().toISOString().split("T")[0],
+        company: resolved.myCompany,
       });
 
-      const list = res.message || [];
+      setDoc((prev) => ({ ...prev, ...patch }));
 
-      if (list.length === 1) {
-        const emp = list[0];
-
-        setDoc((prev) => ({
-          ...prev,
-          employee: emp.name,
-          company: emp.company,
-          posting_date: new Date().toISOString().split("T")[0],
-        }));
-
-        fetchApprovers(emp.name);
+      if (patch.employee) {
+        fetchApprovers(patch.employee);
       }
-    } catch (e) {
-      console.error(e);
     }
   }
 
   useEffect(() => {
-    if (isEdit) return;
+     
+     
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    autoSetEmployee();
+    loadScope();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -128,16 +205,27 @@ export default function ExpenseClaimForm() {
       const res = await get(`resource/Expense Claim/${name}`);
       const d = res.data;
 
-      setDoc({
+      const loaded = {
         employee: d.employee || "",
         company: d.company || "",
         expense_approver: d.expense_approver || "",
         posting_date: d.posting_date || "",
         remark: d.remark || "",
         expenses: d.expenses || [],
-      });
 
-      if (d.docstatus === 1) setIsSubmitted(true);
+        // The pick above lists the fields this form is allowed to write, but the
+        // document's status lives in columns that pick would otherwise drop.
+        // `docstatus` is what makes a submitted or cancelled document read-only,
+        // and `approval_status` / `workflow_state` feed both the header badge and the
+        // read-only Approval Status field below.
+        docstatus: d.docstatus ?? 0,
+        approval_status: d.approval_status || "",
+        workflow_state: d.workflow_state || "",
+      };
+
+      setDoc(loaded);
+      setDirty(false);
+
     } catch {
       setError(t("requests.expense.loadFailed"));
     } finally {
@@ -147,7 +235,9 @@ export default function ExpenseClaimForm() {
 
   useEffect(() => {
     if (isEdit) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
+     
+    // eslint-disable-next-line react-hooks/set-state-in-effect
       loadDoc();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -155,32 +245,25 @@ export default function ExpenseClaimForm() {
 
   /* ================= EXPENSE ROWS ================= */
   const addRow = () => {
-    setDoc({
-      ...doc,
-      expenses: [
-        ...doc.expenses,
-        {
-          expense_date: "",
-          expense_type: "",
-          amount: "",
-          description: "",
-        },
-      ],
-    });
+    updateField("expenses", (rows = []) => [
+      ...rows,
+      {
+        expense_date: "",
+        expense_type: "",
+        amount: "",
+        description: "",
+      },
+    ]);
   };
 
   const updateRow = (i, field, value) => {
-    setDoc((prev) => ({
-      ...prev,
-      expenses: prev.expenses.map((row, idx) =>
-        idx === i ? { ...row, [field]: value } : row,
-      ),
-    }));
+    updateField("expenses", (rows = []) =>
+      rows.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)),
+    );
   };
 
   const removeRow = (i) => {
-    const updated = doc.expenses.filter((_, idx) => idx !== i);
-    setDoc({ ...doc, expenses: updated });
+    updateField("expenses", (rows = []) => rows.filter((_, idx) => idx !== i));
   };
 
   /* ================= TOTAL ================= */
@@ -192,27 +275,27 @@ export default function ExpenseClaimForm() {
   };
 
   /* ================= VALIDATION ================= */
-  const validate = () => {
+  const validate = (d = docRef.current) => {
     const errs = {};
 
-    if (!doc.employee) {
+    if (!d.employee) {
       errs.employee = t("common.fieldRequired", {
         field: t("requests.expense.employee"),
       });
     }
-    if (!doc.company) {
+    if (!d.company) {
       errs.company = t("common.fieldRequired", {
         field: t("requests.expense.company"),
       });
     }
-    if (!doc.expense_approver) {
+    if (!d.expense_approver) {
       errs.expense_approver = t("requests.expense.validationApprover");
     }
 
-    if (!doc.expenses.length) {
+    if (!d.expenses.length) {
       errs.expenses = t("requests.expense.validationAddOne");
     } else {
-      const badRow = doc.expenses.findIndex(
+      const badRow = d.expenses.findIndex(
         (row) =>
           !row.expense_date ||
           !row.expense_type ||
@@ -221,8 +304,8 @@ export default function ExpenseClaimForm() {
       );
       if (badRow >= 0) {
         errs.expenses =
-          parseFloat(doc.expenses[badRow].amount) <= 0 &&
-          doc.expenses[badRow].amount !== ""
+          parseFloat(d.expenses[badRow].amount) <= 0 &&
+          d.expenses[badRow].amount !== ""
             ? t("requests.expense.validationAmount")
             : t("requests.expense.validationFillRows");
       }
@@ -238,7 +321,9 @@ export default function ExpenseClaimForm() {
 
   /* ================= SAVE ================= */
   async function handleSave() {
-    const result = validate();
+    const current = docRef.current;
+
+    const result = validate(current);
     if (Object.keys(result.fieldErrors).length) {
       setError(result.summary);
       requestAnimationFrame(() => focusFirstError(result.fieldErrors));
@@ -249,23 +334,145 @@ export default function ExpenseClaimForm() {
       setLoading(true);
       setError("");
 
-      if (isEdit) {
-        await post(`resource/Expense Claim/${name}`, doc);
-      } else {
-        await post("resource/Expense Claim", doc);
-      }
+      const res = await saveDocument({
+        doctype: "Expense Claim",
+        name: isEdit ? name : undefined,
+        doc: current,
+      });
 
-      navigate("/requests/expense");
-    } catch {
-      setError(t("common.saveFailed"));
+      setDirty(false);
+
+      if (isEdit) {
+        navigate("/requests/expense");
+      } else {
+        // A new form offers Save only, so land on the saved document where
+        // Submit (or the Workflow transitions) is reachable.
+        navigate(`/requests/expense/${res?.data?.name}`);
+      }
+    } catch (e) {
+      // Map Frappe's `_server_messages` back onto the individual fields so the
+      // user sees which field was rejected, instead of a bare "ValidationError".
+      const serverFields = e?.fieldMessages || {};
+      if (Object.keys(serverFields).length) {
+        setFieldErrors((prev) => ({ ...prev, ...serverFields }));
+      }
+      setError(e?.message || t("common.saveFailed"));
     } finally {
       setLoading(false);
     }
   }
 
+  /* ================= DISABLED STATE ================= */
+  // A submitted document is fully locked; only self-only users are pinned to
+  // their own Employee. A missing approver blocks saving but never the rest of
+  // the form.
+  const isDisabled = isSubmitted;
+  const employeeLocked = isSubmitted || isEmployeeLocked(scope);
+  const approverMissing = !doc.expense_approver;
+  const canSave = !isDisabled && !approverMissing;
+  const total = getTotal();
+
+
+  const { showSubmit, showTransitions } = resolveForwardActions({
+    isEdit,
+    isSubmitted,
+    isDirty: dirty,
+    hasWorkflow,
+    workflowChecked,
+    transitionCount: transitions.length,
+  });
+
+  /* ================= WORKFLOW PROBE ================= */
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const meta = await getApprovalMeta("Expense Claim");
+      if (cancelled) return;
+      setHasWorkflow(Boolean(meta?.hasWorkflow));
+      // Until this resolves we cannot tell a Workflow doctype from a plain one,
+      // and offering Submit on a Workflow doctype would bypass its first state.
+      setWorkflowChecked(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // `get_transitions` returns [] for an unsaved document -- there is no current
+  // state to transition from yet.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { actions } = name
+        ? await getWorkflowActions({ doc: { doctype: "Expense Claim", name } })
+        : { actions: [] };
+
+      if (!cancelled) setTransitions(actions);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [name]);
+
+  /**
+   * Apply one Workflow transition, or a plain submit when `action` is null.
+   *
+   * Only reached for a saved, unmodified document, and `submitDocument` submits
+   * the document the SERVER holds -- a partial form payload would fail Frappe's
+   * mandatory-field validation, and `apply_workflow` reloads from the database.
+   */
+  const handleSubmit = async (action = null) => {
+    const result = validate(docRef.current);
+    if (Object.keys(result.fieldErrors).length) {
+      setError(result.summary);
+      requestAnimationFrame(() => focusFirstError(result.fieldErrors));
+      return;
+    }
+
+    const labelKey = action ? workflowActionLabelKey(action) : null;
+    const label = labelKey ? t(labelKey) : action || t("common.submit");
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      let docName = name;
+
+      // A new document must exist before it can be transitioned, so the first
+      // click saves it. With no Workflow we submit straight after, keeping the
+      // whole flow to a single click.
+      if (!docName) {
+        const res = await saveDocument({ doctype: "Expense Claim", doc: docRef.current });
+        docName = res?.data?.name;
+      }
+
+      // With a Workflow the transition can only be chosen against a saved
+      // document, so continue there where those buttons now exist.
+      if (hasWorkflow) {
+        navigate(`/requests/expense/${docName}`);
+        return;
+      }
+
+      await submitDocument({ doctype: "Expense Claim", name: docName, action });
+      toast.success(t("common.submittedSuccess", { name: label }));
+      navigate("/requests/expense");
+    } catch (e) {
+      const message = e?.message || t("common.submitFailed");
+      toast.error(message);
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   /* ================= HEADER ================= */
   useEffect(() => {
     setHeader({
+      status,
       title: isEdit
         ? t("requests.header.expenseEditTitle", { name })
         : t("requests.header.expenseNewTitle"),
@@ -284,28 +491,59 @@ export default function ExpenseClaimForm() {
         { label: isEdit ? name : t("common.new") },
       ],
 
+      // Built flat on purpose: PageToolbar renders `actions.map(action => ...)`
+      // and reads action.label/onClick directly, so a nested array (what
+      // `transitions.map(...)` returns) renders one dead, unlabelled button.
       actions: [
         !isSubmitted && {
           label: loading ? t("common.saving") : t("common.save"),
           variant: "btn-success",
+          disabled: !canSave || submitting,
           onClick: handleSave,
         },
 
-        isEdit &&
-          !isSubmitted && {
-            label: t("common.submit"),
-            variant: "btn-primary",
-            onClick: handleSave,
-          },
+        // Workflow transitions replace Submit entirely. Unrecognised action
+        // names are shown verbatim, as the backend's Action Master has them.
+        ...(showTransitions
+          ? transitions.map((tr, i) => {
+              const labelKey = workflowActionLabelKey(tr.action);
+              return {
+                label: labelKey ? t(labelKey) : tr.action,
+                variant: i === 0 ? "btn-primary" : "btn-outline-primary",
+                disabled: !canSave || submitting,
+                onClick: () => handleSubmit(tr.action),
+              };
+            })
+          : []),
+
+        // Plain doctype lifecycle, only once we know no Workflow exists.
+        showSubmit && {
+          label: submitting ? t("common.submitting") : t("common.submit"),
+          variant: "btn-primary",
+          disabled: !canSave || submitting,
+          onClick: () => handleSubmit(),
+        },
       ].filter(Boolean),
     });
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, name, isEdit, setHeader, loading, isSubmitted]);
-
-  const isDisabled = isSubmitted;
-  const total = getTotal();
+  }, [
+    t,
+    name,
+    isEdit,
+    setHeader,
+    loading,
+    isSubmitted,
+    submitting,
+    hasWorkflow,
+    transitions,
+    status,
+    workflowChecked,
+    dirty,
+    showSubmit,
+    showTransitions,
+  ]);
 
   /* ================= UI ================= */
   return (
@@ -324,36 +562,14 @@ export default function ExpenseClaimForm() {
           name="employee"
           error={fieldErrors.employee}
         >
-          {isDisabled ? (
-            <Input value={doc.employee} disabled />
+          {employeeLocked ? (
+            <Input value={doc.employee} disabled readOnly />
           ) : (
             <LinkField
               doctype="Employee"
               value={doc.employee}
               disabled={isDisabled}
-              onChange={async (v) => {
-                setDoc((prev) => ({
-                  ...prev,
-                  employee: v,
-                  expense_approver: "",
-                }));
-
-                try {
-                  const res = await get(`resource/Employee/${v}`, {
-                    fields: JSON.stringify(["company"]),
-                  });
-
-                  setDoc((prev) => ({
-                    ...prev,
-                    employee: v,
-                    company: res.data?.company || "",
-                  }));
-                } catch {
-                  console.error("Failed to load company for employee", v);
-                }
-
-                fetchApprovers(v);
-              }}
+              onChange={selectEmployee}
             />
           )}
         </FormField>
@@ -364,7 +580,7 @@ export default function ExpenseClaimForm() {
           name="company"
           error={fieldErrors.company}
         >
-          <Input value={doc.company} disabled />
+          <Input value={doc.company} disabled readOnly />
         </FormField>
 
         <FormField
@@ -373,27 +589,38 @@ export default function ExpenseClaimForm() {
           name="expense_approver"
           error={fieldErrors.expense_approver}
         >
-          <FormSelect
-            value={doc.expense_approver}
-            disabled={isDisabled || approvers.length === 1}
-            placeholder={t("requests.expense.selectApprover")}
-            onChange={(v) => setDoc({ ...doc, expense_approver: v })}
-            options={[
-              ...(doc.expense_approver &&
-              !approvers.some((a) => a.value === doc.expense_approver)
-                ? [
-                    {
-                      value: doc.expense_approver,
-                      label: doc.expense_approver,
-                    },
-                  ]
-                : []),
-              ...approvers.map((a) => ({
-                value: a.value,
-                label: a.description || a.value,
-              })),
-            ]}
-          />
+          {isDisabled ? (
+            <Input value={doc.expense_approver || ""} disabled readOnly />
+          ) : (
+            <FormSelect
+              value={doc.expense_approver}
+              placeholder={t("requests.expense.selectApprover")}
+              onChange={(v) => updateField("expense_approver", v)}
+              options={[
+                // Keep the stored approver visible even if they are no longer
+                // in the configured list (e.g. a legacy document).
+                ...(doc.expense_approver &&
+                !approvers.some((a) => a.value === doc.expense_approver)
+                  ? [
+                      {
+                        value: doc.expense_approver,
+                        label: doc.expense_approver,
+                      },
+                    ]
+                  : []),
+                ...approvers.map((a) => ({
+                  value: a.value,
+                  label: a.label,
+                })),
+              ]}
+            />
+          )}
+
+          {approverError && !isSubmitted && (
+            <small className="text-xs text-amber-600 dark:text-amber-400">
+              {approverError}
+            </small>
+          )}
         </FormField>
 
         <FormField
@@ -405,10 +632,17 @@ export default function ExpenseClaimForm() {
             disabled={isDisabled}
             value={doc.posting_date}
             onChange={(e) =>
-              setDoc({ ...doc, posting_date: e.target.value })
+              updateField("posting_date", e.target.value)
             }
           />
         </FormField>
+
+        <div className="lg:col-span-4">
+          <DocStatusField
+            label={t("common.approvalStatus")}
+            status={status}
+          />
+        </div>
       </FormSection>
 
       {/* EXPENSE TABLE */}
@@ -523,7 +757,7 @@ export default function ExpenseClaimForm() {
           <Textarea
             disabled={isDisabled}
             value={doc.remark}
-            onChange={(e) => setDoc({ ...doc, remark: e.target.value })}
+            onChange={(e) => updateField("remark", e.target.value)}
           />
         </FormField>
       </FormSection>

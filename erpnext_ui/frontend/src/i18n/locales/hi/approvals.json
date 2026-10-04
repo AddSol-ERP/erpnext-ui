@@ -10,7 +10,6 @@
 		"workflowFailed": "वर्कफ़्लो विफल रहा",
 		"actionFailed": "कार्रवाई विफल",
 		"noActions": "कोई कार्रवाई उपलब्ध नहीं है",
-		"terms": "शर्तें",
 		"termsAndConditions": "नियम और शर्तें",
 		"openFull": "पूरा खोलें",
 		"showDetails": "विवरण",
@@ -69,7 +68,14 @@
 			"payment": "भुगतान",
 			"validity": "वैधता",
 			"quotationTo": "कोटेशन किसके लिए",
-			"opportunity": "अवसर"
+			"opportunity": "अवसर",
+			"paymentTerms": "भुगतान शर्तें",
+			"termsTemplate": "टेम्पलेट",
+			"term": "शर्त",
+			"dueDate": "देय तिथि",
+			"portion": "प्रतिशत",
+			"amount": "राशि",
+			"discount": "छूट"
 		}
 	}
 }

@@ -4,18 +4,30 @@ import {
   CheckCircle,
   ExternalLink,
   Eye,
-  FileText,
   Save,
   Trash2,
   XCircle,
 } from "lucide-react";
 import { get, post } from "../../../services/api";
 import { useToast } from "../../../context/ToastContext";
+import { useRole } from "../../../context/RoleContext";
 import AppModal from "../../AppModal";
 import PreviewRenderer from "./PreviewRenderer";
-import RightDrawer from "../../RightDrawer";
 import { Button } from "@/components/ui/button";
 import { getApprovalMeta, getApprovalStates } from "../../../lib/approvalMeta";
+import {
+  canSubmitDocument,
+  getWorkflowActions,
+  saveDocument,
+  submitDocument,
+} from "../../../lib/docTransition";
+import {
+  LEAVE_APPROVED,
+  LEAVE_REJECTED,
+  resolveLeaveApprovalActions,
+  setLeaveApprovalStatus,
+} from "../../../lib/leaveApproval";
+import ConfirmDialog from "../../ConfirmDialog";
 
 /* ===============================
    CONFIG
@@ -63,12 +75,10 @@ const APPROVAL_CONFIG = {
   "Purchase Order": {
     type: "submit",
     titleKey: "approvals.preview.purchaseOrderApproval",
-    showTerms: true,
   },
   Quotation: {
     type: "submit",
     titleKey: "approvals.preview.quotationApproval",
-    showTerms: true,
   },
   "Overtime Log": {
     type: "workflow",
@@ -85,9 +95,9 @@ export default function ApprovalPreview({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const { currentUser } = useRole();
   const [mode, setMode] = useState("preview");
   const [loading, setLoading] = useState(false);
-  const [showTerms, setShowTerms] = useState(false);
   const [workflowActions, setWorkflowActions] = useState([]);
   const [states, setStates] = useState({
     source: "unknown",
@@ -95,7 +105,15 @@ export default function ApprovalPreview({
     states: [],
   });
   const [isSubmittable, setIsSubmittable] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
 
+  /**
+   * Transitions this user may run right now.
+   *
+   * The fetching, deduplication and ordering all live in `docTransition`, so
+   * this screen and the request forms cannot drift apart.
+   */
   const loadWorkflowActions = async () => {
     // Without a document name there is nothing to fetch transitions for.
     if (!doc?.name) {
@@ -104,40 +122,12 @@ export default function ApprovalPreview({
     }
 
     try {
-      // ✅ fetch full doc
+      // get_transitions needs the full document, not the preview payload.
       const full = await get(
         `resource/${doctype}/${encodeURIComponent(doc.name)}`,
       );
-
-      const res = await post("method/frappe.model.workflow.get_transitions", {
-        doc: JSON.stringify(full.data),
-      });
-
-      const actions = res.message || [];
-
-      // 🔥 1. deduplicate
-      const unique = Object.values(
-        actions.reduce((acc, a) => {
-          if (!acc[a.action]) acc[a.action] = a;
-          return acc;
-        }, {}),
-      );
-
-      // 🔥 2. sort (Reject first, Approve last)
-      const sorted = unique.sort((a, b) => {
-        const aVal = a.action.toLowerCase();
-        const bVal = b.action.toLowerCase();
-
-        if (aVal.includes("reject")) return -1;
-        if (bVal.includes("reject")) return 1;
-
-        if (aVal.includes("approve")) return 1;
-        if (bVal.includes("approve")) return -1;
-
-        return 0;
-      });
-
-      setWorkflowActions(sorted);
+      const { actions } = await getWorkflowActions({ doc: full?.data || doc });
+      setWorkflowActions(actions);
     } catch (e) {
       console.error("Failed to load workflow", e);
       setWorkflowActions([]);
@@ -193,12 +183,18 @@ export default function ApprovalPreview({
   /**
    * Default document actions for doctypes with no Workflow.
    *
-   * Submitting is ERPNext's native approve step: each doctype's `on_submit`
-   * moves its own status/approval_status forward (Purchase Order ->
-   * "To Receive and Bill", Leave Application -> "Approved", Expense Claim ->
-   * approval_status "Approved"). We call Frappe's own client endpoints rather
-   * than writing status directly, so all server-side validation, permissions
-   * and status transitions apply unchanged.
+   * Submitting is NOT ERPNext's native approve step, though it looks like it.
+   * For Purchase Order and Expense Claim, `on_submit` does advance the outcome
+   * (Expense Claim's approval_status becomes "Approved"), so Submit doubles as
+   * approval there. Leave Application is the exception and inverts it: HRMS's
+   * `LeaveApplication.on_submit` throws unless `status` is ALREADY "Approved" or
+   * "Rejected", so submitting an "Open" leave can only fail. That is why the
+   * default action list is filtered through `canSubmitDocument`, and why leave
+   * gets an explicit Approve/Reject pair instead (see `lib/leaveApproval`).
+   *
+   * We call Frappe's own client endpoints rather than writing status directly,
+   * so all server-side validation, permissions and status transitions apply
+   * unchanged.
    *
    * Note the differing signatures: `save` / `submit` take the whole document,
    * while `cancel` / `delete` are addressed by doctype + name.
@@ -214,11 +210,13 @@ export default function ApprovalPreview({
       );
       const name = full?.data?.name || doc.name;
 
-      if (action === "save" || action === "submit") {
-        await post(`method/frappe.client.${action}`, {
-          doc: JSON.stringify(full.data),
-        });
+      if (action === "save") {
+        // PUT for an existing document -- POST here is not an update.
+        await saveDocument({ doctype, name, doc: full.data });
+      } else if (action === "submit") {
+        await submitDocument({ doctype, name });
       } else {
+        // cancel / delete are addressed by doctype + name.
         await post(`method/frappe.client.${action}`, { doctype, name });
       }
 
@@ -233,29 +231,24 @@ export default function ApprovalPreview({
   };
 
   const runDefaultAction = (action) => {
+    // Deleting is irreversible, so it gets a real dialog instead of a native
+    // alert that ignores the app's theme and RTL direction.
     if (action === "delete") {
-      const ok = window.confirm(t("common.deleteConfirm", { name: doctype }));
-      if (!ok) return;
+      setConfirmDelete(true);
+      return;
     }
     handleDefaultAction(action);
   };
 
   const handleWorkflowAction = async (workflowAction) => {
-
     if (!doc?.name) return;
 
     try {
       setLoading(true);
 
-      // always fetch fresh doc
-      const full = await get(
-        `resource/${doctype}/${encodeURIComponent(doc.name)}`,
-      );
-
-      await post("method/frappe.model.workflow.apply_workflow", {
-        doc: JSON.stringify(full.data),
-        action: workflowAction, // EXACT value
-      });
+      // Fetches the current document and drives `apply_workflow` with the
+      // exact Action Master value, which is what actually advances the state.
+      await submitDocument({ doctype, name: doc.name, action: workflowAction });
 
       onSuccess && onSuccess();
       onClose();
@@ -264,6 +257,34 @@ export default function ApprovalPreview({
       toast.error(e?.message || t("approvals.workflowFailed"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Move a leave's `status` when no Workflow exists.
+   *
+   * Without a Workflow nothing else advances the status, and submitting is
+   * refused until it is Approved/Rejected -- so the approver has to be able to
+   * make that call from the approval screen, not only from the leave form.
+   */
+  const handleLeaveApproval = async (status) => {
+    if (!doc?.name) return;
+
+    try {
+      setLoading(true);
+      await setLeaveApprovalStatus({ name: doc.name, status });
+      toast.success(
+        status === LEAVE_APPROVED
+          ? t("requests.leave.approveSuccess")
+          : t("requests.leave.rejectSuccess"),
+      );
+      onSuccess && onSuccess();
+      onClose();
+    } catch (e) {
+      toast.error(e?.message || t("requests.leave.approvalFailed"));
+    } finally {
+      setLoading(false);
+      setConfirmReject(false);
     }
   };
 
@@ -285,10 +306,92 @@ export default function ApprovalPreview({
   const defaultActions =
     usesWorkflow || !isSubmittable
       ? []
-      : DEFAULT_ACTIONS_BY_DOCSTATUS[Number(doc.docstatus) || 0] || [];
+      : (DEFAULT_ACTIONS_BY_DOCSTATUS[Number(doc.docstatus) || 0] || []).filter(
+          // Drop Submit where the doctype would refuse it. Offering a button that
+          // can only fail is worse than omitting it: it reads as a broken app
+          // rather than as "this document is not ready yet".
+          (action) => action !== "submit" || canSubmitDocument({ doctype, doc }),
+        );
+
+  /**
+   * Approve/Reject for a leave with no Workflow.
+   *
+   * The preview always renders the stored document, so `isDirty` is false by
+   * construction. `states.source` settles to "status" or "docstatus" once the
+   * probe resolves, which is what `workflowChecked` means here: showing these
+   * before we know a Workflow is absent would let someone bypass its conditions.
+   */
+  const approvalActions = resolveLeaveApprovalActions({
+    isEdit: Boolean(doc?.name),
+    isSubmitted: Number(doc?.docstatus) > 0,
+    isDirty: false,
+    hasWorkflow: usesWorkflow,
+    workflowChecked: states.source !== "unknown",
+    currentUser,
+    leaveApprover: doc?.leave_approver,
+  });
+
+  /**
+   * One flat list for the footer.
+   *
+   * Built as data because the three sources have different shapes (Workflow
+   * action names are admin-authored and shown verbatim, default actions are
+   * translated label keys), and rendering them in one map is what keeps a dead
+   * button from appearing inside a nested branch.
+   */
+  const footerActions = [];
+
+  // Approve first, then Reject: matches the leave form, and reading order is
+  // "accept" then "refuse".
+  if (approvalActions.showApprove) {
+    footerActions.push({
+      key: "leave:approve",
+      label: t("requests.action.approve"),
+      icon: CheckCircle,
+      primary: true,
+      run: () => handleLeaveApproval(LEAVE_APPROVED),
+    });
+  }
+
+  if (approvalActions.showReject) {
+    footerActions.push({
+      key: "leave:reject",
+      label: t("requests.action.reject"),
+      icon: XCircle,
+      destructive: true,
+      run: () => setConfirmReject(true),
+    });
+  }
+
+  if (workflowActions.length > 0) {
+    for (const a of workflowActions) {
+      const isReject = a.action.toLowerCase().includes("reject");
+      footerActions.push({
+        key: `workflow:${a.action}`,
+        // Workflow transition labels come from the backend, verbatim.
+        label: a.action,
+        icon: isReject ? XCircle : CheckCircle,
+        destructive: isReject,
+        primary: !isReject,
+        run: () => handleWorkflowAction(a.action),
+      });
+    }
+  } else {
+    for (const action of defaultActions) {
+      const meta = DEFAULT_ACTION_META[action];
+      footerActions.push({
+        key: `default:${action}`,
+        label: t(meta.labelKey),
+        icon: meta.icon,
+        destructive: meta.destructive,
+        primary: action === "submit",
+        run: () => runDefaultAction(action),
+      });
+    }
+  }
 
   return (
-    <AppModal
+  <AppModal
       show={show}
       onClose={onClose}
       title={title}
@@ -316,19 +419,6 @@ export default function ApprovalPreview({
               </span>
             </Button>
 
-            {/* TERMS (ONLY IF CONFIG ENABLED) */}
-            {config.showTerms && (
-              <Button
-                variant="outline"
-                onClick={() => setShowTerms((s) => !s)}
-                disabled={!doc.terms}
-                title={t("approvals.terms")}
-              >
-                <FileText />
-                <span className="hidden md:inline">{t("approvals.terms")}</span>
-              </Button>
-            )}
-
             <Button
               variant="outline"
               onClick={() =>
@@ -345,52 +435,29 @@ export default function ApprovalPreview({
 
           {/* RIGHT */}
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {workflowActions.length > 0 ? (
-              workflowActions.map((a) => {
-                const isReject = a.action.toLowerCase().includes("reject");
+            {footerActions.length > 0 ? (
+              footerActions.map((a) => {
+                const Icon = a.icon;
                 return (
                   <Button
-                    key={a.action}
-                    variant={isReject ? "destructive" : "default"}
-                    className={
-                      isReject
-                        ? undefined
-                        : "bg-emerald-600 text-white hover:bg-emerald-600/85"
-                    }
-                    disabled={loading}
-                    onClick={() => handleWorkflowAction(a.action)}
-                  >
-                    {isReject ? <XCircle /> : <CheckCircle />}
-                    {/* Workflow transition labels come from the backend. */}
-                    <span className="hidden md:inline">{a.action}</span>
-                  </Button>
-                );
-              })
-            ) : defaultActions.length > 0 ? (
-              /* No Workflow on this doctype: offer the doctype's own default
-                 document actions for its current docstatus. */
-              defaultActions.map((action) => {
-                const meta = DEFAULT_ACTION_META[action];
-                const Icon = meta.icon;
-                const isPrimary = action === "submit";
-                return (
-                  <Button
-                    key={action}
+                    key={a.key}
                     variant={
-                      meta.destructive ? "destructive" : isPrimary ? "default" : "outline"
+                      a.destructive
+                        ? "destructive"
+                        : a.primary
+                          ? "default"
+                          : "outline"
                     }
                     className={
-                      isPrimary
+                      a.primary && !a.destructive
                         ? "bg-emerald-600 text-white hover:bg-emerald-600/85"
                         : undefined
                     }
                     disabled={loading}
-                    onClick={() => runDefaultAction(action)}
+                    onClick={a.run}
                   >
                     <Icon />
-                    <span className="hidden md:inline">
-                      {t(meta.labelKey)}
-                    </span>
+                    <span className="hidden md:inline">{a.label}</span>
                   </Button>
                 );
               })
@@ -430,22 +497,30 @@ export default function ApprovalPreview({
             ))}
           </div>
         )}
-
-        {/* TERMS DRAWER */}
-        {config.showTerms && doc.terms && (
-          <RightDrawer
-            show={showTerms}
-            onClose={() => setShowTerms(false)}
-            title={t("approvals.termsAndConditions")}
-            width="lg"
-          >
-            <div
-              className="break-words text-sm leading-relaxed text-muted-foreground"
-              dangerouslySetInnerHTML={{ __html: doc.terms }}
-            />
-          </RightDrawer>
-        )}
       </div>
+    <ConfirmDialog
+      open={confirmReject}
+      onCancel={() => {
+        if (!loading) setConfirmReject(false);
+      }}
+      onConfirm={() => handleLeaveApproval(LEAVE_REJECTED)}
+      title={t("requests.leave.rejectConfirmTitle")}
+      message={t("requests.leave.rejectConfirmBody")}
+      confirmLabel={t("requests.action.reject")}
+      loading={loading}
+    />
+
+    <ConfirmDialog
+      open={confirmDelete}
+      onCancel={() => setConfirmDelete(false)}
+      onConfirm={() => {
+        setConfirmDelete(false);
+        handleDefaultAction("delete");
+      }}
+      title={t("common.deleteConfirmTitle")}
+      message={t("common.deleteConfirm", { name: doctype })}
+      loading={loading}
+    />
     </AppModal>
   );
 }

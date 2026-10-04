@@ -446,6 +446,7 @@ export default function AppShell({ children }) {
     subtitle = "",
     breadcrumbs = [],
     actions = [],
+    status = null,
     statusList = [],
     statusFilter = "",
     setStatusFilter = () => {},
@@ -479,7 +480,12 @@ export default function AppShell({ children }) {
         >
           {TOP_BAR.showSidebarTrigger && <SidebarTrigger className="ms-0.5 shrink-0" />}
           <TopBarNav backFallback={backFallback} />
-          <TitleBlock title={title} subtitle={subtitle} breadcrumbs={breadcrumbs} />
+          <TitleBlock
+            title={title}
+            subtitle={subtitle}
+            breadcrumbs={breadcrumbs}
+            status={status}
+          />
           <GlobalTools />
         </header>
 

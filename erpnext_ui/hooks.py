@@ -245,3 +245,6 @@ app_include_js = ["/assets/erpnext_ui/js/addsol_ui_nav.js"]
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
+after_migrate = [
+    "erpnext_ui.setup.workflows.setup_workflows"
+]

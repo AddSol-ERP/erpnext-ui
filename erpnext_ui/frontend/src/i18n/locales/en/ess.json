@@ -44,6 +44,13 @@
 			"submitted": "Submitted",
 			"paid": "Paid"
 		},
+		"action": {
+			"approve": "Approve",
+			"reject": "Reject",
+			"pendingApproval": "Pending Approval",
+			"cancel": "Cancel",
+			"cancelled": "Cancelled"
+		},
 		"list": {
 			"create": "Create",
 			"new": "+ New",
@@ -101,7 +108,17 @@
 			"validationRange": "Invalid date range",
 			"validationBalance": "Insufficient leave balance",
 			"sectionDetails": "Leave Details",
-			"sectionNotes": "Half Day & Reason"
+			"sectionNotes": "Half Day & Reason",
+			"selectApprover": "Select Approver",
+			"createdSuccess": "Leave application created successfully",
+			"updatedSuccess": "Leave application updated successfully",
+			"doctypeName": "Leave Application",
+			"awaitingApproval": "This leave is still awaiting approval. Submit becomes available once the approver sets the status to Approved or Rejected.",
+			"approveSuccess": "Leave Application approved.",
+			"rejectSuccess": "Leave Application rejected.",
+			"approvalFailed": "Could not update the leave status.",
+			"rejectConfirmTitle": "Reject leave application?",
+			"rejectConfirmBody": "This will mark the leave as Rejected. You can change the status again afterwards."
 		},
 		"expense": {
 			"employee": "Employee",

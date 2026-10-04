@@ -10,7 +10,6 @@
 		"workflowFailed": "فشل تنفيذ مسار العمل",
 		"actionFailed": "فشل الإجراء",
 		"noActions": "لا تتوفر إجراءات",
-		"terms": "الشروط",
 		"termsAndConditions": "الشروط والأحكام",
 		"openFull": "فتح بالكامل",
 		"showDetails": "التفاصيل",
@@ -69,7 +68,14 @@
 			"payment": "الدفع",
 			"validity": "الصلاحية",
 			"quotationTo": "عرض السعر إلى",
-			"opportunity": "الفرصة"
+			"opportunity": "الفرصة",
+			"paymentTerms": "شروط الدفع",
+			"termsTemplate": "القالب",
+			"term": "الشرط",
+			"dueDate": "تاريخ الاستحقاق",
+			"portion": "النسبة",
+			"amount": "المبلغ",
+			"discount": "الخصم"
 		}
 	}
 }

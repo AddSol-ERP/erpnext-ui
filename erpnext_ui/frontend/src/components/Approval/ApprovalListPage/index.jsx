@@ -52,6 +52,9 @@ const DOCTYPE_FIELDS = {
     "from_date",
     "to_date",
     "total_leave_days",
+    // Needed by the preview to decide whether this user may Approve/Reject:
+    // with no Workflow, the approver is the only party who can move `status`.
+    "leave_approver",
     "workflow_state",
   ],
   Quotation: [

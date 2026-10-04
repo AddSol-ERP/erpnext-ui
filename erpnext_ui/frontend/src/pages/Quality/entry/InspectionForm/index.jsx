@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
-import { get, post } from "../../../../services/api";
+import { get } from "../../../../services/api";
+import { saveDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import { ClipboardList } from "lucide-react";
@@ -27,6 +28,20 @@ export default function InspectionForm() {
     template: "",
     item_code: "",
   });
+
+  // Always points at the newest document. The Save button is registered into
+  // the page toolbar by an effect that deliberately does not depend on `doc`
+  // (re-running it per keystroke would thrash the toolbar), so the registered
+  // handler closes over the document as of an early render -- validation and
+  // the saved payload then used stale data. Handlers read through this ref.
+  const docRef = useRef(doc);
+
+  // Synced in an effect, not during render: the React Compiler lint rule
+  // forbids mutating a ref while rendering. Handlers run after a commit.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+
 
   const [parameters, setParameters] = useState([]);
 
@@ -141,12 +156,27 @@ export default function InspectionForm() {
   };
 
   /* ================= SAVE ================= */
+
+  // The Save payload also depends on the computed overall status and the
+  // reading rows, which are not part of `doc` -- same staleness problem, so they
+  // are read through refs too. Declared here, after `overallStatus` exists, and
+  // initialised with no value: reading it in useRef's argument list would
+  // evaluate it during render and hit the temporal dead zone.
+  const overallStatusRef = useRef(null);
+  const parametersRef = useRef([]);
+
+  useEffect(() => {
+    overallStatusRef.current = overallStatus;
+    parametersRef.current = parameters;
+  });
+
   const handleSave = async () => {
+    const current = docRef.current;
     const payload = {
-      item_code: doc.item_code,
-      quality_inspection_template: doc.template,
-      status: overallStatus,
-      readings: parameters.map((p) => ({
+      item_code: current.item_code,
+      quality_inspection_template: current.template,
+      status: overallStatusRef.current,
+      readings: parametersRef.current.map((p) => ({
         specification: p.parameter,
         reading_1: p.values[0] || "",
         reading_2: p.values[1] || "",
@@ -155,14 +185,11 @@ export default function InspectionForm() {
       })),
     };
 
-    if (isEdit) {
-      await post(`resource/Quality Inspection/${name}`, payload);
-    } else {
-      await post("resource/Quality Inspection", {
-        doctype: "Quality Inspection",
-        ...payload,
-      });
-    }
+    await saveDocument({
+      doctype: "Quality Inspection",
+      name: isEdit ? name : undefined,
+      doc: payload,
+    });
 
     navigate("/quality/inspection");
   };

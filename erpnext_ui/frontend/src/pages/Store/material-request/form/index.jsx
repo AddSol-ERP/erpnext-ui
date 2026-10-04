@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ClipboardList, Plus, Table2, Trash2 } from "lucide-react";
-import { get, post } from "../../../../services/api";
+import { get } from "../../../../services/api";
+import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
@@ -42,6 +43,20 @@ export default function MaterialRequestForm() {
     items: [],
     docstatus: 0,
   });
+
+  // Always points at the newest document. The Save button is registered into
+  // the page toolbar by an effect that deliberately does not depend on `doc`
+  // (re-running it per keystroke would thrash the toolbar), so the registered
+  // handler closes over the document as of an early render -- validation and
+  // the saved payload then used stale data. Handlers read through this ref.
+  const docRef = useRef(doc);
+
+  // Synced in an effect, not during render: the React Compiler lint rule
+  // forbids mutating a ref while rendering. Handlers run after a commit.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+
 
   const typeLabel = doc.material_request_type
     ? t(
@@ -126,27 +141,27 @@ export default function MaterialRequestForm() {
   };
 
   /* ================= VALIDATION ================= */
-  const validate = () => {
+  const validate = (d = docRef.current) => {
     const errs = {};
 
-    if (!doc.material_request_type) {
+    if (!d.material_request_type) {
       errs.material_request_type = t("store.validation.typeRequired");
     }
-    if (!doc.company) {
+    if (!d.company) {
       errs.company = t("store.validation.companyRequired");
     }
     if (
-      doc.material_request_type === "Customer Provided" &&
-      !doc.customer
+      d.material_request_type === "Customer Provided" &&
+      !d.customer
     ) {
       errs.customer = t("store.validation.customerRequired");
     }
 
-    if (!doc.items.length) {
+    if (!d.items.length) {
       errs.items = t("store.validation.addAtLeastOneItem");
     } else {
-      for (let i = 0; i < doc.items.length; i++) {
-        const row = doc.items[i];
+      for (let i = 0; i < d.items.length; i++) {
+        const row = d.items[i];
         if (!row.item_code || !row.qty) {
           errs.items = t("store.validation.fillAllRows");
           break;
@@ -163,7 +178,7 @@ export default function MaterialRequestForm() {
           errs.items = t("store.validation.qtyGtZero");
           break;
         }
-        if (doc.material_request_type === "Transfer") {
+        if (d.material_request_type === "Transfer") {
           if (!row.from_warehouse || !row.warehouse) {
             errs.items = t("store.validation.fromToWarehouseRequired");
             break;
@@ -189,7 +204,9 @@ export default function MaterialRequestForm() {
 
   /* ================= SAVE ================= */
   const handleSave = async () => {
-    const result = validate();
+    const current = docRef.current;
+
+    const result = validate(current);
     if (Object.keys(result.fieldErrors).length) {
       setError(result.summary);
       requestAnimationFrame(() => focusFirstError(result.fieldErrors));
@@ -200,17 +217,14 @@ export default function MaterialRequestForm() {
       setLoading(true);
       setError("");
 
-      let res;
-
-      if (isEdit) {
-        await post(`resource/Material Request/${name}`, doc);
-        res = { data: { name } };
-      } else {
-        res = await post("resource/Material Request", doc);
-      }
+      const res = await saveDocument({
+        doctype: "Material Request",
+        name: isEdit ? name : undefined,
+        doc: current,
+      });
 
       navigate(
-        `/store/material-request/${doc.material_request_type}/view/${res.data.name}`,
+        `/store/material-request/${current.material_request_type}/view/${res.data.name}`,
       );
     } catch {
       setError(t("common.saveFailed"));
@@ -224,10 +238,8 @@ export default function MaterialRequestForm() {
     try {
       setLoading(true);
 
-      await post("method/frappe.client.submit", {
-        doctype: "Material Request",
-        name: name,
-      });
+      // `frappe.client.submit` takes the whole document, not {doctype, name}.
+      await submitDocument({ doctype: "Material Request", name });
 
       loadDoc();
     } catch {

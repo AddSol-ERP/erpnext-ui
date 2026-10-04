@@ -44,6 +44,13 @@
 			"submitted": "تم الإرسال",
 			"paid": "مدفوع"
 		},
+		"action": {
+			"approve": "موافقة",
+			"reject": "رفض",
+			"pendingApproval": "في انتظار الموافقة",
+			"cancel": "إلغاء",
+			"cancelled": "ملغى"
+		},
 		"list": {
 			"create": "إنشاء",
 			"new": "+ جديد",
@@ -101,7 +108,17 @@
 			"validationRange": "نطاق تواريخ غير صالح",
 			"validationBalance": "رصيد إجازة غير كافٍ",
 			"sectionDetails": "تفاصيل الإجازة",
-			"sectionNotes": "النصف يوم والسبب"
+			"sectionNotes": "النصف يوم والسبب",
+			"selectApprover": "اختر المعتمِد",
+			"createdSuccess": "تم إنشاء طلب الإجازة بنجاح",
+			"updatedSuccess": "تم تحديث طلب الإجازة بنجاح",
+			"doctypeName": "طلب الإجازة",
+			"awaitingApproval": "لا يزال طلب الإجازة بانتظار الموافقة. يصبح الإرسال متاحًا بمجرد أن يعيّن المعتمد الحالة.",
+			"approveSuccess": "تم الموافقة على طلب الإجازة.",
+			"rejectSuccess": "تم رفض طلب الإجازة.",
+			"approvalFailed": "تعذر تحديث حالة طلب الإجازة.",
+			"rejectConfirmTitle": "رفض طلب الإجازة؟",
+			"rejectConfirmBody": "سيتم وضع علامة مرفوض على الطلب. ويمكن تغيير الحالة لاحقًا."
 		},
 		"expense": {
 			"employee": "الموظف",

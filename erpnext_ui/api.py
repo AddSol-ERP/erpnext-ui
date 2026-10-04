@@ -52,6 +52,27 @@ def boot_session(bootinfo):
         bootinfo["user"]["home_page"] = "/addsol_ui"
 
 
+@frappe.whitelist(allow_guest=False)
+def get_csrf_token():
+    """Return the CSRF token of the current session.
+
+    Frappe validates CSRF on every unsafe HTTP method (POST/PUT/PATCH/DELETE)
+    and reads the token from the `X-Frappe-CSRF-Token` header or a `csrf_token`
+    form field. The desk gets it for free because `frappe/www/app.py` renders
+    the boot payload, but this SPA is served as static assets and never
+    evaluates that boot script, so `frappe.csrf_token` does not exist on the
+    client. Without the header, every write call made from the SPA fails with
+    `CSRFTokenError: Invalid Request`.
+
+    This only exposes the caller's own session token, so it grants no access
+    beyond what the session already has.
+    """
+    # Imported lazily: `frappe.sessions` is not necessarily loaded by `import frappe`.
+    from frappe.sessions import get_csrf_token as _get_csrf_token
+
+    return {"csrf_token": _get_csrf_token()}
+
+
 # ============================================================
 # LEAVE BALANCE REPORT
 # ============================================================

@@ -80,7 +80,12 @@
 		"stepOf": "चरण {{current}} / {{total}}",
 		"tab": "टैब {{n}}",
 		"errorsCount": "{{n}} त्रुटियाँ",
-		"fixToContinue": "जारी रखने के लिए हाइलाइट किए गए फ़ील्ड ठीक करें"
+		"fixToContinue": "जारी रखने के लिए हाइलाइट किए गए फ़ील्ड ठीक करें",
+		"submitting": "सबमिट हो रहा है…",
+		"deleteConfirmTitle": "हटाने की पुष्टि",
+		"deleting": "हटाया जा रहा है…",
+		"draft": "प्रारूप",
+		"approvalStatus": "अनुमोदन स्थिति"
 	},
 	"nav": {
 		"approvals": "अनुमोदन",

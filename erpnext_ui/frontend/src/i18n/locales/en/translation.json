@@ -80,7 +80,12 @@
 		"stepOf": "Step {{current}} of {{total}}",
 		"tab": "Tab {{n}}",
 		"errorsCount": "{{n}} errors",
-		"fixToContinue": "Please fix the highlighted fields to continue"
+		"fixToContinue": "Please fix the highlighted fields to continue",
+		"submitting": "Submitting…",
+		"deleteConfirmTitle": "Confirm delete",
+		"deleting": "Deleting…",
+		"draft": "Draft",
+		"approvalStatus": "Approval Status"
 	},
 	"nav": {
 		"approvals": "Approvals",

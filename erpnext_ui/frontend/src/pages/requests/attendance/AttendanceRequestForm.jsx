@@ -1,14 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, FileText, SlidersHorizontal } from "lucide-react";
 import { useHeader } from "../../../context/HeaderContext";
-import { get, post } from "../../../services/api";
+import { useToast } from "../../../context/ToastContext";
+import { get } from "../../../services/api";
+import {
+  getWorkflowActions,
+  resolveForwardActions,
+  saveDocument,
+  submitDocument,
+  workflowActionLabelKey,
+} from "../../../lib/docTransition";
+import { getApprovalMeta } from "../../../lib/approvalMeta";
+import { useDocStatus } from "../../../hooks/useDocStatus";
 import { FormField } from "../../../components/FormField";
+import { DocStatusField } from "../../../components/DocStatusField";
 import FormSection from "../../../components/FormSection";
 import FormErrorSummary from "../../../components/FormErrorSummary";
 import FormSelect from "../../../components/FormSelect";
 import { focusFirstError } from "../../../lib/formValidation";
+import {
+  applyEmployeeScope,
+  fetchEmployeeFields,
+  fetchEmployeeScope,
+  isEmployeeLocked,
+} from "../../../lib/employeeScope";
 import LinkField from "../../../components/LinkField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,9 +49,49 @@ export default function AttendanceRequestForm() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const toast = useToast();
   const { t, i18n } = useTranslation();
 
   const isEdit = !!name;
+
+  // Submit / Workflow transition state. `hasWorkflow` is a doctype-level
+  // fact (meta carries `workflow_state`) so it is knowable on a new form;
+  // `transitions` is document-level and needs a saved document.
+  const [hasWorkflow, setHasWorkflow] = useState(false);
+  const [transitions, setTransitions] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [workflowChecked, setWorkflowChecked] = useState(false);
+  // Frappe hides Submit while a document has unsaved changes (`can_submit()`
+  // requires `!doc.__unsaved`): both submit paths act on the STORED document, so
+  // submitting a dirty form would silently discard the edits.
+  //
+  // Tracked from real user input rather than by diffing against the loaded
+  // document. This form also writes to `doc` on its own -- employee scope
+  // defaults, auto-selected named approvers, half-day validation -- and those
+  // are not edits; a diff would call a freshly-opened document dirty and leave
+  // Submit permanently hidden.
+  const [dirty, setDirty] = useState(false);
+
+  /**
+   * The single place the form's own fields change. Routing user input through
+   * here is what marks the document dirty, so Frappe's rule (hide Submit while
+   * there are unsaved changes) stays true even when other code paths below
+   * write to `doc`.
+   */
+  const updateField = (fieldname, value) => {
+    setDirty(true);
+    setDoc((prev) => ({
+      ...prev,
+      // Accepting an updater keeps callers from reading a stale `doc` when they
+      // derive the next value from the current one.
+      [fieldname]: typeof value === "function" ? value(prev[fieldname]) : value,
+    }));
+  };
+
+  const updateFieldObject = (patch) => {
+    setDirty(true);
+    setDoc((prev) => ({ ...prev, ...patch }));
+  };
   const lang = (i18n.resolvedLanguage || i18n.language || "en").split("-")[0];
   const dateLocale = DATE_LOCALES[lang] || DATE_LOCALES.en;
 
@@ -43,7 +100,6 @@ export default function AttendanceRequestForm() {
   const prefilledToDate = searchParams.get("to_date") || "";
 
   const [loading, setLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
@@ -60,36 +116,68 @@ export default function AttendanceRequestForm() {
     explanation: "",
   });
 
-  /* ================= AUTO EMPLOYEE ================= */
-  // autoSetEmployee setStates after awaited API responses; the compiler
-  // rule conservatively flags any setState-reaching call from an effect.
-  async function autoSetEmployee() {
-    try {
-      const res = await get("method/frappe.client.get_list", {
-        doctype: "Employee",
-        fields: JSON.stringify(["name", "company"]),
-        limit_page_length: 2,
-      });
+  // Derived, not latched: docstatus 2 (Cancelled) locks the form exactly as
+  // 1 (Submitted) does, and a flag set only when `docstatus === 1` would leave
+  // a cancelled document editable and offering Submit.
+  const isSubmitted = Number(doc.docstatus) > 0;
 
-      const list = res.message || [];
+  // Always points at the newest document. The header holds a `handleSave`
+  // captured in an earlier render (its effect intentionally does not depend on
+  // `doc`), so Save must read the live state through this ref rather than
+  // through a captured `doc`. Without it, every value typed after mount was
+  // invisible to validation and the form reported those fields as required.
+  const docRef = useRef(doc);
 
-      if (list.length === 1) {
-        setDoc((prev) => ({
-          ...prev,
-          employee: list[0].name,
-          company: list[0].company,
-        }));
-      }
-    } catch (e) {
-      console.error(e);
+  // Read-only lifecycle badge for the form header. Must sit after the `doc`
+  // state above -- reading it earlier is a temporal-dead-zone crash.
+  const status = useDocStatus({ doctype: "Attendance Request", doc });
+
+  // Synced in an effect rather than during render: the React Compiler lint
+  // rule forbids mutating a ref while rendering. Save always runs after a
+  // commit (it is a click handler), so the ref is current by then.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+
+  /* ================= EMPLOYEE SCOPE ================= */
+  const [scope, setScope] = useState({
+    user: "",
+    myEmployee: "",
+    myCompany: "",
+    canSelect: false,
+    loaded: false,
+  });
+
+  // Attendance Request requires `company`, and it is NOT read-only on the
+  // doctype, so it must be sent. Changing employee has to refresh it --
+  // previously it was only set once on mount, which left the form with a stale
+  // (or empty) company whenever the employee was changed.
+  async function selectEmployee(employee) {
+    if (!employee) {
+      setDoc((prev) => ({ ...prev, employee: "", company: "" }));
+      return;
+    }
+
+    const data = await fetchEmployeeFields(employee, ["company"]);
+    setDoc((prev) => ({ ...prev, employee, company: data.company || "" }));
+  }
+
+  // loadScope setState after awaited API responses; the compiler rule
+  // conservatively flags any setState-reaching call from an effect.
+  async function loadScope() {
+    const resolved = await fetchEmployeeScope();
+    setScope(resolved);
+
+    if (!isEdit) {
+      setDoc((prev) => ({ ...prev, ...applyEmployeeScope(prev, resolved) }));
     }
   }
 
   useEffect(() => {
-    if (!isEdit) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      autoSetEmployee();
-    }
+     
+     
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadScope();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -103,7 +191,7 @@ export default function AttendanceRequestForm() {
       const res = await get(`resource/Attendance Request/${name}`);
       const d = res.data;
 
-      setDoc({
+      const loaded = {
         employee: d.employee || "",
         company: d.company || "",
         from_date: d.from_date || "",
@@ -114,9 +202,20 @@ export default function AttendanceRequestForm() {
         shift: d.shift || "",
         reason: d.reason || "",
         explanation: d.explanation || "",
-      });
 
-      if (d.docstatus === 1) setIsSubmitted(true);
+        // The pick above lists the fields this form is allowed to write, but the
+        // document's status lives in columns that pick would otherwise drop.
+        // `docstatus` is what makes a submitted or cancelled document read-only,
+        // and `status` / `workflow_state` feed both the header badge and the
+        // read-only Status field below.
+        docstatus: d.docstatus ?? 0,
+        status: d.status || "",
+        workflow_state: d.workflow_state || "",
+      };
+
+      setDoc(loaded);
+      setDirty(false);
+
     } catch (e) {
       console.error(e);
       setError(t("requests.attendance.loadFailed"));
@@ -127,40 +226,42 @@ export default function AttendanceRequestForm() {
 
   useEffect(() => {
     if (isEdit) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
+     
+    // eslint-disable-next-line react-hooks/set-state-in-effect
       loadDoc();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
   /* ================= VALIDATION ================= */
-  const validate = () => {
+  const validate = (d = docRef.current) => {
     const errs = {};
 
-    if (!doc.employee) {
+    if (!d.employee) {
       errs.employee = t("common.fieldRequired", {
         field: t("requests.attendance.employee"),
       });
     }
-    if (!doc.from_date) {
+    if (!d.from_date) {
       errs.from_date = t("common.fieldRequired", {
         field: t("requests.attendance.fromDate"),
       });
     }
-    if (!doc.to_date) {
+    if (!d.to_date) {
       errs.to_date = t("common.fieldRequired", {
         field: t("requests.attendance.toDate"),
       });
     }
-    if (!doc.reason) {
+    if (!d.reason) {
       errs.reason = t("common.fieldRequired", {
         field: t("requests.attendance.reason"),
       });
     }
-    if (doc.from_date && doc.to_date && doc.to_date < doc.from_date) {
+    if (d.from_date && d.to_date && d.to_date < d.from_date) {
       errs.to_date = t("requests.attendance.validationRange");
     }
-    if (doc.half_day && !doc.half_day_date) {
+    if (d.half_day && !d.half_day_date) {
       errs.half_day_date = t("requests.attendance.validationHalfDayDate");
     }
 
@@ -174,7 +275,9 @@ export default function AttendanceRequestForm() {
 
   /* ================= SAVE ================= */
   async function handleSave() {
-    const result = validate();
+    const current = docRef.current;
+
+    const result = validate(current);
     if (Object.keys(result.fieldErrors).length) {
       setError(result.summary);
       requestAnimationFrame(() => focusFirstError(result.fieldErrors));
@@ -185,24 +288,141 @@ export default function AttendanceRequestForm() {
       setLoading(true);
       setError("");
 
-      if (isEdit) {
-        await post(`resource/Attendance Request/${name}`, doc);
-      } else {
-        await post("resource/Attendance Request", doc);
-      }
+      const res = await saveDocument({
+        doctype: "Attendance Request",
+        name: isEdit ? name : undefined,
+        doc: current,
+      });
 
-      navigate("/requests/attendance");
+      setDirty(false);
+
+      if (isEdit) {
+        navigate("/requests/attendance");
+      } else {
+        // A new form offers Save only, so land on the saved document where
+        // Submit (or the Workflow transitions) is reachable.
+        navigate(`/requests/attendance/${res?.data?.name}`);
+      }
     } catch (e) {
-      console.error(e);
-      setError(t("common.saveFailed"));
+      // Map Frappe's `_server_messages` back onto the individual fields so the
+      // user sees which field was rejected, instead of a bare "ValidationError".
+      const serverFields = e?.fieldMessages || {};
+      if (Object.keys(serverFields).length) {
+        setFieldErrors((prev) => ({ ...prev, ...serverFields }));
+      }
+      setError(e?.message || t("common.saveFailed"));
     } finally {
       setLoading(false);
     }
   }
 
+  /* ================= DISABLED STATE ================= */
+  // A submitted document is fully locked; only self-only users are pinned to
+  // their own Employee.
+  const isDisabled = isSubmitted;
+  const employeeLocked = isSubmitted || isEmployeeLocked(scope);
+
+
+  const { showSubmit, showTransitions } = resolveForwardActions({
+    isEdit,
+    isSubmitted,
+    isDirty: dirty,
+    hasWorkflow,
+    workflowChecked,
+    transitionCount: transitions.length,
+  });
+
+  /* ================= WORKFLOW PROBE ================= */
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const meta = await getApprovalMeta("Attendance Request");
+      if (cancelled) return;
+      setHasWorkflow(Boolean(meta?.hasWorkflow));
+      // Until this resolves we cannot tell a Workflow doctype from a plain one,
+      // and offering Submit on a Workflow doctype would bypass its first state.
+      setWorkflowChecked(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // `get_transitions` returns [] for an unsaved document -- there is no current
+  // state to transition from yet.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { actions } = name
+        ? await getWorkflowActions({ doc: { doctype: "Attendance Request", name } })
+        : { actions: [] };
+
+      if (!cancelled) setTransitions(actions);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [name]);
+
+  /**
+   * Apply one Workflow transition, or a plain submit when `action` is null.
+   *
+   * Only reached for a saved, unmodified document, and `submitDocument` submits
+   * the document the SERVER holds -- a partial form payload would fail Frappe's
+   * mandatory-field validation, and `apply_workflow` reloads from the database.
+   */
+  const handleSubmit = async (action = null) => {
+    const result = validate(docRef.current);
+    if (Object.keys(result.fieldErrors).length) {
+      setError(result.summary);
+      requestAnimationFrame(() => focusFirstError(result.fieldErrors));
+      return;
+    }
+
+    const labelKey = action ? workflowActionLabelKey(action) : null;
+    const label = labelKey ? t(labelKey) : action || t("common.submit");
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      let docName = name;
+
+      // A new document must exist before it can be transitioned, so the first
+      // click saves it. With no Workflow we submit straight after, keeping the
+      // whole flow to a single click.
+      if (!docName) {
+        const res = await saveDocument({ doctype: "Attendance Request", doc: docRef.current });
+        docName = res?.data?.name;
+      }
+
+      // With a Workflow the transition can only be chosen against a saved
+      // document, so continue there where those buttons now exist.
+      if (hasWorkflow) {
+        navigate(`/requests/attendance/${docName}`);
+        return;
+      }
+
+      await submitDocument({ doctype: "Attendance Request", name: docName, action });
+      toast.success(t("common.submittedSuccess", { name: label }));
+      navigate("/requests/attendance");
+    } catch (e) {
+      const message = e?.message || t("common.submitFailed");
+      toast.error(message);
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   /* ================= HEADER ================= */
   useEffect(() => {
     setHeader({
+      status,
       title: isEdit
         ? t("requests.header.attendanceEditTitle", { name })
         : t("requests.header.attendanceNewTitle"),
@@ -223,27 +443,59 @@ export default function AttendanceRequestForm() {
         },
       ],
 
+      // Built flat on purpose: PageToolbar renders `actions.map(action => ...)`
+      // and reads action.label/onClick directly, so a nested array (what
+      // `transitions.map(...)` returns) renders one dead, unlabelled button.
       actions: [
         !isSubmitted && {
           label: loading ? t("common.saving") : t("common.save"),
           variant: "btn-success",
+          disabled: submitting,
           onClick: handleSave,
         },
 
-        isEdit &&
-          !isSubmitted && {
-            label: t("common.submit"),
-            variant: "btn-primary",
-            onClick: handleSave,
-          },
+        // Workflow transitions replace Submit entirely. Unrecognised action
+        // names are shown verbatim, as the backend's Action Master has them.
+        ...(showTransitions
+          ? transitions.map((tr, i) => {
+              const labelKey = workflowActionLabelKey(tr.action);
+              return {
+                label: labelKey ? t(labelKey) : tr.action,
+                variant: i === 0 ? "btn-primary" : "btn-outline-primary",
+                disabled: submitting,
+                onClick: () => handleSubmit(tr.action),
+              };
+            })
+          : []),
+
+        // Plain doctype lifecycle, only once we know no Workflow exists.
+        showSubmit && {
+          label: submitting ? t("common.submitting") : t("common.submit"),
+          variant: "btn-primary",
+          disabled: submitting,
+          onClick: () => handleSubmit(),
+        },
       ].filter(Boolean),
     });
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, name, isEdit, setHeader, loading, isSubmitted]);
-
-  const isDisabled = isSubmitted;
+  }, [
+    t,
+    name,
+    isEdit,
+    setHeader,
+    loading,
+    isSubmitted,
+    submitting,
+    hasWorkflow,
+    transitions,
+    status,
+    workflowChecked,
+    dirty,
+    showSubmit,
+    showTransitions,
+  ]);
 
   /* ================= UI ================= */
   return (
@@ -256,20 +508,24 @@ export default function AttendanceRequestForm() {
         icon={CalendarDays}
         contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2"
       >
+        <div className="md:col-span-2">
+          <DocStatusField label={t("common.status")} status={status} />
+        </div>
+
         <FormField
           label={t("requests.attendance.employee")}
           required
           name="employee"
           error={fieldErrors.employee}
         >
-          {isDisabled ? (
-            <Input value={doc.employee} disabled />
+          {employeeLocked ? (
+            <Input value={doc.employee} disabled readOnly />
           ) : (
             <LinkField
               doctype="Employee"
               value={doc.employee}
               disabled={isDisabled}
-              onChange={(v) => setDoc({ ...doc, employee: v })}
+              onChange={selectEmployee}
             />
           )}
         </FormField>
@@ -281,13 +537,13 @@ export default function AttendanceRequestForm() {
           error={fieldErrors.company}
         >
           {isDisabled ? (
-            <Input value={doc.company} disabled />
+            <Input value={doc.company} disabled readOnly />
           ) : (
             <LinkField
               doctype="Company"
               value={doc.company}
               disabled={isDisabled}
-              onChange={(v) => setDoc({ ...doc, company: v })}
+              onChange={(v) => updateField("company", v)}
             />
           )}
         </FormField>
@@ -304,8 +560,7 @@ export default function AttendanceRequestForm() {
             value={doc.from_date}
             onChange={(e) => {
               const val = e.target.value;
-              setDoc({
-                ...doc,
+              updateFieldObject({
                 from_date: val,
                 to_date: doc.to_date || val,
               });
@@ -324,7 +579,7 @@ export default function AttendanceRequestForm() {
             disabled={isDisabled}
             min={doc.from_date}
             value={doc.to_date}
-            onChange={(e) => setDoc({ ...doc, to_date: e.target.value })}
+            onChange={(e) => updateField("to_date", e.target.value)}
           />
         </FormField>
       </FormSection>
@@ -343,7 +598,7 @@ export default function AttendanceRequestForm() {
               disabled={isDisabled}
               variant={doc.half_day ? "default" : "outline"}
               onClick={() =>
-                setDoc({ ...doc, half_day: 1, half_day_date: "" })
+                updateFieldObject({ half_day: 1, half_day_date: "" })
               }
             >
               {t("common.yes")}
@@ -355,7 +610,7 @@ export default function AttendanceRequestForm() {
               disabled={isDisabled}
               variant={!doc.half_day ? "default" : "outline"}
               onClick={() =>
-                setDoc({ ...doc, half_day: 0, half_day_date: "" })
+                updateFieldObject({ half_day: 0, half_day_date: "" })
               }
             >
               {t("common.no")}
@@ -396,7 +651,7 @@ export default function AttendanceRequestForm() {
                       variant={
                         doc.half_day_date === d ? "default" : "outline"
                       }
-                      onClick={() => setDoc({ ...doc, half_day_date: d })}
+                      onClick={() => updateField("half_day_date", d)}
                     >
                       {formatDayMonth(d, dateLocale)}
                     </Button>
@@ -413,7 +668,7 @@ export default function AttendanceRequestForm() {
                 max={doc.to_date}
                 value={doc.half_day_date}
                 onChange={(e) =>
-                  setDoc({ ...doc, half_day_date: e.target.value })
+                  updateField("half_day_date", e.target.value)
                 }
               />
             </div>
@@ -437,7 +692,7 @@ export default function AttendanceRequestForm() {
               size="sm"
               disabled={isDisabled}
               variant={doc.include_holidays ? "default" : "outline"}
-              onClick={() => setDoc({ ...doc, include_holidays: 1 })}
+              onClick={() => updateField("include_holidays", 1)}
             >
               {t("common.yes")}
             </Button>
@@ -447,7 +702,7 @@ export default function AttendanceRequestForm() {
               size="sm"
               disabled={isDisabled}
               variant={!doc.include_holidays ? "default" : "outline"}
-              onClick={() => setDoc({ ...doc, include_holidays: 0 })}
+              onClick={() => updateField("include_holidays", 0)}
             >
               {t("common.no")}
             </Button>
@@ -462,7 +717,7 @@ export default function AttendanceRequestForm() {
               doctype="Shift Type"
               value={doc.shift}
               disabled={isDisabled}
-              onChange={(v) => setDoc({ ...doc, shift: v })}
+              onChange={(v) => updateField("shift", v)}
             />
           )}
         </FormField>
@@ -484,13 +739,14 @@ export default function AttendanceRequestForm() {
             value={doc.reason}
             disabled={isDisabled}
             placeholder={t("requests.attendance.select")}
-            onChange={(v) => setDoc({ ...doc, reason: v })}
+            onChange={(v) => updateField("reason", v)}
             options={[
               ["Work From Home", t("requests.attendance.workFromHome")],
               ["On Duty", t("requests.attendance.onDuty")],
             ]}
           />
         </FormField>
+
 
         <FormField
           label={t("requests.attendance.explanation")}
@@ -501,7 +757,7 @@ export default function AttendanceRequestForm() {
             disabled={isDisabled}
             value={doc.explanation}
             onChange={(e) =>
-              setDoc({ ...doc, explanation: e.target.value })
+              updateField("explanation", e.target.value)
             }
           />
         </FormField>

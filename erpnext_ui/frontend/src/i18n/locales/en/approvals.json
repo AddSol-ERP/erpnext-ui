@@ -10,7 +10,6 @@
 		"workflowFailed": "Workflow failed",
 		"actionFailed": "Action failed",
 		"noActions": "No actions available",
-		"terms": "Terms",
 		"termsAndConditions": "Terms & Conditions",
 		"openFull": "Open Full",
 		"showDetails": "Details",
@@ -69,7 +68,14 @@
 			"payment": "Payment",
 			"validity": "Validity",
 			"quotationTo": "Quotation To",
-			"opportunity": "Opportunity"
+			"opportunity": "Opportunity",
+			"paymentTerms": "Payment Terms",
+			"termsTemplate": "Template",
+			"term": "Term",
+			"dueDate": "Due Date",
+			"portion": "Portion",
+			"amount": "Amount",
+			"discount": "Discount"
 		}
 	}
 }

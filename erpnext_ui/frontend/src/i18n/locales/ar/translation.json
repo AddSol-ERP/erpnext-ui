@@ -80,7 +80,12 @@
 		"stepOf": "الخطوة {{current}} من {{total}}",
 		"tab": "تبويب {{n}}",
 		"errorsCount": "{{n}} أخطاء",
-		"fixToContinue": "يرجى تصحيح الحقول المحددة للمتابعة"
+		"fixToContinue": "يرجى تصحيح الحقول المحددة للمتابعة",
+		"submitting": "جارٍ الإرسال…",
+		"deleteConfirmTitle": "تأكيد الحذف",
+		"deleting": "جارٍ الحذف…",
+		"draft": "مسودة",
+		"approvalStatus": "حالة الموافقة"
 	},
 	"nav": {
 		"approvals": "الموافقات",

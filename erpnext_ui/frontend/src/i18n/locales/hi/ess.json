@@ -44,6 +44,13 @@
 			"submitted": "सबमिट किया गया",
 			"paid": "भुगतान किया गया"
 		},
+		"action": {
+			"approve": "स्वीकृत करें",
+			"reject": "अस्वीकार करें",
+			"pendingApproval": "अनुमोदन लंबित",
+			"cancel": "रद्द करें",
+			"cancelled": "रद्द"
+		},
 		"list": {
 			"create": "बनाएँ",
 			"new": "+ नया",
@@ -101,7 +108,17 @@
 			"validationRange": "अमान्य तिथि सीमा",
 			"validationBalance": "अपर्याप्त अवकाश शेष",
 			"sectionDetails": "अवकाश विवरण",
-			"sectionNotes": "आधा दिन और कारण"
+			"sectionNotes": "आधा दिन और कारण",
+			"selectApprover": "स्वीकर्ता चुनें",
+			"createdSuccess": "अवकाश आवेदन सफलतापूर्वक बनाया गया",
+			"updatedSuccess": "अवकाश आवेदन सफलतापूर्वक अपडेट किया गया",
+			"doctypeName": "अवकाश आवेदन",
+			"awaitingApproval": "यह अवकाश अभी अनुमोदन की प्रतीक्षा में है। अनुमोदक द्वारा स्थिति तय करने पर सबमिट उपलब्ध होगा।",
+			"approveSuccess": "अवकाश आवेदन स्वीकृत किया गया।",
+			"rejectSuccess": "अवकाश आवेदन अस्वीकृत किया गया।",
+			"approvalFailed": "अवकाश की स्थिति अपडेट नहीं हो सकी।",
+			"rejectConfirmTitle": "अवकाश आवेदन अस्वीकार करें?",
+			"rejectConfirmBody": "इससे आवेदन की स्थिति अस्वीकृत हो जाएगी। स्थिति को बाद में बदला जा सकता है।"
 		},
 		"expense": {
 			"employee": "कर्मचारी",

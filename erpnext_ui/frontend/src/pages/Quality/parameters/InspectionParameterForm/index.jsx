@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipboardList, FileText } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 import { useToast } from "../../../../context/ToastContext";
-import { get, post } from "../../../../services/api";
+import { get } from "../../../../services/api";
+import { saveDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
@@ -30,6 +31,20 @@ export default function InspectionParameterForm() {
     description: "",
   });
 
+  // Always points at the newest document. The Save button is registered into
+  // the page toolbar by an effect that deliberately does not depend on `doc`
+  // (re-running it per keystroke would thrash the toolbar), so the registered
+  // handler closes over the document as of an early render -- validation and
+  // the saved payload then used stale data. Handlers read through this ref.
+  const docRef = useRef(doc);
+
+  // Synced in an effect, not during render: the React Compiler lint rule
+  // forbids mutating a ref while rendering. Handlers run after a commit.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+
+
   /* ================= LOAD ================= */
   const loadDoc = async () => {
     try {
@@ -51,8 +66,9 @@ export default function InspectionParameterForm() {
 
   /* ================= SAVE ================= */
   const handleSave = async () => {
+    const current = docRef.current;
     const errs = {};
-    if (!doc.parameter) {
+    if (!current.parameter) {
       errs.parameter = t("quality.parameterRequired");
     }
 
@@ -68,11 +84,11 @@ export default function InspectionParameterForm() {
     try {
       setLoading(true);
 
-      if (name) {
-        await post(`resource/Quality Inspection Parameter/${name}`, doc);
-      } else {
-        await post("resource/Quality Inspection Parameter", doc);
-      }
+      await saveDocument({
+        doctype: "Quality Inspection Parameter",
+        name: name || undefined,
+        doc: current,
+      });
 
       toast.success(t("quality.savedSuccess"));
       navigate("/quality/parameters");

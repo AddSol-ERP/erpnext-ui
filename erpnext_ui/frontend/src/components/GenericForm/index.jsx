@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,10 +13,21 @@ import {
 } from "lucide-react";
 import { useHeader } from "../../context/HeaderContext";
 import { useToast } from "../../context/ToastContext";
-import { get, post, put } from "../../services/api";
+import { get, post } from "../../services/api";
+import {
+  deleteDocument,
+  getWorkflowActions,
+  resolveForwardActions,
+  saveDocument,
+  submitDocument,
+  workflowActionLabelKey,
+} from "../../lib/docTransition";
+import { useDocStatus } from "../../hooks/useDocStatus";
+import { getApprovalMeta } from "../../lib/approvalMeta";
 import { FormField } from "../FormField";
 import FormSection from "../FormSection";
 import ChildTable from "../ChildTable";
+import ConfirmDialog from "../ConfirmDialog";
 import FormErrorSummary from "../FormErrorSummary";
 import FormStepper from "../FormStepper";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -79,6 +90,24 @@ export default function GenericFormPage() {
   const [meta, setMeta] = useState(null);
   const [childMeta, setChildMeta] = useState({});
   const [doc, setDoc] = useState({});
+  const [dirty, setDirty] = useState(false);
+
+  // Always points at the newest document. The Save/Next/Submit buttons are
+  // registered into the page toolbar by an effect that deliberately does not
+  // depend on `doc` (re-running it on every keystroke would thrash the
+  // toolbar). Those captured handlers therefore closed over the document as it
+  // looked on an early render, so Save validated and POSTED stale data --
+  // silently discarding the user's edits. Every handler must read through this
+  // ref instead.
+  const docRef = useRef(doc);
+
+
+  // Synced in an effect rather than during render: the React Compiler lint rule
+  // forbids mutating a ref while rendering. The handlers run after a commit
+  // (clicks), so the ref is current by then.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
@@ -96,6 +125,21 @@ export default function GenericFormPage() {
   const isNew = name === "new" || !name;
   const decodedDoctype = decodeURIComponent(doctype);
   const decodedName = isNew ? null : decodeURIComponent(name);
+
+  // Read-only lifecycle badge for the form header. Must sit after
+  // `decodedDoctype` / `decodedName` are declared.
+  const status = useDocStatus({ doctype: decodedDoctype, doc });
+
+  /**
+   * Unsaved changes hide Submit, mirroring Frappe's `!doc.__unsaved` condition.
+   *
+   * Tracked from real user input rather than by diffing against the loaded
+   * document: effects here also write to `doc` (employee scope defaults, the
+   * debounced server-side calculation, auto-filled approvers), and those are
+   * not edits. Diffing would report a freshly-opened form as dirty and leave
+   * Submit permanently hidden.
+   */
+  const markDirty = useCallback(() => setDirty(true), []);
 
   const doctypeConfig = useMemo(
     () => getDoctypeConfig(decodedDoctype),
@@ -125,6 +169,7 @@ export default function GenericFormPage() {
   ============================== */
   const handleFieldChange = async (fieldname, value) => {
     if (isReadOnly) return;
+    markDirty();
     setDoc((prev) => ({ ...prev, [fieldname]: value }));
     if (errors[fieldname]) {
       setErrors((prev) => {
@@ -243,7 +288,7 @@ export default function GenericFormPage() {
   const validateStep = (stepIndex) => {
     const step = steps[stepIndex];
     if (!step) return true;
-    const stepErrors = validateRequired(doc, step.fields, t);
+    const stepErrors = validateRequired(docRef.current, step.fields, t);
 
     // Merge: clear previous errors on this step's fields, keep other steps'
     setErrors((prev) => {
@@ -275,7 +320,7 @@ export default function GenericFormPage() {
   /** Full-form validate that also navigates to the failing group. */
   const validateAllAndJump = () => {
     if (!meta) return true;
-    const newErrors = validateRequired(doc, meta, t);
+    const newErrors = validateRequired(docRef.current, meta, t);
     return applyErrors(newErrors);
   };
 
@@ -288,20 +333,25 @@ export default function GenericFormPage() {
     setSaving(true);
 
     try {
-      const payload = { ...doc };
+      const payload = { ...docRef.current };
       SYSTEM_FIELDS.forEach((f) => delete payload[f]);
       payload.doctype = decodedDoctype;
 
-      if (isNew) {
-        await post(`resource/${decodedDoctype}`, payload);
-        toast.success(t("common.createdSuccess", { name: decodedDoctype }));
-      } else {
-        await put(
-          `resource/${decodedDoctype}/${decodedName}`,
-          payload,
-        );
-        toast.success(t("common.updatedSuccess", { name: decodedDoctype }));
-      }
+      // One helper decides POST-for-create vs PUT-for-update, so a save can
+      // never hit the execute_doc_method route by mistake.
+      await saveDocument({
+        doctype: decodedDoctype,
+        name: isNew ? undefined : decodedName,
+        doc: payload,
+      });
+
+      setDirty(false);
+
+      toast.success(
+        isNew
+          ? t("common.createdSuccess", { name: decodedDoctype })
+          : t("common.updatedSuccess", { name: decodedDoctype }),
+      );
 
       navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
     } catch (e) {
@@ -312,15 +362,71 @@ export default function GenericFormPage() {
     }
   };
 
-  const handleSubmit = async (docName) => {
+  /**
+   * Workflow transitions available on this document right now.
+   *
+   * `get_transitions` returns [] for an unsaved document, so a new form simply
+   * has none and falls through to the ordinary Submit.
+   */
+  const [transitions, setTransitions] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hasWorkflow, setHasWorkflow] = useState(false);
+  const [workflowChecked, setWorkflowChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const meta = await getApprovalMeta(decodedDoctype);
+      if (cancelled) return;
+      setHasWorkflow(Boolean(meta?.hasWorkflow));
+      // Until this resolves we cannot tell a Workflow doctype from a plain one,
+      // and offering Submit on a Workflow doctype would bypass its first state.
+      setWorkflowChecked(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [decodedDoctype]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { actions } = decodedName
+        ? await getWorkflowActions({
+            doc: { doctype: decodedDoctype, name: decodedName },
+          })
+        : { actions: [] };
+
+      if (!cancelled) setTransitions(actions);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [decodedDoctype, decodedName]);
+
+  /** Apply one Workflow transition, or a plain submit when action is null. */
+  const handleSubmit = async (docName, action = null) => {
     if (!validateAllAndJump()) return;
     setSaving(true);
     try {
-      await get("method/frappe.client.submit", {
+      // `frappe.client.submit` takes the whole document, and a Workflow has to
+      // be driven through `apply_workflow` so the state actually advances.
+      await submitDocument({
         doctype: decodedDoctype,
         name: docName,
+        action,
       });
-      toast.success(t("common.submittedSuccess", { name: decodedDoctype }));
+
+      const labelKey = action ? workflowActionLabelKey(action) : null;
+      toast.success(
+        t("common.submittedSuccess", {
+          name: labelKey ? t(labelKey) : action || decodedDoctype,
+        }),
+      );
       navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
     } catch (e) {
       console.error("Submit failed:", e);
@@ -331,17 +437,9 @@ export default function GenericFormPage() {
   };
 
   const handleDelete = async (docName) => {
-    if (
-      !window.confirm(t("common.deleteConfirm", { name: decodedDoctype }))
-    )
-      return;
-
     setSaving(true);
     try {
-      await get("method/frappe.client.delete", {
-        doctype: decodedDoctype,
-        name: docName,
-      });
+      await deleteDocument({ doctype: decodedDoctype, name: docName });
       toast.success(t("common.deletedSuccess", { name: decodedDoctype }));
       navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
     } catch (e) {
@@ -456,6 +554,7 @@ export default function GenericFormPage() {
         }
 
         setDoc(initialDoc);
+        setDirty(false);
         setActiveTab(0);
         setActiveStep(0);
         setMaxReached(0);
@@ -509,18 +608,45 @@ export default function GenericFormPage() {
       });
     }
 
-    if (!isNew && doc.docstatus === 0 && !isReadOnly) {
-      actions.push({
-        label: t("common.submit"),
-        variant: "btn-primary",
-        disabled: saving || loading,
-        onClick: () => handleSubmit(doc.name),
+    // Frappe's own rule (toolbar.js can_submit): no Submit for a document that
+    // does not exist yet, none while it has unsaved changes, and none at all on
+    // a Workflow doctype -- there the transition actions replace it, and a plain
+    // submit would skip the first approval state.
+    const { showSubmit, showTransitions } = resolveForwardActions({
+      isEdit: !isNew,
+      isSubmitted: Number(doc.docstatus) !== 0,
+      isDirty: dirty,
+      hasWorkflow,
+      workflowChecked,
+      transitionCount: transitions.length,
+    });
+
+    if (showSubmit || showTransitions) {
+      // One button per Workflow transition; unrecognised action names are shown
+      // verbatim, exactly as the backend's Action Master has them.
+      (showTransitions ? transitions : [{ action: null }]).forEach((tr, i) => {
+        const labelKey = tr.action ? workflowActionLabelKey(tr.action) : null;
+        actions.push({
+          label: tr.action
+            ? labelKey
+              ? t(labelKey)
+              : tr.action
+            : saving
+              ? t("common.submitting")
+              : t("common.submit"),
+          variant: i === 0 ? "btn-primary" : "btn-outline-primary",
+          disabled: saving || loading,
+          onClick: () => handleSubmit(doc.name, tr.action),
+        });
       });
+    }
+
+    if (!isNew && doc.docstatus === 0 && !isReadOnly) {
       actions.push({
         label: t("common.delete"),
         variant: "btn-outline-danger",
         disabled: saving || loading,
-        onClick: () => handleDelete(doc.name),
+        onClick: () => setConfirmDelete(true),
       });
     }
 
@@ -530,6 +656,7 @@ export default function GenericFormPage() {
     };
 
     setHeader({
+      status,
       title: isNew
         ? t("common.createNew", { name: decodedDoctype })
         : `${doc.name || decodedDoctype}`,
@@ -564,6 +691,11 @@ export default function GenericFormPage() {
     isReadOnly,
     t,
     errors,
+    transitions,
+    confirmDelete,
+    status,
+    workflowChecked,
+    dirty,
   ]);
 
   /* ===============================
@@ -894,6 +1026,20 @@ export default function GenericFormPage() {
   }
 
   return (
+    <>
+      <ConfirmDialog
+        open={confirmDelete}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          handleDelete(doc.name);
+        }}
+        title={t("common.deleteConfirmTitle")}
+        message={t("common.deleteConfirm", { name: decodedDoctype })}
+        loading={saving}
+      />
+
+  return (
     <div className="mx-auto w-full max-w-[1100px]">
       <FormErrorSummary summary={summary} fieldErrors={errors} className="mb-4" />
 
@@ -920,5 +1066,6 @@ export default function GenericFormPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

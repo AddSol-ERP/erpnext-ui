@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 
-export function ListRow({ item, onClick, index, className = "" }) {
+export function ListRow({ item, onClick, index, actions, className = "" }) {
   const status = item.statusLabel || item.status;
   const statusColor = item.statusColor || item.status;
 
@@ -60,6 +60,20 @@ export function ListRow({ item, onClick, index, className = "" }) {
 
       {/* RIGHT */}
       <div className="flex shrink-0 items-center gap-2">
+        {/* Optional per-row controls (delete, etc.). Rendered before the status
+            badge so the row still reads name -> meta -> status -> action.
+            Clicks are stopped here so pressing a row action never also
+            navigates via the row's own onClick. */}
+        {actions ? (
+          <div
+            className="flex shrink-0 items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {actions}
+          </div>
+        ) : null}
+
         {status ? (
           <StatusBadge tone={statusColor || "open"}>{status}</StatusBadge>
         ) : null}

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ClipboardList, Plus, Table2, Trash2, Truck } from "lucide-react";
 import { useHeader } from "../../../../context/HeaderContext";
-import { get, post } from "../../../../services/api";
+import { get } from "../../../../services/api";
+import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
@@ -39,6 +40,20 @@ export default function DeliveryNoteForm() {
     dispatch_date: "",
     docstatus: 0,
   });
+
+  // Always points at the newest document. The Save button is registered into
+  // the page toolbar by an effect that deliberately does not depend on `doc`
+  // (re-running it per keystroke would thrash the toolbar), so the registered
+  // handler closes over the document as of an early render -- validation and
+  // the saved payload then used stale data. Handlers read through this ref.
+  const docRef = useRef(doc);
+
+  // Synced in an effect, not during render: the React Compiler lint rule
+  // forbids mutating a ref while rendering. Handlers run after a commit.
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+
 
   /* ================= HELPERS ================= */
   const autoCompany = async () => {
@@ -141,20 +156,20 @@ export default function DeliveryNoteForm() {
   };
 
   /* ================= VALIDATION ================= */
-  const validate = () => {
+  const validate = (d = docRef.current) => {
     const errs = {};
 
-    if (!doc.customer) {
+    if (!d.customer) {
       errs.customer = t("store.validation.customerRequired");
     }
-    if (!doc.company) {
+    if (!d.company) {
       errs.company = t("store.validation.companyRequired");
     }
 
-    if (!doc.items.length) {
+    if (!d.items.length) {
       errs.items = t("store.validation.addItems");
     } else {
-      for (const row of doc.items) {
+      for (const row of d.items) {
         if (!row.item_code || !row.qty) {
           errs.items = t("store.validation.fillItemRows");
           break;
@@ -180,7 +195,9 @@ export default function DeliveryNoteForm() {
 
   /* ================= SAVE ================= */
   const handleSave = async () => {
-    const result = validate();
+    const current = docRef.current;
+
+    const result = validate(current);
     if (Object.keys(result.fieldErrors).length) {
       setError(result.summary);
       requestAnimationFrame(() => focusFirstError(result.fieldErrors));
@@ -191,16 +208,13 @@ export default function DeliveryNoteForm() {
       setLoading(true);
       setError("");
 
-      let res;
+      const res = await saveDocument({
+        doctype: "Delivery Note",
+        name: isEdit ? name : undefined,
+        doc: current,
+      });
 
-      if (isEdit) {
-        await post(`resource/Delivery Note/${name}`, doc);
-        res = { data: { name } };
-      } else {
-        res = await post("resource/Delivery Note", doc);
-      }
-
-      navigate(`/store/delivery/${res.data.name}`);
+      navigate(`/store/delivery/${res?.data?.name || name}`);
     } catch {
       setError(t("common.saveFailed"));
     } finally {
@@ -213,10 +227,8 @@ export default function DeliveryNoteForm() {
     try {
       setLoading(true);
 
-      await post("method/frappe.client.submit", {
-        doctype: "Delivery Note",
-        name,
-      });
+      // `frappe.client.submit` takes the whole document, not {doctype, name}.
+      await submitDocument({ doctype: "Delivery Note", name });
 
       loadDoc();
     } catch {
