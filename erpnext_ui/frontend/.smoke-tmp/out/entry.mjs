@@ -34179,6 +34179,57 @@ async function post(method, data = {}) {
 async function put(method, data = {}) {
 	return request("PUT", method, data);
 }
+/**
+* POST a multipart/form-data payload.
+*
+* Separate from `request()` because that function hardcodes
+* `Content-Type: application/json` and `JSON.stringify`s its body, which would
+* corrupt a FormData upload: the browser has to generate the multipart boundary
+* itself, so setting Content-Type manually yields
+* "multipart/form-data; boundary=undefined" and Frappe rejects the body.
+*
+* The CSRF token is sent twice on purpose. Frappe accepts it from either the
+* `X-Frappe-CSRF-Token` header or a `csrf_token` form field
+* (`frappe/auth.py` -> `validate_csrf_token` pops it out of `form_dict`), and
+* the two paths fail differently:
+*
+*   - same-origin (VITE_API_BASE_URL = "/api"): the session cookie applies, so
+*     Frappe validates the token strictly. The header covers this.
+*   - cross-origin dev with VITE_API_TOKEN: there may be no saved token at all,
+*     in which case Frappe skips the check, but if a token *was* issued the
+*     request is still rejected without one.
+*
+* Sending both means neither setup depends on which of the two the server ends
+* up reading.
+*/
+async function uploadFile(method, formData, canRetryCsrf = true) {
+	const headers = {};
+	const token = await getCsrfToken();
+	if (token) {
+		headers["X-Frappe-CSRF-Token"] = token;
+		formData.append("csrf_token", token);
+	}
+	const res = await fetch(`${getBaseUrl()}/${method}`, {
+		method: "POST",
+		headers,
+		body: formData
+	});
+	const json = await res.json().catch(() => ({}));
+	if (json.exc === "CSRFTokenError" && canRetryCsrf) {
+		clearCsrfToken();
+		return uploadFile(method, formData, false);
+	}
+	if (!res.ok || Boolean(json.exc)) {
+		const parsed = parseServerMessages(json);
+		throw new ApiError(friendlyMessage(json, parsed, res.status), {
+			exc: json.exc || "",
+			status: res.status,
+			fieldMessages: parsed.fieldMessages,
+			messages: parsed.messages
+		});
+	}
+	return json;
+}
 //#endregion
 //#region node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
 /**
@@ -34425,7 +34476,7 @@ function createLucideIcon(iconDataOrName, iconNode = [], aliases = []) {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$28 = {
+var __iconData$29 = {
 	name: "arrow-left",
 	size: 24,
 	node: [["path", {
@@ -34436,8 +34487,8 @@ var __iconData$28 = {
 		key: "x3x0zl"
 	}]]
 };
-__iconData$28.node;
-var ArrowLeft = createLucideIcon(__iconData$28);
+__iconData$29.node;
+var ArrowLeft = createLucideIcon(__iconData$29);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/arrow-right.mjs
 /**
@@ -34446,7 +34497,7 @@ var ArrowLeft = createLucideIcon(__iconData$28);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$27 = {
+var __iconData$28 = {
 	name: "arrow-right",
 	size: 24,
 	node: [["path", {
@@ -34457,8 +34508,8 @@ var __iconData$27 = {
 		key: "xquz4c"
 	}]]
 };
-__iconData$27.node;
-var ArrowRight = createLucideIcon(__iconData$27);
+__iconData$28.node;
+var ArrowRight = createLucideIcon(__iconData$28);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/calendar-days.mjs
 /**
@@ -34467,7 +34518,7 @@ var ArrowRight = createLucideIcon(__iconData$27);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$26 = {
+var __iconData$27 = {
 	name: "calendar-days",
 	size: 24,
 	node: [
@@ -34517,8 +34568,8 @@ var __iconData$26 = {
 		}]
 	]
 };
-__iconData$26.node;
-var CalendarDays = createLucideIcon(__iconData$26);
+__iconData$27.node;
+var CalendarDays = createLucideIcon(__iconData$27);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/chart-column.mjs
 /**
@@ -34527,7 +34578,7 @@ var CalendarDays = createLucideIcon(__iconData$26);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$25 = {
+var __iconData$26 = {
 	name: "chart-column",
 	size: 24,
 	node: [
@@ -34550,8 +34601,8 @@ var __iconData$25 = {
 	],
 	aliases: ["bar-chart-3"]
 };
-__iconData$25.node;
-var ChartColumn = createLucideIcon(__iconData$25);
+__iconData$26.node;
+var ChartColumn = createLucideIcon(__iconData$26);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/check.mjs
 /**
@@ -34560,7 +34611,7 @@ var ChartColumn = createLucideIcon(__iconData$25);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$24 = {
+var __iconData$25 = {
 	name: "check",
 	size: 24,
 	node: [["path", {
@@ -34568,8 +34619,8 @@ var __iconData$24 = {
 		key: "1gmf2c"
 	}]]
 };
-__iconData$24.node;
-var Check = createLucideIcon(__iconData$24);
+__iconData$25.node;
+var Check = createLucideIcon(__iconData$25);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/chevron-down.mjs
 /**
@@ -34578,7 +34629,7 @@ var Check = createLucideIcon(__iconData$24);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$23 = {
+var __iconData$24 = {
 	name: "chevron-down",
 	size: 24,
 	node: [["path", {
@@ -34586,8 +34637,8 @@ var __iconData$23 = {
 		key: "qrunsl"
 	}]]
 };
-__iconData$23.node;
-var ChevronDown = createLucideIcon(__iconData$23);
+__iconData$24.node;
+var ChevronDown = createLucideIcon(__iconData$24);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/chevron-up.mjs
 /**
@@ -34596,7 +34647,7 @@ var ChevronDown = createLucideIcon(__iconData$23);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$22 = {
+var __iconData$23 = {
 	name: "chevron-up",
 	size: 24,
 	node: [["path", {
@@ -34604,8 +34655,8 @@ var __iconData$22 = {
 		key: "153udz"
 	}]]
 };
-__iconData$22.node;
-var ChevronUp = createLucideIcon(__iconData$22);
+__iconData$23.node;
+var ChevronUp = createLucideIcon(__iconData$23);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/circle-alert.mjs
 /**
@@ -34614,7 +34665,7 @@ var ChevronUp = createLucideIcon(__iconData$22);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$21 = {
+var __iconData$22 = {
 	name: "circle-alert",
 	size: 24,
 	node: [
@@ -34641,8 +34692,8 @@ var __iconData$21 = {
 	],
 	aliases: ["alert-circle"]
 };
-__iconData$21.node;
-var CircleAlert = createLucideIcon(__iconData$21);
+__iconData$22.node;
+var CircleAlert = createLucideIcon(__iconData$22);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/clipboard-list.mjs
 /**
@@ -34651,7 +34702,7 @@ var CircleAlert = createLucideIcon(__iconData$21);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$20 = {
+var __iconData$21 = {
 	name: "clipboard-list",
 	size: 24,
 	node: [
@@ -34686,8 +34737,8 @@ var __iconData$20 = {
 		}]
 	]
 };
-__iconData$20.node;
-var ClipboardList = createLucideIcon(__iconData$20);
+__iconData$21.node;
+var ClipboardList = createLucideIcon(__iconData$21);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/file-text.mjs
 /**
@@ -34696,7 +34747,7 @@ var ClipboardList = createLucideIcon(__iconData$20);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$19 = {
+var __iconData$20 = {
 	name: "file-text",
 	size: 24,
 	node: [
@@ -34722,8 +34773,8 @@ var __iconData$19 = {
 		}]
 	]
 };
-__iconData$19.node;
-var FileText = createLucideIcon(__iconData$19);
+__iconData$20.node;
+var FileText = createLucideIcon(__iconData$20);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/layout-list.mjs
 /**
@@ -34732,7 +34783,7 @@ var FileText = createLucideIcon(__iconData$19);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$18 = {
+var __iconData$19 = {
 	name: "layout-list",
 	size: 24,
 	node: [
@@ -34770,8 +34821,8 @@ var __iconData$18 = {
 		}]
 	]
 };
-__iconData$18.node;
-var LayoutList = createLucideIcon(__iconData$18);
+__iconData$19.node;
+var LayoutList = createLucideIcon(__iconData$19);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/link-2.mjs
 /**
@@ -34780,7 +34831,7 @@ var LayoutList = createLucideIcon(__iconData$18);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$17 = {
+var __iconData$18 = {
 	name: "link-2",
 	size: 24,
 	node: [
@@ -34801,8 +34852,8 @@ var __iconData$17 = {
 		}]
 	]
 };
-__iconData$17.node;
-var Link2 = createLucideIcon(__iconData$17);
+__iconData$18.node;
+var Link2 = createLucideIcon(__iconData$18);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/loader-circle.mjs
 /**
@@ -34811,7 +34862,7 @@ var Link2 = createLucideIcon(__iconData$17);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$16 = {
+var __iconData$17 = {
 	name: "loader-circle",
 	size: 24,
 	node: [["path", {
@@ -34820,8 +34871,8 @@ var __iconData$16 = {
 	}]],
 	aliases: ["loader-2"]
 };
-__iconData$16.node;
-var LoaderCircle = createLucideIcon(__iconData$16);
+__iconData$17.node;
+var LoaderCircle = createLucideIcon(__iconData$17);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/package.mjs
 /**
@@ -34830,7 +34881,7 @@ var LoaderCircle = createLucideIcon(__iconData$16);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$15 = {
+var __iconData$16 = {
 	name: "package",
 	size: 24,
 	node: [
@@ -34852,8 +34903,8 @@ var __iconData$15 = {
 		}]
 	]
 };
-__iconData$15.node;
-var Package = createLucideIcon(__iconData$15);
+__iconData$16.node;
+var Package = createLucideIcon(__iconData$16);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/paperclip.mjs
 /**
@@ -34862,7 +34913,7 @@ var Package = createLucideIcon(__iconData$15);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$14 = {
+var __iconData$15 = {
 	name: "paperclip",
 	size: 24,
 	node: [["path", {
@@ -34870,8 +34921,8 @@ var __iconData$14 = {
 		key: "1miecu"
 	}]]
 };
-__iconData$14.node;
-var Paperclip = createLucideIcon(__iconData$14);
+__iconData$15.node;
+var Paperclip = createLucideIcon(__iconData$15);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/plus.mjs
 /**
@@ -34880,7 +34931,7 @@ var Paperclip = createLucideIcon(__iconData$14);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$13 = {
+var __iconData$14 = {
 	name: "plus",
 	size: 24,
 	node: [["path", {
@@ -34891,8 +34942,8 @@ var __iconData$13 = {
 		key: "s699le"
 	}]]
 };
-__iconData$13.node;
-var Plus = createLucideIcon(__iconData$13);
+__iconData$14.node;
+var Plus = createLucideIcon(__iconData$14);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/receipt.mjs
 /**
@@ -34901,7 +34952,7 @@ var Plus = createLucideIcon(__iconData$13);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$12 = {
+var __iconData$13 = {
 	name: "receipt",
 	size: 24,
 	node: [
@@ -34919,8 +34970,8 @@ var __iconData$12 = {
 		}]
 	]
 };
-__iconData$12.node;
-var Receipt = createLucideIcon(__iconData$12);
+__iconData$13.node;
+var Receipt = createLucideIcon(__iconData$13);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/shield-check.mjs
 /**
@@ -34929,7 +34980,7 @@ var Receipt = createLucideIcon(__iconData$12);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$11 = {
+var __iconData$12 = {
 	name: "shield-check",
 	size: 24,
 	node: [["path", {
@@ -34940,8 +34991,8 @@ var __iconData$11 = {
 		key: "dzmm74"
 	}]]
 };
-__iconData$11.node;
-var ShieldCheck = createLucideIcon(__iconData$11);
+__iconData$12.node;
+var ShieldCheck = createLucideIcon(__iconData$12);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/shopping-cart.mjs
 /**
@@ -34950,7 +35001,7 @@ var ShieldCheck = createLucideIcon(__iconData$11);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$10 = {
+var __iconData$11 = {
 	name: "shopping-cart",
 	size: 24,
 	node: [
@@ -34976,8 +35027,8 @@ var __iconData$10 = {
 		}]
 	]
 };
-__iconData$10.node;
-var ShoppingCart = createLucideIcon(__iconData$10);
+__iconData$11.node;
+var ShoppingCart = createLucideIcon(__iconData$11);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/sliders-horizontal.mjs
 /**
@@ -34986,7 +35037,7 @@ var ShoppingCart = createLucideIcon(__iconData$10);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$9 = {
+var __iconData$10 = {
 	name: "sliders-horizontal",
 	size: 24,
 	node: [
@@ -35028,8 +35079,8 @@ var __iconData$9 = {
 		}]
 	]
 };
-__iconData$9.node;
-var SlidersHorizontal = createLucideIcon(__iconData$9);
+__iconData$10.node;
+var SlidersHorizontal = createLucideIcon(__iconData$10);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/square-check-big.mjs
 /**
@@ -35038,7 +35089,7 @@ var SlidersHorizontal = createLucideIcon(__iconData$9);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$8 = {
+var __iconData$9 = {
 	name: "square-check-big",
 	size: 24,
 	node: [["path", {
@@ -35050,8 +35101,8 @@ var __iconData$8 = {
 	}]],
 	aliases: ["check-square"]
 };
-__iconData$8.node;
-var SquareCheckBig = createLucideIcon(__iconData$8);
+__iconData$9.node;
+var SquareCheckBig = createLucideIcon(__iconData$9);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/square-user-round.mjs
 /**
@@ -35060,7 +35111,7 @@ var SquareCheckBig = createLucideIcon(__iconData$8);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$7 = {
+var __iconData$8 = {
 	name: "square-user-round",
 	size: 24,
 	node: [
@@ -35085,8 +35136,8 @@ var __iconData$7 = {
 	],
 	aliases: ["user-square-2"]
 };
-__iconData$7.node;
-var SquareUserRound = createLucideIcon(__iconData$7);
+__iconData$8.node;
+var SquareUserRound = createLucideIcon(__iconData$8);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/table-2.mjs
 /**
@@ -35095,7 +35146,7 @@ var SquareUserRound = createLucideIcon(__iconData$7);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$6 = {
+var __iconData$7 = {
 	name: "table-2",
 	size: 24,
 	node: [
@@ -35117,8 +35168,8 @@ var __iconData$6 = {
 		}]
 	]
 };
-__iconData$6.node;
-var Table2 = createLucideIcon(__iconData$6);
+__iconData$7.node;
+var Table2 = createLucideIcon(__iconData$7);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/trash.mjs
 /**
@@ -35127,7 +35178,7 @@ var Table2 = createLucideIcon(__iconData$6);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$5 = {
+var __iconData$6 = {
 	name: "trash",
 	size: 24,
 	node: [
@@ -35154,8 +35205,8 @@ var __iconData$5 = {
 	],
 	aliases: ["trash-2"]
 };
-__iconData$5.node;
-var Trash = createLucideIcon(__iconData$5);
+__iconData$6.node;
+var Trash = createLucideIcon(__iconData$6);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/triangle-alert.mjs
 /**
@@ -35164,7 +35215,7 @@ var Trash = createLucideIcon(__iconData$5);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$4 = {
+var __iconData$5 = {
 	name: "triangle-alert",
 	size: 24,
 	node: [
@@ -35183,8 +35234,8 @@ var __iconData$4 = {
 	],
 	aliases: ["alert-triangle"]
 };
-__iconData$4.node;
-var TriangleAlert = createLucideIcon(__iconData$4);
+__iconData$5.node;
+var TriangleAlert = createLucideIcon(__iconData$5);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/truck.mjs
 /**
@@ -35193,7 +35244,7 @@ var TriangleAlert = createLucideIcon(__iconData$4);
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var __iconData$3 = {
+var __iconData$4 = {
 	name: "truck",
 	size: 24,
 	node: [
@@ -35223,8 +35274,36 @@ var __iconData$3 = {
 		}]
 	]
 };
+__iconData$4.node;
+var Truck = createLucideIcon(__iconData$4);
+//#endregion
+//#region node_modules/lucide-react/dist/esm/icons/upload.mjs
+/**
+* @license lucide-react v1.47.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var __iconData$3 = {
+	name: "upload",
+	size: 24,
+	node: [
+		["path", {
+			d: "M12 3v12",
+			key: "1x0j5s"
+		}],
+		["path", {
+			d: "m17 8-5-5-5 5",
+			key: "7q97r8"
+		}],
+		["path", {
+			d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+			key: "ih7n3h"
+		}]
+	]
+};
 __iconData$3.node;
-var Truck = createLucideIcon(__iconData$3);
+var Upload = createLucideIcon(__iconData$3);
 //#endregion
 //#region node_modules/lucide-react/dist/esm/icons/user.mjs
 /**
@@ -36845,7 +36924,11 @@ var translation_default$2 = {
 		"deleteConfirmTitle": "Confirm delete",
 		"deleting": "Deleting…",
 		"draft": "Draft",
-		"approvalStatus": "Approval Status"
+		"approvalStatus": "Approval Status",
+		"cancelConfirm": "Are you sure you want to cancel {name}?",
+		"cancelling": "Cancelling...",
+		"cancelledSuccess": "{name} cancelled successfully",
+		"cancelFailed": "Failed to cancel"
 	},
 	nav: {
 		"approvals": "Approvals",
@@ -37047,7 +37130,11 @@ var translation_default$1 = {
 		"deleteConfirmTitle": "हटाने की पुष्टि",
 		"deleting": "हटाया जा रहा है…",
 		"draft": "प्रारूप",
-		"approvalStatus": "अनुमोदन स्थिति"
+		"approvalStatus": "अनुमोदन स्थिति",
+		"cancelConfirm": "क्या आप वाकई {name} को रद्द करना चाहते हैं?",
+		"cancelling": "रद्द किया जा रहा है...",
+		"cancelledSuccess": "{name} सफलतापूर्वक रद्द कर दिया गया",
+		"cancelFailed": "रद्द करना विफल रहा"
 	},
 	nav: {
 		"approvals": "अनुमोदन",
@@ -37249,7 +37336,11 @@ var translation_default = {
 		"deleteConfirmTitle": "تأكيد الحذف",
 		"deleting": "جارٍ الحذف…",
 		"draft": "مسودة",
-		"approvalStatus": "حالة الموافقة"
+		"approvalStatus": "حالة الموافقة",
+		"cancelConfirm": "هل أنت متأكد أنك تريد إلغاء {name}؟",
+		"cancelling": "جارٍ الإلغاء...",
+		"cancelledSuccess": "تم إلغاء {name} بنجاح",
+		"cancelFailed": "فشل الإلغاء"
 	},
 	nav: {
 		"approvals": "الموافقات",
@@ -37512,6 +37603,7 @@ var ess_default$2 = {
 			"toDate": "To Date"
 		},
 		"attendance": {
+			"doctypeName": "Attendance Request",
 			"employee": "Employee",
 			"company": "Company",
 			"fromDate": "From Date",
@@ -37566,6 +37658,7 @@ var ess_default$2 = {
 			"rejectConfirmBody": "This will mark the leave as Rejected. You can change the status again afterwards."
 		},
 		"expense": {
+			"doctypeName": "Expense Claim",
 			"employee": "Employee",
 			"company": "Company",
 			"approver": "Approver",
@@ -37604,7 +37697,8 @@ var ess_default$2 = {
 			"overtimeSubtitle": "Your overtime records",
 			"back": "Back",
 			"appointmentLetter": "Appointment Letter",
-			"print": "Print"
+			"print": "Print",
+			"documents": "Documents"
 		},
 		"tiles": {
 			"profile": {
@@ -37656,6 +37750,22 @@ var ess_default$2 = {
 			"sectionEmployment": "Employment",
 			"sectionContact": "Contact",
 			"sectionAddress": "Address",
+			"sectionDocuments": "Documents",
+			"documents": {
+				"description": "Upload the documents required for your employee record.",
+				"loading": "Loading documents...",
+				"notUploaded": "Not uploaded",
+				"upload": "Upload",
+				"replace": "Replace",
+				"delete": "Delete",
+				"uploaded": "{{name}} uploaded",
+				"deleted": "{{name}} deleted",
+				"uploadFailed": "Could not upload the document.",
+				"deleteFailed": "Could not delete the document.",
+				"loadFailed": "Could not load your documents.",
+				"noneConfigured": "No document types configured",
+				"noneConfiguredHint": "Your administrator has not enabled any document uploads for employee records."
+			},
 			"fields": {
 				"employeeName": "Employee Name",
 				"dateOfBirth": "Date of Birth",
@@ -38675,6 +38785,7 @@ var ess_default$1 = {
 			"toDate": "अंतिम तिथि"
 		},
 		"attendance": {
+			"doctypeName": "उपस्थिति अनुरोध",
 			"employee": "कर्मचारी",
 			"company": "कंपनी",
 			"fromDate": "आरंभ तिथि",
@@ -38729,6 +38840,7 @@ var ess_default$1 = {
 			"rejectConfirmBody": "इससे आवेदन की स्थिति अस्वीकृत हो जाएगी। स्थिति को बाद में बदला जा सकता है।"
 		},
 		"expense": {
+			"doctypeName": "व्यय दावा",
 			"employee": "कर्मचारी",
 			"company": "कंपनी",
 			"approver": "स्वीकर्ता",
@@ -38767,7 +38879,8 @@ var ess_default$1 = {
 			"overtimeSubtitle": "आपके ओवरटाइम रिकॉर्ड",
 			"back": "वापस",
 			"appointmentLetter": "नियुक्ति पत्र",
-			"print": "प्रिंट"
+			"print": "प्रिंट",
+			"documents": "दस्तावेज़"
 		},
 		"tiles": {
 			"profile": {
@@ -38819,6 +38932,22 @@ var ess_default$1 = {
 			"sectionEmployment": "रोज़गार",
 			"sectionContact": "संपर्क",
 			"sectionAddress": "पता",
+			"sectionDocuments": "दस्तावेज़",
+			"documents": {
+				"description": "अपने कर्मचारी रिकॉर्ड के लिए आवश्यक दस्तावेज़ अपलोड करें।",
+				"loading": "दस्तावेज़ लोड हो रहे हैं...",
+				"notUploaded": "अपलोड नहीं किया गया",
+				"upload": "अपलोड",
+				"replace": "बदलें",
+				"delete": "हटाएँ",
+				"uploaded": "{{name}} अपलोड किया गया",
+				"deleted": "{{name}} हटाया गया",
+				"uploadFailed": "दस्तावेज़ अपलोड नहीं हो सका।",
+				"deleteFailed": "दस्तावेज़ हटाया नहीं जा सका।",
+				"loadFailed": "आपके दस्तावेज़ लोड नहीं हो सके।",
+				"noneConfigured": "कोई दस्तावेज़ प्रकार कॉन्फ़िगर नहीं है",
+				"noneConfiguredHint": "आपके प्रशासक ने कर्मचारी रिकॉर्ड के लिए दस्तावेज़ अपलोड सक्षम नहीं किए हैं।"
+			},
 			"fields": {
 				"employeeName": "कर्मचारी नाम",
 				"dateOfBirth": "जन्म तिथि",
@@ -39569,6 +39698,7 @@ var ess_default = {
 			"toDate": "إلى تاريخ"
 		},
 		"attendance": {
+			"doctypeName": "طلب الحضور",
 			"employee": "الموظف",
 			"company": "الشركة",
 			"fromDate": "من تاريخ",
@@ -39623,6 +39753,7 @@ var ess_default = {
 			"rejectConfirmBody": "سيتم وضع علامة مرفوض على الطلب. ويمكن تغيير الحالة لاحقًا."
 		},
 		"expense": {
+			"doctypeName": "طلب المصروفات",
 			"employee": "الموظف",
 			"company": "الشركة",
 			"approver": "المعتمِد",
@@ -39661,7 +39792,8 @@ var ess_default = {
 			"overtimeSubtitle": "سجلات عملك الإضافي",
 			"back": "رجوع",
 			"appointmentLetter": "خطاب التعيين",
-			"print": "طباعة"
+			"print": "طباعة",
+			"documents": "المستندات"
 		},
 		"tiles": {
 			"profile": {
@@ -39713,6 +39845,22 @@ var ess_default = {
 			"sectionEmployment": "التوظيف",
 			"sectionContact": "التواصل",
 			"sectionAddress": "العنوان",
+			"sectionDocuments": "المستندات",
+			"documents": {
+				"description": "قم بتحميل المستندات المطلوبة لسجل الموظف.",
+				"loading": "جارٍ تحميل المستندات...",
+				"notUploaded": "لم يتم التحميل",
+				"upload": "تحميل",
+				"replace": "استبدال",
+				"delete": "حذف",
+				"uploaded": "تم تحميل {{name}}",
+				"deleted": "تم حذف {{name}}",
+				"uploadFailed": "تعذر تحميل المستند.",
+				"deleteFailed": "تعذر حذف المستند.",
+				"loadFailed": "تعذر تحميل مستنداتك.",
+				"noneConfigured": "لا توجد أنواع مستندات مُهيأة",
+				"noneConfiguredHint": "لم يقم المسؤول بتفعيل رفع المستندات لسجلات الموظفين."
+			},
 			"fields": {
 				"employeeName": "اسم الموظف",
 				"dateOfBirth": "تاريخ الميلاد",
@@ -40712,6 +40860,33 @@ function canSubmitDocument({ doctype, doc } = {}) {
 	if (!gate) return true;
 	return gate.allowed.includes(doc?.[gate.field]);
 }
+/**
+* Which document-lifecycle actions to render, straight from `docstatus`.
+*
+* Frappe's own state machine (frappe/model/document.py, `docstatus`):
+*
+*   0 Draft     -> fully editable, can be deleted, no ledger effect
+*   1 Submitted -> read-only (except "Allow on Submit"), CANNOT be deleted;
+*                  Frappe refuses with "Submitted Record cannot be deleted.
+*                  You must Cancel it first", so offering Delete here only
+*                  produces a button that is guaranteed to fail
+*   2 Cancelled -> read-only, reverses ledger entries, deletable
+*
+* `isEdit` distinguishes a stored document from a new form. A new form has no
+* document at all, so `docstatus` is `undefined` -- reading it directly would
+* yield `NaN` and silently hide every draft-only action, stranding the user on
+* a form with no way out. It is therefore treated as a draft for navigation
+* (Back applies) but as having nothing to delete or cancel.
+*/
+function resolveDocstatusActions({ isEdit, docstatus, hasWorkflow = false } = {}) {
+	const ds = Number(docstatus) || 0;
+	return {
+		docstatus: ds,
+		showBack: !isEdit || ds === 0,
+		showCancel: Boolean(isEdit) && ds === 1 && !hasWorkflow,
+		showDelete: Boolean(isEdit) && (ds === 0 || ds === 2)
+	};
+}
 function resolveForwardActions({ isEdit, isSubmitted = false, isDirty = false, hasWorkflow = false, workflowChecked = false, transitionCount = 0, canSubmit = true } = {}) {
 	return {
 		showSave: !isSubmitted,
@@ -40756,23 +40931,21 @@ async function getWorkflowActions({ doc }) {
 			hasWorkflow: false,
 			actions: []
 		};
-		const unique = Object.values(list.filter((t) => t?.action).reduce((acc, t) => {
-			if (!acc[t.action]) acc[t.action] = {
-				action: t.action,
-				from: t.state,
-				to: t.next_state
-			};
-			return acc;
-		}, {}));
-		const rank = (action) => {
-			const a = String(action).toLowerCase();
-			if (a.includes("reject")) return 0;
-			if (a.includes("approve")) return 2;
-			return 1;
-		};
 		return {
 			hasWorkflow: true,
-			actions: unique.sort((a, b) => rank(a.action) - rank(b.action))
+			actions: Object.values(list.filter((t) => t?.action).reduce((acc, t) => {
+				const key = JSON.stringify([
+					t.state,
+					t.action,
+					t.next_state
+				]);
+				if (!acc[key]) acc[key] = {
+					action: t.action,
+					from: t.state,
+					to: t.next_state
+				};
+				return acc;
+			}, {}))
 		};
 	} catch {
 		return {
@@ -40810,6 +40983,13 @@ async function submitDocument({ doctype, name, action, doc }) {
 */
 async function deleteDocument({ doctype, name }) {
 	return post("method/frappe.client.delete", {
+		doctype,
+		name
+	});
+}
+/** Cancel a submitted document (docstatus 1 -> 2). */
+async function cancelDocument({ doctype, name }) {
+	return post("method/frappe.client.cancel", {
 		doctype,
 		name
 	});
@@ -42289,59 +42469,6 @@ function FormField({ label, required = false, htmlFor, name, error, hint, childr
 				children: error
 			})
 		]
-	});
-}
-//#endregion
-//#region src/components/List/StatusBadge.jsx
-function StatusBadge({ children, tone = "open", className }) {
-	if (children == null || children === "") return null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-		className: cn("inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset", statusBadgeClass(tone), className),
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			"aria-hidden": true,
-			className: "size-1.5 shrink-0 rounded-full bg-current opacity-75"
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			className: "truncate",
-			children
-		})]
-	});
-}
-//#endregion
-//#region src/components/DocStatusField.jsx
-/**
-* The document's status, shown as a read-only field inside the form body.
-*
-* WHY THIS IS NOT AN EDITABLE SELECT
-* ---------------------------------
-* ERPNext renders `status` on Leave Application and Attendance Request and
-* `approval_status` on Expense Claim as read-only: an approval outcome is
-* written by the Workflow, never typed by a user. Exposing an editable control
-* would let the document claim an approval that never happened.
-*
-* The value comes from `useDocStatus`, which resolves the right column for the
-* doctype (workflow_state > curated status column > docstatus) from meta rather
-* than hard-coding a field name, so this stays correct for workflow and
-* non-workflow doctypes alike and matches the header badge exactly.
-*
-* While nothing has been submitted there is no status to report, so a fresh
-* draft shows "Draft" instead of an empty control.
-*/
-function DocStatusField({ label, status, className }) {
-	const { t } = useTranslation();
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormField, {
-		label,
-		name: "__doc_status",
-		className,
-		children: status ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: "flex h-9 items-center",
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatusBadge, {
-				tone: status.tone,
-				children: status.label
-			})
-		}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			className: "flex h-9 items-center text-sm text-muted-foreground",
-			children: t("common.draft")
-		})
 	});
 }
 //#endregion
@@ -49397,6 +49524,8 @@ function LeaveApplicationForm() {
 	const [deleting, setDeleting] = (0, import_react.useState)(false);
 	const [approving, setApproving] = (0, import_react.useState)(false);
 	const [rejectOpen, setRejectOpen] = (0, import_react.useState)(false);
+	const [cancelOpen, setCancelOpen] = (0, import_react.useState)(false);
+	const [cancelling, setCancelling] = (0, import_react.useState)(false);
 	const [hasWorkflow, setHasWorkflow] = (0, import_react.useState)(false);
 	const [transitions, setTransitions] = (0, import_react.useState)([]);
 	const [submitting, setSubmitting] = (0, import_react.useState)(false);
@@ -49436,9 +49565,15 @@ function LeaveApplicationForm() {
 		from_date: prefilledDate,
 		to_date: prefilledDate,
 		half_day: 0,
+		status: "Open",
 		description: ""
 	});
 	const isSubmitted = Number(doc.docstatus) > 0;
+	const { showBack, showCancel, showDelete } = resolveDocstatusActions({
+		isEdit,
+		docstatus: doc.docstatus,
+		hasWorkflow
+	});
 	const docRef = (0, import_react.useRef)(doc);
 	const status = useDocStatus({
 		doctype: "Leave Application",
@@ -49711,6 +49846,35 @@ function LeaveApplicationForm() {
 			setRejectOpen(false);
 		}
 	};
+	/**
+	* Open the confirmation for cancelling the stored document.
+	*
+	* `showCancel` (docstatus 1) has already gated the button; the repeat check
+	* keeps a stale click (the header can outlive a re-render) from cancelling
+	* something the current docstatus does not allow.
+	*/
+	function handleCancel() {
+		if (!isEdit || !name || !showCancel) return;
+		setCancelOpen(true);
+	}
+	async function confirmCancel() {
+		setCancelling(true);
+		try {
+			await cancelDocument({
+				doctype: "Leave Application",
+				name
+			});
+			await loadDoc();
+			toast.success(t("common.cancelledSuccess", { name }));
+		} catch (e) {
+			const message = e?.message || t("common.cancelFailed");
+			toast.error(message);
+			setError(message);
+		} finally {
+			setCancelling(false);
+			setCancelOpen(false);
+		}
+	}
 	function handleDelete() {
 		if (!isEdit || !name) return;
 		setConfirmOpen(true);
@@ -49790,13 +49954,19 @@ function LeaveApplicationForm() {
 					disabled: !canSave || submitting,
 					onClick: () => handleSubmit()
 				},
-				{
-					label: t("common.cancel"),
+				showBack && {
+					label: t("common.back"),
 					variant: "btn-outline-primary",
 					disabled: loading || submitting,
 					onClick: () => navigate("/requests/leave")
 				},
-				isEdit && {
+				showCancel && {
+					label: cancelling ? t("common.cancelling") : t("common.cancel"),
+					variant: "btn-outline-danger",
+					disabled: loading || submitting || cancelling,
+					onClick: handleCancel
+				},
+				showDelete && {
 					label: deleting ? t("common.deleting") : t("common.delete"),
 					variant: "btn-outline-danger",
 					disabled: loading || submitting,
@@ -49824,6 +49994,10 @@ function LeaveApplicationForm() {
 		showApprove,
 		showReject,
 		approving,
+		cancelling,
+		showBack,
+		showCancel,
+		showDelete,
 		currentUser
 	]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -49839,6 +50013,17 @@ function LeaveApplicationForm() {
 					if (!approving) setRejectOpen(false);
 				},
 				onConfirm: () => handleApproval(LEAVE_REJECTED)
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConfirmDialog, {
+				open: cancelOpen,
+				loading: cancelling,
+				title: t("common.cancel"),
+				confirmLabel: t("common.cancel"),
+				onCancel: () => {
+					if (!cancelling) setCancelOpen(false);
+				},
+				onConfirm: confirmCancel,
+				message: t("common.cancelConfirm", { name: t("requests.leave.doctypeName") })
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConfirmDialog, {
 				open: confirmOpen,
@@ -49966,9 +50151,32 @@ function LeaveApplicationForm() {
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "md:col-span-1",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DocStatusField, {
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormField, {
 							label: t("common.status"),
-							status
+							name: "status",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormSelect, {
+								value: doc.status || "Open",
+								onChange: (v) => updateField("status", v),
+								disabled: hasWorkflow || isSubmitted || loading || submitting,
+								options: [
+									{
+										value: "Open",
+										label: "Open"
+									},
+									{
+										value: "Approved",
+										label: "Approved"
+									},
+									{
+										value: "Rejected",
+										label: "Rejected"
+									},
+									{
+										value: "Cancelled",
+										label: "Cancelled"
+									}
+								]
+							})
 						})
 					}),
 					totalDays > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -50025,6 +50233,59 @@ function LeaveApplicationForm() {
 	});
 }
 //#endregion
+//#region src/components/List/StatusBadge.jsx
+function StatusBadge({ children, tone = "open", className }) {
+	if (children == null || children === "") return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+		className: cn("inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset", statusBadgeClass(tone), className),
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			"aria-hidden": true,
+			className: "size-1.5 shrink-0 rounded-full bg-current opacity-75"
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: "truncate",
+			children
+		})]
+	});
+}
+//#endregion
+//#region src/components/DocStatusField.jsx
+/**
+* The document's status, shown as a read-only field inside the form body.
+*
+* WHY THIS IS NOT AN EDITABLE SELECT
+* ---------------------------------
+* ERPNext renders `status` on Leave Application and Attendance Request and
+* `approval_status` on Expense Claim as read-only: an approval outcome is
+* written by the Workflow, never typed by a user. Exposing an editable control
+* would let the document claim an approval that never happened.
+*
+* The value comes from `useDocStatus`, which resolves the right column for the
+* doctype (workflow_state > curated status column > docstatus) from meta rather
+* than hard-coding a field name, so this stays correct for workflow and
+* non-workflow doctypes alike and matches the header badge exactly.
+*
+* While nothing has been submitted there is no status to report, so a fresh
+* draft shows "Draft" instead of an empty control.
+*/
+function DocStatusField({ label, status, className }) {
+	const { t } = useTranslation();
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormField, {
+		label,
+		name: "__doc_status",
+		className,
+		children: status ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "flex h-9 items-center",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatusBadge, {
+				tone: status.tone,
+				children: status.label
+			})
+		}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: "flex h-9 items-center text-sm text-muted-foreground",
+			children: t("common.draft")
+		})
+	});
+}
+//#endregion
 //#region src/pages/requests/attendance/AttendanceRequestForm.jsx
 var DATE_LOCALES = {
 	en: "en-IN",
@@ -50052,6 +50313,10 @@ function AttendanceRequestForm() {
 	const [submitting, setSubmitting] = (0, import_react.useState)(false);
 	const [workflowChecked, setWorkflowChecked] = (0, import_react.useState)(false);
 	const [dirty, setDirty] = (0, import_react.useState)(false);
+	const [cancelOpen, setCancelOpen] = (0, import_react.useState)(false);
+	const [cancelling, setCancelling] = (0, import_react.useState)(false);
+	const [confirmOpen, setConfirmOpen] = (0, import_react.useState)(false);
+	const [deleting, setDeleting] = (0, import_react.useState)(false);
 	/**
 	* The single place the form's own fields change. Routing user input through
 	* here is what marks the document dirty, so Frappe's rule (hide Submit while
@@ -50091,6 +50356,11 @@ function AttendanceRequestForm() {
 		explanation: ""
 	});
 	const isSubmitted = Number(doc.docstatus) > 0;
+	const { showBack, showCancel, showDelete } = resolveDocstatusActions({
+		isEdit,
+		docstatus: doc.docstatus,
+		hasWorkflow
+	});
 	const docRef = (0, import_react.useRef)(doc);
 	const status = useDocStatus({
 		doctype: "Attendance Request",
@@ -50206,6 +50476,62 @@ function AttendanceRequestForm() {
 			setError(e?.message || t("common.saveFailed"));
 		} finally {
 			setLoading(false);
+		}
+	}
+	/**
+	* Open the confirmation for cancelling the stored document.
+	*
+	* `showCancel` (docstatus 1) has already gated the button; the repeat check
+	* keeps a stale click (the header can outlive a re-render) from cancelling
+	* something the current docstatus does not allow.
+	*/
+	function handleCancel() {
+		if (!isEdit || !name || !showCancel) return;
+		setCancelOpen(true);
+	}
+	/** Runs only after the user confirms. Reloads so the form locks read-only. */
+	async function confirmCancel() {
+		if (!isEdit || !name) return;
+		setCancelling(true);
+		try {
+			await cancelDocument({
+				doctype: "Attendance Request",
+				name
+			});
+			await loadDoc();
+			toast.success(t("common.cancelledSuccess", { name: t("requests.attendance.doctypeName") }));
+		} catch (e) {
+			const message = e?.message || t("common.cancelFailed");
+			toast.error(message);
+			setError(message);
+		} finally {
+			setCancelling(false);
+			setCancelOpen(false);
+		}
+	}
+	function handleDelete() {
+		if (!isEdit || !name || !showDelete) return;
+		setConfirmOpen(true);
+	}
+	/** Runs only after the user confirms in the modal. */
+	async function confirmDelete() {
+		if (!isEdit || !name) return;
+		setDeleting(true);
+		setLoading(true);
+		try {
+			await deleteDocument({
+				doctype: "Attendance Request",
+				name
+			});
+			toast.success(t("common.deletedSuccess", { name: t("requests.attendance.doctypeName") }));
+			navigate("/requests/attendance");
+		} catch (e) {
+			toast.error(e?.message || t("common.deleteFailed"));
+			setError(e?.message || t("common.deleteFailed"));
+		} finally {
+			setDeleting(false);
+			setLoading(false);
+			setConfirmOpen(false);
 		}
 	}
 	const isDisabled = isSubmitted;
@@ -50327,6 +50653,24 @@ function AttendanceRequestForm() {
 					variant: "btn-primary",
 					disabled: submitting,
 					onClick: () => handleSubmit()
+				},
+				showBack && {
+					label: t("common.back"),
+					variant: "btn-outline-primary",
+					disabled: loading || submitting,
+					onClick: () => navigate("/requests/attendance")
+				},
+				showCancel && {
+					label: cancelling ? t("common.cancelling") : t("common.cancel"),
+					variant: "btn-outline-danger",
+					disabled: loading || submitting || cancelling,
+					onClick: handleCancel
+				},
+				showDelete && {
+					label: deleting ? t("common.deleting") : t("common.delete"),
+					variant: "btn-outline-danger",
+					disabled: loading || submitting,
+					onClick: handleDelete
 				}
 			].filter(Boolean)
 		});
@@ -50345,11 +50689,38 @@ function AttendanceRequestForm() {
 		workflowChecked,
 		dirty,
 		showSubmit,
-		showTransitions
+		showTransitions,
+		cancelling,
+		deleting,
+		showBack,
+		showCancel,
+		showDelete
 	]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "mx-auto w-full max-w-[1100px] space-y-3 pt-4",
 		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConfirmDialog, {
+				open: cancelOpen,
+				loading: cancelling,
+				title: t("common.cancel"),
+				confirmLabel: t("common.cancel"),
+				onCancel: () => {
+					if (!cancelling) setCancelOpen(false);
+				},
+				onConfirm: confirmCancel,
+				message: t("common.cancelConfirm", { name: t("requests.attendance.doctypeName") })
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConfirmDialog, {
+				open: confirmOpen,
+				loading: deleting,
+				title: t("common.deleteConfirmTitle"),
+				confirmLabel: t("common.delete"),
+				onCancel: () => {
+					if (!deleting) setConfirmOpen(false);
+				},
+				onConfirm: confirmDelete,
+				message: t("common.deleteConfirm", { name: t("requests.attendance.doctypeName") })
+			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormErrorSummary, {
 				summary: error,
 				fieldErrors
@@ -50589,6 +50960,17 @@ function ExpenseClaimForm() {
 	const [submitting, setSubmitting] = (0, import_react.useState)(false);
 	const [workflowChecked, setWorkflowChecked] = (0, import_react.useState)(false);
 	const [dirty, setDirty] = (0, import_react.useState)(false);
+	const [doc, setDoc] = (0, import_react.useState)({
+		employee: "",
+		company: "",
+		expense_approver: "",
+		posting_date: "",
+		remark: "",
+		approval_status: "Draft",
+		expenses: []
+	});
+	const [cancelOpen, setCancelOpen] = (0, import_react.useState)(false);
+	const [cancelling, setCancelling] = (0, import_react.useState)(false);
 	/**
 	* The single place the form's own fields change. Routing user input through
 	* here is what marks the document dirty, so Frappe's rule (hide Submit while
@@ -50605,15 +50987,12 @@ function ExpenseClaimForm() {
 	const [loading, setLoading] = (0, import_react.useState)(false);
 	const [error, setError] = (0, import_react.useState)("");
 	const [fieldErrors, setFieldErrors] = (0, import_react.useState)({});
-	const [doc, setDoc] = (0, import_react.useState)({
-		employee: "",
-		company: "",
-		expense_approver: "",
-		posting_date: "",
-		remark: "",
-		expenses: []
-	});
 	const isSubmitted = Number(doc.docstatus) > 0;
+	const { showBack, showCancel } = resolveDocstatusActions({
+		isEdit,
+		docstatus: doc.docstatus,
+		hasWorkflow
+	});
 	const docRef = (0, import_react.useRef)(doc);
 	const status = useDocStatus({
 		doctype: "Expense Claim",
@@ -50846,6 +51225,35 @@ function ExpenseClaimForm() {
 			setSubmitting(false);
 		}
 	};
+	/**
+	* Open the confirmation for cancelling the stored document.
+	*
+	* `showCancel` (docstatus 1) has already gated the button; the repeat check
+	* keeps a stale click (the header can outlive a re-render) from cancelling
+	* something the current docstatus does not allow.
+	*/
+	function handleCancel() {
+		if (!isEdit || !name || !showCancel) return;
+		setCancelOpen(true);
+	}
+	async function confirmCancel() {
+		setCancelling(true);
+		try {
+			await cancelDocument({
+				doctype: "Expense Claim",
+				name
+			});
+			toast.success(t("common.cancelledSuccess", { name }));
+			navigate("/requests/expense");
+		} catch (e) {
+			const message = e?.message || t("common.cancelFailed");
+			toast.error(message);
+			setError(message);
+		} finally {
+			setCancelling(false);
+			setCancelOpen(false);
+		}
+	}
 	(0, import_react.useEffect)(() => {
 		setHeader({
 			status,
@@ -50887,6 +51295,18 @@ function ExpenseClaimForm() {
 					variant: "btn-primary",
 					disabled: !canSave || submitting,
 					onClick: () => handleSubmit()
+				},
+				showBack && {
+					label: t("common.back"),
+					variant: "btn-outline-primary",
+					disabled: loading || submitting,
+					onClick: () => navigate("/requests/expense")
+				},
+				showCancel && {
+					label: cancelling ? t("common.cancelling") : t("common.cancel"),
+					variant: "btn-outline-danger",
+					disabled: loading || submitting || cancelling,
+					onClick: handleCancel
 				}
 			].filter(Boolean)
 		});
@@ -50905,11 +51325,23 @@ function ExpenseClaimForm() {
 		workflowChecked,
 		dirty,
 		showSubmit,
-		showTransitions
+		showTransitions,
+		cancelling,
+		showBack,
+		showCancel
 	]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "mx-auto w-full max-w-[1100px] space-y-3 pt-4",
 		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConfirmDialog, {
+				open: cancelOpen,
+				loading: cancelling,
+				onCancel: () => {
+					if (!cancelling) setCancelOpen(false);
+				},
+				onConfirm: confirmCancel,
+				message: t("common.cancelConfirm", { name: t("requests.expense.doctypeName") })
+			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormErrorSummary, {
 				summary: error,
 				fieldErrors
@@ -50983,9 +51415,28 @@ function ExpenseClaimForm() {
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "lg:col-span-4",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DocStatusField, {
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormField, {
 							label: t("common.approvalStatus"),
-							status
+							name: "approval_status",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormSelect, {
+								value: doc.approval_status || "Draft",
+								onChange: (v) => updateField("approval_status", v),
+								disabled: hasWorkflow || isSubmitted || loading || submitting,
+								options: [
+									{
+										value: "Draft",
+										label: "Draft"
+									},
+									{
+										value: "Approved",
+										label: "Approved"
+									},
+									{
+										value: "Rejected",
+										label: "Rejected"
+									}
+								]
+							})
 						})
 					})
 				]
@@ -52957,6 +53408,261 @@ function GenericFormPage() {
 	] });
 }
 //#endregion
+//#region src/components/ui/empty.jsx
+function Empty({ className, ...props }) {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		"data-slot": "empty",
+		className: cn("flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-dashed p-6 text-center text-balance", className),
+		...props
+	});
+}
+function EmptyHeader({ className, ...props }) {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		"data-slot": "empty-header",
+		className: cn("flex max-w-sm flex-col items-center gap-2", className),
+		...props
+	});
+}
+function EmptyTitle({ className, ...props }) {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		"data-slot": "empty-title",
+		className: cn("font-heading text-sm font-medium tracking-tight", className),
+		...props
+	});
+}
+function EmptyDescription({ className, ...props }) {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		"data-slot": "empty-description",
+		className: cn("text-sm/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary", className),
+		...props
+	});
+}
+//#endregion
+//#region src/pages/ESS/EmployeeDocuments.jsx
+/**
+* Employee documents panel, rendered inside AppModal from the profile's
+* Documents action.
+*
+* Self-service only: the server derives the Employee from the logged-in session,
+* so there is no employee selector here and none on the API side either.
+*
+* The type list comes from the server (get_employee_document_types) rather than
+* being hardcoded in JavaScript, so the backend config stays the single source
+* of truth.
+*
+* This component deliberately renders no heading of its own -- AppModal owns the
+* title and the scrollable body. It also does NOT hide itself when no types are
+* configured: the trigger button lives in the page header, which cannot know the
+* type list without a second fetch, so an empty config shows an empty state here
+* instead.
+*
+* Props:
+*   onUploaded: optional callback fired after a successful upload. The server
+*     moves the Employee into "Pending HR Approval" on upload, so the parent
+*     must re-read the profile for the HR approval banner to appear. It MUST
+*     refresh without tearing down the modal -- see Profile.loadProfile's
+*     `silent` option, since a loading swap unmounts this whole subtree.
+*/
+function EmployeeDocuments({ onUploaded }) {
+	const { t } = useTranslation();
+	const { toast } = useToast();
+	const [types, setTypes] = (0, import_react.useState)([]);
+	const [documents, setDocuments] = (0, import_react.useState)([]);
+	const [loading, setLoading] = (0, import_react.useState)(true);
+	const [busyKey, setBusyKey] = (0, import_react.useState)(null);
+	const [pendingDelete, setPendingDelete] = (0, import_react.useState)(null);
+	const [deleting, setDeleting] = (0, import_react.useState)(false);
+	const fileInputs = (0, import_react.useRef)({});
+	const fetchAll = (0, import_react.useCallback)(async () => {
+		const [configured, uploaded] = await Promise.all([get("method/erpnext_ui.ui_documents.get_employee_document_types"), get("method/erpnext_ui.ui_documents.list_employee_documents")]);
+		return {
+			types: Array.isArray(configured?.message) ? configured.message : [],
+			documents: Array.isArray(uploaded?.message) ? uploaded.message : []
+		};
+	}, []);
+	(0, import_react.useEffect)(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const { types, documents } = await fetchAll();
+				if (cancelled) return;
+				setTypes(types);
+				setDocuments(documents);
+			} catch (err) {
+				if (cancelled) return;
+				toast.error(err?.message || t("ess.profile.documents.loadFailed"));
+			} finally {
+				if (!cancelled) setLoading(false);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		fetchAll,
+		t,
+		toast
+	]);
+	const refresh = (0, import_react.useCallback)(async () => {
+		const { types, documents } = await fetchAll();
+		setTypes(types);
+		setDocuments(documents);
+	}, [fetchAll]);
+	const handleUpload = async (type, file) => {
+		if (!file) return;
+		setBusyKey(type.type_key);
+		try {
+			const formData = new FormData();
+			formData.append("type_key", type.type_key);
+			formData.append("file", file);
+			await uploadFile("method/erpnext_ui.ui_documents.upload_employee_document", formData);
+			toast.success(t("ess.profile.documents.uploaded", { name: type.label }));
+			await refresh();
+			await onUploaded?.();
+		} catch (err) {
+			toast.error(err?.message || t("ess.profile.documents.uploadFailed"));
+		} finally {
+			setBusyKey(null);
+		}
+	};
+	const handleDelete = async (doc) => {
+		setDeleting(true);
+		try {
+			await post("method/erpnext_ui.ui_documents.delete_employee_document", { file_name: doc.name });
+			toast.success(t("ess.profile.documents.deleted", { name: doc.display_name }));
+			setPendingDelete(null);
+			await refresh();
+		} catch (err) {
+			toast.error(err?.message || t("ess.profile.documents.deleteFailed"));
+		} finally {
+			setDeleting(false);
+		}
+	};
+	const pick = (type) => fileInputs.current[type.type_key]?.click();
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "flex flex-col gap-3",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+				className: "text-sm text-muted-foreground",
+				children: t("ess.profile.documents.description")
+			}),
+			loading ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex items-center gap-2 py-6 text-sm text-muted-foreground",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Spinner, { className: "h-4 w-4" }), t("ess.profile.documents.loading")]
+			}) : !types.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, {
+				className: "border",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(EmptyHeader, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyTitle, { children: t("ess.profile.documents.noneConfigured") }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyDescription, { children: t("ess.profile.documents.noneConfiguredHint") })] })
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "grid grid-cols-1 sm:grid-cols-2 gap-3",
+				children: types.map((type) => {
+					const doc = documents.find((item) => item.type_key && item.type_key === type.type_key || item.file_name && item.file_name.startsWith(`[${type.type_key}]`)) || null;
+					const busy = busyKey === type.type_key;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex flex-col rounded-lg border border-border p-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex flex-1 items-center justify-between gap-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0 flex-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "truncate text-sm font-medium text-foreground",
+									children: type.label
+								}), doc ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DocumentRow, { doc }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NotUploadedSlot, { label: t("ess.profile.documents.notUploaded") })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex shrink-0 items-center gap-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, {
+									variant: "ghost",
+									size: "sm",
+									className: `h-8 w-8 p-0 ${doc ? "" : "invisible"}`,
+									disabled: !doc || busy || deleting,
+									onClick: () => setPendingDelete(doc),
+									"aria-label": t("ess.profile.documents.delete"),
+									tabIndex: doc ? 0 : -1,
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash, { className: "h-4 w-4" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Button, {
+									variant: "outline",
+									size: "sm",
+									className: "h-8",
+									disabled: busy || deleting,
+									onClick: () => pick(type),
+									children: [busy ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Spinner, { className: "h-4 w-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Upload, { className: "h-4 w-4" }), doc ? t("ess.profile.documents.replace") : t("ess.profile.documents.upload")]
+								})]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+							ref: (el) => {
+								fileInputs.current[type.type_key] = el;
+							},
+							type: "file",
+							className: "hidden",
+							accept: type.extensions.map((ext) => `.${ext}`).join(","),
+							onChange: (event) => {
+								handleUpload(type, event.target.files?.[0]);
+								event.target.value = "";
+							}
+						})]
+					}, type.type_key);
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConfirmDialog, {
+				open: Boolean(pendingDelete),
+				onCancel: () => setPendingDelete(null),
+				onConfirm: () => handleDelete(pendingDelete),
+				title: t("common.deleteConfirmTitle"),
+				message: t("common.deleteConfirm", { name: pendingDelete?.display_name }),
+				loading: deleting
+			})
+		]
+	});
+}
+/**
+* Preview for a stored document.
+*
+* Images render from `file_url` directly rather than `thumbnail_url`: Frappe
+* only generates thumbnails when `make_thumbnail()` is called explicitly, and
+* nothing calls it on an ordinary save, so thumbnail_url would be empty.
+* CSS-constrained instead, which keeps this to zero extra backend work.
+*
+* Non-images (PDF, docx) get an icon plus a link to open in a new tab -- an
+* <iframe> preview would need the browser's PDF viewer and does nothing useful
+* for .docx.
+*/
+function DocumentRow({ doc }) {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "mt-1 flex items-center gap-2 text-xs text-muted-foreground",
+		children: [doc.is_image ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+			src: doc.file_url,
+			alt: doc.display_name,
+			className: "h-16 w-16 shrink-0 rounded border border-border object-cover",
+			loading: "lazy"
+		}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: "flex h-16 w-16 shrink-0 items-center justify-center rounded border border-border",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FileText, { className: "h-6 w-6" })
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
+			href: doc.file_url,
+			target: "_blank",
+			rel: "noopener noreferrer",
+			className: "min-w-0 flex-1 truncate font-medium text-foreground underline-offset-2 hover:underline",
+			title: doc.display_name,
+			children: doc.display_name
+		})]
+	});
+}
+/**
+* Placeholder for a document type with nothing uploaded yet.
+*
+* Occupies exactly the same 64px box as DocumentRow's thumbnail, which is what
+* keeps every card the same height in the two-column grid. Without it, cards
+* with a file were ~64px taller than the empty ones and the grid looked ragged.
+*/
+function NotUploadedSlot({ label }) {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "mt-1 flex items-center gap-2 text-xs text-muted-foreground",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "h-16 w-16 shrink-0 rounded border border-dashed border-border" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: "min-w-0 flex-1 truncate",
+			children: label
+		})]
+	});
+}
+//#endregion
 //#region .smoke-tmp/entry.jsx
 globalThis.fetch = () => {
 	throw new Error("unexpected fetch during render");
@@ -53070,6 +53776,19 @@ try {
 } catch (e) {
 	fail++;
 	console.log(`  FAIL  DocStatusField (no status) ${e.message}`);
+}
+try {
+	const html = (0, import_server_node.renderToString)(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(I18nextProvider, {
+		i18n: i18n_default,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToastProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmployeeDocuments, {}) })
+	}));
+	if (!html.length) throw new Error("rendered nothing");
+	if (!html.includes(i18n_default.t("ess.profile.documents.description"))) throw new Error("documents intro missing");
+	if (!html.includes(i18n_default.t("ess.profile.documents.loading"))) throw new Error("loading state missing");
+	console.log(`  PASS  EmployeeDocuments (body) -> ${html.length} chars`);
+} catch (e) {
+	fail++;
+	console.log(`  FAIL  EmployeeDocuments (body) ${e.constructor.name}: ${e.message}`);
 }
 console.log(fail ? `\n${fail} render failure(s)` : "\nall forms render");
 process.exit(fail ? 1 : 0);

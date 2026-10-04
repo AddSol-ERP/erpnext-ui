@@ -39,7 +39,8 @@ export default function ESSProfile() {
 
   // Read configured print format from doctypes.js
   const employeeConfig = getDoctypeConfig("Employee");
-  const printFormat = employeeConfig.printFormat || "Employee Appointment Letter";
+  const printFormat =
+    employeeConfig.printFormat || "Employee Appointment Letter";
 
   /* ── Print / Download helpers ── */
   const downloadPdf = () => {
@@ -51,7 +52,7 @@ export default function ESSProfile() {
     });
     window.open(
       `/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`,
-      "_blank"
+      "_blank",
     );
   };
 
@@ -62,10 +63,7 @@ export default function ESSProfile() {
       name: profile.name,
       format: printFormat,
     });
-    window.open(
-      `/printview?${params.toString()}`,
-      "_blank"
-    );
+    window.open(`/printview?${params.toString()}`, "_blank");
   };
 
   /* ── Header: set on mount with Back only; update with actions once profile loaded ── */
@@ -222,8 +220,7 @@ export default function ESSProfile() {
           <div className="min-w-0">
             <h3 className="mb-1 text-lg font-semibold">{p.employee_name}</h3>
             <div className="text-muted-foreground">
-              {[p.designation, p.department].filter(Boolean).join(" · ") ||
-                "—"}
+              {[p.designation, p.department].filter(Boolean).join(" · ") || "—"}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>{t("ess.profile.idLabel", { id: p.name })}</span>
@@ -247,9 +244,7 @@ export default function ESSProfile() {
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <div>
             <strong>{t("ess.profile.hrApprovalTitle")}</strong>
-            <div className="mt-1">
-              {t("ess.profile.hrApprovalDescription")}
-            </div>
+            <div className="mt-1">{t("ess.profile.hrApprovalDescription")}</div>
           </div>
         </div>
       )}
@@ -359,9 +354,7 @@ export default function ESSProfile() {
       {/* ── System Info ── */}
       <div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
         <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
-          <div>
-            {t("ess.profile.lastUpdated", { date: p.modified })}
-          </div>
+          <div>{t("ess.profile.lastUpdated", { date: p.modified })}</div>
           <div>{t("ess.profile.created", { date: p.creation })}</div>
         </div>
       </div>
@@ -376,7 +369,7 @@ export default function ESSProfile() {
         show={docsOpen}
         onClose={closeDocs}
         title={t("ess.profile.sectionDocuments")}
-        width="md"
+        width="lg"
       >
         {docsOpen && (
           <EmployeeDocuments

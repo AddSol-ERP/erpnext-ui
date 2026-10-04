@@ -264,14 +264,9 @@ def get_employee_document_types():
 def list_employee_documents():
     """List the logged-in employee's uploaded documents.
 
-    `frappe.get_list` is used rather than `get_all` because `get_all`
-    explicitly skips permission checks; scoping to the caller's own Employee
-    already prevents cross-user leakage, but an unreadable Employee should
-    produce an empty panel rather than a partial one.
-
-    Returns:
-        list[dict]: document descriptors, newest first.
+    Clear the File cache first so that the just‑uploaded file appears immediately.
     """
+    frappe.clear_cache(doctype="Employee")
     employee = _current_employee()
 
     files = frappe.get_list(

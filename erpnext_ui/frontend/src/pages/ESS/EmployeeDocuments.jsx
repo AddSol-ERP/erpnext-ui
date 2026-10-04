@@ -111,9 +111,7 @@ export default function EmployeeDocuments({ onUploaded }) {
         formData,
       );
 
-      toast.success(
-        t("ess.profile.documents.uploaded", { name: type.label }),
-      );
+      toast.success(t("ess.profile.documents.uploaded", { name: type.label }));
       await refresh();
 
       // Server moved us to "Pending HR Approval"; tell the parent so the banner
@@ -171,47 +169,62 @@ export default function EmployeeDocuments({ onUploaded }) {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {types.map((type) => {
+            // Match by parsed type_key, or fall back to file_name prefix
+            // (e.g. "[AADHAAR_CARD]...") in case the parse didn't capture it.
             const doc =
-              documents.find((item) => item.type_key === type.type_key) || null;
+              documents.find(
+                (item) =>
+                  (item.type_key && item.type_key === type.type_key) ||
+                  (item.file_name &&
+                    item.file_name.startsWith(`[${type.type_key}]`)),
+              ) || null;
             const busy = busyKey === type.type_key;
 
             return (
               <div
                 key={type.type_key}
-                className="rounded-lg border border-border p-3"
+                className="flex flex-col rounded-lg border border-border p-3"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">
+                {/* No flex-wrap: a long file name must not push the action
+                    buttons onto their own line, because that made each card a
+                    different height. The left column truncates instead. */}
+                <div className="flex flex-1 items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-foreground">
                       {type.label}
                     </div>
                     {doc ? (
                       <DocumentRow doc={doc} />
                     ) : (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {t("ess.profile.documents.notUploaded")}
-                      </div>
+                      <NotUploadedSlot
+                        label={t("ess.profile.documents.notUploaded")}
+                      />
                     )}
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {doc && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy || deleting}
-                        onClick={() => setPendingDelete(doc)}
-                        aria-label={t("ess.profile.documents.delete")}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div className="flex shrink-0 items-center gap-1">
+                    {/* Always rendered so the Upload/Replace button sits in the
+                        same place in every card; `invisible` (visibility:hidden)
+                        keeps the layout while dropping it from tab order and the
+                        accessibility tree when there is nothing to delete. */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`h-8 w-8 p-0 ${doc ? "" : "invisible"}`}
+                      disabled={!doc || busy || deleting}
+                      onClick={() => setPendingDelete(doc)}
+                      aria-label={t("ess.profile.documents.delete")}
+                      tabIndex={doc ? 0 : -1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
 
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-8"
                       disabled={busy || deleting}
                       onClick={() => pick(type)}
                     >
@@ -233,9 +246,7 @@ export default function EmployeeDocuments({ onUploaded }) {
                   }}
                   type="file"
                   className="hidden"
-                  accept={type.extensions
-                    .map((ext) => `.${ext}`)
-                    .join(",")}
+                  accept={type.extensions.map((ext) => `.${ext}`).join(",")}
                   onChange={(event) => {
                     handleUpload(type, event.target.files?.[0]);
                     // Reset so re-picking the same file fires onChange again.
@@ -298,10 +309,30 @@ function DocumentRow({ doc }) {
         href={doc.file_url}
         target="_blank"
         rel="noopener noreferrer"
-        className="truncate font-medium text-foreground underline-offset-2 hover:underline"
+        // min-w-0 + flex-1 are what actually let `truncate` take effect inside a
+        // flex row; without them a long file name keeps widening the row and
+        // shoves the action buttons onto the next line.
+        className="min-w-0 flex-1 truncate font-medium text-foreground underline-offset-2 hover:underline"
+        title={doc.display_name}
       >
         {doc.display_name}
       </a>
+    </div>
+  );
+}
+
+/**
+ * Placeholder for a document type with nothing uploaded yet.
+ *
+ * Occupies exactly the same 64px box as DocumentRow's thumbnail, which is what
+ * keeps every card the same height in the two-column grid. Without it, cards
+ * with a file were ~64px taller than the empty ones and the grid looked ragged.
+ */
+function NotUploadedSlot({ label }) {
+  return (
+    <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+      <span className="h-16 w-16 shrink-0 rounded border border-dashed border-border" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
     </div>
   );
 }
