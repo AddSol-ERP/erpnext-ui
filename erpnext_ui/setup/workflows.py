@@ -171,6 +171,53 @@ def setup_workflows():
         create_workflow_if_missing(workflow)
 
 
+def ensure_workflow_state(name):
+    """Create the `Workflow State` `name` unless it already exists.
+
+    `Workflow.states` and `Workflow.transitions` are child tables whose state
+    fields are Links to `Workflow State`, and `Document._validate_links()` runs
+    during the Workflow's own insert. Referencing a state that does not exist
+    yet therefore fails the entire workflow:
+
+        frappe.exceptions.LinkValidationError: Could not find Row #2:
+        State: Pending Leave Approver, Row #3: State: Pending HR Approval, ...
+
+    Frappe only pre-creates `Pending`, `Approved` and `Rejected` as Workflow
+    States (frappe/utils/install.py), so every custom state has to exist before
+    the workflow that names it. The doctype uses
+    `autoname: field:workflow_state_name`, meaning the document name IS that
+    field -- so the name has to match the workflow rows exactly.
+    """
+    if not name or frappe.db.exists("Workflow State", name):
+        return False
+
+    frappe.get_doc(
+        {
+            "doctype": "Workflow State",
+            "workflow_state_name": name,
+        }
+    ).insert(ignore_permissions=True)
+    return True
+
+
+def ensure_workflow_action(name):
+    """Same for `Workflow Action Master` -- `transitions.action` is a Link too.
+
+    Frappe installs `Approve`, `Reject` and `Review` by default, but not every
+    action a workflow references, so this closes the same hole for actions.
+    """
+    if not name or frappe.db.exists("Workflow Action Master", name):
+        return False
+
+    frappe.get_doc(
+        {
+            "doctype": "Workflow Action Master",
+            "workflow_action_name": name,
+        }
+    ).insert(ignore_permissions=True)
+    return True
+
+
 def create_workflow_if_missing(config):
     doctype = config["doctype"]
 
@@ -205,6 +252,29 @@ def create_workflow_if_missing(config):
             f"{existing_any}. Skipping default workflow."
         )
         return
+
+    # Referenced states and actions must exist BEFORE the workflow is inserted.
+    # Link validation runs inside that insert, so creating them "at the same
+    # time" is already too late -- hence this separate pass. Done first because
+    # everything below depends on it, and because a throw here would abort
+    # `after_migrate` with the LinkValidationError above.
+    created = []
+    for state in config["states"]:
+        if ensure_workflow_state(state["state"]):
+            created.append(f"state: {state['state']}")
+
+    for transition in config["transitions"]:
+        for key in ("state", "next_state"):
+            if ensure_workflow_state(transition[key]):
+                created.append(f"state: {transition[key]}")
+        if ensure_workflow_action(transition["action"]):
+            created.append(f"action: {transition['action']}")
+
+    if created:
+        frappe.logger().info(
+            f"Created missing workflow states/actions for {doctype}: "
+            f"{', '.join(created)}"
+        )
 
     workflow = frappe.new_doc("Workflow")
 
