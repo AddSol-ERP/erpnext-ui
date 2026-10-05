@@ -1,6 +1,8 @@
 {
 	"approvals": {
 		"subtitle": "Review and approve requests",
+		"noAccessTitle": "No approval permissions",
+		"noAccessHint": "None of your roles can read the documents you would approve here. Contact your administrator if you believe this is wrong.",
 		"pending": "Pending",
 		"approved": "Approved",
 		"pendingApprovals": "Pending approvals",

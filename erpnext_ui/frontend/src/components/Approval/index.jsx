@@ -9,10 +9,18 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { useHeader } from "../../context/HeaderContext";
+import { useRole } from "../../context/RoleContext";
 import { useNavigate } from "react-router-dom";
 import { get } from "../../services/api";
 import DashboardShell from "../dashboard/DashboardShell";
 import DashboardHero from "../dashboard/DashboardHero";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -133,11 +141,21 @@ export default function Approval() {
   const [tiles, setTiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Real doctype read permissions. RoleContext defaults this to empty and only
+  // populates it from erpnext_ui.api.get_ui_access, which reads
+  // frappe.has_permission(doctype, "read"). Until it resolves we show the
+  // skeleton rather than an empty page, so the hub does not flash.
+  const { canReadApprovalDoctype, loading: rolesLoading } = useRole();
+
+  const accessibleDoctypes = APPROVAL_DOCTYPES.filter((item) =>
+    canReadApprovalDoctype(item.doctype),
+  );
+
   const fetchApprovalData = async () => {
     setLoading(true);
     try {
       const fetchedTiles = await Promise.all(
-        APPROVAL_DOCTYPES.map(async (item) => {
+        accessibleDoctypes.map(async (item) => {
           try {
             const pendingStatus = item.pendingStatus || "Pending";
 
@@ -198,13 +216,23 @@ export default function Approval() {
       ],
     });
 
+    return () => setHeader({});
+    // setHeader is stable from HeaderContext; only the locale should re-run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
+
+  // Fetch counts once permissions are known, and again if they change (e.g. an
+  // admin edits the user's roles and hits refresh). Keyed on a joined string
+  // rather than the array itself, which is a fresh reference every render and
+  // would refetch forever.
+  const accessKey = accessibleDoctypes.map((item) => item.doctype).join("|");
+
+  useEffect(() => {
     // fetchApprovalData only setStates after awaited API responses.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchApprovalData();
-
-    return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [accessKey, rolesLoading]);
 
   return (
     <DashboardShell>
@@ -213,7 +241,7 @@ export default function Approval() {
         description={t("approvals.subtitle")}
       />
 
-      {loading ? (
+      {loading || rolesLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card
@@ -237,6 +265,19 @@ export default function Approval() {
             </Card>
           ))}
         </div>
+      ) : !tiles.length ? (
+        // Every doctype here is withheld, so this user cannot approve anything.
+        // Say so plainly instead of rendering an empty grid, which looks like a
+        // loading failure.
+        <Empty className="border">
+          <EmptyHeader>
+            <Lock className="size-6 text-muted-foreground" />
+            <EmptyTitle>{t("approvals.noAccessTitle")}</EmptyTitle>
+            <EmptyDescription>
+              {t("approvals.noAccessHint")}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {tiles.map((tile, i) => (

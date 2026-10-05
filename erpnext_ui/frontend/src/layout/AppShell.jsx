@@ -270,18 +270,22 @@ const NAV_SECTIONS = [
             labelKey: "nav.reportAttendance",
             to: "/reports/attendance",
             icon: CalendarDays,
+            // reportKey must match SPA_REPORT_DOCTYPES in erpnext_ui/api.py.
+            reportKey: "attendance",
           },
           {
             key: "report-overtime",
             labelKey: "nav.reportOvertime",
             to: "/reports/overtime",
             icon: Timer,
+            reportKey: "overtime",
           },
           {
             key: "report-leave-balance",
             labelKey: "nav.leaveBalance",
             to: "/reports/leave-balance",
             icon: FileText,
+            reportKey: "leave-balance",
           },
         ],
       },
@@ -296,10 +300,21 @@ function isPathActive(pathname, to) {
 
 function NavItem({ item, pathname }) {
   const { t } = useTranslation();
+  const { canReadReport } = useRole();
   const active = isPathActive(pathname, item.to);
   const Icon = item.icon;
   const label = t(item.labelKey);
-  const childActive = item.children?.some((c) => isPathActive(pathname, c.to)) ?? false;
+
+  // Children carrying a `reportKey` are hidden unless the user can read the
+  // doctype that report is built from. Without this the three report links
+  // stayed visible to everyone whose roles merely reached the Reports module,
+  // even when none of their roles can read Attendance or Leave Allocation.
+  const children = item.children?.filter(
+    (child) => !child.reportKey || canReadReport(child.reportKey),
+  );
+
+  const childActive =
+    children?.some((c) => isPathActive(pathname, c.to)) ?? false;
   // Controlled expand: keep active branch open; reset user toggle when leaving.
   const [userOpen, setUserOpen] = useState(false);
   const open = userOpen || active || childActive;
@@ -309,7 +324,9 @@ function NavItem({ item, pathname }) {
     setUserOpen(false);
   }
 
-  if (!item.children?.length) {
+  // A parent whose every child is withheld renders as a plain link, so the
+  // section does not open onto nothing.
+  if (!children?.length) {
     return (
       <SidebarMenuItem>
         <SidebarMenuButton asChild isActive={active} tooltip={label}>
@@ -339,7 +356,7 @@ function NavItem({ item, pathname }) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub>
-            {item.children.map((child) => {
+            {children.map((child) => {
               const ChildIcon = child.icon;
               const childLabel = t(child.labelKey);
               return (

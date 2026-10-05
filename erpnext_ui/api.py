@@ -3,6 +3,76 @@ import frappe
 HR_ROLES = {"HR Manager", "HR User", "Administrator"}
 
 
+# Doctypes that back the SPA's Approvals hub. Kept server-side deliberately:
+# this endpoint is the security boundary, so the list of doctypes whose
+# existence is disclosed must not live in JavaScript a caller could edit.
+SPA_APPROVAL_DOCTYPES = (
+    "Purchase Order",
+    "Expense Claim",
+    "Leave Application",
+    "Quotation",
+    "Overtime Log",
+)
+
+# Report key -> the doctype whose read permission governs that report. The
+# frontend sends/uses these keys, so keep them aligned with the `key` values in
+# frontend/src/pages/Reports/index.jsx.
+#
+# - attendance delegates to HRMS/ERPNext's built-in Monthly Attendance Sheet,
+#   which reads `Attendance`.
+# - overtime is a plain `resource/Overtime Log` list view.
+# - leave-balance is computed from `Leave Allocation` + `Leave Application`.
+SPA_REPORT_DOCTYPES = {
+    "attendance": "Attendance",
+    "overtime": "Overtime Log",
+    "leave-balance": "Leave Allocation",
+}
+
+
+def _can_read(doctype):
+    """Whether the session user holds doctype-level read permission.
+
+    Fails closed: any error resolving the permission (unknown/child doctype,
+    permission cache miss, thrown validation) counts as "no access" so a
+    backend hiccup can never widen what the SPA reveals.
+    """
+    try:
+        return bool(frappe.has_permission(doctype, "read"))
+    except Exception:
+        return False
+
+
+@frappe.whitelist(allow_guest=False)
+def get_ui_access():
+    """Return real doctype read permissions for the SPA's gated surfaces.
+
+    The frontend used to decide this from a hardcoded role-name table
+    (frontend/src/config/moduleAccess.js) with `"*"` for ESS, Approvals and
+    Reports, which meant every authenticated user was shown the Approvals hub
+    and the Reports page regardless of whether their roles could read the
+    underlying doctypes. That is a disclosure problem, not a cosmetic one: the
+    tiles leaked the existence of Purchase Orders, Expenses and payroll
+    documents to people who cannot open a single one.
+
+    Reading `frappe.has_permission(doctype, "read")` instead makes this track
+    whatever Role permissions are configured in ERPNext desk, with no second
+    place to keep in sync.
+
+    Only booleans are returned -- never role names or doctype metadata -- so
+    the response says nothing the caller could not already probe, and nothing
+    about permissions beyond read.
+
+    Returns:
+        dict: {"approvals": {doctype: bool}, "reports": {report_key: bool}}
+    """
+    return {
+        "approvals": {dt: _can_read(dt) for dt in SPA_APPROVAL_DOCTYPES},
+        "reports": {
+            key: _can_read(dt) for key, dt in SPA_REPORT_DOCTYPES.items()
+        },
+    }
+
+
 def has_app_permission():
     """Permission check for the add_to_apps_screen hook.
     All authenticated users can see the Addsol UI app tile.

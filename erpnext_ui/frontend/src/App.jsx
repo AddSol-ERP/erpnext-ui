@@ -55,6 +55,8 @@ import OvertimeLogs from "./pages/ESS/OvertimeLogs";
 // GENERIC LIST & FORM
 import GenericListPage from "./components/GenericList";
 import GenericFormPage from "./components/GenericForm";
+import RequireReportAccess from "./components/RequireReportAccess";
+import RequireApprovalDoctypeAccess from "./components/RequireApprovalDoctypeAccess";
 
 // PRINT PREVIEW (read-only doctypes)
 import PrintPreview from "./components/PrintPreview";
@@ -68,7 +70,14 @@ export default function App() {
           <Route path="/demo-form" element={<DemoForm />} />
           <Route path="/demo-list" element={<DemoList />} />
           <Route path="/approvals" element={<Approval />} />
-          <Route path="/approvals/:doctype" element={<ApprovalListPage />} />
+          <Route
+            path="/approvals/:doctype"
+            element={
+              <RequireApprovalDoctypeAccess>
+                <ApprovalListPage />
+              </RequireApprovalDoctypeAccess>
+            }
+          />
           <Route path="/production" element={<ProductionDashboard />} />
           <Route path="/quality" element={<QualityDashboard />} />
           <Route path="/quality/templates" element={<QualityTemplateList />} />
@@ -179,25 +188,31 @@ export default function App() {
           <Route
             path="/reports/attendance"
             element={
-              <Suspense fallback={null}>
-                <AttendancePage />
-              </Suspense>
+              <RequireReportAccess reportKey="attendance">
+                <Suspense fallback={null}>
+                  <AttendancePage />
+                </Suspense>
+              </RequireReportAccess>
             }
           />
           <Route
             path="/reports/overtime"
             element={
-              <Suspense fallback={null}>
-                <OvertimeReportPage />
-              </Suspense>
+              <RequireReportAccess reportKey="overtime">
+                <Suspense fallback={null}>
+                  <OvertimeReportPage />
+                </Suspense>
+              </RequireReportAccess>
             }
           />
           <Route
             path="/reports/leave-balance"
             element={
-              <Suspense fallback={null}>
-                <LeaveBalance context="reports" />
-              </Suspense>
+              <RequireReportAccess reportKey="leave-balance">
+                <Suspense fallback={null}>
+                  <LeaveBalance context="reports" />
+                </Suspense>
+              </RequireReportAccess>
             }
           />
 

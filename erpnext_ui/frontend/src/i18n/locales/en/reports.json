@@ -1,6 +1,8 @@
 {
 	"reports": {
 		"subtitle": "View analytics, insights and operational reports",
+		"noAccessTitle": "No report permissions",
+		"noAccessHint": "None of your roles can read the data these reports are built from. Contact your administrator if you believe this is wrong.",
 		"attendance": "Attendance Report",
 		"attendanceDesc": "View attendance calendar & team data",
 		"overtime": "Overtime Report",

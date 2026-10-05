@@ -62,20 +62,32 @@ export const MODULE_ACCESS = {
   },
   ESS: {
     roles: ["*"],
+    // ESS is the one surface every authenticated employee may reach, so it is
+    // the only module shown when we cannot determine permissions at all.
+    public: true,
     icon: UserSquare2,
     color: "#dc2626",
     label: "Employee Self Service",
     description: "My profile, attendance, leave & salary",
   },
   Approvals: {
+    // Deliberately NOT "*". This used to be "*", which handed the Approvals hub
+    // to every logged-in user. Access is now decided by real read permission on
+    // the backing doctypes -- see get_ui_access() in erpnext_ui/api.py and
+    // applyDoctypeAccess() below. The roles array stays as a coarse first pass
+    // so nothing is granted by role-name alone.
     roles: ["*"],
+    gatedBy: "approvals",
     icon: CheckSquare,
     color: "#f59e0b",
     label: "Approvals",
     description: "Pending approvals across all modules",
   },
   Reports: {
+    // Same reasoning as Approvals: coarse pass here, real doctype read
+    // permission in applyDoctypeAccess().
     roles: ["*"],
+    gatedBy: "reports",
     icon: BarChart3,
     color: "#6366f1",
     label: "Reports",
@@ -97,4 +109,50 @@ export function getAccessibleModules(userRoles) {
       return config.roles.some((role) => userRoles.includes(role));
     })
     .map(([key]) => key);
+}
+
+/**
+ * The module set to use when permissions could not be determined.
+ *
+ * This is the fail-closed baseline: only modules explicitly marked `public` are
+ * granted. It exists because the previous behaviour fell back to
+ * `getAccessibleModules(["*"])`, which returned exactly ESS + Approvals +
+ * Reports -- so a failed request silently handed every user the Approvals hub
+ * and the Reports page, which is precisely the disclosure this gating is meant
+ * to close.
+ *
+ * @returns {string[]} Module keys safe to render with no permission data.
+ */
+export function getFailClosedModules() {
+  return Object.entries(MODULE_ACCESS)
+    .filter(([, config]) => config.public)
+    .map(([key]) => key);
+}
+
+/**
+ * Overlay real doctype read permissions onto a role-derived module list.
+ *
+ * A `gatedBy` module survives only if the user can read at least one of its
+ * backing doctypes. Both approvals and reports are required to have at least
+ * one readable doctype, because a hub with nothing in it is just a blank page
+ * that still confirms which doctypes exist.
+ *
+ * @param {string[]} modules - Modules from getAccessibleModules().
+ * @param {{approvals?: object, reports?: object}} access - get_ui_access() payload.
+ * @returns {string[]} Filtered module keys.
+ */
+export function applyDoctypeAccess(modules, access) {
+  if (!Array.isArray(modules)) return [];
+
+  return modules.filter((key) => {
+    const gate = MODULE_ACCESS[key]?.gatedBy;
+    if (!gate) return true;
+
+    const permissions = access?.[gate];
+
+    // No permission data at all -> withhold the gated module.
+    if (!permissions || typeof permissions !== "object") return false;
+
+    return Object.values(permissions).some(Boolean);
+  });
 }

@@ -35453,6 +35453,7 @@ var MODULE_ACCESS = {
 	},
 	ESS: {
 		roles: ["*"],
+		public: true,
 		icon: SquareUserRound,
 		color: "#dc2626",
 		label: "Employee Self Service",
@@ -35460,6 +35461,7 @@ var MODULE_ACCESS = {
 	},
 	Approvals: {
 		roles: ["*"],
+		gatedBy: "approvals",
 		icon: SquareCheckBig,
 		color: "#f59e0b",
 		label: "Approvals",
@@ -35467,6 +35469,7 @@ var MODULE_ACCESS = {
 	},
 	Reports: {
 		roles: ["*"],
+		gatedBy: "reports",
 		icon: ChartColumn,
 		color: "#6366f1",
 		label: "Reports",
@@ -35484,6 +35487,43 @@ function getAccessibleModules(userRoles) {
 		if (config.roles.includes("*")) return true;
 		return config.roles.some((role) => userRoles.includes(role));
 	}).map(([key]) => key);
+}
+/**
+* The module set to use when permissions could not be determined.
+*
+* This is the fail-closed baseline: only modules explicitly marked `public` are
+* granted. It exists because the previous behaviour fell back to
+* `getAccessibleModules(["*"])`, which returned exactly ESS + Approvals +
+* Reports -- so a failed request silently handed every user the Approvals hub
+* and the Reports page, which is precisely the disclosure this gating is meant
+* to close.
+*
+* @returns {string[]} Module keys safe to render with no permission data.
+*/
+function getFailClosedModules() {
+	return Object.entries(MODULE_ACCESS).filter(([, config]) => config.public).map(([key]) => key);
+}
+/**
+* Overlay real doctype read permissions onto a role-derived module list.
+*
+* A `gatedBy` module survives only if the user can read at least one of its
+* backing doctypes. Both approvals and reports are required to have at least
+* one readable doctype, because a hub with nothing in it is just a blank page
+* that still confirms which doctypes exist.
+*
+* @param {string[]} modules - Modules from getAccessibleModules().
+* @param {{approvals?: object, reports?: object}} access - get_ui_access() payload.
+* @returns {string[]} Filtered module keys.
+*/
+function applyDoctypeAccess(modules, access) {
+	if (!Array.isArray(modules)) return [];
+	return modules.filter((key) => {
+		const gate = MODULE_ACCESS[key]?.gatedBy;
+		if (!gate) return true;
+		const permissions = access?.[gate];
+		if (!permissions || typeof permissions !== "object") return false;
+		return Object.values(permissions).some(Boolean);
+	});
 }
 //#endregion
 //#region src/utils/getUser.js
@@ -35526,20 +35566,33 @@ function RoleProvider({ children }) {
 	const [accessibleModules, setAccessibleModules] = (0, import_react.useState)([]);
 	const [currentUser, setCurrentUser] = (0, import_react.useState)("");
 	const [loading, setLoading] = (0, import_react.useState)(true);
+	const [doctypeAccess, setDoctypeAccess] = (0, import_react.useState)({
+		approvals: {},
+		reports: {}
+	});
 	async function fetchUserRoles() {
 		try {
-			const session = await getCurrentUser(get);
+			const [session, accessRes] = await Promise.all([getCurrentUser(get), get("method/erpnext_ui.api.get_ui_access")]);
+			const access = {
+				approvals: accessRes?.message?.approvals || {},
+				reports: accessRes?.message?.reports || {}
+			};
+			setDoctypeAccess(access);
 			if (session) {
 				setCurrentUser(session.user);
 				setUserRoles(session.roles);
-				setAccessibleModules(getAccessibleModules(session.roles));
+				setAccessibleModules(applyDoctypeAccess(getAccessibleModules(session.roles), access));
 			} else {
-				console.warn("No user session found. Showing public modules only.");
-				setAccessibleModules(getAccessibleModules(["*"]));
+				console.warn("No user session found. Showing self-service only.");
+				setAccessibleModules(applyDoctypeAccess(getFailClosedModules(), access));
 			}
 		} catch (e) {
 			console.error("Failed to load user roles:", e);
-			setAccessibleModules(getAccessibleModules(["*"]));
+			setDoctypeAccess({
+				approvals: {},
+				reports: {}
+			});
+			setAccessibleModules(getFailClosedModules());
 		} finally {
 			setLoading(false);
 		}
@@ -35550,12 +35603,24 @@ function RoleProvider({ children }) {
 	const hasModuleAccess = (moduleKey) => {
 		return accessibleModules.includes(moduleKey);
 	};
+	/**
+	* Whether the user can read an Approvals doctype.
+	*
+	* Visibility only: a readable doctype with zero pending documents still shows
+	* its tile (with a count of 0), so tiles do not disappear as data changes.
+	*/
+	const canReadApprovalDoctype = (doctype) => Boolean(doctypeAccess.approvals?.[doctype]);
+	/** Whether the user can read a report's backing doctype. */
+	const canReadReport = (reportKey) => Boolean(doctypeAccess.reports?.[reportKey]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RoleContext.Provider, {
 		value: {
 			userRoles,
 			currentUser,
 			accessibleModules,
 			hasModuleAccess,
+			doctypeAccess,
+			canReadApprovalDoctype,
+			canReadReport,
 			loading,
 			refresh: fetchUserRoles
 		},
@@ -37457,6 +37522,8 @@ var translation_default = {
 };
 var approvals_default$2 = { approvals: {
 	"subtitle": "Review and approve requests",
+	"noAccessTitle": "No approval permissions",
+	"noAccessHint": "None of your roles can read the documents you would approve here. Contact your administrator if you believe this is wrong.",
 	"pending": "Pending",
 	"approved": "Approved",
 	"pendingApprovals": "Pending approvals",
@@ -38530,6 +38597,8 @@ var commercial_default$2 = {
 };
 var reports_default$2 = { reports: {
 	"subtitle": "View analytics, insights and operational reports",
+	"noAccessTitle": "No report permissions",
+	"noAccessHint": "None of your roles can read the data these reports are built from. Contact your administrator if you believe this is wrong.",
 	"attendance": "Attendance Report",
 	"attendanceDesc": "View attendance calendar & team data",
 	"overtime": "Overtime Report",
@@ -38639,6 +38708,8 @@ var reports_default$2 = { reports: {
 } };
 var approvals_default$1 = { approvals: {
 	"subtitle": "अनुरोधों की समीक्षा करें और स्वीकृत करें",
+	"noAccessTitle": "अनुमति नहीं है",
+	"noAccessHint": "आपकी किसी भी भूमिका में यहाँ दिखने वाले दस्तावेज़ पढ़ने की अनुमति नहीं है। यदि आपको लगता है कि यह गलती है तो अपने प्रशासक से संपर्क करें।",
 	"pending": "लंबित",
 	"approved": "स्वीकृत",
 	"pendingApprovals": "लंबित अनुमोदन",
@@ -39443,6 +39514,8 @@ var commercial_default$1 = {
 };
 var reports_default$1 = { reports: {
 	"subtitle": "विश्लेषण, अंतर्दृष्टि और संचालन रिपोर्ट देखें",
+	"noAccessTitle": "रिपोर्ट की अनुमति नहीं है",
+	"noAccessHint": "आपकी किसी भी भूमिका में इन रिपोर्ट के आधार का डेटा पढ़ने की अनुमति नहीं है। यदि आपको लगता है कि यह गलती है तो अपने प्रशासक से संपर्क करें।",
 	"attendance": "उपस्थिति रिपोर्ट",
 	"attendanceDesc": "उपस्थिति कैलेंडर और टीम डेटा देखें",
 	"overtime": "ओवरटाइम रिपोर्ट",
@@ -39552,6 +39625,8 @@ var reports_default$1 = { reports: {
 } };
 var approvals_default = { approvals: {
 	"subtitle": "مراجعة الطلبات والموافقة عليها",
+	"noAccessTitle": "لا توجد صلاحيات اعتماد",
+	"noAccessHint": "لا يمكن لأي من أدوارك قراءة المستندات التي ستعتمدها هنا. تواصل مع المسؤول إذا كنت تعتقد أن هذا خطأ.",
 	"pending": "معلّق",
 	"approved": "معتمد",
 	"pendingApprovals": "الموافقات المعلقة",
@@ -40625,6 +40700,8 @@ var commercial_default = {
 };
 var reports_default = { reports: {
 	"subtitle": "عرض التحليلات والرؤى والتقارير التشغيلية",
+	"noAccessTitle": "لا توجد صلاحيات تقارير",
+	"noAccessHint": "لا يمكن لأي من أدوارك قراءة البيانات التي تُبنى عليها هذه التقارير. تواصل مع المسؤول إذا كنت تعتقد أن هذا خطأ.",
 	"attendance": "تقرير الحضور",
 	"attendanceDesc": "عرض تقويم الحضور وبيانات الفريق",
 	"overtime": "تقرير العمل الإضافي",
