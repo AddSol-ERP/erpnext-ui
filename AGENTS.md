@@ -32,7 +32,7 @@ browser-free:
 # lib/profileFlags, LinkField/searchTerm and config/storePurposes
 SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-rules/entry.mjs        # -> "160 passed, 0 failed"
+node .smoke-tmp/out-rules/entry.mjs        # -> "184 passed, 0 failed"
 
 # SSR render smoke test (Leave/Attendance/Expense forms, GenericForm,
 # DocStatusField, EmployeeDocuments) with fetch and the API stubbed to throw
@@ -46,7 +46,7 @@ node .smoke-tmp/out/entry.mjs              # -> "all forms render"
 # tile names render
 SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-store/entry.mjs        # -> "36 passed, 0 failed"
+node .smoke-tmp/out-store/entry.mjs        # -> "44 passed, 0 failed"
 ```
 
 All three currently pass. All exit `1` on failure.
@@ -190,14 +190,29 @@ Each exists because of a specific Frappe footgun. All ten fail *silently*.
     source document's progress from updating. Call the mapper and adjust only
     what the user actually changed.
 
-18. **On a PO-linked Purchase Receipt row, item/project/UOM are locked — not
-    validated.** ERPNext's `validate_with_previous_doc` compares `project`, `uom`
-    and `item_code` against the PO line and throws *"Incorrect value in row N:
-    UOM must be equal to 'Kg'"*; `uom`/`conversion_factor` are excluded from
-    that comparison **only** when `is_return` is set. Offering a picker for
-    those fields can therefore only produce a save failure. Rate *is* editable
-    — ERPNext does not compare it, and a price variance surfaces later on the
-    Purchase Invoice.
+18. **On a PO-linked Purchase Receipt row, item/project/UOM are locked — but
+    `conversion_factor` is free, and rate is *not*.** ERPNext's
+    `validate_with_previous_doc` (`purchase_receipt.py:313-318`) compares only
+    `project`, `uom` and `item_code`; a mismatch throws *"Incorrect value in
+    row N: UOM must be equal to 'Kg'"*, so a picker for those three can only
+    produce a save failure. Two things this note used to get wrong, both of
+    which cost real work:
+    - `conversion_factor` is **not** in that comparison list at all — not
+      "excluded when `is_return`", simply never compared
+      (`transaction_base.py:125-127` iterates `compare_fields` only). It is
+      constrained by two *other* rules instead: `stock_qty = qty *
+      conversion_factor` (`buying_controller.py:517`), and if `uom == stock_uom`
+      ERPNext force-resets it to 1.0 (`stock_controller.py:110-116`). That is
+      exactly why a measured total is offered only when the two differ. **Never
+      read the factor from item master** — on a weighed receipt it is a
+      measurement that changes every delivery, and the nominal figure books the
+      wrong stock while looking like a clean save. See `lib/receiptConversion.js`.
+    - Rate is compared whenever `Buying Settings.maintain_same_rate` is on
+      (action `"Stop"`), throwing on a ≥0.01 difference unless the user holds
+      `role_to_override_stop_action` (`transaction_base.py:165-172`). That is
+      enabled with no override role on QA, so an editable rate there is a
+      guaranteed save failure. Read the setting at runtime; fail closed to
+      read-only.
 
 ---
 

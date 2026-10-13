@@ -109,6 +109,37 @@ for (const page of PAGES) {
     // so a titleKey missing its `.title` renders i18next's object warning as the
     // tile's own title. That is invariant 16, and the leak check above catches
     // the warning text -- this asserts the nine names actually show up.
+    // Purchase Receipt. The whole point of the rework is that the form asks for
+    // numbers and never for ERPNext mechanics, so the negative assertion
+    // matters more than the positive ones: a conversion-factor input creeping
+    // back would silently reintroduce master-data figures.
+    if (page.label.startsWith("Receipt form")) {
+      const isPo = page.label.includes("from PO");
+      ok(
+        `${page.label}: no conversion-factor input anywhere`,
+        !/factor/i.test(text),
+        "a factor field must never be offered -- it is derived from the measured total",
+      );
+      ok(
+        `${page.label}: empty state tells the user what to do`,
+        text.includes("Pick the items you are receiving"),
+      );
+      ok(
+        `${page.label}: no untranslated key leaked`,
+        !text.includes("store.receipt"),
+      );
+      if (isPo) {
+        // ERPNext pins item/project/uom to the PO line (purchase_receipt.py:315).
+        // The banner must NOT claim rate is held -- rate follows Buying Settings
+        // at runtime, and saying otherwise was a copy bug found by this dump.
+        ok(
+          "PO receipt: banner does not claim rate is locked",
+          !/rate/i.test(text.split("Basic Information")[0] || ""),
+        );
+        ok("PO receipt: offers a way to add items", text.includes("Add items"));
+      }
+    }
+
     if (page.label === "Employee Self Service") {
       const EXPECTED = [
         "My Details", "Apply for Leave", "My Leave Balance",

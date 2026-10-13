@@ -84,7 +84,7 @@
 			"noOrders": "No purchase orders are waiting to be received",
 			"withoutOrder": "Receive without a Purchase Order",
 			"withoutOrderHint": "Use this when material arrives without an order. Add the items yourself.",
-			"lockedFromPo": "Items came from {{po}}. Item, project, UOM and rate are held so ERPNext accepts the receipt.",
+			"lockedFromPo": "Item, project and unit come from the purchase order.",
 			"nothingOutstanding": "Nothing is outstanding on {{po}}. Everything ordered has already been received.",
 			"items": "Items",
 			"noItems": "No items yet",
@@ -96,6 +96,8 @@
 			"inStockUom": "In stock",
 			"factor": "factor",
 			"validation": {
+				"totalRequired": "Enter the total {{uom}} you received",
+				"totalInvalid": "Enter a valid total {{uom}}",
 				"supplierRequired": "Choose a supplier",
 				"dateRequired": "Enter a date",
 				"dateFuture": "The date cannot be in the future",
@@ -105,7 +107,31 @@
 				"rateRequired": "Enter a rate on every row",
 				"warehouseRequired": "Choose a warehouse on every row",
 				"wholeNumberUom": "{{uom}} must be a whole number"
-			}
+			},
+			"picker": {
+				"title": "Add items to receive",
+				"search": "Search by item name, code or warehouse",
+				"count": "{{shown}} of {{total}} lines shown",
+				"added": "Added",
+				"noMatch": "No matching line",
+				"itemSubtitle": "{{name}}"
+			},
+			"receivedUom": "Received in",
+			"uomFromPo": "Fixed by the purchase order",
+			"uomPickHint": "The unit you are counting in",
+			"qtyIn": "Quantity ({{uom}})",
+			"totalIn": "Total received ({{uom}})",
+			"totalHint": "Weigh or measure the whole delivery, then we divide it",
+			"stockQtyIn": "Stock quantity ({{uom}})",
+			"perEach": "= {{factor}} {{uom}} each",
+			"rateFromPo": "Fixed by the purchase order",
+			"wholeNumberNote": "{{uom}} cannot have a fractional quantity",
+			"progress": "{{picked}} of {{total}} received",
+			"addedLines": "Items in this receipt",
+			"noLinesYet": "Nothing added yet. Pick the items you are receiving.",
+			"addFromPo": "Add items",
+			"editLine": "Edit",
+			"uomLookupFailed": "Could not load unit information"
 		},
 		"projectItems": {
 			"title": "Items for {{project}}",

@@ -1,49 +1,70 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, Plus, Table2, Trash2, Info, Lock } from "lucide-react";
+import { ClipboardList, Plus, Trash2, Info, Lock, Pencil, Scale } from "lucide-react";
 import { get } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
-import FormSelect from "../../../../components/FormSelect";
 import LinkField from "../../../../components/LinkField";
 import { focusFirstError } from "../../../../lib/formValidation";
 import { useHeader } from "../../../../context/HeaderContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { localDateISO } from "../../../../utils/localDateTime";
+import { needsMeasuredTotal, validateLineRow } from "../../../../lib/receiptConversion";
+import ReceiptItemPicker from "../components/ReceiptItemPicker";
+import ReceiptLineDialog from "../components/ReceiptLineDialog";
 
 /**
- * Receive material into the store — a Purchase Receipt.
+ * Receive material into the store -- a Purchase Receipt.
  *
  * Two ways in, one form:
  *
  *   /store/purchase-receipt/new?po=PO-0001  mapped from a Purchase Order
  *   /store/purchase-receipt/new             no PO, items added by hand
  *
- * ERPNext constraints this screen is built around, all verified in v15 source:
+ * ---------------------------------------------------------------------------
+ * WHY A PICKER, NOT A LIST OF EVERY LINE
+ * ---------------------------------------------------------------------------
+ * A PO can carry dozens of lines (`PUR-ORD-2026-00010` has 28). Rendering all of
+ * them as cards meant a shopfloor user receiving three items had to read a
+ * full-height stack to find three rows, and every row looked equally
+ * actionable whether or not it had already been received. So the outstanding
+ * lines live in a `available` catalogue and only the lines the user picks reach
+ * `doc.items` -- the receipt itself, and what gets saved.
  *
+ * The catalogue is whatever ERPNext's own `make_purchase_receipt` returns. Its
+ * map condition (purchase_order.py:782-786) already drops lines that are fully
+ * received or `delivered_by_supplier`, so "outstanding" is ERPNext's answer,
+ * not one re-derived here. Nothing in this file computes an outstanding
+ * quantity.
+ *
+ * ---------------------------------------------------------------------------
+ * ERPNEXT CONSTRAINTS THIS SCREEN IS BUILT AROUND (v15 source)
+ * ---------------------------------------------------------------------------
  * 1. `validate_with_previous_doc` (purchase_receipt.py:306-316) compares
- *    **project, uom and item_code** against the PO line for every row that
- *    carries a `purchase_order_item`. A mismatch throws "Incorrect value in row
- *    N: UOM must be equal to 'Kg'". `uom`/`conversion_factor` are excluded
- *    from the comparison only when `is_return` is set (transaction_base.py:96).
- *    So on a PO-linked row those fields are **locked**, not merely validated —
- *    offering a picker would only produce a save failure.
- *
- * 2. Duplicate `purchase_order_item` across two rows throws "Duplicate row"
- *    (transaction_base.py:109), so it is blocked here.
- *
- * 3. `validate_uom_is_integer` (purchase_receipt.py:276-278) rejects a
- *    fractional quantity against a UOM flagged `must_be_whole_number`, so that
- *    flag is fetched with the UOM list and enforced on the row.
- *
+ *    **project, uom and item_code** against the PO line for any row carrying a
+ *    `purchase_order_item`; a mismatch throws. So on a PO row the received UOM
+ *    is fixed. `conversion_factor` is NOT in that list, so it is never
+ *    compared -- see lib/receiptConversion.js, which owns the arithmetic and
+ *    the reasoning.
+ * 2. Duplicate `purchase_order_item` throws (transaction_base.py:109), blocked
+ *    here. The picker keys on `purchase_order_item`, not `item_code`, because
+ *    ERPNext permits one item on several lines (:317).
+ * 3. `validate_uom_is_integer("stock_uom", "stock_qty")`
+ *    (purchase_receipt.py:276-278) checks the STOCK qty against the STOCK UOM's
+ *    whole-number flag. `validateLineRow` mirrors this exactly; the previous
+ *    version checked the transaction qty against the transaction UOM, which is
+ *    a different pair and is not what the server enforces.
  * 4. A future `posting_date` throws (purchase_receipt.py:268).
- *
- * Conversion arithmetic is ERPNext's: `stock_qty = qty * conversion_factor`,
- * with the factor resolved from UOM Conversion Detail and falling back to 1.0.
+ * 5. With `Buying Settings.maintain_same_rate` on and action "Stop"
+ *    (transaction_base.py:165-172), a rate differing from the PO by >= 0.01
+ *    throws unless the user holds `role_to_override_stop_action`. On this site
+ *    that setting is on with no override role, so the rate is read-only on PO
+ *    rows. It is read at runtime rather than hardcoded so an admin changing
+ *    the setting needs no code change.
  */
 
 const SYSTEM_FIELDS = [
@@ -57,13 +78,18 @@ const CHILD_SYSTEM_FIELDS = [
   "__islocal", "__unsaved", "owner", "creation", "modified", "modified_by",
 ];
 
-/** Strip system fields from the mapped doc so it can be saved as a new document. */
+/** Strip system fields so the mapped doc can be saved as a new document. */
 function toSavePayload(doc) {
   const out = { ...doc };
   SYSTEM_FIELDS.forEach((f) => delete out[f]);
   out.items = (doc.items || []).map((row) => {
     const clean = { ...row };
     CHILD_SYSTEM_FIELDS.forEach((f) => delete clean[f]);
+    // _rid is our client-side row key, and measured_total is our input that
+    // exists only to derive the factor. Neither is a Purchase Receipt Item
+    // field; sending them would produce an unknown-attribute error.
+    delete clean._rid;
+    delete clean.measured_total;
     // transfer_qty / received_stock_qty are read_only and re-derived server-side
     // (set_stock_qty); posting a stale value would be discarded at best.
     delete clean.transfer_qty;
@@ -72,6 +98,10 @@ function toSavePayload(doc) {
   });
   return out;
 }
+
+let ridSeq = 0;
+/** Stable client key for a row. See the _rid note below. */
+const nextRid = () => `r${++ridSeq}`;
 
 const todayISO = localDateISO;
 
@@ -103,16 +133,43 @@ export default function PurchaseReceiptForm() {
     docstatus: 0,
   });
 
-  /** row index -> { stock_uom, uoms: [{uom, conversion_factor, must_be_whole_number}] } */
+  /**
+   * Outstanding PO lines not yet added to this receipt. Display-only: it never
+   * reaches the saved payload.
+   */
+  const [available, setAvailable] = useState([]);
+
+  /**
+   * _rid -> { stock_uom, uoms: [{uom, must_be_whole_number}], error }
+   *
+   * Keyed by `_rid`, NOT by row index. The tray can be reordered and the
+   * picker appends and removes, so an index-keyed cache silently attaches one
+   * item's unit data to another the moment anything moves -- which shows up as
+   * a wrong whole-number error or a stale total on the line that happens to
+   * land on that index. Every row carries a `_rid` from creation, and row
+   * mutation resolves it through `docRef` rather than closing over an index.
+   */
   const [uomInfo, setUomInfo] = useState({});
 
-  // Toolbar actions are registered by an effect that deliberately does not
-  // depend on `doc`, so the registered handlers would close over a stale
-  // document. Handlers read through this ref.
+  /** row id -> the failure text from its UOM lookup, surfaced in the tray. */
+  const [uomErrors, setUomErrors] = useState({});
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  /**
+   * Rate edit policy, read from Buying Settings at runtime.
+   * null until loaded, and `false` on any failure: an editable rate that the
+   * server will reject is worse than a read-only one, so this fails closed.
+   */
+  const [rateEditable, setRateEditable] = useState(false);
+
   const docRef = useRef(doc);
   useEffect(() => {
     docRef.current = doc;
   }, [doc]);
+
+  const rows = useMemo(() => doc.items, [doc.items]);
 
   /* ================= LOADERS ================= */
 
@@ -127,30 +184,80 @@ export default function PurchaseReceiptForm() {
       if (company) {
         setDoc((p) => (p.company ? p : { ...p, company }));
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // Non-fatal: Company can also arrive with a direct entry's item details.
     }
   }, []);
 
-  const loadUomInfo = useCallback(async (i, itemCode) => {
+  const loadRatePolicy = useCallback(async () => {
+    try {
+      const res = await get("method/frappe.client.get_list", {
+        doctype: "Buying Settings",
+        fields: JSON.stringify([
+          "maintain_same_rate",
+          "maintain_same_rate_action",
+          "role_to_override_stop_action",
+        ]),
+        limit_page_length: 1,
+      });
+      const s = res.message?.[0] || {};
+      // Mirrors ERPNext: transaction_base.py:165-172 only blocks when the flag
+      // is on, the action is "Stop", and the user's roles exclude the override.
+      // We do not have the user's roles here, so we take the conservative
+      // reading: editable only when the flag is off, or an override role is
+      // configured (in which case RoleContext can grant it per-user).
+      const blocked = !!s.maintain_same_rate && s.maintain_same_rate_action === "Stop";
+      setRateEditable(!blocked || !!s.role_to_override_stop_action);
+    } catch {
+      setRateEditable(false);
+    }
+  }, []);
+
+  const loadUomInfo = useCallback(async (rid, itemCode) => {
     if (!itemCode) return;
     try {
       const message = await get("method/erpnext_ui.api.get_item_uom_options", {
         item_code: itemCode,
       });
-      setUomInfo((p) => ({ ...p, [i]: message }));
-    } catch (e) {
-      // Leave the row usable: the stock UOM still works at factor 1, which is
-      // what ERPNext falls back to anyway.
-      setUomInfo((p) => ({ ...p, [i]: { stock_uom: "", uoms: [], error: e.message } }));
+      setUomInfo((p) => ({ ...p, [rid]: message }));
+      setUomErrors((p) => ({ ...p, [rid]: null }));
+    } catch {
+      // Previously this was swallowed, which made a missing backend deployment
+      // look exactly like "this item has one UOM" -- the measured-total field
+      // silently disappeared with no error anywhere. Now the failure is kept
+      // and rendered on the row, because a missing UOM list does not mean a
+      // single-UOM item.
+      setUomInfo((p) => ({
+        ...p,
+        [rid]: { stock_uom: "", uoms: [], failed: true },
+      }));
+      setUomErrors((p) => ({ ...p, [rid]: t("store.receipt.uomLookupFailed") }));
     }
-  }, []);
+  }, [t]);
 
   const loadDoc = useCallback(async () => {
     setLoading(true);
     try {
       const res = await get(`resource/Purchase Receipt/${name}`);
       const d = res.data;
+      const items = (d.items || []).map((r) => ({
+        _rid: nextRid(),
+        item_code: r.item_code,
+        item_name: r.item_name,
+        project: r.project || "",
+        qty: r.qty ?? "",
+        rejected_qty: r.rejected_qty ?? "",
+        uom: r.uom || "",
+        stock_uom: r.stock_uom || "",
+        measured_total: "",
+        conversion_factor: r.conversion_factor ?? 1,
+        stock_qty: r.stock_qty ?? "",
+        rate: r.rate ?? "",
+        warehouse: r.warehouse || "",
+        purchase_order: r.purchase_order || "",
+        purchase_order_item: r.purchase_order_item || "",
+        rate_from_po: r.rate ?? "",
+      }));
       setDoc({
         supplier: d.supplier || "",
         company: d.company || "",
@@ -158,28 +265,13 @@ export default function PurchaseReceiptForm() {
         set_warehouse: d.set_warehouse || "",
         currency: d.currency || "",
         conversion_rate: d.conversion_rate ?? 1,
-        items: (d.items || []).map((r) => ({
-          item_code: r.item_code,
-          item_name: r.item_name,
-          project: r.project || "",
-          qty: r.qty ?? "",
-          rejected_qty: r.rejected_qty ?? "",
-          uom: r.uom || "",
-          stock_uom: r.stock_uom || "",
-          conversion_factor: r.conversion_factor ?? 1,
-          stock_qty: r.stock_qty ?? "",
-          rate: r.rate ?? "",
-          warehouse: r.warehouse || "",
-          purchase_order: r.purchase_order || "",
-          purchase_order_item: r.purchase_order_item || "",
-          rate_from_po: r.rate ?? "",
-        })),
+        items,
         docstatus: d.docstatus,
       });
 
-      // Warm the UOM cache so an existing receipt shows its conversions.
-      d.items?.forEach((r, i) => {
-        if (r.item_code) loadUomInfo(i, r.item_code);
+      // Warm the UOM cache so an existing receipt shows its unit data.
+      items.forEach((r) => {
+        if (r.item_code) loadUomInfo(r._rid, r.item_code);
       });
     } catch {
       setError(t("common.failedToLoad", { name: t("store.receipt.title") }));
@@ -190,12 +282,21 @@ export default function PurchaseReceiptForm() {
 
   /* ================= ITEMS ================= */
 
-  const addRow = () => {
+  const patchById = useCallback((rid, patch) => {
+    setDoc((p) => ({
+      ...p,
+      items: p.items.map((row) => (row._rid === rid ? { ...row, ...patch } : row)),
+    }));
+  }, []);
+
+  const addFreeRow = () => {
+    const rid = nextRid();
     setDoc((p) => ({
       ...p,
       items: [
         ...p.items,
         {
+          _rid: rid,
           item_code: "",
           item_name: "",
           project: "",
@@ -203,6 +304,7 @@ export default function PurchaseReceiptForm() {
           rejected_qty: "",
           uom: "",
           stock_uom: "",
+          measured_total: "",
           conversion_factor: 1,
           stock_qty: 1,
           rate: "",
@@ -213,112 +315,93 @@ export default function PurchaseReceiptForm() {
         },
       ],
     }));
+    setEditing(rid);
   };
 
-  const updateRow = (i, patch) => {
-    setDoc((p) => ({
-      ...p,
-      items: p.items.map((row, idx) => (idx === i ? { ...row, ...patch } : row)),
-    }));
-  };
-
-  const removeRow = (i) => {
-    setDoc((p) => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
+  const removeRow = (rid) => {
+    setDoc((p) => ({ ...p, items: p.items.filter((r) => r._rid !== rid) }));
     setUomInfo((p) => {
       const next = { ...p };
-      delete next[i];
+      delete next[rid];
       return next;
     });
+    setUomErrors((p) => {
+      const next = { ...p };
+      delete next[rid];
+      return next;
+    });
+    setAvailable((p) => p);
   };
 
-  const isPoRow = (row) => !!row.purchase_order_item;
-
-  /** Recompute the derived pair from qty + factor. ERPNext's own formula. */
-  const applyQty = (i, qty, factor) => {
-    const n = Number(qty);
-    const f = Number(factor) || 1;
-    updateRow(i, { qty, stock_qty: Number.isFinite(n) ? n * f : "" });
+  /** Add a catalogue line to the receipt. */
+  const pickLine = (line) => {
+    const rid = nextRid();
+    const row = {
+      _rid: rid,
+      item_code: line.item_code,
+      item_name: line.item_name || "",
+      project: line.project || "",
+      qty: line.qty ?? "",
+      rejected_qty: "",
+      uom: line.uom || "",
+      stock_uom: line.stock_uom || "",
+      measured_total: "",
+      conversion_factor: 1,
+      stock_qty: line.stock_qty ?? "",
+      rate: line.rate ?? "",
+      warehouse: line.warehouse || docRef.current.set_warehouse || "",
+      purchase_order: line.purchase_order || poName || "",
+      purchase_order_item: line.purchase_order_item || "",
+      rate_from_po: line.rate ?? "",
+      pending_qty: line.pending_qty,
+    };
+    // A picked line is no longer offered by the picker. Dropping it from the
+    // catalogue here (rather than relying on a "picked" check at render time)
+    // keeps the catalogue and doc.items in step even if a row is removed again.
+    setAvailable((p) =>
+      p.filter((l) => (l.purchase_order_item || l.item_code) !== (line.purchase_order_item || line.item_code)),
+    );
+    setDoc((p) => ({ ...p, items: [...p.items, row] }));
+    if (row.item_code) loadUomInfo(rid, row.item_code);
+    setEditing(rid);
   };
 
-  /** Item picked by hand: ask ERPNext for the whole row, then cache the UOMs. */
-  const handleItemChange = async (i, itemCode) => {
+  /** Item chosen by hand on a direct (no PO) receipt. */
+  const handleItemChange = async (rid, itemCode) => {
     if (!itemCode) {
-      updateRow(i, { item_code: "", item_name: "", uom: "", stock_uom: "" });
+      patchById(rid, { item_code: "", item_name: "", uom: "", stock_uom: "" });
       return;
     }
     try {
       const current = docRef.current;
-      const res = await get(
-        "method/erpnext.stock.get_item_details.get_item_details",
-        {
-          args: JSON.stringify({
-            item_code: itemCode,
-            doctype: "Purchase Receipt",
-            company: current.company || "",
-            supplier: current.supplier || "",
-            currency: current.currency || "",
-            conversion_rate: current.conversion_rate ?? 1,
-            posting_date: current.posting_date || todayISO(),
-            set_warehouse: current.set_warehouse || "",
-            uom: null,
-            stock_uom: null,
-            qty: 1,
-          }),
-        },
-      );
+      const res = await get("method/erpnext.stock.get_item_details", {
+        item_code: itemCode,
+        doctype: "Purchase Receipt",
+        company: current.company || "",
+        supplier: current.supplier || "",
+        currency: current.currency || "",
+        conversion_rate: current.conversion_rate ?? 1,
+        posting_date: current.posting_date || todayISO(),
+        set_warehouse: current.set_warehouse || "",
+        uom: null,
+      });
       const d = res.message || res.data || {};
+      const stockUom = d.stock_uom || "";
 
-      // Resolve the UOM list first so the default UOM can honour its factor.
-      let uomOptions = null;
-      try {
-        uomOptions = await get("method/erpnext_ui.api.get_item_uom_options", {
-          item_code: itemCode,
-        });
-        setUomInfo((p) => ({ ...p, [i]: uomOptions }));
-      } catch {
-        uomOptions = null;
-      }
-
-      const stockUom = uomOptions?.stock_uom || d.stock_uom || "";
-      const uom = uomOptions?.stock_uom || d.uom || stockUom;
-      const factor = uom === stockUom ? 1 : d.conversion_factor || 1;
-
-      updateRow(i, {
+      // The UOM list arrives separately; until it does we assume the stock UOM
+      // so the line stays usable, and the total field appears once the lookup
+      // lands.
+      patchById(rid, {
         item_code: itemCode,
         item_name: d.item_name || "",
-        uom,
+        uom: stockUom,
         stock_uom: stockUom,
-        conversion_factor: factor,
         rate: d.rate || d.last_purchase_rate || "",
         warehouse: current.set_warehouse || d.warehouse || "",
       });
-      applyQty(i, 1, factor);
+      await loadUomInfo(rid, itemCode);
     } catch (e) {
       setError(e.message || String(e));
-    }
-  };
-
-  /** UOM changed: re-resolve the factor and recompute stock qty. */
-  const handleUomChange = async (i, uom) => {
-    const row = docRef.current.items[i];
-    if (!uom || uom === row.uom) return;
-
-    const cached = uomInfo[i];
-    const option = cached?.uoms?.find((u) => u.uom === uom);
-
-    try {
-      const res = await get(
-        "method/erpnext.stock.get_item_details.get_conversion_factor",
-        { item_code: row.item_code, uom },
-      );
-      const factor = Number(res.message?.conversion_factor) || option?.conversion_factor || 1;
-      updateRow(i, { uom, conversion_factor: factor });
-      applyQty(i, row.qty, factor);
-    } catch {
-      // ERPNext falls back to 1.0 when no conversion row exists; mirror that
-      // rather than leaving the previous item's factor in place.
-      updateRow(i, { uom, conversion_factor: option?.conversion_factor || 1 });
-      applyQty(i, row.qty, option?.conversion_factor || 1);
     }
   };
 
@@ -339,13 +422,13 @@ export default function PurchaseReceiptForm() {
 
     if (!d.items.length) {
       errs.items = t("store.receipt.validation.addItem");
+      setFieldErrors(errs);
       return { fieldErrors: errs, summary: t("store.receipt.validation.addItem") };
     }
 
     // Duplicate PO lines: ERPNext throws "Duplicate row N with same ...".
     const seen = new Set();
-    for (let i = 0; i < d.items.length; i++) {
-      const row = d.items[i];
+    for (const row of d.items) {
       if (row.purchase_order_item) {
         if (seen.has(row.purchase_order_item)) {
           errs.items = t("store.receipt.validation.duplicatePoRow");
@@ -353,35 +436,31 @@ export default function PurchaseReceiptForm() {
         }
         seen.add(row.purchase_order_item);
       }
-    }
 
-    if (!errs.items) {
-      for (let i = 0; i < d.items.length; i++) {
-        const row = d.items[i];
-        if (!row.item_code) {
-          errs.items = t("store.receipt.validation.pickItem");
-          break;
-        }
-        if (!(Number(row.qty) > 0)) {
-          errs.items = t("store.validation.qtyGtZero");
-          break;
-        }
-        const mustWhole = uomInfo[i]?.uoms?.find((u) => u.uom === row.uom)
-          ?.must_be_whole_number;
-        if (mustWhole && Number(row.qty) % 1 !== 0) {
-          errs.items = t("store.receipt.validation.wholeNumberUom", {
-            uom: row.uom,
-          });
-          break;
-        }
-        if (row.rate === "" || row.rate === undefined || row.rate === null) {
-          errs.items = t("store.receipt.validation.rateRequired");
-          break;
-        }
-        if (!row.warehouse) {
-          errs.items = t("store.receipt.validation.warehouseRequired");
-          break;
-        }
+      if (!row.item_code) {
+        errs.items = t("store.receipt.validation.pickItem");
+        break;
+      }
+
+      const info = uomInfo[row._rid];
+      if (info?.failed) {
+        errs.items = t("store.receipt.uomLookupFailed");
+        break;
+      }
+
+      const lineErr = validateLineRow(row, info, t);
+      if (lineErr) {
+        errs.items = lineErr;
+        break;
+      }
+
+      if (row.rate === "" || row.rate === undefined || row.rate === null) {
+        errs.items = t("store.receipt.validation.rateRequired");
+        break;
+      }
+      if (!row.warehouse) {
+        errs.items = t("store.receipt.validation.warehouseRequired");
+        break;
       }
     }
 
@@ -469,6 +548,7 @@ export default function PurchaseReceiptForm() {
     let cancelled = false;
 
     (async () => {
+      loadRatePolicy();
       if (isEdit) {
         await loadDoc();
         return;
@@ -479,13 +559,31 @@ export default function PurchaseReceiptForm() {
         if (poName) {
           // ERPNext's own mapper: validates the PO is submitted, maps supplier /
           // currency / warehouses / taxes, and prefills each line with the
-          // outstanding qty, its conversion factor and rate.
+          // outstanding qty, its conversion factor and rate. Its map condition
+          // already excludes fully-received lines, so the result IS the
+          // outstanding catalogue.
           const res = await get(
             "method/erpnext.buying.doctype.purchase_order.purchase_order.make_purchase_receipt",
             { source_name: poName },
           );
           const draft = Array.isArray(res.message) ? res.message[0] : res.message;
           if (!draft || cancelled) return;
+
+          const catalogue = (draft.items || []).map((r) => ({
+            item_code: r.item_code,
+            item_name: r.item_name,
+            project: r.project || "",
+            qty: r.qty ?? "",
+            uom: r.uom || "",
+            stock_uom: r.stock_uom || "",
+            rate: r.rate ?? "",
+            warehouse: r.warehouse || draft.set_warehouse || "",
+            purchase_order: r.purchase_order || poName,
+            purchase_order_item: r.purchase_order_item || "",
+            pending_qty: r.qty,
+          }));
+
+          setAvailable(catalogue);
 
           setDoc({
             supplier: draft.supplier || "",
@@ -494,32 +592,13 @@ export default function PurchaseReceiptForm() {
             set_warehouse: draft.set_warehouse || "",
             currency: draft.currency || "",
             conversion_rate: draft.conversion_rate ?? 1,
-            items: (draft.items || []).map((r) => ({
-              item_code: r.item_code,
-              item_name: r.item_name,
-              project: r.project || "",
-              qty: r.qty ?? "",
-              rejected_qty: r.rejected_qty ?? "",
-              uom: r.uom || "",
-              stock_uom: r.stock_uom || "",
-              conversion_factor: r.conversion_factor ?? 1,
-              stock_qty: r.stock_qty ?? "",
-              rate: r.rate ?? "",
-              warehouse: r.warehouse || draft.set_warehouse || "",
-              purchase_order: r.purchase_order || poName,
-              purchase_order_item: r.purchase_order_item || "",
-              rate_from_po: r.rate ?? "",
-            })),
+            items: [],
             docstatus: 0,
           });
 
-          if (!(draft.items || []).length) {
+          if (!catalogue.length) {
             setError(t("store.receipt.nothingOutstanding", { po: poName }));
           }
-
-          draft.items?.forEach((r, i) => {
-            if (r.item_code) loadUomInfo(i, r.item_code);
-          });
         } else {
           await autoCompany();
         }
@@ -538,11 +617,13 @@ export default function PurchaseReceiptForm() {
 
   /* ================= UI ================= */
 
-  const rows = useMemo(() => doc.items, [doc.items]);
-
   if (loading && rows.length === 0 && !isEdit && !poName) {
     return null;
   }
+
+  const editingRow = editing ? rows.find((r) => r._rid === editing) || null : null;
+  const pickedKeys = rows.map((r) => r.purchase_order_item || r.item_code);
+  const outstanding = fromPo ? available.length : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
@@ -620,18 +701,31 @@ export default function PurchaseReceiptForm() {
 
       {/* ITEMS */}
       <FormSection
-        title={t("store.receipt.items")}
-        icon={Table2}
+        title={t("store.receipt.addedLines")}
+        icon={ClipboardList}
         action={
-          !doc.docstatus && !fromPo ? (
-            <Button size="sm" onClick={addRow}>
+          !doc.docstatus && (fromPo ? (
+            <Button size="sm" onClick={() => setPickerOpen(true)}>
+              <Plus />
+              {t("store.receipt.addFromPo")}
+            </Button>
+          ) : (
+            <Button size="sm" onClick={addFreeRow}>
               <Plus />
               {t("common.addRow")}
             </Button>
-          ) : null
+          ))
         }
-        contentClassName="flex flex-col gap-3"
       >
+        {/* Progress. A picker on its own removes the ability to tell a
+            half-finished receipt from a finished one, which is the one thing a
+            shopfloor user needs at a glance. */}
+        {fromPo && rows.length + (outstanding || 0) > 0 ? (
+          <p className="mb-1 text-xs text-muted-foreground">
+            {t("store.receipt.progress", { picked: rows.length, total: rows.length + (outstanding || 0) })}
+          </p>
+        ) : null}
+
         <FormField
           name="items"
           error={fieldErrors.items}
@@ -643,155 +737,97 @@ export default function PurchaseReceiptForm() {
         {rows.length === 0 ? (
           <p className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
             <Info className="size-3.5" />
-            {t("store.receipt.noItems")}
+            {t("store.receipt.noLinesYet")}
           </p>
-        ) : null}
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {rows.map((row) => {
+              const info = uomInfo[row._rid];
+              const looksWeighed = needsMeasuredTotal(info, row.uom);
+              const rowErr = uomErrors[row._rid];
+              return (
+                <li
+                  key={row._rid}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      {row.item_code || t("store.receipt.validation.pickItem")}
+                      {row.item_name ? (
+                        <span className="ml-2 font-normal text-muted-foreground">
+                          {row.item_name}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                      <span>
+                        {row.qty} {row.uom}
+                      </span>
+                      {looksWeighed ? (
+                        <span className="flex items-center gap-1">
+                          <Scale className="size-3" />
+                          {row.stock_qty === "" || row.stock_qty === undefined
+                            ? "—"
+                            : `${row.stock_qty} ${row.stock_uom}`}
+                        </span>
+                      ) : null}
+                      {row.warehouse ? <span>{row.warehouse}</span> : null}
+                      {row.rate !== "" && row.rate !== undefined ? (
+                        <span>{t("store.receipt.rate")}: {row.rate}</span>
+                      ) : null}
+                    </div>
+                    {rowErr ? (
+                      <p className="mt-1 text-xs text-destructive">{rowErr}</p>
+                    ) : null}
+                  </div>
 
-        {rows.map((row, i) => {
-          const info = uomInfo[i];
-          const poRow = isPoRow(row);
-          const multiUom = (info?.uoms?.length || 0) > 1;
-          const factor = Number(row.conversion_factor) || 1;
-          const rateChanged =
-            poRow && row.rate !== "" && Number(row.rate) !== Number(row.rate_from_po);
-
-          return (
-            <div
-              key={i}
-              className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-background p-3 md:grid-cols-12 md:items-end"
-            >
-              {/* ITEM */}
-              <div className="col-span-2 md:col-span-3">
-                <FormField label={t("store.form.item")} required>
-                  <LinkField
-                    doctype="Item"
-                    value={row.item_code}
-                    onChange={(v) => handleItemChange(i, v)}
-                    disabled={poRow || !!doc.docstatus}
-                  />
-                </FormField>
-              </div>
-
-              {/* QTY — the field the whole screen is built around */}
-              <div className="md:col-span-2">
-                <FormField label={t("store.receipt.acceptedQty")} required>
-                  <Input
-                    type="number"
-                    value={row.qty}
-                    onChange={(e) => applyQty(i, e.target.value, factor)}
-                  />
-                </FormField>
-                {/* The payoff of auto-conversion: the stock quantity the entry
-                    actually moves, visible before saving. */}
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {factor !== 1 ? (
-                    <>
-                      {t("store.receipt.inStockUom")}: {row.stock_qty} {row.stock_uom}{" "}
-                      · {t("store.receipt.factor")} ×{factor}
-                    </>
-                  ) : (
-                    t("store.receipt.stockUom", {
-                      qty: row.stock_qty ?? row.qty,
-                      uom: row.stock_uom || row.uom,
-                    })
-                  )}
-                </p>
-              </div>
-
-              {/* UOM — only when there is a choice to make */}
-              <div className="md:col-span-2">
-                {multiUom ? (
-                  <FormField label={t("store.form.uom")} required>
-                    <FormSelect
-                      value={row.uom}
-                      disabled={poRow || !!doc.docstatus}
-                      onChange={(v) => handleUomChange(i, v)}
-                      options={info.uoms.map((u) => ({
-                        value: u.uom,
-                        label:
-                          u.conversion_factor !== 1
-                            ? `${u.uom} (×${u.conversion_factor})`
-                            : u.uom,
-                      }))}
-                    />
-                  </FormField>
-                ) : (
-                  <FormField label={t("store.form.uom")}>
-                    <Input value={row.uom || ""} disabled />
-                  </FormField>
-                )}
-              </div>
-
-              {/* RATE */}
-              <div className="md:col-span-2">
-                <FormField label={t("store.receipt.rate")} required>
-                  <Input
-                    type="number"
-                    value={row.rate}
-                    onChange={(e) => updateRow(i, { rate: e.target.value })}
-                  />
-                </FormField>
-                {rateChanged ? (
-                  <p className="mt-1 text-[11px] text-amber-600">
-                    {t("store.receipt.rateDiffers", { rate: row.rate_from_po })}
-                  </p>
-                ) : null}
-              </div>
-
-              {/* PROJECT */}
-              <div className="md:col-span-2">
-                <FormField label={t("store.labels.projectOptional")}>
-                  <LinkField
-                    doctype="Project"
-                    value={row.project}
-                    onChange={(v) => updateRow(i, { project: v || "" })}
-                    // ERPNext compares project against the PO line when the PO
-                    // has one, so changing it there is a guaranteed save failure.
-                    disabled={poRow || !!doc.docstatus}
-                  />
-                </FormField>
-              </div>
-
-              {/* WAREHOUSE */}
-              <div className="md:col-span-1">
-                <FormField label={t("store.labels.targetWarehouse")} required>
-                  <LinkField
-                    doctype="Warehouse"
-                    value={row.warehouse}
-                    onChange={(v) => updateRow(i, { warehouse: v || "" })}
-                    disabled={!!doc.docstatus}
-                  />
-                </FormField>
-              </div>
-
-              {/* REJECTED */}
-              <div className="md:col-span-1">
-                <FormField label={t("store.receipt.rejectedQty")}>
-                  <Input
-                    type="number"
-                    value={row.rejected_qty}
-                    onChange={(e) => updateRow(i, { rejected_qty: e.target.value })}
-                  />
-                </FormField>
-              </div>
-
-              {/* DELETE — not available on a mapped receipt */}
-              {!doc.docstatus && !poRow ? (
-                <div className="col-span-2 flex items-end md:col-span-1">
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => removeRow(i)}
-                    aria-label={t("common.delete")}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+                  {!doc.docstatus ? (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditing(row._rid)}
+                        aria-label={t("store.receipt.editLine")}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeRow(row._rid)}
+                        aria-label={t("common.delete")}
+                      >
+                        <Trash2 className="size-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </FormSection>
+
+      {fromPo ? (
+        <ReceiptItemPicker
+          show={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          lines={available}
+          pickedKeys={pickedKeys}
+          onPick={pickLine}
+        />
+      ) : null}
+
+      <ReceiptLineDialog
+        show={!!editingRow}
+        onClose={() => setEditing(null)}
+        row={editingRow}
+        info={editingRow ? uomInfo[editingRow._rid] : null}
+        uomError={editingRow ? uomErrors[editingRow._rid] : null}
+        rateEditable={rateEditable || !editingRow?.purchase_order_item}
+        onItemChange={handleItemChange}
+        onSave={(next) => patchById(next._rid, next)}
+      />
     </div>
   );
 }

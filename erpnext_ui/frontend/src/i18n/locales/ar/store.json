@@ -84,7 +84,7 @@
 			"noOrders": "لا توجد أوامر شراء في انتظار الاستلام",
 			"withoutOrder": "استلام بدون أمر شراء",
 			"withoutOrderHint": "استخدمه عندما تصل المواد دون أمر. أضف الأصناف بنفسك.",
-			"lockedFromPo": "الأصناف من {{po}}. الصنف والمشروع ووحدة القياس والسعر ثابتة ليقبل ERPNext الإيصال.",
+			"lockedFromPo": "الصنف والمشروع والوحدة مأخوذة من أمر الشراء.",
 			"nothingOutstanding": "لا يوجد شيء متبقٍ في {{po}}. تم استلام كل ما تم طلبه.",
 			"items": "الأصناف",
 			"noItems": "لا توجد أصناف بعد",
@@ -96,6 +96,8 @@
 			"inStockUom": "في المخزون",
 			"factor": "معامل",
 			"validation": {
+				"totalRequired": "أدخل إجمالي {{uom}} الذي استلمته",
+				"totalInvalid": "أدخل إجمالي {{uom}} صالح",
 				"supplierRequired": "اختر مورداً",
 				"dateRequired": "أدخل تاريخاً",
 				"dateFuture": "لا يمكن أن يكون التاريخ في المستقبل",
@@ -105,7 +107,31 @@
 				"rateRequired": "أدخل سعراً في كل صف",
 				"warehouseRequired": "اختر مستودعاً في كل صف",
 				"wholeNumberUom": "{{uom}} يجب أن يكون عدداً صحيحاً"
-			}
+			},
+			"picker": {
+				"title": "إضافة أصناف للاستلام",
+				"search": "ابحث بالاسم أو الرمز أو المستودع",
+				"count": "عرض {{shown}} من {{total}} سطر",
+				"added": "تمت الإضافة",
+				"noMatch": "لا يوجد سطر مطابق",
+				"itemSubtitle": "{{name}}"
+			},
+			"receivedUom": "الاستلام بوحدة",
+			"uomFromPo": "محددة من أمر الشراء",
+			"uomPickHint": "الوحدة التي تعدّ بها",
+			"qtyIn": "الكمية ({{uom}})",
+			"totalIn": "إجمالي المستلم ({{uom}})",
+			"totalHint": "وزن الكمية كاملة أو قسها ثم نقسمها",
+			"stockQtyIn": "كمية المخزون ({{uom}})",
+			"perEach": "= {{factor}} {{uom}} لكل قطعة",
+			"rateFromPo": "محددة من أمر الشراء",
+			"wholeNumberNote": "لا يمكن أن تكون {{uom}} كسرية",
+			"progress": "تم استلام {{picked}} من {{total}}",
+			"addedLines": "أصناف هذه الإيصال",
+			"noLinesYet": "لم تتم إضافة شيء بعد. اختر الأصناف التي تستلمها.",
+			"addFromPo": "إضافة أصناف",
+			"editLine": "تعديل",
+			"uomLookupFailed": "تعذّر تحميل معلومات الوحدة"
 		},
 		"projectItems": {
 			"title": "مواد المشروع {{project}}",

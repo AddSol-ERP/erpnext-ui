@@ -20,6 +20,13 @@ import {
   requestPurposeForType,
   stockPurposeForType,
 } from "../src/config/storePurposes.js";
+import {
+  applyMeasuredTotal,
+  computeFactor,
+  needsMeasuredTotal,
+  validateLineRow,
+  wholeNumberRules,
+} from "../src/lib/receiptConversion.js";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => (c ? pass++ : (fail++, console.log("  FAIL:", n, "got:", JSON.stringify(got))));
@@ -359,6 +366,117 @@ ok("stockPurposeForType: all 9 ERPNext types map back to a purpose",
    `types=${SE_TYPES.length}`);
 ok("stockPurposeForType: unknown type yields '' rather than a wrong purpose",
    stockPurposeForType("Not A Real Type") === "");
+
+// ---------------------------------------------------------------------------
+// Purchase Receipt line arithmetic.
+//
+// The factor is a MEASUREMENT, never a master-data lookup: a weighed delivery
+// differs every time, and reading the nominal factor from UOM Conversion
+// Detail books the wrong stock while looking like a successful save. These
+// pin the derivation and the ERPNext rules that make a factor other than 1
+// legal at all.
+// ---------------------------------------------------------------------------
+
+ok("computeFactor: 25.4 Kg over 10 Nos = 2.54",
+   computeFactor(10, 25.4) === 2.54, computeFactor(10, 25.4));
+ok("computeFactor: unrounded -- 10/3 keeps full precision",
+   computeFactor(3, 10) === 10 / 3);
+ok("computeFactor: qty 0 returns null rather than Infinity",
+   computeFactor(0, 25.4) === null);
+ok("computeFactor: empty total returns null rather than defaulting to 1",
+   computeFactor(10, "") === null && computeFactor(10, undefined) === null);
+
+// Rule: stock_controller.py:110-116 resets the factor to 1.0 when uom equals
+// stock_uom, so a measured total is only meaningful when they differ.
+const KG_NOS = {
+  stock_uom: "Kg",
+  uoms: [{ uom: "Kg", must_be_whole_number: 0 }, { uom: "Nos", must_be_whole_number: 1 }],
+};
+ok("needsMeasuredTotal: false when received UOM == stock UOM",
+   needsMeasuredTotal(KG_NOS, "Kg") === false);
+ok("needsMeasuredTotal: true when a weighed stock UOM differs from received",
+   needsMeasuredTotal(KG_NOS, "Nos") === true);
+ok("needsMeasuredTotal: false without a UOM lookup",
+   needsMeasuredTotal(undefined, "Nos") === false && needsMeasuredTotal({ uoms: [] }, "Nos") === false);
+
+// Live-data bug (W-0268-01-001: stock_uom Nos, also Kg). Offering a total here
+// let a 10 Kg receipt book 25 NOS of stock -- factor 2.5 -- and save cleanly.
+const NOS_STOCK = {
+  stock_uom: "Nos",
+  uoms: [{ uom: "Nos", must_be_whole_number: 1 }, { uom: "Kg", must_be_whole_number: 0 }],
+};
+ok("needsMeasuredTotal: NOT offered when the STOCK UOM counts whole pieces",
+   needsMeasuredTotal(NOS_STOCK, "Kg") === false,
+   "a weight cannot be stock in Nos, so the field would only book wrong quantities");
+ok("needsMeasuredTotal: still offered for a weighed stock UOM",
+   needsMeasuredTotal(KG_NOS, "Nos") === true);
+
+// purchase_receipt.py:278 is validate_uom_is_integer("stock_uom", "stock_qty"):
+// the STOCK qty against the STOCK UOM. The transaction qty against the
+// transaction UOM is a DIFFERENT pair, and the previous code checked only that.
+const RULES_INFO = KG_NOS;
+ok("wholeNumberRules: received Nos is whole-number",
+   wholeNumberRules(RULES_INFO, "Nos").mustWholeQty === true);
+ok("wholeNumberRules: stock Kg is not whole-number",
+   wholeNumberRules(RULES_INFO, "Nos").mustWholeStock === false);
+ok("wholeNumberRules: reversed item -- stock Nos IS whole-number",
+   wholeNumberRules(
+     { stock_uom: "Nos", uoms: [{ uom: "Nos", must_be_whole_number: 1 }, { uom: "Kg", must_be_whole_number: 0 }] },
+     "Kg",
+   ).mustWholeStock === true);
+
+const WEIGHED = { _rid: "r1", qty: 10, uom: "Nos", stock_uom: "Kg" };
+const applied = applyMeasuredTotal({ ...WEIGHED, conversion_factor: 1 }, 25.4);
+ok("applyMeasuredTotal: factor = total / qty",
+   applied.conversion_factor === 2.54, applied.conversion_factor);
+ok("applyMeasuredTotal: stock_qty is the measured total, not qty*factor",
+   applied.stock_qty === 25.4, applied.stock_qty);
+ok("applyMeasuredTotal: stock_qty has no float noise from the multiplication",
+   applyMeasuredTotal({ ...WEIGHED }, 0.1 + 0.2).stock_qty === 0.30000000000000004);
+
+// A missing total must NOT fall back to factor 1 -- that would book the piece
+// count as stock and read as a successful save.
+const noTotal = applyMeasuredTotal({ ...WEIGHED }, "");
+ok("applyMeasuredTotal: missing total yields an empty factor, not 1",
+   noTotal.conversion_factor === "" && noTotal.stock_qty === "");
+
+// Same UOM -> factor 1, stock_qty == qty, and the total is cleared.
+const same = applyMeasuredTotal({ _rid: "r2", qty: 7, uom: "Nos", stock_uom: "Nos", measured_total: "99" }, "99");
+ok("applyMeasuredTotal: same UOM pins factor to 1 and ignores any total",
+   same.conversion_factor === 1 && same.stock_qty === 7 && same.measured_total === "");
+
+// Stand-in for i18next's t(). validateLineRow passes a KEY plus interpolation
+// vars, so this returns the key verbatim and records the vars -- asserting on
+// the key is the stable contract; the rendered wording is covered by the
+// store suite, which renders with the real i18n instance.
+let lastVars = null;
+const T = (k, vars) => {
+  lastVars = vars || {};
+  return k;
+};
+ok("validateLineRow: weighed line with no total is rejected",
+   validateLineRow({ qty: 10, uom: "Nos", stock_uom: "Kg", measured_total: "" }, RULES_INFO, T)
+     === "store.receipt.validation.totalRequired");
+ok("validateLineRow: the missing-total message names the STOCK uom",
+   lastVars && lastVars.uom === "Kg", JSON.stringify(lastVars));
+ok("validateLineRow: fractional qty against whole-number received UOM is rejected",
+   validateLineRow({ qty: 0.5, uom: "Nos", stock_uom: "Kg", measured_total: "5" }, RULES_INFO, T)
+     === "store.receipt.validation.wholeNumberUom");
+// The total field is hidden for a whole-number stock UOM (see
+// needsMeasuredTotal), so this row cannot be produced by the UI -- but the rule
+// ERPNext enforces is about stock_qty, not about which fields we render, so the
+// validator must catch it regardless.
+ok("validateLineRow: fractional stock qty against whole-number STOCK UOM is rejected",
+   validateLineRow({ qty: 10, uom: "Kg", stock_uom: "Nos", measured_total: "25.4", stock_qty: 25.4 },
+     NOS_STOCK, T) === "store.receipt.validation.wholeNumberUom");
+ok("validateLineRow: a whole stock qty against a whole-number STOCK UOM is fine",
+   validateLineRow({ qty: 10, uom: "Kg", stock_uom: "Nos", measured_total: "25", stock_qty: 25 },
+     NOS_STOCK, T) === null);
+ok("validateLineRow: a complete weighed line passes",
+   validateLineRow({ qty: 10, uom: "Nos", stock_uom: "Kg", measured_total: "25.4" }, RULES_INFO, T) === null);
+ok("validateLineRow: qty must be greater than zero",
+   validateLineRow({ qty: 0, uom: "Nos", stock_uom: "Kg", measured_total: "25.4" }, RULES_INFO, T)
+     === "store.validation.qtyGtZero");
 ok("stockPurposeForType: round-trips every key",
    Object.keys(STOCK_ENTRY_PURPOSES).every(
      (k) => stockPurposeForType(STOCK_ENTRY_PURPOSES[k].stockEntryType) === k));

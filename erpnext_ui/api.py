@@ -872,15 +872,21 @@ def _requested_qty_by_project_item(project):
 	if not parent_names:
 		return outstanding
 
+	# Positional `%s` with a tuple, NOT `%(name)s`. frappe.db.sql hands the
+	# values straight to pymysql, which has no named-parameter support: a dict of
+	# names was being str()-ed straight into the statement, so this raised
+	# "You have an error in your SQL syntax ... near ''project': \"'W-0268'\"".
+	# This is ERPNext's own convention for an IN list -- see general_ledger.py:745
+	# (`where name in %s` with `tuple(gle_names)`).
 	for row in frappe.db.sql(
 		"""
 		select item_code, sum(greatest(stock_qty - coalesce(ordered_qty, 0), 0)) as pending
 		from `tabMaterial Request Item`
 		where project = %s
-			and parent in %(parents)s
+			and parent in %s
 		group by item_code
 		""",
-		{"project": project, "parents": tuple(parent_names)},
+		(project, tuple(parent_names)),
 		as_dict=True,
 	):
 		outstanding[row.item_code] = flt(row.pending)

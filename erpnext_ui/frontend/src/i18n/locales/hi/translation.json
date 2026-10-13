@@ -89,7 +89,11 @@
 		"cancelConfirm": "क्या आप वाकई {name} को रद्द करना चाहते हैं?",
 		"cancelling": "रद्द किया जा रहा है...",
 		"cancelledSuccess": "{name} सफलतापूर्वक रद्द कर दिया गया",
-		"cancelFailed": "रद्द करना विफल रहा"
+		"cancelFailed": "रद्द करना विफल रहा",
+		"add": "जोड़ें",
+		"done": "हो गया",
+		"remove": "हटाएँ",
+		"none": "कोई नहीं"
 	},
 	"nav": {
 		"approvals": "अनुमोदन",

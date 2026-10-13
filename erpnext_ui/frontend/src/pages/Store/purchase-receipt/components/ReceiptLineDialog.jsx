@@ -46,6 +46,7 @@ export default function ReceiptLineDialog({
   info,
   uomError,
   rateEditable,
+  onItemChange,
 }) {
   const { t } = useTranslation();
 
@@ -95,6 +96,20 @@ export default function ReceiptLineDialog({
         <div className="text-sm text-muted-foreground">
           {t("store.receipt.picker.itemSubtitle", { name: row.item_name || "" })}
         </div>
+
+        {/* ITEM -- only editable on a direct entry. A PO row's item_code is
+            compared against the PO line (purchase_receipt.py:315), so it is
+            fixed; a free row has to offer the picker somewhere or it can never
+            be filled in. */}
+        {!isPoRow ? (
+          <FormField label={t("store.form.item")} required>
+            <LinkField
+              doctype="Item"
+              value={row.item_code}
+              onChange={(v) => onItemChange(row._rid, v)}
+            />
+          </FormField>
+        ) : null}
 
         {/* RECEIVED UOM */}
         <FormField
@@ -146,6 +161,11 @@ export default function ReceiptLineDialog({
               />
               <Scale className="size-3.5 shrink-0 text-muted-foreground" />
             </div>
+            {qtyHint ? (
+              <p className="mt-1 text-[11px] font-medium text-muted-foreground">
+                {qtyHint}
+              </p>
+            ) : null}
           </FormField>
         ) : null}
 

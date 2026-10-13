@@ -89,7 +89,11 @@
 		"cancelConfirm": "Are you sure you want to cancel {name}?",
 		"cancelling": "Cancelling...",
 		"cancelledSuccess": "{name} cancelled successfully",
-		"cancelFailed": "Failed to cancel"
+		"cancelFailed": "Failed to cancel",
+		"add": "Add",
+		"done": "Done",
+		"remove": "Remove",
+		"none": "None"
 	},
 	"nav": {
 		"approvals": "Approvals",

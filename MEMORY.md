@@ -1460,9 +1460,9 @@ Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
 
 | Check | Result |
 |---|---|
-| rules suite | **160 passed, 0 failed** |
+| rules suite | **184 passed, 0 failed** |
 | request-form render | **all forms render** |
-| store + ESS suite (8 pages) | **36 passed, 0 failed** |
+| store + ESS suite (8 pages) | **44 passed, 0 failed** |
 | `npx eslint src` | **clean, 0 problems** |
 | `npm run build` | **✓ built** |
 | `ruff check erpnext_ui/api.py` | 1 error — `F841` at `:416`, **pre-existing** (reproduced against `HEAD`) |
@@ -1587,3 +1587,137 @@ to, and would have re-created the split the moment someone added a module.
   `{title, description}` objects, so the merged dashboard's `titleKey` needs
   `.title`. `storecheck.jsx` now asserts all nine names render, and its leak
   regex covers the `ess` and `requests` namespaces, which it previously did not.
+
+## 13. Purchase Receipt: picker + measured weight (2026-10-13)
+
+### 13.1 What was wrong
+
+A PO with 28 lines rendered as a full-height stack of cards. Receiving three
+items meant reading all of them, and every row looked equally actionable
+whether or not it had already been received. Separately, the conversion factor
+came from ERPNext's `get_conversion_factor`, i.e. **item master** — correct for
+a fixed UOM relationship, wrong for a weighed delivery, where the factor is a
+measurement that changes every time.
+
+### 13.2 The mechanic
+
+Outstanding lines live in an `available` catalogue; only picked lines reach
+`doc.items`. The catalogue is whatever `make_purchase_receipt` returns — its map
+condition (`purchase_order.py:782-786`) already excludes fully-received and
+`delivered_by_supplier` lines, so "outstanding" is ERPNext's answer and nothing
+here re-derives a quantity.
+
+The dialog asks for **numbers only**, never ERPNext mechanics:
+
+```
+received_uom == stock_uom  ->  ask quantity                    -> factor = 1
+received_uom != stock_uom  ->  ask qty in received_uom
+                                ask total in stock_uom         -> factor = total / qty
+                                (required, not optional)
+```
+
+### 13.3 The four rules that make a factor other than 1 legal
+
+| Rule | Source |
+|---|---|
+| `uom` compared to the PO line -> received UOM pinned on PO rows | `purchase_receipt.py:315` |
+| `conversion_factor` not in `compare_fields` -> never compared | `transaction_base.py:125-127` |
+| `uom == stock_uom` -> factor force-reset to 1.0 | `stock_controller.py:110-116` |
+| client-supplied non-zero factor respected; excluded from rounding | `buying_controller.py:362`, `:361` |
+
+Plus a fifth that gates the field: `validate_uom_is_integer("stock_uom",
+"stock_qty")` (`purchase_receipt.py:278`) — the **stock** qty against the
+**stock** UOM's whole-number flag. The previous code checked the transaction qty
+against the transaction UOM, which is a different pair and is not what the
+server enforces.
+
+A sixth, found in the live settings: with `Buying Settings.maintain_same_rate`
+on and action `Stop` (QA has both, and no override role), a rate differing from
+the PO by >=0.01 **throws** (`transaction_base.py:165-172`). The old editable
+rate field was therefore a guaranteed save failure. It now follows the setting
+at runtime and fails closed to read-only.
+
+### 13.4 Two bugs the new tests caught
+
+- `computeFactor(10, "")` returned **0**, not `null` — `Number("")` is 0 and
+  passes an `isFinite` check, which would have booked `stock_qty` 0 and looked
+  like a successful save. The guard is now on the raw value.
+- The PO banner claimed rate was locked, which stopped being true once rate
+  became conditional. Found by dumping the rendered text, not by the suites.
+
+### 13.5 `_rid`
+
+`uomInfo` is keyed by a stable per-row `_rid`, not by row index. The tray can be
+reordered and the picker appends/removes, so an index-keyed cache attaches one
+item's unit data to another the moment anything moves — surfacing as a wrong
+whole-number error or a stale total on whichever row lands on that index.
+
+### 13.6 Two bugs live verification found (static checks had missed both)
+
+Neither was reachable from the unit suites; both appeared only once the backend
+was actually deployed and called.
+
+**1. `frappe.db.sql` does not take named parameters.** In
+`_requested_qty_by_project_item` the query used psycopg2-style placeholders:
+
+```python
+where project = %s and parent in %(parents)s
+{"project": project, "parents": tuple(parent_names)}
+```
+
+`frappe.db.sql` passes values straight to pymysql, which has no named-parameter
+support, so the **dict was str()-ed into the statement**:
+
+> `You have an error in your SQL syntax ... near ''project': "'W-0268'", 'parents': "(...)'"`
+
+`get_project_items` was 100% broken. The fix is positional — which is also
+ERPNext's own convention for an IN list (`general_ledger.py:745-750`):
+
+```python
+where project = %s and parent in %s
+(project, tuple(parent_names))
+```
+
+Worth remembering: **Frappe is not Django.** `%(name)s` is a psycopg habit that
+silently type-checks fine in Python and only explodes at the database.
+
+**2. A measured total could book the wrong stock on a whole-number item.**
+`needsMeasuredTotal` originally asked only "does the received UOM differ from
+the stock UOM?". On the live `W-0268-01-001` (stock_uom `Nos`, also `Kg`) that
+meant picking `Kg` offered a **"Total received (Nos)"** field, and entering
+10 Kg against a total of 25 gives factor 2.5 -- so ERPNext books **25 Nos of
+stock from a 10 Kg delivery**. It saves cleanly; the quantity is silently wrong.
+
+A weight cannot be stock when the stock UOM counts whole pieces, so there is no
+coherent meaning for the field there. `needsMeasuredTotal` now additionally
+requires the **stock UOM** not to be `must_be_whole_number`. Note this is the
+mirror of the user's own rule ("show weight only where stock is weighed").
+
+`validateLineRow` still checks `stock_qty` against the stock UOM's flag
+*independently* of whether the field was rendered -- that rule is what ERPNext
+enforces, so it must not depend on a UI decision to be checked at all.
+
+### 13.7 Live data as of 2026-10-13
+
+- 631 items. `stock_uom`: Nos 480, Kg 89, Set 38, Roll 13, Meter 1.
+- `must_be_whole_number=1`: Box, Nos, Pair, Set, Unit. `Kg` is not.
+- **No Kg-stocked item has a second UOM**, and the only multi-UOM items are the
+  `W-0268-*` Nos-stocked ones. So there is currently **no item on the site the
+  weighed path can be exercised against** -- it needs an item stocked in `Kg`
+  that also carries a counting UOM, plus a PO raised in that counting UOM.
+- `W-0268-01-001` has `Kg` at conversion factor **1.0** ("1 Kg = 1 Nos"),
+  which is placeholder data.
+
+### 13.8 Still open
+
+- The four endpoints added this session (`get_item_uom_options`,
+  `get_indent_queue`, `get_project_items`, `get_indent_list`) were **not on QA**
+  as of this writing. `get_item_uom_options` failing is why the UOM field
+  appeared missing rather than erroring; the other three mean the Give Items
+  queue, the All-requests list and project item lookup are silently broken
+  there too.
+- `StockEntryTypeSelector` still lists raw ERPNext types.
+- No batch/serial UI: with `batch_number_series` on the item ERPNext names every
+  batch itself, so there is genuinely nothing to ask. Note this ERPNext version
+  spells it `batch_number_series` + `create_new_batch` + `has_batch_no` — not
+  `batch_no_series`.

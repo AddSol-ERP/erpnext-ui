@@ -89,7 +89,11 @@
 		"cancelConfirm": "هل أنت متأكد أنك تريد إلغاء {name}؟",
 		"cancelling": "جارٍ الإلغاء...",
 		"cancelledSuccess": "تم إلغاء {name} بنجاح",
-		"cancelFailed": "فشل الإلغاء"
+		"cancelFailed": "فشل الإلغاء",
+		"add": "إضافة",
+		"done": "تم",
+		"remove": "إزالة",
+		"none": "لا شيء"
 	},
 	"nav": {
 		"approvals": "الموافقات",

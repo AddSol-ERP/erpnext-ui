@@ -55,6 +55,13 @@
  * @returns {number|null}
  */
 export function computeFactor(qty, total) {
+  // Guard the RAW value, not the coerced number: `Number("")` and
+  // `Number("  ")` are both 0, which passes an isFinite check and would yield
+  // a factor of 0 -- i.e. stock_qty 0, a silently wrong number that looks like
+  // a real result. An absent measurement must be null, not zero.
+  if (total === "" || total === null || total === undefined) return null;
+  if (typeof total === "string" && total.trim() === "") return null;
+
   const q = Number(qty);
   const t = Number(total);
   if (!Number.isFinite(q) || q === 0 || !Number.isFinite(t)) return null;
@@ -64,13 +71,31 @@ export function computeFactor(qty, total) {
 /**
  * Whether this line needs a measured total at all.
  *
- * Exactly the condition under which a factor other than 1 can survive: the
- * received UOM has to differ from the stock UOM (rule 4 above). When they are
- * the same, ERPNext resets the factor and asking for a total would be theatre.
+ * Two conditions, both necessary:
+ *
+ * 1. The received UOM must differ from the stock UOM. That is exactly when a
+ *    factor other than 1 survives ERPNext's force-reset (rule 4 above); when
+ *    they match, asking for a total would be theatre.
+ * 2. The STOCK UOM must not be flagged `must_be_whole_number`.
+ *
+ * The second one is a correctness guard, not a nicety, and it was found by
+ * checking against live data. Take W-0268-01-001: stock_uom `Nos`, also
+ * `Kg`. Set the received UOM to `Kg` and condition 1 alone would offer a
+ * "Total received (Nos)" field -- and a user entering 10 Kg against a total of
+ * 25 gets factor 2.5, so ERPNext books **25 Nos of stock from a 10 Kg
+ * delivery**. It saves cleanly and the quantity is silently wrong.
+ *
+ * A weight simply cannot be stock when the stock UOM counts whole pieces, so
+ * there is no coherent meaning for the field on such an item and it is not
+ * offered. Weighed items must be stocked in a weight UOM -- which is item-master
+ * configuration, and out of scope for this screen to change.
  */
 export function needsMeasuredTotal(info, receivedUom) {
   if (!info || !info.stock_uom || !receivedUom) return false;
-  return info.stock_uom !== receivedUom;
+  if (info.stock_uom === receivedUom) return false;
+
+  const stockUomRow = (info.uoms || []).find((u) => u.uom === info.stock_uom);
+  return !(stockUomRow && stockUomRow.must_be_whole_number);
 }
 
 /**
@@ -149,10 +174,16 @@ export function validateLineRow(row, info, t) {
     if (!Number.isFinite(total) || total <= 0) {
       return t("store.receipt.validation.totalInvalid", { uom: info.stock_uom });
     }
-    // Rule 3: the STOCK uom's flag applies to stock_qty, i.e. the total.
-    if (rules.mustWholeStock && total % 1 !== 0) {
-      return t("store.receipt.validation.wholeNumberUom", { uom: info.stock_uom });
-    }
+  }
+
+  // Rule 3, enforced independently of whether the total field was shown.
+  // `needsMeasuredTotal` already hides the field for a whole-number stock UOM,
+  // so this is the second line of defence -- but it is the rule ERPNext
+  // actually enforces (purchase_receipt.py:278 checks stock_qty against the
+  // STOCK uom), so it must not depend on a UI decision to be checked at all.
+  const stockQty = Number(row.stock_qty);
+  if (rules.mustWholeStock && row.stock_qty !== "" && Number.isFinite(stockQty) && stockQty % 1 !== 0) {
+    return t("store.receipt.validation.wholeNumberUom", { uom: info.stock_uom });
   }
 
   if (rules.mustWholeQty && qty % 1 !== 0) {
