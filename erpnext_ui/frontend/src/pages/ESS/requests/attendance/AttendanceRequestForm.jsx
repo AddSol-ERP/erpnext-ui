@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, FileText, SlidersHorizontal } from "lucide-react";
-import { useHeader } from "../../../context/HeaderContext";
-import { useToast } from "../../../context/ToastContext";
-import { get } from "../../../services/api";
+import { useHeader } from "../../../../context/HeaderContext";
+import { useToast } from "../../../../context/ToastContext";
+import { get } from "../../../../services/api";
 import {
   cancelDocument,
   deleteDocument,
@@ -14,23 +14,23 @@ import {
   saveDocument,
   submitDocument,
   workflowActionLabelKey,
-} from "../../../lib/docTransition";
-import { getApprovalMeta } from "../../../lib/approvalMeta";
-import { useDocStatus } from "../../../hooks/useDocStatus";
-import { FormField } from "../../../components/FormField";
-import { DocStatusField } from "../../../components/DocStatusField";
-import FormSection from "../../../components/FormSection";
-import FormErrorSummary from "../../../components/FormErrorSummary";
-import FormSelect from "../../../components/FormSelect";
-import ConfirmDialog from "../../../components/ConfirmDialog";
-import { focusFirstError } from "../../../lib/formValidation";
+} from "../../../../lib/docTransition";
+import { getApprovalMeta } from "../../../../lib/approvalMeta";
+import { useDocStatus } from "../../../../hooks/useDocStatus";
+import { FormField } from "../../../../components/FormField";
+import { DocStatusField } from "../../../../components/DocStatusField";
+import FormSection from "../../../../components/FormSection";
+import FormErrorSummary from "../../../../components/FormErrorSummary";
+import FormSelect from "../../../../components/FormSelect";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { focusFirstError } from "../../../../lib/formValidation";
 import {
   applyEmployeeScope,
   fetchEmployeeFields,
   fetchEmployeeScope,
   isEmployeeLocked,
-} from "../../../lib/employeeScope";
-import LinkField from "../../../components/LinkField";
+} from "../../../../lib/employeeScope";
+import LinkField from "../../../../components/LinkField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -325,11 +325,11 @@ export default function AttendanceRequestForm() {
       setDirty(false);
 
       if (isEdit) {
-        navigate("/requests/attendance");
+        navigate("/ess/attendance-request");
       } else {
         // A new form offers Save only, so land on the saved document where
         // Submit (or the Workflow transitions) is reachable.
-        navigate(`/requests/attendance/${res?.data?.name}`);
+        navigate(`/ess/attendance-request/${res?.data?.name}`);
       }
     } catch (e) {
       // Map Frappe's `_server_messages` back onto the individual fields so the
@@ -407,7 +407,7 @@ export default function AttendanceRequestForm() {
           name: t("requests.attendance.doctypeName"),
         }),
       );
-      navigate("/requests/attendance");
+      navigate("/ess/attendance-request");
     } catch (e) {
       toast.error(e?.message || t("common.deleteFailed"));
       setError(e?.message || t("common.deleteFailed"));
@@ -505,13 +505,13 @@ export default function AttendanceRequestForm() {
       // With a Workflow the transition can only be chosen against a saved
       // document, so continue there where those buttons now exist.
       if (hasWorkflow) {
-        navigate(`/requests/attendance/${docName}`);
+        navigate(`/ess/attendance-request/${docName}`);
         return;
       }
 
       await submitDocument({ doctype: "Attendance Request", name: docName, action });
       toast.success(t("common.submittedSuccess", { name: label }));
-      navigate("/requests/attendance");
+      navigate("/ess/attendance-request");
     } catch (e) {
       const message = e?.message || t("common.submitFailed");
       toast.error(message);
@@ -535,10 +535,10 @@ export default function AttendanceRequestForm() {
 
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
-        { label: t("nav.requests"), path: "/requests" },
+        { label: t("nav.ess"), path: "/ess" },
         {
           label: t("requests.header.attendanceListTitle"),
-          path: "/requests/attendance",
+          path: "/ess/attendance-request",
         },
         {
           label: isEdit ? name : t("common.new"),
@@ -584,7 +584,7 @@ export default function AttendanceRequestForm() {
           label: t("common.back"),
           variant: "btn-outline-primary",
           disabled: loading || submitting,
-          onClick: () => navigate("/requests/attendance"),
+          onClick: () => navigate("/ess/attendance-request"),
         },
 
         // Cancel the stored document (docstatus 1 -> 2), confirmed first.

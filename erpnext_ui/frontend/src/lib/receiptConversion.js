@@ -1,0 +1,163 @@
+/**
+ * Purchase Receipt line arithmetic.
+ *
+ * Everything here is pure so it can be asserted directly in the rules suite
+ * without mounting a form. The behaviour is not ours to choose, though -- it is
+ * forced by ERPNext, and the four rules below are the whole reason this module
+ * exists. All citations are v15 source.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE FACTOR IS COMPUTED AND NEVER FETCHED
+ * ---------------------------------------------------------------------------
+ * `conversion_factor` converts transaction-UOM -> stock-UOM, so
+ * `stock_qty = qty * conversion_factor` (buying_controller.py:517). For a
+ * weighed receipt the honest factor is a *measurement*, not a master-data
+ * constant: 10 plates that came in at 25.4 Kg are 2.54 Kg each, and the next
+ * delivery will not weigh the same. Reading it from UOM Conversion Detail
+ * (which is what `get_conversion_factor` does) books the nominal figure and
+ * silently mis-states stock on every weighed receipt.
+ *
+ * So: the factor is always `total / qty`, computed as the user types, and it is
+ * never offered as an input. Four rules make that legal:
+ *
+ *   1. `uom` is compared against the PO line
+ *      (purchase_receipt.py:315) -- so on a PO receipt the received UOM is
+ *      pinned, but it is NOT compared to anything else.
+ *   2. `conversion_factor` is not in `compare_fields` at all, so it is never
+ *      compared to the PO (transaction_base.py:125-127 iterates compare_fields
+ *      only). Note this is true for every case, not just is_return.
+ *   3. `stock_qty` must be a whole number when the STOCK UOM is flagged
+ *      `must_be_whole_number` (purchase_receipt.py:278 --
+ *      `validate_uom_is_integer("stock_uom", "stock_qty")`). Note this checks
+ *      stock_qty against the STOCK uom, which is a different pair from the
+ *      transaction qty against the transaction uom.
+ *   4. If `uom == stock_uom`, ERPNext force-resets the factor to 1.0
+ *      (stock_controller.py:110-116). This is exactly why a total is only
+ *      offered when the two differ -- otherwise it could never be used.
+ *
+ * A client-supplied non-zero factor is respected: `set_missing_values` only
+ * fills it when it is zero (buying_controller.py:362), and it is excluded from
+ * float rounding (:361), so 2.54 stays 2.54.
+ *
+ * Side benefit worth knowing: valuation needs no extra work.
+ * `stock_uom_rate = rate / conversion_factor` (stock_controller.py:1225), so a
+ * rate of 500/Nos at factor 2.54 becomes 196.85/Kg and 25.4 Kg values back to
+ * the same total.
+ */
+
+/**
+ * Conversion factor from a measured total. Returns null when it cannot be
+ * derived -- deliberately not 1, because a silent 1 would book qty instead of
+ * the measured weight and look like a successful save.
+ *
+ * @param {number|string} qty     quantity in the received (transaction) UOM
+ * @param {number|string} total   measured total in the stock UOM
+ * @returns {number|null}
+ */
+export function computeFactor(qty, total) {
+  const q = Number(qty);
+  const t = Number(total);
+  if (!Number.isFinite(q) || q === 0 || !Number.isFinite(t)) return null;
+  return t / q;
+}
+
+/**
+ * Whether this line needs a measured total at all.
+ *
+ * Exactly the condition under which a factor other than 1 can survive: the
+ * received UOM has to differ from the stock UOM (rule 4 above). When they are
+ * the same, ERPNext resets the factor and asking for a total would be theatre.
+ */
+export function needsMeasuredTotal(info, receivedUom) {
+  if (!info || !info.stock_uom || !receivedUom) return false;
+  return info.stock_uom !== receivedUom;
+}
+
+/**
+ * The two whole-number rules ERPNext will enforce, which are NOT the same check:
+ *
+ *   - `mustWholeQty`   -- transaction qty against the RECEIVED uom
+ *                         (a half-plate is not a plate)
+ *   - `mustWholeStock` -- stock_qty against the STOCK uom
+ *                         (purchase_receipt.py:278)
+ *
+ * `info` is the get_item_uom_options payload: { stock_uom, uoms: [...] }.
+ */
+export function wholeNumberRules(info, receivedUom) {
+  const uoms = (info && info.uoms) || [];
+  const find = (uom) => uoms.find((x) => x.uom === uom);
+  return {
+    mustWholeQty: Boolean(find(receivedUom)?.must_be_whole_number),
+    mustWholeStock: Boolean(find(info?.stock_uom)?.must_be_whole_number),
+  };
+}
+
+/**
+ * Apply a measured total to a row, returning the fields ERPNext will use.
+ *
+ * `stock_qty` is set to the measured total directly rather than to
+ * `qty * factor`: the multiplication is algebraically identical but reintroduces
+ * float noise (25.4/10*10 === 25.400000000000002), and this value is what the
+ * user reads back on screen. ERPNext re-derives it server-side regardless.
+ *
+ * When the factor cannot be derived, the row is left with an empty factor and
+ * an empty stock_qty so the caller can block the save with a real message
+ * instead of posting a wrong number.
+ */
+export function applyMeasuredTotal(row, total) {
+  if (!needsMeasuredTotal(row, row.uom)) {
+    const q = Number(row.qty);
+    return {
+      ...row,
+      measured_total: "",
+      conversion_factor: 1,
+      stock_qty: Number.isFinite(q) ? q : "",
+    };
+  }
+
+  const factor = computeFactor(row.qty, total);
+  const t = Number(total);
+  const hasTotal = total !== "" && total !== null && total !== undefined && Number.isFinite(t);
+
+  if (!hasTotal || factor === null) {
+    return { ...row, measured_total: total ?? "", conversion_factor: "", stock_qty: "" };
+  }
+  return { ...row, measured_total: t, conversion_factor: factor, stock_qty: t };
+}
+
+/**
+ * Client-side pre-check for one line. Mirrors ERPNext so a save is not spent
+ * discovering something we already knew.
+ *
+ * @returns {string|null} an i18n key, or null when the line is sound
+ */
+export function validateLineRow(row, info, t) {
+  const qty = Number(row.qty);
+  const rules = wholeNumberRules(info, row.uom);
+
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return t("store.validation.qtyGtZero");
+  }
+
+  if (needsMeasuredTotal(info, row.uom)) {
+    if (row.measured_total === "" || row.measured_total === undefined || row.measured_total === null) {
+      // Required, not optional. Defaulting to a factor of 1 here would book the
+      // transaction quantity as stock and read as a successful save.
+      return t("store.receipt.validation.totalRequired", { uom: info.stock_uom });
+    }
+    const total = Number(row.measured_total);
+    if (!Number.isFinite(total) || total <= 0) {
+      return t("store.receipt.validation.totalInvalid", { uom: info.stock_uom });
+    }
+    // Rule 3: the STOCK uom's flag applies to stock_qty, i.e. the total.
+    if (rules.mustWholeStock && total % 1 !== 0) {
+      return t("store.receipt.validation.wholeNumberUom", { uom: info.stock_uom });
+    }
+  }
+
+  if (rules.mustWholeQty && qty % 1 !== 0) {
+    return t("store.receipt.validation.wholeNumberUom", { uom: row.uom });
+  }
+
+  return null;
+}

@@ -1,0 +1,1589 @@
+# MEMORY.md — How `erpnext_ui` Actually Works
+
+Durable reference for this codebase. Written 2026-10-13.
+Every non-obvious claim carries a `file:line` citation — verify before trusting.
+
+> **This file supersedes** `erpnext_ui/frontend/SUMMARY.md` and
+> `erpnext_ui/frontend/CRUD_FUNCTIONALITY.md`, both of which are badly stale
+> (they claim "i18n: None" and "no Tailwind"; the app has 3 locales and Tailwind 4;
+> they also list three components that do not exist).
+
+**For how to build, test and safely change this repo → read `AGENTS.md`.**
+
+---
+
+## 1. What this app is
+
+A Frappe v15 app (`erpnext_ui`, "Addsol Erpnext UI") containing a **React 19 SPA
+that replaces ERPNext desk for operational users**. There are no custom DocTypes —
+the app is a *shell over stock ERPNext/HRMS doctypes*, plus one seeded Workflow
+set and one print format.
+
+The mechanism is `boot_session` (`erpnext_ui/api.py:103-122`): every non-Administrator
+user gets `home_page = "/addsol_ui"`, so they land in the SPA after login. Escape
+hatch: the navbar button injected by `public/js/addsol_ui_nav.js`, and a
+"Back to ERPNext" action in the user menu.
+
+`required_apps = []` (`hooks.py:11`) — but the SPA **hard-depends on `hrms`** and
+on **`shopfloor`** at runtime (see §9.5). That is a real, undeclared dependency.
+
+### 1.1 Two mount paths, one bundle
+
+| Path | Controller | Mount node | Mechanism |
+|---|---|---|---|
+| `/app/addsol-ui` (desk Page) | `addsol_erpnext_ui/page/addsol_ui/addsol_ui.js` | `#react-root` | injects `<script>`, waits for `window.mountErpUI` |
+| `/addsol_ui` (standalone www) | `www/addsol_ui.py` + `.html` | `#root` | Jinja-rendered `<script type="module">` |
+
+Both resolve the hashed bundle through **`public/erp_ui/.vite/manifest.json`**,
+key `"src/main.jsx"` (`www/addsol_ui.py:15-23`, `addsol_ui.js:6-15`).
+
+**`window.mountErpUI` is a contract.** `main.jsx:70-72` assigns it;
+`addsol_ui.js:25-32` calls it in the script's `onload`. Renaming or removing
+either side silently breaks desk embedding — the desk page renders an empty shell
+with no console error from React.
+
+`addsol_ui.js:62-85` additionally hides `.navbar`, `.page-head` etc. so the SPA
+fills the viewport.
+
+---
+
+## 2. Repository layout
+
+```
+erpnext_ui/                          # the Frappe app
+├── hooks.py                         # 4 live hooks (§3.1)
+├── api.py                    (782)  # 6 whitelisted endpoints + 2 hook callbacks
+├── ui_documents.py           (495)  # 4 ESS document endpoints
+├── setup/workflows.py        (601)  # after_migrate workflow seeder (§3.4)
+├── patches.txt                         # 1 patch, [post_model_sync]
+├── patches/v1_0/create_salary_slip_print_format.py
+├── www/addsol_ui.{py,html}            # standalone SPA page
+├── addsol_erpnext_ui/page/addsol_ui/  # the ONLY DocType JSON (a Page)
+├── templates/print_formats/salary_slip.html
+├── public/js/addsol_ui_nav.js         # desk navbar button + home tile
+├── public/erp_ui/                     # BUILT, GIT-TRACKED SPA output
+├── frontend/                          # Vite/React source
+└── erp_chatos/{PLAN,FUNCTIONALITY}.md # planning docs only, no code
+```
+
+No `install.py`, no `uninstall.py`, no `utils/`, **no `doctype/` directory**.
+`hooks.py:81-82` references `erpnext_ui.utils.*` inside a commented-out block —
+that module does not exist; don't uncomment it.
+
+### 2.1 Frontend source tree
+
+```
+frontend/src/
+├── main.jsx                  provider tree + both mount paths
+├── App.jsx                   HashRouter, ~50 routes
+├── services/api.jsx          the ONLY HTTP layer
+├── config/{moduleAccess,doctypes,topBar}.js
+├── context/{Role,Toast,Header}Context.jsx
+├── lib/                      13 domain-rule modules  ← read these first
+├── hooks/                    useDocStatus, useListPagination, use-mobile
+├── i18n/                     en/hi/ar × 7 namespaces = 21 JSON files
+├── layout/{AppShell,MainLayout}.jsx
+├── components/               GenericList, GenericForm, Approval, StockEntry,
+│                             ChildTable, LinkField, PrintPreview, ui/ (shadcn)
+├── pages/                    Dashboard, ESS, requests, Reports, Store,
+│                             Production, Quality, HR, Sales, Purchase
+└── utils/                    theme, getUser, monthlyAttendance, (+2 dead)
+```
+
+### 2.2 Stack
+
+React 19.2 · Vite 8 (`base: /assets/erpnext_ui/erp_ui/`, `outDir: ../public/erp_ui`,
+`manifest: true`) · react-router-dom 7 **HashRouter** · Tailwind 4 + shadcn/ui ·
+react-i18next · recharts (lazy-loaded) · sonner toasts.
+
+`npm run build` writes **directly into `erpnext_ui/public/erp_ui/`**, and that
+output **is committed to git**. A frontend change is not finished until the
+rebuild is committed, or both mount paths serve stale code.
+
+---
+
+## 3. Backend
+
+### 3.1 Live hooks (`hooks.py`)
+
+| Hook | Line | Effect |
+|---|---|---|
+| `add_to_apps_screen` | `:14-22` | Addsol UI tile → `/addsol_ui`, logo `/assets/erpnext_ui/erp_ui/logo.png`, `has_permission: erpnext_ui.api.has_app_permission` |
+| `boot_session` | `:25` | `erpnext_ui.api.boot_session` → forces `home_page` |
+| `app_include_js` | `:32` | injects `addsol_ui_nav.js` on **every desk page** |
+| `after_migrate` | `:248-249` | `setup.workflows.setup_workflows` |
+
+Note `after_migrate`, **not `after_install`**: a fresh `bench install-app` seeds
+no workflows; the first `bench migrate` does.
+
+### 3.2 `api.py` — the complete endpoint surface
+
+**5 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
+defaults to `allow_guest=True`.** That is deliberate for the read-only report
+endpoints but means they are reachable pre-login; `_get_scope()` collapses to
+"my own record only" for a Guest session, so no data leaks.
+
+| Endpoint | Line | Notes |
+|---|---|---|
+| `get_ui_access()` | `:45-73` | **The security boundary.** Returns only booleans: `{approvals:{dt:bool}, reports:{key:bool}}`. Never role names or doctype metadata. |
+| `get_current_user()` | `:83-100` | `{user, roles}`, filters out `"All"`/`"Guest"` (`:98`) |
+| `get_csrf_token()` | `:125-143` | The SPA is static assets and never evaluates desk's boot script, so `frappe.csrf_token` doesn't exist client-side. Without this, **every write fails** `CSRFTokenError`. |
+| `leave_balance_report(...)` | `:361-492` | ⚠️ bare whitelist (guest-reachable) |
+| `leave_balance_employees(...)` | `:495-533` | ⚠️ bare whitelist |
+| `monthly_attendance(...)` | `:607-782` | ⚠️ bare whitelist |
+| **`get_project_items(...)`** | `:829-1000` | Store: Project → BOM → items. See §3.7. |
+| **`get_indent_queue(...)`** | `:1003-1180` | Store: the storekeeper's worklist. See §3.7. |
+| `has_app_permission()` | `:76-80` | hook, returns `True` |
+| `boot_session(bootinfo)` | `:103-122` | hook |
+
+Note `api.py:1-2` now imports `flt`/`cint` from `frappe.utils`. **`frappe.flt` does not exist** — `frappe/__init__.py` re-exports only `get_traceback` from utils, so the explicit import is required.
+
+`_can_read(doctype)` (`:32-42`) **fails closed**: any exception → `False`. This
+matters — `SPA_APPROVAL_DOCTYPES` (`:9-15`) and `SPA_REPORT_DOCTYPES` (`:25-29`)
+live **server-side deliberately** (`api.py:6-8`): the set of doctypes whose
+existence gets disclosed must not be editable JavaScript.
+
+### 3.3 `_get_scope()` — the HR visibility model (`api.py:173-267`)
+
+```
+is_hr           = roles ∩ {HR Manager, HR User, Administrator}      (:3, :182)
+is_hod          = Department.hod == user, or Department.hod == my_employee,
+                   or Department.head_of_department == my_employee    (:201-235)
+is_manager      = any Employee where reports_to == my_employee
+                   and status == Active                               (:238-247)
+can_view_others = is_hr or is_hod or is_manager                      (:249)
+allowed_departments = None (all) | hod_departments | [my_department] (:251-258)
+```
+
+`Department.hod` / `.head_of_department` are probed with `get_meta().has_field()`
+first (`:197-199`) because they are not present in every schema.
+
+Consumers: `leave_balance_report`, `leave_balance_employees`, `monthly_attendance`
+(all three do their own employee scoping from this one dict).
+
+### 3.4 `setup/workflows.py` — all four seeded workflows
+
+`create_workflow_if_missing(config)` (`:398-601`) step order — each step is a
+silent-skip, and the whole workflow is skipped if any precondition fails:
+
+1. DocType exists? (`:406-411`) — else warn + skip
+2. Any Workflow already on this doctype? (`:417-431`) — else **skip; never modify**
+3. Ensure Roles (`:437-475`) — collects `allow_edit` + `allowed`, inserts missing
+   with `ignore_permissions=True`. Rationale `:447-463`: a site lacking the
+   `"Leave Approver"` role previously got **no Leave workflow at all**, silently.
+4. Ensure Workflow States (`:481-505`) — from `states[]` **and** `transitions[].state/next_state`
+5. Ensure Workflow Action Masters (`:507-533`) — Frappe seeds only Approve/Reject/Review,
+   so `Submit`, `Cancel`, `Resubmit`, `Verified` are created on demand
+6. Insert Workflow (`:539-545`), append states (`:551-575`), append transitions
+   (`:581-588`), commit (`:594-600`)
+
+Rows set `state`+`doc_status` unconditionally but `allow_edit`/`update_field`/
+`update_value` **conditionally** (`:570-575`) — unconditional assignment would
+crash on omitted keys.
+
+#### Workflow A — `Employee HR Approval` on Employee (`:22-115`)
+
+5 states / 6 transitions. Employee is **not submittable**, so every state is
+`doc_status: "0"` and approval lives purely in `workflow_state`.
+
+| State | doc_status | allow_edit |
+|---|---|---|
+| Pending HR Approval *(x3, `:63-65`)* | 0 | HR User / HR Manager / Employee |
+| Approved (`:66`) | 0 | HR Manager |
+| Rejected (`:67`) | 0 | HR Manager |
+
+| From | Action | To | allowed |
+|---|---|---|---|
+| Pending HR Approval | Approve | Approved | HR Manager (`:74`) |
+| Pending HR Approval | Approve | Approved | HR User (`:80`) |
+| Pending HR Approval | Reject | Rejected | HR Manager (`:86`) |
+| Pending HR Approval | Reject | Rejected | HR User (`:92`) |
+| Rejected | Resubmit | Pending HR Approval | HR Manager (`:102`) |
+| Rejected | Resubmit | Pending HR Approval | HR User (`:108`) |
+
+- **State row order is load-bearing** (`:59-62`): `validate_workflow` falls back to
+  `states[0].state` when unset, so row 1 is the entry state for every new Employee.
+- Rows 2–3 duplicate rows 1's state name and are **inert** (Frappe resolves
+  `state_row = state_row[0]`). Kept deliberately.
+- Duplicate transitions exist because `Workflow Transition.allowed` is a
+  **single-role Link** (`:71-73`); `get_transitions` filters by the logged-in role,
+  so each user only ever sees their own row.
+- **⚠️ Docstring/code contradiction:** `:48-52` asserts `allow_edit` is
+  "intentionally omitted… would make records read-only in ERPNext desk but not in
+  this app", yet rows `:63-67` all set it. One of the two is stale. See §9.1.
+
+#### Workflow B — `Leave Application Approval` (`:118-247`)
+
+7 state rows / 7 transitions. Every state carries `update_field: "status"` —
+**the workflow, not the form, owns `status`** (`:123-132`).
+
+| State | doc_status | status → | allow_edit |
+|---|---|---|---|
+| Draft (`:134`) | 0 | Open | Employee |
+| Pending Leave Approver (`:141`) | 0 | Open | Leave Approver |
+| Pending HR Approval (`:148`) | 0 | Open | HR Manager |
+| Approved (`:155`) | **1** | Approved | HR Manager |
+| Rejected (`:162`) | **1** | Rejected | Leave Approver |
+| Cancelled (`:173`) | 2 | Cancelled | Leave Approver |
+| Cancelled (`:187`) | 2 | Cancelled | HR Manager — *inert duplicate, kept deliberately* (`:180-186`) |
+
+| From | Action | To | allowed |
+|---|---|---|---|
+| Draft | Submit | Pending Leave Approver | Employee |
+| Pending Leave Approver | Approve | Pending HR Approval | Leave Approver |
+| Pending Leave Approver | Reject | Rejected | Leave Approver |
+| Pending HR Approval | Approve | Approved | HR Manager |
+| Pending HR Approval | Reject | Rejected | HR Manager |
+| Approved | Cancel | Cancelled | HR Manager |
+| Approved | Cancel | Cancelled | Leave Approver |
+
+`Rejected` is `doc_status: 1` (`:164-167`) because HRMS only permits submission
+when `status` is already Approved/Rejected — a draft Rejected would stay
+resubmittable. Cancellation is workflow-owned (`:227-233`): once any transition
+targets `doc_status "2"`, `can_cancel_document` returns False.
+
+**There is no `Rejected → *` path on Leave Application.** A rejected leave is
+terminal. (`Resubmit` exists only on Employee.)
+
+#### Workflow C — `Attendance Request Approval` (`:250-333`)
+
+6 states / 5 transitions. **No `update_field` anywhere** (`:255-258`) — Attendance
+Request has no status column; the outcome is purely `workflow_state` + `docstatus`.
+
+| State | doc_status | allow_edit |
+|---|---|---|
+| Draft (`:261`) | 0 | Employee |
+| Pending Reporting Manager Approval | 0 | Leave Approver |
+| Pending HR Approval | 0 | HR Manager |
+| Approved | **1** | HR Manager |
+| **Rejected** | **0** | HR Manager |
+| Cancelled | 2 | HR Manager |
+
+| From | Action | To | allowed |
+|---|---|---|---|
+| Draft | Submit | Pending Reporting Manager Approval | Employee |
+| Pending Reporting Manager Approval | **Verified** | Pending HR Approval | Leave Approver |
+| Pending HR Approval | Approve | Approved | HR Manager |
+| Pending HR Approval | Reject | Rejected | HR Manager |
+| Approved | Cancel | Cancelled | HR Manager |
+
+`Rejected` is a **draft here** (`:281-282`) — unlike Leave/Expense the request
+must stay correctable. But note there is **no transition out of `Rejected`**,
+so it is stuck at docstatus 0 with no exit button. See §9.2.
+
+#### Workflow D — `Expense Claim Approval` (`:336-395`)
+
+4 states / 3 transitions. Outcome lives in **`approval_status`**, and **only
+terminal states write it** (`:341-345`) so an in-review claim keeps ERPNext's
+defaulted `"Draft"`.
+
+| State | doc_status | approval_status → | allow_edit |
+|---|---|---|---|
+| Draft (`:348`) | 0 | — | Employee |
+| Pending HR Approval | 0 | — | HR Manager |
+| Approved (`:358`) | 1 | Approved | HR Manager |
+| Rejected (`:364`) | 1 | Rejected | HR Manager |
+
+| From | Action | To | allowed |
+|---|---|---|---|
+| Draft | Submit | Pending HR Approval | Employee |
+| Pending HR Approval | Approve | Approved | HR Manager |
+| Pending HR Approval | Reject | Rejected | HR Manager |
+
+**No Cancel transition and no Cancelled state** for Expense Claim.
+
+#### Seed inventory
+
+- Workflows: 4
+- Workflow States (7 unique): `Draft`, `Pending Leave Approver`,
+  `Pending Reporting Manager Approval`, `Pending HR Approval`, `Approved`,
+  `Rejected`, `Cancelled`
+- Action Masters (6 unique): `Approve`, `Reject`, `Submit`, `Cancel`, `Resubmit`,
+  `Verified`
+- Roles (4 unique): `Employee`, `HR Manager`, `HR User`, `Leave Approver`
+- Workflow Document Stages: **none** — never touched by this app
+
+### 3.5 `ui_documents.py` — ESS identity documents
+
+4 endpoints, all `allow_guest=False`:
+`get_employee_document_types()` `:241`, `list_employee_documents()` `:263`,
+`upload_employee_document(type_key)` `:286`, `delete_employee_document(file_name)` `:449`.
+
+Design decisions worth preserving:
+
+- **No endpoint takes an `employee` argument** (`:102-129`). The Employee is
+  derived from `frappe.session.user`. Passing a name would only prove the record
+  exists, not that the caller may read it — and employee codes are trivially
+  guessable (`HR-EMP-00001`, …). Deriving it makes cross-employee access
+  impossible by construction.
+- **Type config is server-side** (`DOCUMENT_UPLOAD_CONFIG` `:34-85`) and shaped to
+  mirror the intended `UI Document Type` DocType, so promoting it later is a
+  one-file change. 8 types, all `max_size_mb: 5`.
+- **`is_private = 1` is load-bearing** (`:342-344`): `File.has_permission` returns
+  True for *any* non-private file to *any* authenticated user. These are Aadhaar /
+  PAN / bank proofs.
+- `file_doc.save(ignore_permissions=False)` (`:360`) — deliberately not ignoring
+  permissions, so Frappe enforces write on the attached Employee.
+- The `[TYPE_KEY]` filename prefix (`DOCUMENT_KEY_PATTERN` `:92`) is anchored at
+  the start because user filenames may contain brackets (`tax[2024].pdf`).
+  `generate_file_name` appends a hash to the *stem* on collision, leaving the
+  prefix intact.
+- `delete_employee_document` requires **both** that the File belongs to the
+  caller's Employee **and** that it carries a known `[KEY]` (`:479-490`) —
+  otherwise it's a generic "delete any File I can write" primitive.
+- **`PENDING_APPROVAL_STATE` (`:19`) is written with `frappe.db.set_value`, not a
+  document save** — deliberately. `validate_workflow` throws for any state change
+  that isn't a reachable transition, and there is deliberately no
+  `Approved → Pending` transition (adding one would let any employee move any
+  Employee record). So it is a **state signal, not an audited transition**: it
+  records no actor. `_set_pending_hr_approval` (`:183-217`) defensively verifies
+  an active Employee Workflow declares the state before writing.
+
+**⚠️ Dead code:** lines `:385-446` are an unreachable second copy of the upload
+body, sitting after `return _describe(file_doc)` at `:383`.
+
+### 3.6 Patch + print format
+
+`patches/v1_0/create_salary_slip_print_format.py` (162 lines), registered in
+`patches.txt` under `[post_model_sync]`. Idempotent.
+
+- Creates 6 Custom Fields on Salary Slip (`:24-73`): `pan_number`, `uan`,
+  `pf_number`, `esic_no`, `client_code`, `date_of_joining` — Indian payroll
+  statutory fields.
+- Creates 1 Custom Field on **Salary Component**: `custom_show_in_print` (`:76-84`).
+- Upserts Print Format `"Salary Slip"` (`:119-157`) with a **conflict guard**
+  (`:136-144`): throws if a Print Format of that name exists for a *different*
+  DocType. Temporarily sets `frappe.flags.in_migrate` (`:150-157`) because
+  `Print Format.validate()` refuses to update standard formats otherwise.
+- `name` is excluded from the update dict (`:120-121`) — passing it would attempt
+  a rename.
+
+The template `templates/print_formats/salary_slip.html` (255 lines) enforces
+three hard rules in its header (`:1-11`): accumulate totals with `namespace()` (a
+bare `{% set %}` inside `{% for %}` always reads 0); never call
+`frappe.get_doc()` per row; render **only** components flagged
+`custom_show_in_print`, and compute every total from that filtered set alone.
+
+### 3.7 Store: indents and project items (added 2026-10-13)
+
+Read-only projections supporting the purpose-first Store redesign. **Neither
+writes a doctype** — they use stock ERPNext doctypes unchanged and only answer
+two questions the client cannot answer safely: "what does this project need?" and
+"what is still owed?".
+
+#### The doctype chain (all fields already existed; none were used)
+
+```
+Project ──(BOM.project)──> BOM ──explode──> Material Request Item ──> Material Request
+                                                              │.project, .bom_no
+Stock Entry ──.project──> Project
+Stock Entry Detail ──.material_request / .material_request_item──> Material Request
+```
+
+`BOM.project` is the **only** bridge from a Project to an item list. ERPNext's
+`Project` doctype has no item child table, `Project Template` has only tasks, and
+there is **no whitelisted endpoint anywhere in v15 that returns a project's
+items**. So a project with no tagged BOM genuinely has no items.
+
+#### `get_project_items(project, company, bom, qty)`
+
+Why it exists rather than calling ERPNext directly — three reasons, all
+load-bearing:
+
+1. `bom.get_bom_items` has **no `has_permission` call** (`bom.py:1257`). Calling
+   it from the SPA would let any authenticated user read a project's bill of
+   materials. The wrapper checks BOM read explicitly.
+2. `get_bom_items` hardcodes `include_non_stock_items=True` (`bom.py:1259`), so it
+   returns consumables a Stock Entry rejects with *"is not a stock Item"*.
+3. It cannot be used with `fetch_exploded=1` for form prefill: the exploded read
+   comes from `BOM Explosion Item`, which has **no `uom` or `conversion_factor`
+   column**, and `Material Request Item` requires both. The wrapper uses
+   `fetch_exploded=0` and back-fills from `Item.stock_uom`.
+
+Outstanding = `stock_qty - ordered_qty` per item — the same expression
+`make_stock_entry`'s `update_item` uses (`material_request.py:757-761`).
+**`received_qty` is never used**: it is Purchase-flow only and stays `0` for
+Stock-Entry-backed requests.
+
+A project with several BOMs returns them all and the UI asks; guessing would put
+the wrong item codes on an indent. Passing a `bom` that is not tagged to the
+project throws rather than silently returning another project's items.
+
+Fails closed: a BOM read raises rather than returning `[]`, because an empty list
+reads as *"this project needs nothing"* and would push the user to free-text an
+item list that should have been generated.
+
+#### `get_indent_queue(company)`
+
+Submitted, unfulfilled Material Requests for the storekeeper. Restricted to
+**Material Issue / Material Transfer / Customer Provided** because that is
+ERPNext's own gate in `make_stock_entry` (`material_request.py:816-822`);
+Purchase and Manufacture are routed through PO/PR and Production Plan, so
+offering them here would surface a "Give Items" button that can only fail.
+
+Items already fully issued are dropped, so a finished request does not sit in the
+queue. For Material Transfer the source warehouse is read from `from_warehouse`
+(the other two use `warehouse`), mirroring `update_item`.
+
+#### `get_indent_list(purpose, scope, company, status, search, start, limit)`
+
+Powers the Project / General split. **It exists because Frappe cannot express
+that split as a list filter.**
+
+`get_filter` (`frappe/utils/data.py:1940`) sanitises a filter's fieldname and
+resolves it against the **parent** meta. `items.project` is not a field of
+`Material Request`, so it falls through to the child-table branch, which sets
+`f.doctype = "Material Request Item"` — and `prepare_filter_condition` then just
+*appends* `` `tabMaterial Request Item` `` with **no join**. The result is a
+cross join: an indent with three items on one project comes back three times and
+paginates wrongly. Verified against MariaDB — N parents × M items, no dedupe.
+
+So the split is computed here instead:
+
+1. `frappe.get_all("Material Request", ...)` → candidate names. **`get_all`
+   still applies read permissions** (it only skips them with an explicit
+   `ignore_permissions=True`), so the selection stays permission-checked.
+2. One query for every item's `project`, not one per request.
+3. Split in Python, paginate in Python, then fetch the page's rows and restore
+   the computed order.
+
+`scope="all"` interleaves the two buckets rather than listing all project indents
+then all general ones, so the default view stays ordered by recency across both.
+Candidates are capped at 2000.
+
+The server owns the purpose→type map in `SPA_REQUEST_PURPOSES`: the client sends
+a purpose key, never a `material_request_type`, so a caller cannot create a
+request of a type the map never vetted.
+
+#### `get_item_uom_options(item_code)`
+
+Everything the Purchase Receipt screen needs to render a row's UOM control in
+one call: `{stock_uom, uoms: [{uom, conversion_factor, must_be_whole_number}]}`.
+
+It exists instead of reading `Item.uoms` over REST, or of calling ERPNext's
+`get_conversion_factor` once per candidate UOM, because `must_be_whole_number`
+has to come back in the same payload — `validate_uom_is_integer`
+(`purchase_receipt.py:276-278`) rejects a fractional qty against a UOM flagged
+that way, so knowing it is the difference between catching it in the form and
+catching it on save. The stock UOM is always present in the result even if no
+conversion row exists, because it is by definition factor 1.
+
+#### Purchase Receipt: which POs are receivable
+
+Not a guess — ERPNext derives Purchase Order `status` from `per_received`
+(`controllers/status_updater.py`), and only two of the nine statuses mean
+"something is still to receive":
+
+| Status | Condition | Receivable |
+|---|---|---|
+| `To Receive and Bill` | `per_received < 100 and per_billed < 100 and docstatus == 1` | ✅ |
+| `To Receive` | `per_received < 100 and per_billed == 100 and docstatus == 1` | ✅ |
+| `To Bill` | `per_received >= 100` | ❌ fully received |
+| `Completed` / `Closed` / `On Hold` / `Cancelled` / `Draft` | — | ❌ |
+
+`make_purchase_receipt` itself only maps lines where
+`abs(received_qty) + abs(already_mapped) < abs(qty)` and
+`delivered_by_supplier != 1`, and sets `qty = qty - received_qty`. So an
+already-received PO yields an empty document rather than an error — the picker
+filters on status and the form renders a "nothing outstanding" state.
+
+#### Quantity arithmetic: do not duplicate it client-side
+
+| Quantity | Source of truth |
+|---|---|
+| Outstanding on an indent | `stock_qty - ordered_qty` on Material Request Item |
+| Progress % | `per_ordered` (saturates at 100 on over-issue — `status_updater.py:484-506`) |
+| What a Stock Entry becomes | `material_request.make_stock_entry` (whitelisted, `material_request.py:754`) |
+| What a Purchase Receipt becomes | `purchase_order.make_purchase_receipt` (whitelisted, `purchase_order.py:731`) |
+| UOM factor for an item | `get_conversion_factor` / `get_item_details` (`get_item_details.py:1461`, `:59`) |
+| Stock qty on a receipt | `qty × conversion_factor` |
+| Stock availability | `Bin.actual_qty - Bin.reserved_qty` |
+
+`material_request.make_stock_entry` already maps purpose, warehouses, the
+`material_request`/`material_request_item` linkage and the outstanding qty.
+**Do not hand-roll it.** The `Stock Entry` `on_submit` hook
+(`hooks.py:339-341` → `update_completed_and_requested_qty`) then maintains
+`ordered_qty` and status.
+
+---
+
+## 4. Frontend architecture
+
+### 4.1 Provider order (`main.jsx`)
+
+`I18nProvider → ToastProvider → HeaderProvider → RoleProvider → App`
+
+Theme is initialised before mount from `localStorage["app_theme"]`
+(`main.jsx:13-28`), defaulting on parse failure.
+
+### 4.2 Routing
+
+`HashRouter` (`App.jsx:66`). ~50 routes. Per-hub generic trio
+(`/:hub/:doctype`, `/new`, `/:name`) for `/hr`, `/sales`, `/purchase`, `/ess`,
+`/store`, `/quality`.
+
+Lazy chunks (`App.jsx:36-44`): Quality reports, and all three Reports pages —
+kept out of the initial bundle mainly to defer **recharts**.
+
+Print: `/ess/print/:doctype/:name` and generic `/:hub/print/:doctype/:name`.
+
+**HashRouter is why the route guards exist** — every URL is a plain hash anyone
+can type or bookmark, so hiding a nav item is not access control.
+
+### 4.3 `services/api.jsx` — the only HTTP layer
+
+- Base `/api`, overridable by `VITE_API_BASE_URL` (`:1-5`)
+- CSRF fetched once from `erpnext_ui.api.get_csrf_token`, cached in memory, sent
+  as `X-Frappe-CSRF-Token` on every unsafe method (`:19-38`)
+- **One** automatic retry on `exc === "CSRFTokenError"` — session rotation must
+  not silently lose a write (`:163-166`)
+- **Failure is decided by HTTP status + `json.exc`, never by `_server_messages`**
+  (`:180`). Frappe attaches `_server_messages` to successful responses as
+  msgprint's out-of-band channel (commonly `"[]"`); treating its presence as an
+  error made every successful Leave Application save throw.
+- `parseServerMessages` (`:83-128`) maps **top-level** fields only; child-table
+  refs like `expenses[0].amount` stay in the flat list (`:122-125`)
+- `uploadFile` (`:236-279`) is a separate multipart path that sends CSRF **twice**
+  (header + `csrf_token` form field) because same-origin and cross-origin setups
+  read different sources
+- `ApiError` carries `{exc, status, fieldMessages, messages}`
+
+### 4.4 `lib/` — the domain rules. Read these before touching anything.
+
+| Module | What it encodes |
+|---|---|
+| `docTransition.js` | The document state machine. §8.1 |
+| `approvalMeta.js` | Meta-safe doctype introspection; `PREFERRED_STATUS_FIELD` Expense Claim→`approval_status` (`:23-28`); `IMPLICIT_FIELDS` (name/owner/creation/modified/modified_by) never filtered out — `name` has no DocField row (`:83-89`); meta cache stores the promise, **failures are not cached** (`:64-72`) |
+| `employeeScope.js` | Filing-on-behalf. Identity = `Employee.user_id == session.user`, **without** `ignore_permissions` so a user always sees their own record. `canSelect` probe: read 2 active Employees, if any ≠ mine I may file for others. `isEmployeeLocked` pins self-only users |
+| `leaveApproval.js` | No-Workflow leave approval. `canActAsLeaveApprover` is an **exact User-id match** on `leave_approver` (`:26-28`) — narrow on purpose, else an employee approves their own leave. Uses `frappe.client.set_value` (not PUT) so only `status` is touched (`:61-81`) |
+| `namedApprovers.js` | `hrms...department_approver.get_approvers`. Must send `doctype` **both top-level and inside filters** — omitting the nested copy raises `UnboundLocalError: parentfield` (`:29-32`). Returns **tuples** `[name, first, last]`. The HRMS helper **throws** rather than returning `[]` — treat a throw as "no approvers" |
+| `profileFlags.js` | ESS HR gate. Uses **presence** of `workflow_state` as a per-site capability signal: absent or `null` → no warning; any non-`"Approved"` → warn. Deliberately ignores `custom_hr_approved` because permlevel>0 fields are stripped from REST for non-privileged users |
+| `formValidation.js` | `validateRequired` skips layout-break fieldtypes and `hidden`; `focusFirstError` uses `[data-field="X"]` (the contract `FormField` sets) and defers one frame via `requestAnimationFrame` so errors paint before focus |
+| `filterChips.js` | `listFilterHandlers` — **every** filter mutation resets to page 1 |
+| `statusTones.js` → `components/List/` | `statusTone()` uses **ordered keyword regexes** because Workflow states are admin-authored and un-enumerable client-side. Order is load-bearing: `pending` is tested **before** `approv`, else "Pending Approval" renders green; `cancel` maps to `open`, before pending |
+| `mapVariant.js` | Legacy bootstrap variant → shadcn Button (still consumed by `PageToolbar`, `ActionBar`) |
+| `tileNav.js` | Tile click → navigate; create click → `/app/<slug>/new-<slug>` new tab if `nativeForm` |
+| `gridCorners.js` | Deliberate no-op returning `""`. Cards stay square |
+| **`storePurposes.js`** | The purpose→doctype contract for the Store module. §4.8 |
+
+### 4.5 `config/`
+
+- `moduleAccess.js` — role→module coarse pass + `gatedBy` refinement. §5
+- `doctypes.js` (338 lines) — per-doctype `titleField`/`subtitleField`/
+  `metaField`/`statusField`, `searchFields`, `baseFilters`, `form.layout`,
+  `printFormat`, and two behaviour flags:
+  - **`nativeForm: true`** (11 doctypes: Salary Structure, Opportunity,
+    Quotation, Sales Order, Sales Invoice, Purchase Order/Receipt/Invoice,
+    Supplier Quotation, Request for Quotation, Stock Reconciliation) → row click
+    opens ERPNext desk in a new tab
+  - **`readOnly: true`** — Overtime Log (`:98`), Salary Slip (`:108`) → render
+    print preview, no editable form
+  - Forced layouts: `Employee` → `stepper` (`:30`), `Leave Type` → `single` (`:59`)
+  - ⚠️ `Employee` sets `printFormat: "Employee Appointment Letter"` (`:28`) but
+    **no patch in this app creates that Print Format**. See §9.3.
+- `topBar.js` — composition flags only. `pageToolbar: true` puts page actions in a
+  fixed bottom bar.
+
+### 4.6 Context
+
+- **`RoleContext.jsx` — the security spine.** Fetches `get_current_user` +
+  `get_ui_access` in parallel. `doctypeAccess` **defaults to
+  `{approvals:{},reports:{}}`** (`:18-26`) and its error path calls
+  `getFailClosedModules()` (`:58-65`), because the previous fallback
+  `getAccessibleModules(["*"])` returns exactly ESS + Approvals + Reports —
+  a network blip used to hand every user the Approvals hub.
+- `ToastContext.jsx` — sonner wrapper; `MutationObserver` on
+  `documentElement[data-theme|lang|dir]` so toasts flip theme and move to
+  `bottom-left` under RTL.
+- `HeaderContext.jsx` — `header` config + `shellMode` (`"default"|"list"`);
+  `ListLayout` sets `"list"` so `AppShell` suppresses the bottom action bar.
+
+### 4.7 i18n, theme
+
+3 languages `["en","hi","ar"]`, default `en`, `localStorage["app_lang"]`.
+`RTL_LANGUAGES = ["ar"]` → `<html dir>` synced on `languageChanged`.
+Namespaces are **one JSON pair per module** (7 per language, 21 total) so
+parallel work never collides on `translation.json`: `translation.json` (core),
+`approvals`, `ess`, `store`, `ops` (production/quality/reports/print),
+`commercial` (hr/sales/purchase/demo), `reports`.
+
+`ThemePanel` writes ~20 CSS custom properties + `data-theme` via
+`utils/theme.js applyTheme()`, persisted to `localStorage["app_theme"]`.
+
+### 4.8 `config/storePurposes.js` — the Store vocabulary (added 2026-10-13)
+
+The single place mapping **what a person wants to do** onto **what ERPNext
+stores**. A user picks a *purpose*, never a doctype. Pure data — no React, no
+i18n, no api import — so it can be asserted in `.smoke-tmp/rules.jsx` without a
+DOM.
+
+Three defects it exists to prevent, all of which shipped:
+
+1. **Invalid doctype values.** The old Store hub offered
+   `material_request_type: "Transfer"` and `"Material Receipt"`. ERPNext v15's
+   Select options are `Purchase | Material Transfer | Material Issue |
+   Manufacture | Customer Provided` — Frappe's `_validate_selects`
+   (`base_document.py:892`) threw **HTTP 417** on every save.
+2. **One concept, two names.** The raw enum and the display label lived in two
+   parallel namespaces (`store.types.*`, `store.entryTypes.*`) that drifted, so
+   one screen said "Material Transfer" and another said "Transfer".
+3. **Shared vocabulary across documents.** "Material Issue/Transfer/Receipt"
+   names both a *Material Request type* and a *Stock Entry purpose* — opposite
+   directions on different documents. That collision is the actual reason people
+   could not tell which to pick.
+
+**Request purposes** → Material Request: `indent` → Material Issue, `purchase` →
+Purchase, `transfer` → **Material Transfer**, `production` → Manufacture,
+`customerProvided` → Customer Provided. Only the first three are
+`fulfillableByStore`, mirroring ERPNext's own gate.
+
+**Stock Entry purposes** → the nine standard entries, each carrying which
+warehouse sides to show and whether a Work Order is required, derived from
+`validate_warehouse` (`stock_entry.py:826-900`):
+
+| Group | Purposes |
+|---|---|
+| `everyday` | issue, receipt, transfer |
+| `manufacturing` | transferForManufacture, consumption, manufacture |
+| `correction` | repack, disassemble, subcontractor |
+
+Two facts encoded there:
+
+- **`stock_entry_type` is a Link to the `Stock Entry Type` doctype**, not a
+  Select. The nine standard records simply happen to share their purpose's name.
+- **`purpose` is hidden, read-only and `fetch_from`-derived.** Posting it is
+  pointless — `set_fetch_from_value` (`base_document.py:869-890`)
+  unconditionally overwrites it. `buildStockEntryPayload` therefore **never
+  emits `purpose`**, and 26 smoke assertions guard that.
+
+`store.json` gained the matching `store.purposes.*`, `store.giveItems.*`,
+`store.projectItems.*`, `store.movements.*` and `store.labels.*` namespaces in
+**all three locales** (323 keys each, verified identical).
+
+### 4.9 Layout
+
+`AppShell.jsx` (531 lines) — `NAV_SECTIONS` (`:67-294`) is the nav model,
+4 sections with layered gating:
+
+| Section | Gating |
+|---|---|
+| main | Home; Approvals (`moduleKey` + doctype gate) |
+| operations | Store (`Stock`), Quality (`Quality`), **Production — no `moduleKey`, always visible** |
+| people | Requests (`ESS`), ESS (`ESS`), HR, Sales, Purchase |
+| insights | Reports (`Reports` + per-child `reportKey`) |
+
+Items filtered by `!item.moduleKey \|\| hasModuleAccess(...)` (`:414-416`);
+report children by `canReadReport(child.reportKey)` (`:312-314`). A parent whose
+every child is withheld renders as a plain link so the section doesn't open onto
+nothing (`:329-340`).
+
+---
+
+## 5. Access control — the complete model
+
+**Layer 1 — role names → coarse module list.** `getAccessibleModules(userRoles)`
+(`moduleAccess.js:103-112`). `"*"` matches everyone.
+
+| Module | Roles | Extra |
+|---|---|---|
+| HR | HR Manager, HR User, Administrator | |
+| Sales | Sales Manager, Sales User, Administrator | |
+| Purchase | Purchase Manager, Purchase User, Administrator | |
+| Stock | Stock Manager, Stock User, **Manufacturing User**, Administrator | |
+| Quality | Quality Manager, Quality User, Administrator | |
+| ESS | `"*"` | **`public: true`** |
+| Approvals | `"*"` | `gatedBy: "approvals"` |
+| Reports | `"*"` | `gatedBy: "reports"` |
+
+**Layer 2 — real doctype read permission.** `applyDoctypeAccess(modules, access)`
+(`moduleAccess.js:144-158`): a `gatedBy` module survives only if the user can
+read **≥1** backing doctype, because a hub with nothing in it is a blank page
+that still confirms which doctypes exist.
+
+**Fail-closed.** `getFailClosedModules()` (`moduleAccess.js:126-130`) returns only
+`public: true` modules — i.e. ESS alone. Used on both the no-session and the
+request-failure path.
+
+**Route guards** (needed because of HashRouter):
+- `RequireApprovalDoctypeAccess.jsx` — also blocks *unlisted* doctypes:
+  `#/approvals/Employee` resolves to `undefined` = no access, so this route can't
+  become a permission-free door to any list the SPA can render
+- `RequireReportAccess.jsx` — one per report route, `reportKey` must match
+  `SPA_REPORT_DOCTYPES` in `api.py:25-29`
+
+Both return `null` (no flash) while permissions load.
+
+**Deliberately NOT client-gated** (server is the only boundary):
+
+| Thing | Why |
+|---|---|
+| Leave Application row delete | `LeaveApplicationList.jsx:186-189` — surface the server's `PermissionError` verbatim |
+| All `GET resource/*` queries | Frappe permission-filters the response; a denial is an empty list |
+| HR / Sales / Purchase hub pages | `App.jsx:238-241` serves `GenericList` with no module check. An unauthorized user sees the tile and an empty/erroring list, not a refusal |
+| ~~Stock Entry valuation~~ — **fixed** | `enrichValuation` is wrapped in `try`/`catch` and falls back to a zero-valued map, so a site without `shopfloor` now shows an unvalued entry instead of a thrown render |
+
+---
+
+## 6. The generic CRUD engine
+
+### 6.1 `GenericList`
+
+`components/GenericList/index.jsx` (471 lines). Requests `BASE_FIELDS`
+(`name, owner, creation, modified, docstatus`) + 4 config-derived display fields
+(`:24`). Query: `GET resource/<dt>` with `fields`, `filters`, `order_by:
+"modified desc"`, `limit_start`, `limit_page_length`; search becomes `or_filters`
+of `[searchField,"like","%q%"]`; count in parallel via
+`frappe.client.get_count` (`:253-260`).
+
+`config.baseFilters` (`:216-231`) are merged in **first** and are not clearable
+from the filter bar — a user ticking a status chip must not be able to widen a
+list past a business rule. This field was documented in `doctypes.js` and set on
+two entries but **never read anywhere**, so it silently did nothing until
+2026-10-13. A chip on a field that already has a base filter is ignored rather
+than overriding it. First real user: `BOM`, filtered to `is_active = 1`.
+
+Filter config is **auto-discovered** from `resource/DocType/<dt>` (`:112-196`):
+a hardcoded `PRIORITY_FIELDS` list scanned first (`workflow_state, status,
+company, department, supplier, customer, employee, employee_name, posting_date,
+transaction_date, from_date, to_date, item_code, item_group`), then any
+remaining Link/Select/Date, **capped at 8**.
+
+Row click → `nativeForm` desk tab / `readOnly` print preview / SPA form
+(`:354-369`). Page size 10.
+
+> ⚠️ Unlike the Approvals screen, GenericList does **not** meta-validate its field
+> list. A config field the doctype lacks fails the whole query.
+
+### 6.2 `GenericForm`
+
+`components/GenericForm/index.jsx` (1071 lines).
+
+**Meta discovery** (`:497-572`): `GET resource/DocType/<dt>` plus, in parallel,
+`GET resource/DocType/<child>` for every `Table` field. `initialDoc` skips
+`SYSTEM_FIELDS` and layout-break fieldtypes; `Check` → `0`, `Table` → `[]`, else
+`null`.
+
+**`buildLayout.js`** (241 lines): hierarchy is **Tab Break → tab → Section Break →
+section → fields**. Fields before the first break go into an implicit section
+under an implicit tab so nothing is dropped (`:56-115`). `resolveLayoutMode`
+(`:120-147`): config override wins; else `≤12 fields && ≤2 sections && no tabs` →
+`single`; `>30 fields || ≥5 sections || >5 tabs` → `tabs` if tabbed and `≤40`
+fields, else `stepper`; `hasTabBreak` → `tabs`; `≥3 sections && >12 fields` →
+`tabs`. `buildSteps` (`:155-225`): one step per tab if tabbed, else per section
+merging tiny sections up to 12 fields; **Table-only sections always flush to
+their own step**.
+
+**Field type map** (`fieldTypes/index.js:25-58`):
+
+| ERPNext fieldtype | Component |
+|---|---|
+| Data | DataField |
+| Small/Text/Long Text | TextField |
+| Select | SelectField (splits `options` on `\n`) |
+| Link | LinkFieldWrapper → LinkField with `field.options` |
+| Date / Datetime / Time | DateField / DatetimeField / TimeField |
+| Currency / Float / Int / Percent / Rating | CurrencyField (**hardcoded ₹**) / FloatField / IntField / FloatField / IntField |
+| Check | CheckboxField (writes 1/0) |
+| Read Only | ReadonlyField |
+| fallback | DataField |
+
+`isReadOnly = docstatus >= 1 || config.readOnly` (`:164-165`).
+`SYSTEM_FIELDS` stripped before save (`:57-62`). Delete only at `docstatus === 0`
+(`:644`). Grid: 3+ fields/row → `md:col-span-4`, 2 → `col-span-6`, 1 → `col-span-12`;
+`Check` renders bare; `Table` renders full-width.
+
+**Field change** (`handleFieldChange` `:170-219`): mark dirty → set value → clear
+that field's error → **`fetch_from` auto-population** for changed Links → debounced
+(1500 ms) `POST method/frappe.client.validate`, only for doctypes containing a
+`Table`, copying back `total_qty, total, net_total, total_taxes_and_charges,
+grand_total, rounded_total, in_words` (`:224-248`).
+
+### 6.3 Two contracts that look like mistakes and are not
+
+**The `docRef` pattern.** Toolbar actions are registered in an effect that
+deliberately does **not** depend on `doc`; handlers therefore closed over a stale
+document and Save POSTed stale data, discarding edits. Every handler reads through
+`docRef.current` (`:95-110`). 9 copies across the app. `Quality/entry/InspectionForm`
+extends it with `overallStatusRef`/`parametersRef`.
+
+**`dirty` is event-based, never diff-based.** Only `updateField`/
+`updateFieldObject` set it. Effects also write to `doc` — employee scope defaults,
+auto-selected approvers, server-calculated totals — and those are not edits.
+Diffing would report a freshly-opened form as dirty and leave Submit permanently
+hidden.
+
+---
+
+## 7. Module-by-module business logic
+
+### 7.1 Dashboard (`pages/Dashboard/index.jsx`)
+
+Module tiles + 4 KPI cards from `frappe.client.get_count`, each
+permission-filtered by Frappe: Purchase Order `status=Pending` (`:68`),
+Expense Claim `status=Open` (`:73`), Job Card `status=Open` (`:78`),
+Quality Inspection `status=Pending` (`:83`). Sequential awaits. Approvals renders
+as a highlighted card with a destructive badge only when the count > 0
+(`:134-164`).
+
+### 7.2 Requests — Leave / Attendance / Expense
+
+The most business-dense area. All three share: `docTransition` +
+`approvalMeta` + `employeeScope` + `namedApprovers`.
+
+#### Leave Application
+
+Fields: `employee, leave_approver, leave_type, from_date, to_date, half_day,
+description` + read-only `docstatus/status/workflow_state`.
+
+> HRMS stores the leave reason in **`description`** (label "Reason"). The form
+> once sent a non-existent `reason` field which was silently dropped.
+
+**Validation** (`LeaveApplicationForm.jsx:347-393`): employee, leave_type,
+from_date, to_date, `leave_approver` (custom "select an approver") required;
+`to_date >= from_date`; and a **leave-balance check** (`:377-385`) — only when
+the employee has a real allocation row for that leave type, so a type like
+*Leave Without Pay* with no allocation skips rather than failing against a fake 0.
+
+`getTotalDays` (`:324-335`) = calendar days, minus 0.5 when `half_day`.
+**No weekly-off/holiday exclusion** — deliberately left to the server.
+
+Balance source (`:290-312`): `POST
+hrms.hr.doctype.leave_application.leave_application.get_leave_details`.
+
+Approver auto-selects **only when exactly one candidate exists** (`:254-285`);
+otherwise left blank for an explicit choice.
+
+**`status` Select is disabled when a Workflow exists** (`:980-985`) —
+`apply_workflow` rewrites `status` from the next state's `update_value` on every
+transition, so anything typed would be overwritten.
+
+Lifecycle:
+```
+docstatus 0 (Draft)     → Save, Transitions, Approve/Reject*, Submit**, Back, Delete
+docstatus 1 (Submitted) → Transitions (if workflow), Cancel*** (no workflow)
+docstatus 2 (Cancelled) → Back, Delete   (isSubmitted = docstatus > 0, so locked)
+  * only when no workflow AND currentUser === doc.leave_approver
+  ** requires status ∈ {Approved, Rejected}
+ *** hidden when a Workflow exists — the Workflow owns cancellation
+```
+
+Save on a new form navigates to the **saved document**, not the list (`:426-431`),
+because a new form only offers Save and that's where Submit becomes reachable.
+
+#### Attendance Request
+
+Fields: `employee, company, from_date, to_date, half_day, half_day_date,
+include_holidays, shift, reason, explanation`.
+
+- **No `status` field at all** — the lifecycle is `docstatus` + `workflow_state`;
+  status renders as a read-only `DocStatusField`.
+- `reason` is a **restricted Select of exactly `Work From Home` / `On Duty`**
+  (`:900-910`) — matching HRMS's options.
+- `company` is re-derived from the Employee on every employee change
+  (`:183-191`); a one-time set-on-mount left it stale.
+- Validation: employee, from_date, to_date, reason required; `to_date >= from_date`;
+  `half_day && !half_day_date` → error on `half_day_date`.
+- `half_day_date` quick-pills are **suppressed when the range exceeds 7 days**
+  (`:805`).
+- **Save-first submit** (`:497-510`): unlike Leave, `handleSubmit` on an unsaved doc
+  saves it first.
+- **No Approve/Reject** — HRMS has no approver column here.
+- Unlike the other two request lists, **there is no blanket `docstatus != 2`** —
+  cancelled rows are visible.
+
+#### Expense Claim
+
+Fields: `employee, company, expense_approver, posting_date, remark,
+approval_status, expenses[]`.
+
+- `approval_status` is **seeded to `"Draft"`** (`:63-75`) rather than defaulted at
+  render — an untouched Save would `PUT approval_status: ""` and ERPNext rejects it.
+  Same trick as Leave's `status: "Open"`.
+- Validation: employee, company, `expense_approver` required; ≥1 expense row; each
+  row needs `expense_date`, `expense_type`, `amount > 0`.
+- `company` is a **permanently disabled read-only Input** (unlike Attendance Request).
+- Total is client-computed and **never written** — the server recomputes.
+- **No Delete, no Approve/Reject.** Expense approval is Workflow-only.
+- `approval_status` Select disabled when a Workflow exists (`:722-728`).
+
+### 7.3 Approvals hub
+
+**5 doctypes** (`components/Approval/index.jsx:35-62`), matching
+`SPA_APPROVAL_DOCTYPES`: Purchase Order, Expense Claim, Leave Application,
+Quotation, Overtime Log (Overtime Log overrides `pendingStatus: "Draft"`).
+
+**"My pending approvals" has no per-user filter.** `buildFilters`
+(`ApprovalListPage/index.jsx:250-274`) scopes by (a) Frappe's permission system on
+the query and (b) doctype-level base filters:
+
+| Doctype | Base filter |
+|---|---|
+| *(all)* | `docstatus = 0` |
+| Purchase Order | status not in `["Completed","Cancelled"]` |
+| Expense Claim | status ≠ `"Approved"` |
+| Leave Application | status in `["Open","Applied"]` |
+| Overtime Log | status = `"Draft"` |
+
+A selected status chip switches `docstatus` to `1` and pins the status field.
+Additional chips are added only if `meta.fieldSet.has(field)`, else Frappe rejects
+the whole query.
+
+Leave Application's field list **includes `leave_approver`** — "Needed by the
+preview to decide whether this user may Approve/Reject" (`:56-58`).
+
+Who can approve (`ApprovalPreview/index.jsx:302-315`):
+1. Workflow present → only transitions the logged-in role may run. If a Workflow
+   exists but this user has **zero** transitions, the code must **not** fall back to
+   raw document actions — the backend's decision stands.
+2. No Workflow + Leave Application → `resolveLeaveApprovalActions`, shown only to
+   the exact named approver.
+3. No Workflow + other submittable doctypes → plain actions, Frappe enforces.
+
+Default actions are filtered through `canSubmitDocument` (`:310-314`) — "offering
+a button that can only fail is worse than omitting it". Footer precedence:
+**Approve → Reject → (transitions else defaults)** — they never mix. Reject gets
+a `ConfirmDialog`.
+
+5 typed previews + `DefaultPreview`: PurchaseOrder (Terms + Payment Schedule
+surfaced **above** items so the approver reads commercial terms first),
+Quotation, Expense, Leave, OvertimeLog. `PreviewRenderer` **refetches the full
+document** (`GET resource/<dt>/<name>`) because the list row is a projected field
+set lacking items, taxes and addresses.
+
+> `components/Approval/ActionButtons/index.jsx` is **dead** — two hardcoded
+> Reject/Approve buttons with no handlers.
+
+### 7.4 Reports
+
+All three routes are guarded by `RequireReportAccess reportKey=…`, and keys must
+match `SPA_REPORT_DOCTYPES` (`api.py:25-29`).
+
+**Attendance** — `AttendancePage.jsx` (671 lines) + Calendar/Grid/Legend.
+`normalizeStatus` folds `HD/A` and `HD/P` → `HD` (`:62-65`). The WFH bucket counts
+as its own slice **and** toward Present; the pie subtracts WFH from Present so
+slices are distinct (`:180-187`). Attendance rate is computed **only when
+`can_view_others`**; working days exclude `WO`, `H` and empty; `HD` = 0.5.
+`AttendanceGrid` passes the **full English label** to `clickStatus` because the
+page string-compares against it (`:20-23`).
+
+**Leave Balance** — shared by ESS and Reports via a `context` prop. The
+department+employee filter panel and CSV export render **only when
+`can_view_others`** (`:334-405`). Matrix cell tone (`:701-717`): `allocated <= 0`
+→ muted; `balance <= 0` → destructive; `balance < allocated * 0.25` → warning.
+Fiscal year always comes from the server response, never the browser. CSV export
+is entirely client-side via `Blob`.
+
+**Overtime** — `GET resource/Overtime Log` for a date range, limit 500,
+**org-wide with no employee filter**; gated purely by read permission on
+`Overtime Log`.
+
+### 7.5 ESS
+
+- **Profile** — read-only, print via `frappe.utils.print_format.download_pdf`,
+  documents modal. `loadProfile({silent})` avoids a loading swap because that
+  would unmount the open modal (`:122-162`).
+- **EmployeeDocuments** — types come from the server; after upload the server
+  flips the Employee to *Pending HR Approval* so the parent does a **silent**
+  reload so the banner updates without closing the modal. Delete is guarded by a
+  nested `ConfirmDialog`.
+- **Attendance** — personal calendar. Cell precedence: **a real Attendance record
+  always beats weekly-off/holiday** (`:280-281`). `isMissing = !att && isPast &&
+  !isWeeklyOff && !isHoliday`. Click routing → check-in logs (Present) or a
+  day-detail modal offering **deep links** to `/requests/leave/new?from_date=…` and
+  `/requests/attendance/new?from_date=…&to_date=…` (`:288-294`).
+- **OvertimeLogs** — read-only; `Overtime Log` is `readOnly: true` in
+  `config/doctypes.js`.
+
+### 7.6 Store
+
+Rewritten 2026-10-13 from doctype-shaped tiles to **purpose cards**. See §3.7
+for the endpoints and §4.8 for the vocabulary.
+
+**Hub** (`pages/Store/index.jsx`) — three labelled sections:
+
+| Group | Tiles | Card click goes to |
+|---|---|---|
+| *I need something* | one per `REQUEST_PURPOSE_KEYS`: Raise an Indent, Ask Purchase to Buy, Move Stock Between Stores, Customer's Material, For Production | **the form** |
+| *I keep the stock* | **Receive Material** (Purchase Receipt), Give Items (the queue), Stock Entry | their own screen |
+| *Lookups* | Stock Balance, Item, Warehouse, **Bill of Materials**, Delivery | their own screen |
+
+**The dashboard is where you act.** A purpose card opens its form directly —
+there is no intermediate list to click through. Purpose cards therefore do *not*
+go through `createTileNav`: that handler derives a doctype from the route's last
+segment on a create click, and the route is now
+`/store/material-request/purpose/indent/new`, not a doctype name.
+
+Browsing is deliberately a **separate** action ("All requests", a header action),
+because reading existing requests is a different intent from raising a new one
+and folding it into the card click would put a read action behind what reads as
+a create action.
+
+Routes:
+
+| Route | Page |
+|---|---|
+| `/store/material-request` | the **single** browse surface — every purpose |
+| `/store/material-request/purpose/:purpose/new` | the only way to create one |
+| `/store/material-request/:name` | open/edit an existing request |
+
+There is **no per-purpose list route**, and there is no purpose-hub page. Both
+were removed on 2026-10-13: with cards going to the form, a per-purpose list had
+no entry point, and the hub's cards merely restated the dashboard.
+`get_indent_list` still accepts a `purpose` argument for when a scoped view is
+wanted.
+
+- **List** — segmented **All / Project indents / General indents**, with counts.
+  Both the segment and the pagination come from `get_indent_list`; see §3.7 for
+  why this cannot be done as a client-side filter. No "New" action: the list
+  spans every purpose, so it has no single type to create.
+- **Form** — no Purpose dropdown (the route supplies it). **Every item row carries
+  its own Project.** Setting a project on a row loads that project's BOM via
+  `get_project_items` and swaps that row's Item field to a `FormSelect` limited
+  to those items, labelled `required`/`outstanding`; clearing it goes back to
+  free `LinkField` search. Choosing a BOM item pre-fills qty with the
+  **outstanding** figure rather than the full BOM quantity, because asking again
+  for material already requested is how duplicate indents happen.
+  Validation: company required, `customer` required for *Customer Provided*, and
+  for *Material Transfer* both warehouses required **and different**.
+- **Give Items** (`pages/Store/indents/`) — the queue from `get_indent_queue`.
+  Each indent expands to per-item outstanding quantity, editable for a partial
+  issue. Submitting calls ERPNext's own
+  `material_request.make_stock_entry`, then lowers each line's `qty` to what was
+  typed (never raising it — `update_completed_qty` throws on over-issue),
+  deletes the read-only `transfer_qty`, POSTs, and submits.
+- **Purchase Receipt** (`pages/Store/purchase-receipt/`) — PO-first, with a
+  direct-entry escape. Landing page lists submitted POs filtered to the statuses
+  ERPNext derives from `per_received < 100` — `To Receive and Bill` and
+  `To Receive` only — and shows `% received` so outstanding is visible before
+  clicking. Picking one carries the PO name in `?po=`; the **form** maps it on
+  mount through `purchase_order.make_purchase_receipt`, so nothing is written
+  until Save and a reload re-maps cleanly.
+
+  Four ERPNext constraints shape the form, all in `purchase_receipt.py` /
+  `transaction_base.py`:
+
+  | Constraint | Source | How the UI handles it |
+  |---|---|---|
+  | PO-linked rows are compared on **project, uom, item_code** — a mismatch throws *"Incorrect value in row N: UOM must be equal to 'Kg'"*, and `uom`/`conversion_factor` are excluded **only** when `is_return` | `purchase_receipt.py:306-316`, `transaction_base.py:96` | those fields are **locked** on a mapped row, not merely validated — a picker there could only produce a save failure |
+  | duplicate `purchase_order_item` across rows throws *"Duplicate row"* | `transaction_base.py:109` | blocked client-side |
+  | a UOM flagged `must_be_whole_number` rejects a fractional qty | `purchase_receipt.py:276-278` | flag fetched with the UOM list; enforced on the row |
+  | future `posting_date` throws | `purchase_receipt.py:268` | validated |
+
+  **Auto-conversion** is the point of the screen: item picked →
+  `get_item_details` fills `uom`/`stock_uom`/`conversion_factor`/`stock_qty`/`rate`;
+  UOM changed → `get_conversion_factor` rewrites the factor and `stock_qty` is
+  recomputed as `qty × factor`, shown under the qty field (`×250 · 500 Nos`) so a
+  mismatch surfaces before save. The UOM picker is rendered **only when the item
+  has more than one UOM** — as of 2026-10-13 no item on the sample site does
+  (all 458 have exactly one conversion row, equal to their stock UOM, factor 1),
+  so today the field collapses to a read-only single value.
+
+  Direct entry: `Buying Settings.po_required` decides whether it is offered. It
+  is read with the already-whitelisted, already-permission-checked
+  `frappe.client.get_single_value` (`frappe/client.py:182`), and the "Receive
+  without a Purchase Order" action is **hidden when it is `Yes`** — better not to
+  offer a path that cannot save.
+
+- **Delivery Note / Stock Balance / Stock Entry** — unchanged; see below.
+
+- **Delivery Note** — `DeliveryNotePicker` offers only **Sales Order** and
+  **Pick List**, filtered `docstatus = 1 AND status != "Closed"`. SO→DN maps
+  `qty = i.qty - (i.delivered_qty || 0)` and **drops lines at ≤ 0 remaining**
+  (`:64-83`). `addRow` pre-fills the row warehouse from `set_warehouse`.
+- **Stock Balance** — blanket `actual_qty != 0`; stock value computed
+  **client-side** as `actual_qty * valuation_rate`; page size 20; read-only.
+- **Stock Entry** (`components/StockEntry/`) — available = `stockQty - reservedQty`
+  from `Bin` (`:190`). `getStockMode()` (`:121-126`): `"none"` for
+  Purchase Receipt/Invoice, else `"strict"` (clamps qty to available). Warehouse
+  mapping per entry type (`:284-301`). Material Receipt forces
+  `basic_rate`/`valuation_rate`; other types set `allow_zero_valuation_rate` when
+  valuation fell back (`:303-313`). Over-issue blocks submit and opens
+  `StockFixModal` offering **remove vs adjust** (`:327-335`). Entry types are
+  **hardcoded** (`api/LoadEntryType.jsx:9-21`). Submits via
+  `POST resource/Stock Entry/<name>` with `{run_method:"submit"}` (`:343-345`).
+
+### 7.7 Production
+
+- **Work Order** — monitor-only, **no create/edit form**. Row click opens a
+  read-only preview showing `completed_qty / qty` per operation.
+- **Job Card** — the one page with a real state machine, driving
+  `erpnext.manufacturing.doctype.job_card.job_card.{start,complete,pause}_job`:
+
+| status | actions |
+|---|---|
+| Open | Start |
+| Work In Progress | Pause, Complete |
+| anything else | none |
+
+List filters on **both** `docstatus != 2` **and** `status not in ["Cancelled"]`
+(`:81-84`) — a Job Card can be submitted yet cancelled.
+
+### 7.8 Quality
+
+- **Inspection Parameter / Template** — template child rows use a **three-mode**
+  model (`formula` > `numeric` > `value`) projected onto the single `mode` field;
+  `preparePayload` (`:122-151`) translates back to ERPNext's
+  `numeric`/`formula_based_criteria` booleans. Switching mode clears the
+  irrelevant inputs.
+- **InspectionForm** — the QC engine. `updateReading` (`:49-77`):
+  `avg = mean(readings)`, `target = (min+max)/2`,
+  `deviation = |(avg-target)/target| * 100`, `status = deviation <= tolerance`.
+  `overallStatus` (`:80-88`) is **worst-status-wins, short-circuiting on Pending
+  first**. Only `reading_1/2/3` are persisted, so a 4th reading the UI allows is
+  **silently dropped**.
+- **Reports** — the only place in the app using `docstatus = 1` rather than
+  `!= 2`; filters by **`creation`**, not `report_date`; client-side aggregation,
+  no `get_count`.
+
+### 7.9 HR / Sales / Purchase
+
+Structurally identical tile hubs. `Attendance` and `Salary Slip` have no
+`createRoute` (list-only). Tiles marked `nativeForm` hand the user out to ERPNext
+desk in a new tab. **No `hasModuleAccess` check inside these hubs** — see §5.
+
+---
+
+## 8. The ten cross-cutting rules
+
+Each exists because of a specific Frappe footgun. Breaking one fails *silently*.
+
+### 8.1 Never `POST` to update a document
+
+`POST /resource/<dt>/<name>` routes to `execute_doc_method`, which raises
+`KeyError: 'run_method'`. Updates **must** be `PUT`
+(`lib/docTransition.js:8-17`, `:218-222`).
+
+The single exception is `useStockEntry.js:343-345`, which deliberately POSTs
+`{run_method:"submit"}` — correct for that route.
+
+### 8.2 A Workflow doctype never offers the plain Submit
+
+`validate_workflow` only compares `workflow_state` before/after. A plain
+`frappe.client.submit` passes validation and lands at `docstatus=1` **while still
+in the workflow's first state** — the approval step is skipped with no error.
+Use `apply_workflow` (`docTransition.js:19-25`).
+
+Hence `resolveForwardActions` (`:168-198`) requires `workflowChecked && !hasWorkflow`
+before showing Submit.
+
+### 8.3 `workflow_state` exists only if a Workflow is configured
+
+Requesting it otherwise fails the **entire query**. Every approval query is
+meta-validated first via `approvalMeta.js` (`:6-9`), and `pickFields` drops it when
+absent.
+
+### 8.4 Probe failure ⇒ "no workflow", never the reverse
+
+`getWorkflowActions` failure degrades to "no workflow"
+(`docTransition.js:36-39`). A permission or network blip must never block a
+submit.
+
+### 8.5 Leave Application inverts the normal flow
+
+HRMS `on_submit` refuses `status` of `Open`/`Cancelled`. Without a Workflow, only
+the **exact named `leave_approver`** may set it, via `frappe.client.set_value` on
+the **stored** document (`leaveApproval.js:5-13, 61-81`).
+
+### 8.6 Unsaved changes hide every forward action
+
+Submit, transitions and leave Approve/Reject all act on the *stored* document, so
+all require `!dirty` (`docTransition.js:70-74`).
+
+### 8.7 Fail closed, never open
+
+`RoleContext` defaults + its error path grant only `public: true` modules;
+`_can_read` catches `Exception` and returns `False`; route guards return `null`
+while loading.
+
+### 8.8 The server is the only security boundary
+
+All client gating is visibility/UX. Frappe enforces write/submit/cancel/delete
+and docstatus transitions. The Approvals doctype list and report keys live in
+`api.py` **deliberately**, not in JavaScript.
+
+### 8.9 `onChange` on a Link fires only on commit
+
+`LinkField` commits on option pick / clear / blur-with-exact-match
+(`LinkField/index.jsx:148-162`). Previously `onChange(txt)` ran per keystroke,
+firing chained effects (fetch approvers, employee company…) on every character of
+`HR-EMP-00002` and leaving partial text in the document.
+
+Also `searchTerm.js`: **`MIN_SEARCH_CHARS = 2`**, and a term shorter than that
+returns `""` — because Frappe answers an empty `txt` with the field's *default
+option list*, which is what left the dropdown empty after backspacing.
+
+### 8.10 Preserve document order and names you don't understand
+
+- Workflow **state order is load-bearing** (`states[0]` is the entry state).
+- Workflow **transition order is preserved** from the Workflow document
+  (`docTransition.js:265-269`) — deliberately not re-sorted, because "reject
+  before approve" would hardcode semantics that belong to the workflow.
+- Transition dedupe key is `[state, action, next_state]`, not `action` alone — one
+  action legitimately routes to two next states from two states.
+- Duplicate `Workflow State` rows are **inert** (Frappe takes `state_row[0]`) and
+  several are kept on purpose as documentation. Don't "clean them up".
+- Unknown workflow **action names render verbatim**; only known verbs get an
+  i18n key, so an admin-authored (possibly Arabic) action isn't mistranslated.
+
+---
+
+## 9. Known issues, gaps and dead code
+
+Findings only — nothing here is fixed.
+
+### 9.1 `allow_edit` docstring/code contradiction
+
+`setup/workflows.py:48-52` asserts `allow_edit` is "intentionally omitted" because
+GenericForm doesn't implement it, but rows `:63-67` all set it. `create_workflow_if_missing:563-566`
+repeats the claim. Either the docstrings are stale or the rows are a regression.
+**Resolve before relying on either.**
+
+### 9.2 Workflow gaps
+
+- **Leave Application `Rejected` is terminal** — no transition out. If rejection
+  must be reversible, a `Rejected → Draft` (or `→ Pending Leave Approver`) row is
+  needed.
+- **Attendance Request `Rejected` is also terminal** — `doc_status: 0` with **no
+  transition out**, so it's an editable draft with no exit button.
+- **Expense Claim has no Cancel** transition and no `Cancelled` state.
+
+### 9.3 Print format gap
+
+`config/doctypes.js:28` points Employee at `printFormat: "Employee Appointment
+Letter"`, but **no patch in this app creates that Print Format** and it is not
+ERPNext core. `PrintPreview` will fall back to the default format or 404 unless
+the record was created manually on the site.
+
+### 9.4 Unreachable code
+
+`ui_documents.py:385-446` — a full second copy of the upload body, after the
+`return` at `:383`.
+
+### 9.5 Undeclared app dependencies
+
+`hooks.py:11` sets `required_apps = []`, but the SPA calls:
+
+| Call | App | Fails safe? |
+|---|---|---|
+| `hrms...department_approver.get_approvers` (`namedApprovers.js:47-48`) | **hrms** | ✅ yes — returns `{approvers:[], error}` |
+| `hrms...leave_application.get_leave_details` (`LeaveApplicationForm.jsx:290-312`) | **hrms** | ✅ yes — balance check skipped |
+| `shopfloor.api.stock_entry.get_bulk_valuation` (`useStockEntry.js:78-84`) | **shopfloor** | ❌ **no** — `enrichValuation` indexes `valuationMap[i.code]` (`:93`) and throws if the app is absent |
+
+### 9.6 Phantom endpoints
+
+`services/api.jsx:289-339` exports 8 attendance-regularization wrappers calling
+REST-style paths with **no Frappe counterpart anywhere**:
+
+`attendance/regularize`, `attendance/records`, `employee/shifts`,
+`attendance/validate-punch`, `attendance/preview-punches`,
+`attendance/regularization-history`, `attendance/bulk-regularize`,
+`attendance/regularization/{id}/undo`
+
+There is no `url_map`/`url_routes` in `hooks.py` and no whitelisted handler. **All
+8 are also unreferenced.**
+
+### 9.7 Other dead code
+
+- `utils/weeklyOff.js` (103 lines) — unreferenced; superseded by the
+  server-computed `WO` status from `monthly_attendance`.
+- `utils/attendanceRegularization.js` (215 lines) — unreferenced pure helpers
+  whose companion APIs don't exist.
+- `components/Approval/ActionButtons/index.jsx` — no handlers.
+- ~~`components/StockEntry/components/HeaderBar.jsx`, `FooterBar.jsx`~~ —
+  **deleted 2026-10-13.** Along with `SourceSelector.jsx` and
+  `ToastContainer.jsx`, they were unreachable: no file imported any of them.
+- `pages/DemoList/index.jsx` — 4 hardcoded rows, zero API calls; a design-system
+  fixture.
+- `pages/StockEntry.jsx` (route `/demo-form`) — a field-widget gallery, not Stock
+  Entry. The real one is `components/StockEntry/StockEntryPage.jsx`.
+
+### 9.8 Route gaps
+
+Audited 2026-10-13 across every `navigate()` target in `pages/Store/**`.
+
+1. ~~`MaterialRequestForm` navigates to `/store/material-request/<type>/view/<name>`~~
+   — **fixed**. It now goes to `/store/material-request/:name`.
+2. `DeliveryNoteList` row click and `DeliveryNoteForm` post-save both navigate to
+   `/store/delivery/:name` — **still broken, out of scope**. `/store/delivery/:name`
+   is not registered, so it falls through to `/store/:doctype/:name` with
+   `doctype="delivery"` — a lowercase path segment, not the doctype name
+   `Delivery Note`. `GenericForm` then queries a doctype that does not exist.
+   Note this is *not* caught by a naive route matcher: `/store/:doctype/:name`
+   does match the pattern, it just matches the wrong thing.
+3. `QualityTemplateForm` navigates to `/quality-templates` — **unregistered**
+   (list is `/quality/templates`) (`:189`).
+4. `App.jsx:96-107` registers `/quality/templates/:name` and `/new` **twice**.
+5. `App.jsx:140-148` uses `path="store/..."` without a leading slash while every
+   sibling uses `/store/...`.
+
+Store's own routes are now all live, all reachable, and every `navigate()`,
+tile-route and breadcrumb target under `pages/Store/**` resolves to a registered
+route (audited 2026-10-13). Two rules came out of that audit:
+
+- Check breadcrumb `path` values too, not just `navigate()`. A breadcrumb is a
+  link that quietly 404s.
+- A route that merely *pattern-matches* is not necessarily reachable: see item 2
+  above. Also check the reverse direction — a registered route with no in-app
+  entry point is unreachable UI and should not exist.
+
+### 9.9 Logic bugs
+
+1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second
+   Save (`:224-229`). The `!doc.docstatus` guard is meaningless because `doc` is
+   initialised as `{template, item_code}` and `loadDoc` never sets `docstatus`.
+2. **`Quality/entry` filter offers `PASS`/`FAIL`** but `Quality Inspection.status`
+   stores `Accepted`/`Rejected`/`Pending` — filtering by those values returns
+   nothing. The badge below reads them correctly.
+3. **`ExpenseClaimList.getStatus` compares `status` to `Approved`/`Rejected`**,
+   which live on `approval_status`, not `status` — so approved claims render as
+   "Draft". The *form* correctly uses `approval_status`.
+4. **`AttendanceRequestList` labels `docstatus = 2` as "Rejected"** — 2 is
+   **Cancelled**.
+5. **`StockBalance` offers a `company` filter that is not in `fields`** (`:47-68`
+   vs `:125-130`) — narrows but never renders.
+6. ~~**`useStockEntry.handleScan` fabricates an item**~~ — **fixed
+   2026-10-13.** `handleScan`, `addItem` and the mock-fetch branch are gone. The
+   replacement is `addItemByCode`, which resolves a real code through
+   `search_link` and `get_item_details`; nothing invents an item any more.
+7. ~~**SourceModal's `qcDone` checkbox is never read**~~ — **fixed
+   2026-10-13.** `SourceModal.jsx` is deleted outright. `GetItemsModal` offers
+   only sources that are real for the selected purpose and maps documents through
+   ERPNext, so there is no unreachable QC branch left to expose.
+
+### 9.10 QC calculation caveat
+
+`updateReading`'s tolerance check is **centred-deviation, not a min/max range
+check**: `target` is the midpoint, so a reading at either spec limit yields 0%
+deviation and **passes**. `tolerance` is **hardcoded to 5** in both the load path
+and the template-change path. A `target` of 0 yields `Infinity`/`NaN`.
+
+### 9.11 Repeated code (consolidation candidates)
+
+| Pattern | Copies |
+|---|---|
+| `getStatus(row)` tone mapping | 8 (leave, attendance, expense, DN, MR, WO, JC, QC) |
+| `resource/… + get_count` list loader | 12 |
+| `docRef` + effect sync | 9 |
+| "Save/transitions/Submit/Back/Cancel/Delete" header array | 3 near-identical + 1 divergent |
+| Weekly-off/holiday day-set extraction | 2 |
+
+### 9.12 Store: invalid Material Request types (fixed 2026-10-13, pages pending)
+
+**The Store MR hub could never have worked for two of its five tiles.**
+`Store/material-request/index.jsx:17-48` mapped tiles to:
+
+| Tile | Value sent | Verdict |
+|---|---|---|
+| Purchase Request | `"Purchase"` | ✅ valid |
+| Material Transfer | `"Transfer"` | ❌ **HTTP 417** — option is `Material Transfer` |
+| Material Issue | `"Material Issue"` | ✅ valid |
+| Material Receipt | `"Material Receipt"` | ❌ **HTTP 417** — not an MR type at all; it is a *Stock Entry purpose* |
+| Customer Provided | `"Customer Provided"` | ✅ valid |
+
+ERPNext's own `validate_material_request_type` (`material_request.py:236-240`)
+checks nothing; the rejection comes from Frappe's `_validate_selects`
+(`base_document.py:892-920`) as a generic 417 with no field name. A user would
+have seen an opaque error with no idea which field was wrong.
+
+**Status: FIXED 2026-10-13.** The Material Request pages were rewritten
+(purpose-keyed routes, no type dropdown at all). The type now comes only from
+`config/storePurposes.js`, reached via the `:purpose` route segment, and is
+guarded by 26 smoke assertions. The `/store/material-request/type/:type/*` routes
+are gone, so a stale link carrying an invalid value can no longer reach the form.
+
+The removal is deliberate rather than a validation: there is **no Purpose
+dropdown** any more. A purpose is chosen by the card you clicked on the way in,
+so there is no control that could produce an invalid value in the first place.
+
+### 9.13 Data prerequisite: BOMs are not tagged with a Project
+
+Project-scoped indents resolve items via `BOM.project`. On the dev database
+inspected 2026-10-13 (`devoltrans/db_backup-dev.sql`): **1 BOM, 0 tagged**, 1
+Work Order with no project, 9 Material Requests **all of type `Purchase`** and
+none carrying a `project` on any of their 23 items. Both Stock Entries are
+unlinked (`material_request` / `material_request_item` empty).
+
+### 9.14 i18n: a tile title that rendered an i18next error (fixed 2026-10-13)
+
+`store.tiles.*` are nested `{title, description}` **objects**. The Store hub
+passed `titleKey: "store.tiles.stockEntry"` without `.title`, so i18next returned
+the object and React rendered its warning **as the tile's title**:
+
+```
+key 'store.tiles.stockEntry (en)' returned an object instead of string.
+```
+
+Six tiles were affected (Stock Entry, Stock Balance, Item Master, Warehouse,
+Bill of Materials, Delivery / Dispatch). Their *descriptions* rendered fine,
+because those keys did carry `.description` — which is exactly why it survived
+review and why the Store dashboard looked half-translated.
+
+**Why every static check missed it:** the key exists in the dictionary. A
+key-presence audit, a three-language parity check, and a search for unresolved
+keys all pass. Only *resolving the key and rendering it* reveals that the
+resolved value is an object rather than a string.
+
+That is what `.smoke-tmp/storecheck.jsx` now does: it renders the Store
+dashboard, the all-requests list and the Give Items queue, strips the markup, and
+fails on either a dotted-key token or i18next's `returned an object instead of
+string` text.
+
+The same trap exists anywhere a label is indirected through a config object —
+`ActionTile`'s `titleKey`/`descriptionKey` are the only such indirection today.
+
+---
+
+## 10. Verification
+
+Three framework-free suites, all runnable from `erpnext_ui/frontend/`:
+
+```bash
+# business-logic assertions over lib/ and config/
+SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
+  npx vite build --config .smoke-tmp/vite.config.mjs && node .smoke-tmp/out-rules/entry.mjs
+
+# SSR render of the request forms + GenericForm + DocStatusField
+npx vite build --config .smoke-tmp/vite.config.mjs && node .smoke-tmp/out/entry.mjs
+
+# SSR render of 8 Store + Employee Self Service surfaces, asserting no
+# translation key leaks
+SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
+  npx vite build --config .smoke-tmp/vite.config.mjs && node .smoke-tmp/out-store/entry.mjs
+```
+
+Plus `npm run lint`, `npm run build`, and `ruff check erpnext_ui/api.py`.
+
+Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
+`git checkout -- erpnext_ui/frontend/.smoke-tmp/` afterwards.
+
+### 10.1 Last run — 2026-10-13, after the Stock Entry rework
+
+| Check | Result |
+|---|---|
+| rules suite | **160 passed, 0 failed** |
+| request-form render | **all forms render** |
+| store + ESS suite (8 pages) | **36 passed, 0 failed** |
+| `npx eslint src` | **clean, 0 problems** |
+| `npm run build` | **✓ built** |
+| `ruff check erpnext_ui/api.py` | 1 error — `F841` at `:416`, **pre-existing** (reproduced against `HEAD`) |
+| route audit | 1 dead link — `/quality-templates`, **pre-existing** (§9.8 item 3); **0 orphan `/store` routes** |
+
+Two groups of assertions in that suite are new. It renders `StockEntryPage` and
+checks the posting date and time inputs actually carry **today** and **now** —
+both used to render blank, which is not cosmetic (§11.3). It also renders the
+merged ESS dashboard and asserts all nine tile names appear, because the leak
+regex previously did not cover the `ess` or `requests` namespaces at all.
+
+## 11. Stock Entry rework (2026-10-13)
+
+### 11.1 The three things that were actually broken
+
+1. **`posting_date` / `posting_time` started empty.** The form is for recording a
+   movement that is happening now, and the storekeeper had to remember to set
+   both. Now seeded from `utils/localDateTime.js`, which formats in **local**
+   time. The old code would have been wrong even once seeded: `toISOString()`
+   returns UTC, so a store in any positive-offset timezone would silently post
+   yesterday's movements for eight hours a day.
+2. **"Get Items" opened a raw ERPNext-doctype dropdown** (`Material Request`,
+   `Work Order`, `Item`, …). It asked the user to know ERPNext's internal model —
+   the exact thing the Store hub exists to hide.
+3. **Submit was never gated.** `canSubmit` existed on the hook and nothing read
+   it, so Submit opened a confirmation dialog on an empty entry.
+
+### 11.2 `GetItemsModal` — sources per purpose
+
+`SOURCES` maps each purpose key to the sources that can actually feed it, and
+nothing else is offered:
+
+| Purpose | Sources |
+|---|---|
+| `issue`, `transfer` | pending indent, own item |
+| `receipt` | own item |
+| `transferForManufacture`, `consumption` | work order, own item |
+| `manufacture`, `repack`, `disassemble`, `subcontractor` | own item |
+
+Documents are opened through ERPNext's own mappers, never hand-rolled:
+`material_request.make_stock_entry` and
+`erpnext.manufacturing...work_order.make_stock_entry`. That is invariant **§17**
+— the mappers set the linkage fields, and rebuild that mapping by hand is how
+linkage gets forgotten, which silently stops the source document's progress from
+updating.
+
+Note the modal is keyed on `show` + selected type, so it remounts per purpose.
+That is deliberate: a `useEffect` reset would `setState` synchronously and
+cascade a render, which this repo's `react-hooks/set-state-in-effect` rule
+correctly forbids. Remounting gets the same fresh state with no extra render.
+
+### 11.3 Why the defaults are asserted, not just implemented
+
+`posting_date` in the future throws `ERPNextValidationError` on save. An empty
+date is therefore not a cosmetic gap — it defers a guaranteed server error to
+the one moment the user is trying to complete real work. Hence the two new
+assertions in `storecheck.jsx`.
+
+### 11.4 Still open on this screen
+
+- `StockEntryTypeSelector` still lists raw ERPNext types. Grouping the nine into
+  the `STOCK_ENTRY_PURPOSES` buckets from `config/storePurposes.js` is the
+  remaining piece of this work.
+- `useStockEntry.js` still imports `STOCK_ENTRY_PURPOSES`; confirm the mapping is
+  used where the raw type is validated.
+
+## 12. Requests + ESS merge (2026-10-13)
+
+### 12.1 What was wrong
+
+Employee-facing HR work was split across **two** hubs for the **same** people:
+
+| | Dashboard tile | Sidebar group | Module key | Routes |
+|---|---|---|---|---|
+| Requests | `{key:"requests", route:"/requests", moduleKey:"ESS"}` | "Requests" | `ESS` | `/requests/{leave,attendance,expense}` |
+| Employee Self Service | `{key:"ess", route:"/ess", moduleKey:"ESS"}` | "Employee Self Service" | `ESS` | `/ess/*` |
+
+Both entries carried the **same `moduleKey: "ESS"`**, so access control could not
+tell them apart — hiding one never hid the other, and both rendered for exactly
+the same users. Worse, the ESS dashboard already linked to `/requests/leave`,
+`/requests/expense` and `/requests/attendance`, so a user who picked "Employee
+Self Service → My Leave" landed on a page whose breadcrumb said **Requests**.
+Three of the nine ESS tiles pointed across the boundary.
+
+The i18n namespaces were already coupled: `ess.json` owned **both** the `ess`
+and `requests` namespaces, so the "two modules" were one file all along.
+
+### 12.2 What changed
+
+- `pages/requests/**` moved to `pages/ESS/requests/**` via `git mv`; the old
+  `pages/requests/index.jsx` hub is deleted.
+- One canonical path space under `/ess`, singular and hyphenated:
+  `/ess/leave`, `/ess/attendance-request`, `/ess/expense-claim`. Note
+  `attendance-request` is not `attendance` — `/ess/attendance` is the
+  read-only calendar.
+- `/requests/*` survives as ten `<Navigate replace>` redirects. Redirect rather
+  than a duplicate route on purpose: HashRouter makes every URL typeable
+  (§6), these paths are already in shared links, and one canonical path means a
+  stale link cannot render a page whose own breadcrumbs disagree.
+- `/ess/Salary Slip` and `/ess/ToDo` became `/ess/salary-slip` and
+  `/ess/todo`. The first had a **literal space** in the URL. `GenericList`
+  resolves its doctype from `useParams()`, so a slug would have queried a
+  doctype named `salary-slip`; `doctypeOverride` supplies the real name.
+- Dashboard lost its duplicate tile; the sidebar's two groups became one.
+- Tile copy is named for the **task**, not the doctype: "Apply for Leave", not
+  "Leave Application". This also fixed a typo — `attendanceRequests.title` read
+  **"Attendance Required"**.
+
+### 12.3 Why the sidebar merge needed the dashboard merge
+
+They are the same list. Leaving the sidebar with two groups and the dashboard
+with one tile would have made the sidebar strictly worse than the grid it links
+to, and would have re-created the split the moment someone added a module.
+
+### 12.4 Invariants touched
+
+- **§6 (HashRouter).** Every moved path keeps working via redirect. Nothing new
+  is gated only by hiding a nav item — the redirects carry no permission logic
+  of their own, they land on routes that already had exactly the access the old
+  ones had.
+- **§16 (`titleKey` must resolve to a string).** `ess.tiles.*` are
+  `{title, description}` objects, so the merged dashboard's `titleKey` needs
+  `.title`. `storecheck.jsx` now asserts all nine names render, and its leak
+  regex covers the `ess` and `requests` namespaces, which it previously did not.

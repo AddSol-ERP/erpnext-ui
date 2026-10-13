@@ -7,9 +7,9 @@ import { RoleProvider } from "@/context/RoleContext";
 import { ToastProvider } from "@/context/ToastContext";
 import i18n from "@/i18n/index.js";
 
-import LeaveApplicationForm from "@/pages/requests/leave/LeaveApplicationForm";
-import AttendanceRequestForm from "@/pages/requests/attendance/AttendanceRequestForm";
-import ExpenseClaimForm from "@/pages/requests/expense/ExpenseClaimForm";
+import LeaveApplicationForm from "@/pages/ESS/requests/leave/LeaveApplicationForm";
+import AttendanceRequestForm from "@/pages/ESS/requests/attendance/AttendanceRequestForm";
+import ExpenseClaimForm from "@/pages/ESS/requests/expense/ExpenseClaimForm";
 import GenericForm from "@/components/GenericForm/index.jsx";
 import EmployeeDocuments from "@/pages/ESS/EmployeeDocuments";
 import { DocStatusField } from "@/components/DocStatusField";

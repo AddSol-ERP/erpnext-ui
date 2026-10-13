@@ -1,12 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronUp, ChevronDown, PackageOpen } from "lucide-react";
 import ItemList from "./components/ItemList";
 import { useStockEntry } from "./hooks/useStockEntry";
 import WarehouseSelector from "./components/WarehouseSelector";
 import { useHeader } from "../../context/HeaderContext";
+import { stockPurposeForType } from "../../config/storePurposes";
 import StockEntryTypeSelector from "./components/StockEntryTypeSelector";
-import SourceModal from "./components/SourceModal";
+import GetItemsModal from "./components/GetItemsModal";
 import SubmitModal from "./components/SubmitModal";
 import StockFixModal from "./components/StockFixModal";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,14 @@ export default function StockEntryPage() {
   const stock = useStockEntry();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
+
+  // The dialog offers different sources depending on what the entry is for.
+  // Shared with the hook, so the dialog's source list and the saved payload can
+  // never disagree about which purpose is selected.
+  const purpose = useMemo(
+    () => stockPurposeForType(stock.selectedType),
+    [stock.selectedType],
+  );
 
   useEffect(() => {
     let subtitle = t("store.entry.subtitleDefault");
@@ -99,7 +108,7 @@ export default function StockEntryPage() {
           label: t("store.entry.actions.getItems"),
           variant: "btn-outline-primary",
           onClick: () => stock.setShowSource(true),
-          disabled: !stock.canAddItems,
+          disabled: !stock.canAddItems || !stock.selectedType,
         },
         {
           label: t("store.entry.actions.clear"),
@@ -110,6 +119,9 @@ export default function StockEntryPage() {
           label: t("common.submit"),
           variant: "btn-primary",
           onClick: stock.openSubmitModal,
+          // `canSubmit` existed on the hook and was never read, so Submit used
+          // to open a dialog on an empty entry.
+          disabled: !stock.canSubmit || !stock.selectedType,
         },
       ],
     });
@@ -148,10 +160,15 @@ export default function StockEntryPage() {
         workOrder={stock.workOrder}
         setWorkOrder={stock.setWorkOrder}
       />
-      <SourceModal
+      {/* Keyed on show + purpose: remounts the dialog so it opens with the
+          right source options and no leftover state from a previous attempt. */}
+      <GetItemsModal
+        key={`${stock.showSource}-${stock.selectedType}`}
         show={stock.showSource}
         onClose={stock.closeSource}
-        loadSource={stock.loadSource}
+        purpose={purpose}
+        loadMappedDocument={stock.loadMappedDocument}
+        addItemByCode={stock.addItemByCode}
       />
 
       {/* SETUP */}
@@ -253,10 +270,10 @@ export default function StockEntryPage() {
             variant="outline"
             size="sm"
             onClick={() => stock.setShowSource(true)}
-            disabled={!stock.canAddItems}
+            disabled={!stock.canAddItems || !stock.selectedType}
           >
             <PackageOpen />
-            {t("store.entry.get")}
+            {t("store.entry.actions.getItems")}
           </Button>
         </div>
 

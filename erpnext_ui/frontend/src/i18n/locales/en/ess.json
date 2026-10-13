@@ -1,8 +1,6 @@
 {
 	"requests": {
 		"header": {
-			"title": "Requests",
-			"subtitle": "Create and manage employee requests",
 			"attendanceListTitle": "Attendance Requests",
 			"attendanceListSubtitle": "Review and manage attendance corrections",
 			"attendanceEditTitle": "Attendance Request {{name}}",
@@ -21,20 +19,6 @@
 			"expenseNewTitle": "New Expense Claim",
 			"expenseEditSubtitle": "Review and update expense details",
 			"expenseNewSubtitle": "Create and submit a new expense claim"
-		},
-		"tiles": {
-			"attendance": {
-				"title": "Attendance Request",
-				"description": "Fix attendance entries"
-			},
-			"leave": {
-				"title": "Leave Request",
-				"description": "Apply for leave"
-			},
-			"expense": {
-				"title": "Expense Request",
-				"description": "Submit expenses"
-			}
 		},
 		"status": {
 			"approved": "Approved",
@@ -149,7 +133,7 @@
 	"ess": {
 		"header": {
 			"title": "Employee Self Service",
-			"subtitle": "My profile, attendance, leave & salary",
+			"subtitle": "Everything about your work — leave, attendance, expenses and payslips",
 			"profileTitle": "My Profile",
 			"profileSubtitle": "View your employee information",
 			"attendanceTitle": "Attendance Calendar",
@@ -166,40 +150,40 @@
 		},
 		"tiles": {
 			"profile": {
-				"title": "My Profile",
-				"description": "View and manage your profile"
+				"title": "My Details",
+				"description": "Your name, photo and contact details"
 			},
 			"leave": {
-				"title": "My Leave",
-				"description": "Apply for leave & view balance"
+				"title": "Apply for Leave",
+				"description": "Request time off and track your requests"
 			},
 			"leaveBalance": {
-				"title": "Leave Balance",
-				"description": "View my leave balance for the year"
+				"title": "My Leave Balance",
+				"description": "How much leave you have left this year"
 			},
-			"expenses": {
-				"title": "My Expenses",
-				"description": "Submit expense claims"
+			"attendanceRequest": {
+				"title": "Fix My Attendance",
+				"description": "Report a missing or wrong punch"
 			},
-			"attendanceRequests": {
-				"title": "Attendance Required",
-				"description": "Manage attendance requests"
-			},
-			"attendanceLogs": {
-				"title": "Attendance Logs",
-				"description": "Monthly calendar view with In/Out times"
+			"attendance": {
+				"title": "My Attendance",
+				"description": "See when you came in and went out each day"
 			},
 			"overtime": {
-				"title": "Overtime Logs",
-				"description": "View your overtime records"
+				"title": "My Overtime",
+				"description": "Hours you worked beyond your schedule"
 			},
-			"salarySlips": {
-				"title": "My Salary Slips",
-				"description": "View payslips"
+			"expenseClaim": {
+				"title": "Claim an Expense",
+				"description": "Reimburse money you spent for work"
+			},
+			"salarySlip": {
+				"title": "My Payslips",
+				"description": "Download your salary slips"
 			},
 			"tasks": {
 				"title": "My Tasks",
-				"description": "View assigned tasks"
+				"description": "Work that has been assigned to you"
 			}
 		},
 		"profile": {

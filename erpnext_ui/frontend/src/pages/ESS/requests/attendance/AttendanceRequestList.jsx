@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useHeader } from "../../../context/HeaderContext";
-import ActionBar from "../../../components/ActionBar";
-import Pagination from "../../../components/Pagination";
-import ListLayout from "../../../components/ListLayout";
-import { ListRow } from "../../../components/List/ListRow";
-import DataTable from "../../../components/List/DataTable";
-import { StatusBadge } from "../../../components/List/StatusBadge";
-import useListPagination from "../../../hooks/useListPagination";
-import { get } from "../../../services/api";
-import { listFilterHandlers } from "../../../lib/filterChips";
+import { useHeader } from "../../../../context/HeaderContext";
+import ActionBar from "../../../../components/ActionBar";
+import Pagination from "../../../../components/Pagination";
+import ListLayout from "../../../../components/ListLayout";
+import { ListRow } from "../../../../components/List/ListRow";
+import DataTable from "../../../../components/List/DataTable";
+import { StatusBadge } from "../../../../components/List/StatusBadge";
+import useListPagination from "../../../../hooks/useListPagination";
+import { get } from "../../../../services/api";
+import { listFilterHandlers } from "../../../../lib/filterChips";
 
 /* ================= STATUS ================= */
 const getStatus = (docstatus) => {
@@ -87,7 +87,7 @@ export default function AttendanceRequestList() {
       subtitle: t("requests.header.attendanceListSubtitle"),
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
-        { label: t("nav.requests"), path: "/requests" },
+        { label: t("nav.ess"), path: "/ess" },
         { label: t("requests.header.attendanceListTitle") },
       ],
       actions: [

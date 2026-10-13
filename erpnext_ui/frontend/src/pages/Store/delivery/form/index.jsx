@@ -13,6 +13,7 @@ import LinkField from "../../../../components/LinkField";
 import DeliveryNotePicker from "./DeliveryNotePicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { localDateISO } from "../../../../utils/localDateTime";
 
 export default function DeliveryNoteForm() {
   const { name } = useParams();
@@ -285,7 +286,7 @@ export default function DeliveryNoteForm() {
     else {
       setDoc((p) => ({
         ...p,
-        posting_date: new Date().toISOString().split("T")[0],
+        posting_date: localDateISO(),
       }));
       autoCompany();
     }

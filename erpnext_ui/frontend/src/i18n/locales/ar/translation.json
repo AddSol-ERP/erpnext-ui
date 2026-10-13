@@ -96,7 +96,6 @@
 		"production": "الإنتاج",
 		"quality": "الجودة",
 		"store": "المستودع",
-		"requests": "الطلبات",
 		"reports": "التقارير",
 		"hr": "الموارد البشرية",
 		"sales": "المبيعات",
@@ -119,15 +118,17 @@
 		"qualityReports": "تقارير الجودة",
 		"jobCards": "بطاقات العمل",
 		"workOrders": "أوامر العمل",
-		"attendanceRequests": "طلبات الحضور",
-		"leaveApplications": "طلبات الإجازة",
-		"expenseClaims": "مطالبات المصروفات",
+		"attendanceRequests": "تصحيح دوام الحضور",
+		"leaveApplications": "طلب إجازة",
+		"expenseClaims": "تقديم مطالبة مصروف",
 		"essProfile": "ملفي الشخصي",
-		"essAttendance": "تقويم الحضور",
-		"essOvertime": "سجلات العمل الإضافي",
-		"leaveBalance": "رصيد الإجازة",
+		"essAttendance": "دوام حضوري",
+		"essOvertime": "ساعات العمل الإضافي",
+		"leaveBalance": "رصيد إجازتي",
 		"reportAttendance": "الحضور",
-		"reportOvertime": "العمل الإضافي"
+		"reportOvertime": "العمل الإضافي",
+		"salarySlips": "قواتير راتبي",
+		"tasks": "مهامي"
 	},
 	"theme": {
 		"appearance": "المظهر",
@@ -148,16 +149,46 @@
 		"company": "Addition Solutions"
 	},
 	"modules": {
-		"approvals": { "title": "الموافقات", "description": "الموافقات المعلقة" },
-		"production": { "title": "الإنتاج", "description": "أوامر العمل وبطاقات الوظائف" },
-		"store": { "title": "المستودع", "description": "المخزون والأصناف" },
-		"requests": { "title": "الطلبات", "description": "طلبات الموظفين" },
-		"quality": { "title": "الجودة", "description": "الفحص ومراقبة الجودة" },
-		"hr": { "title": "الموارد البشرية", "description": "بيانات الموظفين والحضور والرواتب" },
-		"sales": { "title": "المبيعات", "description": "العملاء والطلبات والفواتير" },
-		"purchase": { "title": "المشتريات", "description": "الموردون وأوامر الشراء" },
-		"ess": { "title": "خدمة الموظفين الذاتية", "description": "ملفي والإجازات والرواتب" },
-		"reports": { "title": "التقارير", "description": "التحليلات والتقارير" }
+		"approvals": {
+			"title": "الموافقات",
+			"description": "الموافقات المعلقة"
+		},
+		"production": {
+			"title": "الإنتاج",
+			"description": "أوامر العمل وبطاقات الوظائف"
+		},
+		"store": {
+			"title": "المستودع",
+			"description": "المخزون والأصناف"
+		},
+		"requests": {
+			"title": "الطلبات",
+			"description": "طلبات الموظفين"
+		},
+		"quality": {
+			"title": "الجودة",
+			"description": "الفحص ومراقبة الجودة"
+		},
+		"hr": {
+			"title": "الموارد البشرية",
+			"description": "بيانات الموظفين والحضور والرواتب"
+		},
+		"sales": {
+			"title": "المبيعات",
+			"description": "العملاء والطلبات والفواتير"
+		},
+		"purchase": {
+			"title": "المشتريات",
+			"description": "الموردون وأوامر الشراء"
+		},
+		"ess": {
+			"title": "خدمة الموظفين الذاتية",
+			"description": "ملفي والإجازات والرواتب"
+		},
+		"reports": {
+			"title": "التقارير",
+			"description": "التحليلات والتقارير"
+		}
 	},
 	"dashboard": {
 		"title": "لوحة تحكم ERP",

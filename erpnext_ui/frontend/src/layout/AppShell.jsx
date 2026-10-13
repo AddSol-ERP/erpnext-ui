@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
   FileSearch,
   ChartNoAxesCombined,
+  Banknote,
 } from "lucide-react";
 import {
   Sidebar,
@@ -173,33 +174,10 @@ const NAV_SECTIONS = [
     id: "people",
     items: [
       {
-        key: "requests",
-        labelKey: "nav.requests",
-        to: "/requests",
-        icon: Inbox,
-        moduleKey: "ESS",
-        children: [
-          {
-            key: "attendance-requests",
-            labelKey: "nav.attendanceRequests",
-            to: "/requests/attendance",
-            icon: CalendarDays,
-          },
-          {
-            key: "leave-applications",
-            labelKey: "nav.leaveApplications",
-            to: "/requests/leave",
-            icon: FileSignature,
-          },
-          {
-            key: "expense-claims",
-            labelKey: "nav.expenseClaims",
-            to: "/requests/expense",
-            icon: Wallet,
-          },
-        ],
-      },
-      {
+        // One sidebar entry for Employee Self Service. This used to be two
+        // sibling groups -- "Requests" (/requests) and "Employee Self Service"
+        // (/ess) -- carrying the same moduleKey, so hiding one never hid the
+        // other and both appeared for exactly the same users.
         key: "ess",
         labelKey: "nav.ess",
         to: "/ess",
@@ -211,6 +189,24 @@ const NAV_SECTIONS = [
             labelKey: "nav.essProfile",
             to: "/ess/profile",
             icon: UserCog,
+          },
+          {
+            key: "ess-leave",
+            labelKey: "nav.leaveApplications",
+            to: "/ess/leave",
+            icon: FileSignature,
+          },
+          {
+            key: "ess-leave-balance",
+            labelKey: "nav.leaveBalance",
+            to: "/ess/leave-balance",
+            icon: Timer,
+          },
+          {
+            key: "ess-attendance-request",
+            labelKey: "nav.attendanceRequests",
+            to: "/ess/attendance-request",
+            icon: Inbox,
           },
           {
             key: "ess-attendance",
@@ -225,10 +221,22 @@ const NAV_SECTIONS = [
             icon: History,
           },
           {
-            key: "ess-leave-balance",
-            labelKey: "nav.leaveBalance",
-            to: "/ess/leave-balance",
-            icon: Timer,
+            key: "ess-expense-claim",
+            labelKey: "nav.expenseClaims",
+            to: "/ess/expense-claim",
+            icon: Wallet,
+          },
+          {
+            key: "ess-salary-slip",
+            labelKey: "nav.salarySlips",
+            to: "/ess/salary-slip",
+            icon: Banknote,
+          },
+          {
+            key: "ess-tasks",
+            labelKey: "nav.tasks",
+            to: "/ess/todo",
+            icon: CheckSquare,
           },
         ],
       },

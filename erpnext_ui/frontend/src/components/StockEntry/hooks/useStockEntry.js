@@ -3,22 +3,25 @@ import { useTranslation } from "react-i18next";
 import { loadEntryTypesAPI } from "../api/LoadEntryType";
 import { get, post } from "../../../services/api";
 import { useToast } from "../../../context/ToastContext";
+import { localDateISO, localTimeHHMM } from "../../../utils/localDateTime";
+import { STOCK_ENTRY_PURPOSES, stockPurposeForType } from "../../../config/storePurposes";
 
 export function useStockEntry() {
   const toast = useToast();
   const { t } = useTranslation();
 
-  const [mode, setMode] = useState("incoming");
   const [items, setItems] = useState([]);
-  const [scan, setScan] = useState("");
   const [fromWarehouse, setFromWarehouse] = useState("");
   const [toWarehouse, setToWarehouse] = useState("");
-  const [warehouse, setWarehouse] = useState(""); // for adjustment
   const [entryTypes, setEntryTypes] = useState([]);
   const [showSource, setShowSource] = useState(false);
   const [selectedType, setSelectedType] = useState("");
-  const [postingDate, setPostingDate] = useState(null);
-  const [postingTime, setPostingTime] = useState(null);
+
+  // Posting date and time default to now, in local time. Both were `null`
+  // before, which rendered two blank inputs on a screen whose whole purpose is
+  // recording a movement that is happening right now.
+  const [postingDate, setPostingDate] = useState(() => localDateISO());
+  const [postingTime, setPostingTime] = useState(() => localTimeHHMM());
   const [showSubmit, setShowSubmit] = useState(false);
   const [project, setProject] = useState(null);
   const [workOrder, setWorkOrder] = useState(null);
@@ -42,7 +45,6 @@ export function useStockEntry() {
   const isCompact = hasItems && !isSetupManuallyExpanded;
 
   const resetSetup = () => {
-    setMode("");
     setFromWarehouse("");
     setToWarehouse("");
   };
@@ -83,14 +85,30 @@ export function useStockEntry() {
       },
     );
 
-    return res.message;
+    return res.message || {};
   };
 
+  /**
+   * Valuation is a nicety, not a requirement.
+   *
+   * `shopfloor` is an ERPNext app that this Frappe site does not declare in
+   * required_apps, so the call can fail wholesale on a site without it. It used
+   * to throw straight out of `enrichValuation`, which meant a store user could
+   * not record a movement at all because a helper app was absent. Now a failure
+   * degrades to "no valuation", which ERPNext handles via
+   * `allow_zero_valuation_rate`.
+   */
   const enrichValuation = async (items) => {
-    const valuationMap = await getBulkValuation(items);
+    let valuationMap = {};
+    try {
+      valuationMap = await getBulkValuation(items);
+    } catch (e) {
+      console.warn("bulk valuation unavailable; continuing without rates", e);
+      return items;
+    }
 
     return items.map((i) => {
-      const val = valuationMap[i.code] || {};
+      const val = (valuationMap && valuationMap[i.code]) || {};
 
       return {
         ...i,
@@ -118,63 +136,6 @@ export function useStockEntry() {
     });
   };
 
-  const getStockMode = (sourceType) => {
-    if (["Purchase Receipt", "Purchase Invoice"].includes(sourceType))
-      return "none";
-
-    return "strict";
-  };
-
-  // =============================
-  // ADD / SCAN ITEM
-  // =============================
-  const addItem = async (item) => {
-    let updated;
-
-    setItems((prev) => {
-      const existing = prev.find((i) => i.code === item.code);
-
-      if (existing) {
-        updated = prev.map((i) =>
-          i.code === item.code ? { ...i, qty: i.qty + 1 } : i,
-        );
-      } else {
-        updated = [
-          ...prev,
-          {
-            ...item,
-            qty: 1,
-            uom: item.uom || "Nos",
-            uomOptions: item.uomOptions || ["Nos"],
-          },
-        ];
-      }
-
-      return updated;
-    });
-
-    let enriched = await enrichStock(updated, fromWarehouse);
-
-    enriched = await enrichValuation(enriched);
-
-    setItems(enriched);
-  };
-
-  // =============================
-  // SCAN HANDLER
-  // =============================
-  const handleScan = (value) => {
-    if (!value) return;
-
-    // MOCK ITEM FETCH (replace with API)
-    const item = {
-      code: value,
-      name: t("store.item.itemName", { code: value }),
-    };
-
-    addItem(item);
-    setScan("");
-  };
 
   // =============================
   // UPDATE QTY
@@ -213,24 +174,84 @@ export function useStockEntry() {
   };
 
   // =============================
-  // LOAD SOURCE (MR/BOM/etc)
+  // LOAD ITEMS
   // =============================
-  const loadSource = async (items, sourceType) => {
-    const mode = getStockMode(sourceType);
+  /**
+   * Take items from a Stock Entry that ERPNext itself mapped out of a source
+   * document, rather than rebuilding the mapping here.
+   *
+   * `material_request.make_stock_entry` and `work_order.make_stock_entry` are
+   * whitelisted, validate the source is submitted and of a usable type, and
+   * already set the linkage fields (`material_request`,
+   * `material_request_item`), the outstanding quantity, the per-row warehouse
+   * side and the conversion factor.
+   *
+   * That linkage is the point: the old hand-rolled version copied
+   * `item_code/qty/uom` only, so the source Material Request's `ordered_qty`
+   * never moved and an indent looked owed forever even after goods were issued.
+   */
+  const loadMappedDocument = async (draft, { stockMode = "strict" } = {}) => {
+    const rows = (draft?.items || []).map((r) => ({
+      code: r.item_code,
+      name: r.item_name,
+      qty: Number(r.qty) || 0,
+      uom: r.uom,
+      stockUOM: r.stock_uom,
+      conversionFactor: r.conversion_factor,
+      uomOptions: [r.uom].filter(Boolean),
+      s_warehouse: r.s_warehouse || "",
+      t_warehouse: r.t_warehouse || "",
+      // Kept so the payload can re-send them; they are what makes the source
+      // document update on submit.
+      material_request: r.material_request || "",
+      material_request_item: r.material_request_item || "",
+      work_order: r.work_order || "",
+      stockMode,
+    }));
 
-    let enriched = items;
-
-    if (mode !== "none") {
-      enriched = await enrichStock(items, fromWarehouse);
-    }
-
+    let enriched = await enrichStock(rows, fromWarehouse);
     enriched = await enrichValuation(enriched);
 
+    setItems(enriched.map((i) => ({ ...i, stockMode })));
+  };
+
+  /** Add a single item typed or picked by the user. */
+  const addItemByCode = async (itemCode, qty = 1) => {
+    if (!itemCode) return;
+
+    let item;
+    try {
+      const res = await get(
+        "method/erpnext.stock.get_item_details.get_item_details",
+        {
+          args: JSON.stringify({
+            item_code: itemCode,
+            doctype: "Stock Entry",
+            company: "",
+            posting_date: postingDate,
+            qty,
+          }),
+        },
+      );
+      const d = res.message || res.data || {};
+      item = {
+        code: itemCode,
+        name: d.item_name || "",
+        uom: d.uom || d.stock_uom || "",
+        stockUOM: d.stock_uom || "",
+        conversionFactor: d.conversion_factor || 1,
+      };
+    } catch {
+      // Fall back to a bare row: a mistyped code should still be visible on
+      // the list and correctable, rather than vanishing.
+      item = { code: itemCode, name: itemCode, uom: "", stockUOM: "", conversionFactor: 1 };
+    }
+
+    const merged = [...items.filter((i) => i.code !== itemCode), { ...item, qty }];
+    let enriched = await enrichStock(merged, fromWarehouse);
+    enriched = await enrichValuation(enriched);
     setItems(
-      enriched.map((i) => ({
-        ...i,
-        stockMode: mode,
-      })),
+      enriched.map((i) => ({ ...i, stockMode: i.stockMode || "strict" })),
     );
   };
 
@@ -241,7 +262,16 @@ export function useStockEntry() {
       let updated = await enrichStock(items, fromWarehouse);
       updated = await enrichValuation(updated);
 
-      setItems(updated);
+      // Spread the existing row so `stockMode` survives. The previous version
+      // rebuilt rows from scratch here, which silently dropped `stockMode` and
+      // downgraded a clamped receipt to an unclamped one whenever the user
+      // changed the source warehouse after loading.
+      setItems((prev) =>
+        prev.map((row) => {
+          const next = updated.find((u) => u.code === row.code);
+          return next ? { ...row, ...next } : row;
+        }),
+      );
     };
 
     updateAll();
@@ -260,6 +290,12 @@ export function useStockEntry() {
 
   const buildPayload = () => {
     const validItems = getValidItems();
+
+    // Every rule about the selected type lives in config/storePurposes.js. An
+    // unknown type yields no rules, so a row goes out with neither warehouse
+    // rather than with both -- and ERPNext's validate_warehouse will say so.
+    const rules = STOCK_ENTRY_PURPOSES[stockPurposeForType(selectedType)] || {};
+    const isReceipt = selectedType === "Material Receipt";
 
     return {
       doctype: "Stock Entry",
@@ -281,33 +317,20 @@ export function useStockEntry() {
           uom: i.uom,
         };
 
-        // Warehouse mapping (IMPORTANT)
-        if (selectedType === "Material Receipt") {
-          item.t_warehouse = toWarehouse;
-        } else if (selectedType === "Material Issue") {
-          item.s_warehouse = fromWarehouse;
-        } else if (selectedType === "Material Transfer") {
-          item.s_warehouse = fromWarehouse;
-          item.t_warehouse = toWarehouse;
-        } else if (selectedType === "Material Transfer for Manufacture") {
-          item.s_warehouse = fromWarehouse;
-          item.t_warehouse = toWarehouse;
-        } else if (selectedType === "Material Consumption for Manufacture") {
-          item.s_warehouse = fromWarehouse;
-        } else {
-          // fallback (safe)
-          item.s_warehouse = fromWarehouse;
-          item.t_warehouse = toWarehouse;
-        }
+        // Warehouse mapping. showFrom/showTo are not a UI nicety:
+        // `validate_warehouse` (stock_entry.py:829-900) force-clears to_warehouse
+        // for source-only purposes and from_warehouse for target-only ones, so
+        // sending both is not "safe" -- it is a field ERPNext silently drops,
+        // which on screen looks like a warehouse that was set and then vanished.
+        if (rules.showFromWarehouse) item.s_warehouse = fromWarehouse;
+        if (rules.showToWarehouse) item.t_warehouse = toWarehouse;
 
         // Incoming valuation
-        if (selectedType === "Material Receipt") {
+        if (isReceipt) {
           item.basic_rate = i.valuation_rate || 0;
           item.valuation_rate = i.valuation_rate || 0;
-        }
-
-        // Outgoing fallback safety
-        if (selectedType !== "Material Receipt") {
+        } else {
+          // Outgoing fallback safety
           item.allow_zero_valuation_rate =
             i.valuation_status === "fallback" ? 1 : 0;
         }
@@ -411,16 +434,12 @@ export function useStockEntry() {
   };
 
   return {
-    mode,
-    setMode,
     setItems,
     items,
-    scan,
-    setScan,
-    handleScan,
     updateQty,
     removeItem,
-    loadSource,
+    loadMappedDocument,
+    addItemByCode,
     submit,
     totalQty,
 
@@ -428,8 +447,6 @@ export function useStockEntry() {
     setFromWarehouse,
     toWarehouse,
     setToWarehouse,
-    warehouse,
-    setWarehouse,
     entryTypes,
     setEntryTypes,
     showSource,

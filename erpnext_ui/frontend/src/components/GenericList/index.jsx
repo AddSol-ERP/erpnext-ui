@@ -75,8 +75,19 @@ function resolveStatus(row, statusField) {
 /* ===============================
    GENERIC LIST PAGE
 =============================== */
-export default function GenericListPage() {
-  const { doctype } = useParams();
+/**
+ * @param {string} [props.doctypeOverride] Real ERPNext doctype name, when the
+ *   URL segment is a readable slug rather than the doctype itself.
+ *
+ *   `/ess/salary-slip` reads better in an address bar than `/ess/Salary Slip`,
+ *   but the segment no longer matches the doctype, so GenericList -- which
+ *   resolves everything from `useParams()` -- would query a doctype literally
+ *   called "salary-slip" and get a 404 from Frappe. The route supplies the real
+ *   name here. With no override this is unchanged: the param is the doctype.
+ */
+export default function GenericListPage({ doctypeOverride }) {
+  const params = useParams();
+  const doctype = doctypeOverride || params.doctype;
   const hub = useHub();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
@@ -216,13 +227,25 @@ export default function GenericListPage() {
   const buildFilters = useCallback(() => {
     const filters = [];
 
+    // `baseFilters` are always-on constraints declared in config/doctypes.js --
+    // the "cancelled records are not documents" kind of rule. They are merged in
+    // first and are NOT clearable from the filter bar, because a user who ticks
+    // a status chip should never be able to widen a list past a business rule.
+    //
+    // This field was documented in doctypes.js and set on two entries but never
+    // read anywhere, so it silently did nothing. It is read here.
+    (config.baseFilters || []).forEach((f) => filters.push(f));
+
     Object.entries(selectedFilters).forEach(([field, value]) => {
       if (!value) return;
+      // A base filter on the same field is the caller's constraint, not a
+      // default; letting a chip widen it would defeat the point above.
+      if (filters.some(([f]) => f === field)) return;
       filters.push([field, "=", value]);
     });
 
     return filters;
-  }, [selectedFilters]);
+  }, [selectedFilters, config]);
 
   const buildOrFilters = useCallback(() => {
     if (!search) return [];

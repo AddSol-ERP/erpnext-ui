@@ -286,11 +286,11 @@ export default function AttendanceCalendar() {
   while (cells.length < 42) cells.push(null);
 
   const handleApplyLeave = (dateStr) => {
-    navigate(`/requests/leave/new?from_date=${dateStr}`);
+    navigate(`/ess/leave/new?from_date=${dateStr}`);
   };
 
   const handleRequestAttendance = (dateStr) => {
-    navigate(`/requests/attendance/new?from_date=${dateStr}&to_date=${dateStr}`);
+    navigate(`/ess/attendance-request/new?from_date=${dateStr}&to_date=${dateStr}`);
   };
 
   const handleDayClick = (cell) => {

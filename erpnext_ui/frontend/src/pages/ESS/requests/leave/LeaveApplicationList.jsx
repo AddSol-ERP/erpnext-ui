@@ -2,20 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useHeader } from "../../../context/HeaderContext";
-import { useToast } from "../../../context/ToastContext";
-import ActionBar from "../../../components/ActionBar";
-import Pagination from "../../../components/Pagination";
-import { deleteDocument } from "../../../lib/docTransition";
-import ListLayout from "../../../components/ListLayout";
-import { ListRow } from "../../../components/List/ListRow";
-import DataTable from "../../../components/List/DataTable";
-import { StatusBadge } from "../../../components/List/StatusBadge";
-import useListPagination from "../../../hooks/useListPagination";
-import { get } from "../../../services/api";
+import { useHeader } from "../../../../context/HeaderContext";
+import { useToast } from "../../../../context/ToastContext";
+import ActionBar from "../../../../components/ActionBar";
+import Pagination from "../../../../components/Pagination";
+import { deleteDocument } from "../../../../lib/docTransition";
+import ListLayout from "../../../../components/ListLayout";
+import { ListRow } from "../../../../components/List/ListRow";
+import DataTable from "../../../../components/List/DataTable";
+import { StatusBadge } from "../../../../components/List/StatusBadge";
+import useListPagination from "../../../../hooks/useListPagination";
+import { get } from "../../../../services/api";
 import { Button } from "@/components/ui/button";
-import ConfirmDialog from "../../../components/ConfirmDialog";
-import { listFilterHandlers } from "../../../lib/filterChips";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { listFilterHandlers } from "../../../../lib/filterChips";
 
 /* ================= STATUS ================= */
 const getStatus = (row) => {
@@ -91,13 +91,13 @@ export default function LeaveApplicationList() {
       subtitle: t("requests.header.leaveListSubtitle"),
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
-        { label: t("nav.requests"), path: "/requests" },
+        { label: t("nav.ess"), path: "/ess" },
         { label: t("requests.header.leaveListTitle") },
       ],
       actions: [
         {
           label: t("requests.list.create"),
-          onClick: () => navigate("/requests/leave/new"),
+          onClick: () => navigate("/ess/leave/new"),
         },
       ],
     });

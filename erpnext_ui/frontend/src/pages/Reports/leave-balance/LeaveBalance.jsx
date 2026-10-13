@@ -133,7 +133,7 @@ export default function LeaveBalance({ context = "ess" }) {
         context === "ess" && {
           label: t("reports.applyLeave"),
           variant: "btn-primary",
-          onClick: () => navigate("/requests/leave/new"),
+          onClick: () => navigate("/ess/leave/new"),
         },
         {
           label: t("common.back"),

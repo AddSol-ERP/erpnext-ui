@@ -7,17 +7,32 @@ import {
   CalendarCheck,
   PieChart,
   Receipt,
-  Clock,
+  CalendarClock,
   CalendarDays,
   Hourglass,
   Wallet,
   CheckSquare,
-  UserCheck,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 
+/**
+ * The merged Employee Self Service dashboard.
+ *
+ * This used to be two hubs for the same people: `/requests` (leave, attendance,
+ * expense) and `/ess` (everything else). Both were gated by the same
+ * `moduleKey: "ESS"` and both appeared on the Dashboard and in the sidebar as
+ * separate tiles, so the only difference an employee could observe was which
+ * of two similar names they had to remember. Everything now lives here, once.
+ *
+ * Tile titles are named for the TASK, not the doctype -- "Apply for Leave"
+ * rather than "Leave Application". Nobody browsing this page knows that ERPNext
+ * calls it a Leave Application, and several employees here have English as a
+ * second language. That naming rule is why the `ess.tiles.*` keys below are
+ * deliberately not 1:1 with the ERPNext doctypes they open.
+ *
+ * Order is by how often an employee reaches for it, not alphabetically.
+ */
 const MODULE_DEFS = [
   {
     key: "profile",
@@ -27,7 +42,7 @@ const MODULE_DEFS = [
   {
     key: "leave",
     icon: CalendarCheck,
-    route: "/requests/leave",
+    route: "/ess/leave",
   },
   {
     key: "leaveBalance",
@@ -35,17 +50,12 @@ const MODULE_DEFS = [
     route: "/ess/leave-balance",
   },
   {
-    key: "expenses",
-    icon: Receipt,
-    route: "/requests/expense",
+    key: "attendanceRequest",
+    icon: CalendarClock,
+    route: "/ess/attendance-request",
   },
   {
-    key: "attendanceRequests",
-    icon: Clock,
-    route: "/requests/attendance",
-  },
-  {
-    key: "attendanceLogs",
+    key: "attendance",
     icon: CalendarDays,
     route: "/ess/attendance",
   },
@@ -55,14 +65,19 @@ const MODULE_DEFS = [
     route: "/ess/overtime",
   },
   {
-    key: "salarySlips",
+    key: "expenseClaim",
+    icon: Receipt,
+    route: "/ess/expense-claim",
+  },
+  {
+    key: "salarySlip",
     icon: Wallet,
-    route: "/ess/Salary Slip",
+    route: "/ess/salary-slip",
   },
   {
     key: "tasks",
     icon: CheckSquare,
-    route: "/ess/ToDo",
+    route: "/ess/todo",
   },
 ];
 
@@ -94,10 +109,8 @@ export default function ESSDashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero
-        icon={UserCheck}
-        description={t("ess.header.subtitle")}
-      />
+      {/* No DashboardHero: the tile grid is the whole page, and a hero here
+          repeated the header text that is already on screen. */}
       <ModuleGrid items={modules} onClick={handleTileClick} />
     </DashboardShell>
   );

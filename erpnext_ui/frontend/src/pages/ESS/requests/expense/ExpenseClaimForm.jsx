@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useHeader } from "../../../context/HeaderContext";
-import { useToast } from "../../../context/ToastContext";
-import { get } from "../../../services/api";
+import { useHeader } from "../../../../context/HeaderContext";
+import { useToast } from "../../../../context/ToastContext";
+import { get } from "../../../../services/api";
 import {
   getWorkflowActions,
   resolveDocstatusActions,
@@ -12,27 +12,28 @@ import {
   submitDocument,
   cancelDocument,
   workflowActionLabelKey,
-} from "../../../lib/docTransition";
-import { getApprovalMeta } from "../../../lib/approvalMeta";
-import { useDocStatus } from "../../../hooks/useDocStatus";
-import { FormField } from "../../../components/FormField";
-import FormSection from "../../../components/FormSection";
-import FormErrorSummary from "../../../components/FormErrorSummary";
-import FormSelect from "../../../components/FormSelect";
-import ConfirmDialog from "../../../components/ConfirmDialog";
-import { focusFirstError } from "../../../lib/formValidation";
+} from "../../../../lib/docTransition";
+import { getApprovalMeta } from "../../../../lib/approvalMeta";
+import { useDocStatus } from "../../../../hooks/useDocStatus";
+import { FormField } from "../../../../components/FormField";
+import FormSection from "../../../../components/FormSection";
+import FormErrorSummary from "../../../../components/FormErrorSummary";
+import FormSelect from "../../../../components/FormSelect";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { focusFirstError } from "../../../../lib/formValidation";
 import {
   applyEmployeeScope,
   fetchEmployeeFields,
   fetchEmployeeScope,
   isEmployeeLocked,
-} from "../../../lib/employeeScope";
-import { fetchNamedApprovers } from "../../../lib/namedApprovers";
-import LinkField from "../../../components/LinkField";
+} from "../../../../lib/employeeScope";
+import { fetchNamedApprovers } from "../../../../lib/namedApprovers";
+import LinkField from "../../../../components/LinkField";
 import { FileText, Receipt, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { localDateISO } from "../../../../utils/localDateTime";
 
 export default function ExpenseClaimForm() {
   const { name } = useParams();
@@ -193,7 +194,7 @@ export default function ExpenseClaimForm() {
 
     if (!isEdit) {
       const patch = applyEmployeeScope({}, resolved, {
-        posting_date: new Date().toISOString().split("T")[0],
+        posting_date: localDateISO(),
         company: resolved.myCompany,
       });
 
@@ -361,11 +362,11 @@ export default function ExpenseClaimForm() {
       setDirty(false);
 
       if (isEdit) {
-        navigate("/requests/expense");
+        navigate("/ess/expense-claim");
       } else {
         // A new form offers Save only, so land on the saved document where
         // Submit (or the Workflow transitions) is reachable.
-        navigate(`/requests/expense/${res?.data?.name}`);
+        navigate(`/ess/expense-claim/${res?.data?.name}`);
       }
     } catch (e) {
       // Map Frappe's `_server_messages` back onto the individual fields so the
@@ -471,13 +472,13 @@ export default function ExpenseClaimForm() {
       // With a Workflow the transition can only be chosen against a saved
       // document, so continue there where those buttons now exist.
       if (hasWorkflow) {
-        navigate(`/requests/expense/${docName}`);
+        navigate(`/ess/expense-claim/${docName}`);
         return;
       }
 
       await submitDocument({ doctype: "Expense Claim", name: docName, action });
       toast.success(t("common.submittedSuccess", { name: label }));
-      navigate("/requests/expense");
+      navigate("/ess/expense-claim");
     } catch (e) {
       const message = e?.message || t("common.submitFailed");
       toast.error(message);
@@ -504,7 +505,7 @@ export default function ExpenseClaimForm() {
     try {
       await cancelDocument({ doctype: "Expense Claim", name });
       toast.success(t("common.cancelledSuccess", { name }));
-      navigate("/requests/expense");
+      navigate("/ess/expense-claim");
     } catch (e) {
       const message = e?.message || t("common.cancelFailed");
       toast.error(message);
@@ -529,10 +530,10 @@ export default function ExpenseClaimForm() {
 
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
-        { label: t("nav.requests"), path: "/requests" },
+        { label: t("nav.ess"), path: "/ess" },
         {
           label: t("requests.header.expenseListTitle"),
-          path: "/requests/expense",
+          path: "/ess/expense-claim",
         },
         { label: isEdit ? name : t("common.new") },
       ],
@@ -576,7 +577,7 @@ export default function ExpenseClaimForm() {
           label: t("common.back"),
           variant: "btn-outline-primary",
           disabled: loading || submitting,
-          onClick: () => navigate("/requests/expense"),
+          onClick: () => navigate("/ess/expense-claim"),
         },
 
         // Cancel the stored document (docstatus 1 -> 2), confirmed first.

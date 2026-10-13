@@ -273,6 +273,31 @@ export const DOCTYPE_CONFIG = {
     },
     searchFields: ["warehouse_name"],
   },
+
+  // BOM is a stock master but it is the *bridge* from Project to items: the
+  // Store module resolves "which items does this project need" by looking up
+  // `BOM.project` and exploding that BOM (erpnext_ui.api.get_project_items).
+  //
+  // A BOM with no project is invisible to that lookup, so tagging a BOM with a
+  // project is a prerequisite for project-scoped indents. It is exposed through
+  // GenericForm rather than the desk so whoever owns engineering can do it
+  // without leaving the SPA.
+  //
+  // `project` is deliberately part of searchFields: with ~1 BOM per project on
+  // a manufacturing site, "which BOM belongs to project X" is the first question
+  // anyone asks, and the list is filtered far more often than it is browsed.
+  BOM: {
+    list: {
+      titleField: "item_name",
+      subtitleField: "name",
+      metaField: "modified",
+      statusField: "docstatus",
+    },
+    searchFields: ["name", "item_name", "project"],
+    baseFilters: [["is_active", "=", 1]],
+    form: { layout: "tabs" },
+  },
+
   "Stock Reconciliation": {
     list: {
       titleField: "name",

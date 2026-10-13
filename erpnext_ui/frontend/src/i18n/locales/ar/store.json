@@ -1,7 +1,182 @@
 {
 	"store": {
 		"hub": {
-			"subtitle": "المخزون وطلبات المواد وحركة المخزون"
+			"subtitle": "قدّم طلباً، أو سلّم مواد، أو تحقّق من المخزون"
+		},
+		"purposes": {
+			"indent": {
+				"title": "رفع طلب عدة (إندنت)",
+				"description": "اطلب من المخزن المواد التي تحتاجها لتنفيذ عمل"
+			},
+			"purchase": {
+				"title": "اطلب الشراء",
+				"description": "اطلب مادة غير متوفرة في المخزن"
+			},
+			"transfer": {
+				"title": "نقل المواد بين المخازن",
+				"description": "انقل المواد من مخزن إلى آخر"
+			},
+			"production": {
+				"title": "للإنتاج",
+				"description": "اطلب مواد للتصنيع استناداً إلى قائمة المواد"
+			},
+			"customerProvided": {
+				"title": "مواد العميل",
+				"description": "مواد يوفرها العميل لتنفيذ أعمالنا"
+			}
+		},
+		"purposeGroupRequester": "أحتاج إلى شيء",
+		"purposeGroupStore": "أنا مسؤول عن المخزن",
+		"purposeGroupLookup": "الاستعلامات",
+		"scopes": {
+			"all": "الكل",
+			"project": "طلبات المشاريع",
+			"general": "طلبات عامة"
+		},
+		"giveItems": {
+			"title": "تسليم المواد",
+			"description": "سلّم المواد للطلبات المرفوعة من الآخرين",
+			"empty": "لا توجد طلبات في انتظار التسليم",
+			"outstanding": "المتبقي للتسليم",
+			"requested": "المطلوب",
+			"issued": "تم تسليمه",
+			"giveNow": "سلّم هذه",
+			"giveAll": "سلّم كل المتبقي",
+			"partialHint": "عدّل الكمية لتسليم جزء الآن والباقي لاحقاً",
+			"noWarehouse": "لا يوجد مستودع في هذا الطلب، لذلك تعذّر تحديد مصدر المواد",
+			"nothingToGive": "أدخل الكمية المراد تسليمها أولاً.",
+			"given": "تم إنشاء قيد المخزون {{name}} وتقديمه."
+		},
+		"getItems": {
+			"title": "جلب الأصناف",
+			"searchItem": "ابحث عن صنف بالاسم أو الرمز",
+			"selfHint": "اكتب الرمز ثم اضغط «إضافة». هذه أسرع طريقة عندما تعرف الصنف بالتحديد.",
+			"addItem": "إضافة صنف",
+			"willAdd": "سيتم إضافة {{count}} صنف:",
+			"useThese": "استخدام هذه",
+			"nothingToPick": "لا يوجد شيء متاح الآن",
+			"sources": {
+				"indent": {
+					"title": "من طلب معلق",
+					"description": "مواد طلبها شخص من المخزن"
+				},
+				"workOrder": {
+					"title": "من أمر تصنيع",
+					"description": "مواد لا يزال عمل الإنتاج يحتاجها"
+				},
+				"self": {
+					"title": "أعرف الأصناف",
+					"description": "أضفها واحداً تلو الآخر"
+				}
+			}
+		},
+		"receipt": {
+			"title": "استلام المواد",
+			"subtitle": "أدخل المواد التي سلّمها المورد إلى المخزن",
+			"description": "استلام ما سلّمه المورد",
+			"newTitle": "إيصال جديد",
+			"supplier": "المورد",
+			"postingDate": "التاريخ",
+			"acceptedWarehouse": "المستودع المستلَم",
+			"purchaseOrder": "أمر الشراء",
+			"receivedSoFar": "المستلَم",
+			"receive": "استلام",
+			"noOrders": "لا توجد أوامر شراء في انتظار الاستلام",
+			"withoutOrder": "استلام بدون أمر شراء",
+			"withoutOrderHint": "استخدمه عندما تصل المواد دون أمر. أضف الأصناف بنفسك.",
+			"lockedFromPo": "الأصناف من {{po}}. الصنف والمشروع ووحدة القياس والسعر ثابتة ليقبل ERPNext الإيصال.",
+			"nothingOutstanding": "لا يوجد شيء متبقٍ في {{po}}. تم استلام كل ما تم طلبه.",
+			"items": "الأصناف",
+			"noItems": "لا توجد أصناف بعد",
+			"acceptedQty": "الكمية المقبولة",
+			"rejectedQty": "الكمية المرفوضة",
+			"rate": "السعر",
+			"rateDiffers": "تم الطلب بسعر {{rate}}",
+			"stockUom": "{{qty}} {{uom}}",
+			"inStockUom": "في المخزون",
+			"factor": "معامل",
+			"validation": {
+				"supplierRequired": "اختر مورداً",
+				"dateRequired": "أدخل تاريخاً",
+				"dateFuture": "لا يمكن أن يكون التاريخ في المستقبل",
+				"addItem": "أضف صنفاً واحداً على الأقل",
+				"pickItem": "اختر صنفاً في كل صف",
+				"duplicatePoRow": "يظهر سطر أمر الشراء نفسه مرتين",
+				"rateRequired": "أدخل سعراً في كل صف",
+				"warehouseRequired": "اختر مستودعاً في كل صف",
+				"wholeNumberUom": "{{uom}} يجب أن يكون عدداً صحيحاً"
+			}
+		},
+		"projectItems": {
+			"title": "مواد المشروع {{project}}",
+			"chooseProject": "اختر مشروعاً",
+			"chooseBom": "اختر صنفاً",
+			"noBom": "لا توجد قائمة مواد مرتبطة بالمشروع {{project}} بعد. اربط واحدة من «قائمة المواد» في وحدة المخزن، أو امسح المشروع لاختيار المواد بنفسك.",
+			"noBomShort": "لا توجد قائمة مواد مرتبطة",
+			"required": "المطلوب",
+			"requestedQty": "تم طلبه سابقاً",
+			"outstanding": "ما زال مطلوباً",
+			"loadFailed": "تعذّرت قراءة قائمة المواد لهذا المشروع",
+			"hint": "أدخل مشروعاً في أحد الصفوف لاختيار المواد من قائمته. اتركه فارغاً للبحث عن أي مادة."
+		},
+		"movements": {
+			"title": "حركات المخزون",
+			"subtitle": "كل أنواع حركات المخزون، مجمّعة حسب ما تقوم به",
+			"groups": {
+				"everyday": "المخزن اليومي",
+				"manufacturing": "التصنيع",
+				"correction": "التصحيحات والتعاقد الخارجي"
+			},
+			"purposes": {
+				"issue": {
+					"title": "صرف مواد",
+					"description": "صرف مخزون لشخص أو عمل أو موقع"
+				},
+				"receipt": {
+					"title": "استلام مواد",
+					"description": "إدخال مواد إلى المخزن"
+				},
+				"transfer": {
+					"title": "النقل بين المخازن",
+					"description": "انقل المخزون من مخزن إلى آخر"
+				},
+				"transferForManufacture": {
+					"title": "إلى الإنتاج",
+					"description": "انقل المواد الخام إلى مخزن الإنتاج الجاري"
+				},
+				"consumption": {
+					"title": "الاستهلاك في الإنتاج",
+					"description": "تسجيل المواد الخام المستهلكة في العمل"
+				},
+				"manufacture": {
+					"title": "تسجيل الإنتاج",
+					"description": "استلام مواد خام وتسجيل تامّع المنتج المنجز"
+				},
+				"repack": {
+					"title": "إعادة التعبئة",
+					"description": "تغيير التعبئة دون تغيير الكمية"
+				},
+				"disassemble": {
+					"title": "تفكيك",
+					"description": "تفكيك تجميعة إلى مكوناتها"
+				},
+				"subcontractor": {
+					"title": "إرسال إلى مقاول باطن",
+					"description": "إرسال مواد للمعالجة الخارجية"
+				}
+			}
+		},
+		"labels": {
+			"purpose": "الغرض",
+			"requiredBy": "المطلوب بحلول",
+			"conversionFactor": "معامل التحويل",
+			"sourceWarehouse": "مستودع المصدر",
+			"targetWarehouse": "المستودع الهدف",
+			"item": "الصنف",
+			"items": "الأصناف",
+			"project": "المشروع",
+			"projectOptional": "المشروع (اختياري)",
+			"workOrder": "أمر التصنيع"
 		},
 		"tiles": {
 			"stockEntry": {
@@ -31,6 +206,10 @@
 			"stockReconciliation": {
 				"title": "تسوية المخزون",
 				"description": "تسوية كميات المخزون"
+			},
+			"bom": {
+				"title": "قائمة المواد",
+				"description": "اربط قائمة مواد بمشروع"
 			}
 		},
 		"mr": {
@@ -68,7 +247,9 @@
 			"form": {
 				"items": "الأصناف",
 				"select": "اختيار"
-			}
+			},
+			"unknownPurpose": "نوع الطلب هذا غير متاح.",
+			"allTitle": "جميع الطلبات"
 		},
 		"status": {
 			"draft": "مسودة",
@@ -113,7 +294,9 @@
 			"items": "الأصناف",
 			"getItems": "جلب الأصناف",
 			"dispatch": "الشحن",
-			"basics": "المعلومات الأساسية"
+			"basics": "المعلومات الأساسية",
+			"purpose": "الغرض",
+			"requiredBy": "المطلوب بحلول"
 		},
 		"validation": {
 			"typeRequired": "النوع مطلوب",

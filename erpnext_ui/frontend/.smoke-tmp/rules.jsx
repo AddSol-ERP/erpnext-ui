@@ -9,6 +9,17 @@ import {
   resolveLeaveApprovalActions,
 } from "../src/lib/leaveApproval.js";
 import { resolveHrApprovalGate } from "../src/lib/profileFlags.js";
+import {
+  MATERIAL_REQUEST_TYPES,
+  REQUEST_PURPOSES,
+  REQUEST_PURPOSE_KEYS,
+  STOCK_ENTRY_PURPOSES,
+  STOCK_MOVEMENT_GROUPS,
+  STORE_FULFILLABLE_TYPES,
+  buildStockEntryPayload,
+  requestPurposeForType,
+  stockPurposeForType,
+} from "../src/config/storePurposes.js";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => (c ? pass++ : (fail++, console.log("  FAIL:", n, "got:", JSON.stringify(got))));
@@ -286,6 +297,157 @@ ok("gate: a legacy custom_hr_approved flag alone must NOT trigger the banner",
 ok("gate: Approved wins even when a legacy flag disagrees",
    resolveHrApprovalGate({ workflow_state: "Approved", custom_hr_approved: false })
      .showWarning === false);
+
+// ===========================================================================
+// STORE PURPOSES — the purpose -> doctype contract
+// ===========================================================================
+// These guard the Store redesign. Every assertion here corresponds to a value
+// that ERPNext enforces somewhere and the browser fails silently on.
+
+// --- the bug that shipped: two MR type tiles wrote values ERPNext rejects ---
+// Frappe's _validate_selects (base_document.py:892) throws 417 for a Select
+// value outside its options. The old Store hub offered "Transfer" and
+// "Material Receipt" as material_request_type; neither exists in v15.
+ok("no purpose writes the bare word 'Transfer'",
+   !REQUEST_PURPOSE_KEYS.some((k) => REQUEST_PURPOSES[k].materialRequestType === "Transfer"));
+ok("no purpose writes 'Material Receipt' as a REQUEST type",
+   !REQUEST_PURPOSE_KEYS.some((k) => REQUEST_PURPOSES[k].materialRequestType === "Material Receipt"));
+ok("every request purpose writes a value ERPNext actually accepts",
+   REQUEST_PURPOSE_KEYS.every((k) =>
+     MATERIAL_REQUEST_TYPES.includes(REQUEST_PURPOSES[k].materialRequestType)),
+   REQUEST_PURPOSE_KEYS.map((k) => REQUEST_PURPOSES[k].materialRequestType));
+ok("the full ERPNext v15 type list is captured exactly",
+   JSON.stringify(MATERIAL_REQUEST_TYPES) ===
+     JSON.stringify(["Purchase", "Material Transfer", "Material Issue", "Manufacture", "Customer Provided"]),
+   MATERIAL_REQUEST_TYPES);
+
+// --- one-to-one mapping: two purposes may not share a type --------------
+ok("each MR type maps back to exactly one purpose",
+   MATERIAL_REQUEST_TYPES.every((t) => {
+     const keys = REQUEST_PURPOSE_KEYS.filter(
+       (k) => REQUEST_PURPOSES[k].materialRequestType === t);
+     return keys.length === 1;
+   }));
+
+// --- the store-fulfilment gate must mirror ERPNext's own ------------------
+// material_request.py:816-822 hard-restricts make_stock_entry to Material
+// Transfer / Material Issue / Customer Provided. Purchase and Manufacture are
+// routed elsewhere, so offering them in the storekeeper's queue would surface a
+// "Give Items" button that can only fail.
+ok("store-fulfillable set matches ERPNext's make_stock_entry gate",
+   JSON.stringify([...STORE_FULFILLABLE_TYPES].sort()) ===
+     JSON.stringify(["Customer Provided", "Material Issue", "Material Transfer"]),
+   STORE_FULFILLABLE_TYPES);
+ok("Purchase is NOT fulfilable by the store",
+   !STORE_FULFILLABLE_TYPES.includes("Purchase"));
+ok("Manufacture is NOT fulfilable by the store",
+   !STORE_FULFILLABLE_TYPES.includes("Manufacture"));
+
+// ---------------------------------------------------------------------------
+// stockPurposeForType: the shared ERPNext-type -> purpose-key lookup.
+//
+// This replaced an if/else chain in useStockEntry.js that named only 5 of the 9
+// purposes and fell through to "set both warehouses" for the rest. An unlisted
+// purpose therefore silently got the wrong warehouse shape, and a 10th purpose
+// from ERPNext would have inherited that default. The chain is gone, so this
+// lookup is the only place a purpose gets named -- assert it stays complete.
+// ---------------------------------------------------------------------------
+
+const SE_TYPES = Object.values(STOCK_ENTRY_PURPOSES).map((p) => p.stockEntryType);
+ok("stockPurposeForType: all 9 ERPNext types map back to a purpose",
+   SE_TYPES.length === 9 && SE_TYPES.every((t) => stockPurposeForType(t) !== ""),
+   `types=${SE_TYPES.length}`);
+ok("stockPurposeForType: unknown type yields '' rather than a wrong purpose",
+   stockPurposeForType("Not A Real Type") === "");
+ok("stockPurposeForType: round-trips every key",
+   Object.keys(STOCK_ENTRY_PURPOSES).every(
+     (k) => stockPurposeForType(STOCK_ENTRY_PURPOSES[k].stockEntryType) === k));
+
+// These flags are what buildPayload reads in place of its own chain. Pin each
+// shape -- "both warehouses" being the old fallback is the bug that was removed.
+const SHAPE = {
+  issue: [true, false],
+  receipt: [false, true],
+  transfer: [true, true],
+  transferForManufacture: [true, true],
+  consumption: [true, false],
+  manufacture: [true, true],
+  repack: [true, true],
+  disassemble: [true, true],
+  subcontractor: [true, true],
+};
+for (const [k, [from, to]] of Object.entries(SHAPE)) {
+  const got = STOCK_ENTRY_PURPOSES[k];
+  ok(`STOCK_ENTRY_PURPOSES.${k}: warehouse shape`,
+     got.showFromWarehouse === from && got.showToWarehouse === to,
+     `from=${got.showFromWarehouse} to=${got.showToWarehouse}`);
+}
+ok("requestPurposeForType resolves the indent purpose",
+   requestPurposeForType("Material Issue") === "indent");
+ok("requestPurposeForType returns null for an unknown type, not undefined",
+   requestPurposeForType("Nonsense") === null);
+
+// --- Stock Entry purposes: stock_entry_type is a Link, not a Select -------
+// purpose is hidden + read_only on the Stock Entry and is re-derived from
+// stock_entry_type.purpose by server-side fetch_from, so a payload that sends
+// `purpose` is at best redundant and at worst silently overwritten.
+const payload = buildStockEntryPayload("issue", {
+  items: [{ item_code: "X", qty: 1 }],
+  fromWarehouse: "Stores - DVPL",
+  toWarehouse: "Finished Goods - DVPL",
+  posting_date: "2026-01-01",
+});
+ok("payload sets stock_entry_type (the authoritative field)",
+   payload.stock_entry_type === "Material Issue");
+ok("payload never sends the derived `purpose`",
+   !("purpose" in payload), payload);
+ok("Material Issue sends the source warehouse", payload.from_warehouse === "Stores - DVPL");
+ok("Material Issue never sends a target warehouse (server clears it anyway)",
+   !("to_warehouse" in payload), payload);
+
+// --- every one of the nine purposes must be present and self-consistent ---
+ok("all nine ERPNext stock entry purposes are modelled",
+   Object.keys(STOCK_ENTRY_PURPOSES).length === 9);
+ok("every purpose has a group, and every group is declared",
+   Object.values(STOCK_ENTRY_PURPOSES).every((p) => STOCK_MOVEMENT_GROUPS.includes(p.group)));
+ok("every purpose declares at least one warehouse side",
+   Object.values(STOCK_ENTRY_PURPOSES).every(
+     (p) => p.showFromWarehouse || p.showToWarehouse));
+ok("stock_entry_type always equals the purpose it mirrors",
+   Object.values(STOCK_ENTRY_PURPOSES).every((p) => p.stockEntryType === p.purpose));
+ok("no two stock purposes share a stock_entry_type",
+   new Set(Object.values(STOCK_ENTRY_PURPOSES).map((p) => p.stockEntryType)).size === 9);
+
+// --- the one-sided purposes must not ask for a warehouse the server clears -
+// validate_warehouse (stock_entry.py:847-853) force-nulls the header AND every
+// row for these. Asking for them would put a field on screen that cannot be
+// saved, which is the exact confusion this redesign removes.
+ok("Material Issue shows one warehouse side only",
+   STOCK_ENTRY_PURPOSES.issue.showFromWarehouse === true &&
+   STOCK_ENTRY_PURPOSES.issue.showToWarehouse === false);
+ok("Material Receipt shows one warehouse side only",
+   STOCK_ENTRY_PURPOSES.receipt.showFromWarehouse === false &&
+   STOCK_ENTRY_PURPOSES.receipt.showToWarehouse === true);
+ok("Material Consumption shows one warehouse side only",
+   STOCK_ENTRY_PURPOSES.consumption.showFromWarehouse === true &&
+   STOCK_ENTRY_PURPOSES.consumption.showToWarehouse === false);
+ok("Material Transfer shows both sides",
+   STOCK_ENTRY_PURPOSES.transfer.showFromWarehouse === true &&
+   STOCK_ENTRY_PURPOSES.transfer.showToWarehouse === true);
+
+// --- manufacturing moves require a Work Order (stock_entry.py:903-905) ----
+ok("both manufacturing moves demand a Work Order",
+   STOCK_ENTRY_PURPOSES.transferForManufacture.requiresWorkOrder === true &&
+   STOCK_ENTRY_PURPOSES.consumption.requiresWorkOrder === true);
+ok("plain store moves do not demand a Work Order",
+   STOCK_ENTRY_PURPOSES.issue.requiresWorkOrder === false &&
+   STOCK_ENTRY_PURPOSES.receipt.requiresWorkOrder === false &&
+   STOCK_ENTRY_PURPOSES.transfer.requiresWorkOrder === false);
+
+// --- payload builder refuses an unknown purpose rather than emitting junk --
+let threw = false;
+try { buildStockEntryPayload("not-a-purpose", { items: [] }); } catch { threw = true; }
+ok("unknown stock movement purpose throws", threw);
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

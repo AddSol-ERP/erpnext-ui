@@ -96,7 +96,6 @@
 		"production": "Production",
 		"quality": "Quality",
 		"store": "Store",
-		"requests": "Requests",
 		"reports": "Reports",
 		"hr": "Human Resources",
 		"sales": "Sales",
@@ -119,15 +118,17 @@
 		"qualityReports": "Quality Reports",
 		"jobCards": "Job Cards",
 		"workOrders": "Work Orders",
-		"attendanceRequests": "Attendance Requests",
-		"leaveApplications": "Leave Applications",
-		"expenseClaims": "Expense Claims",
-		"essProfile": "My Profile",
-		"essAttendance": "Attendance Calendar",
-		"essOvertime": "Overtime Logs",
-		"leaveBalance": "Leave Balance",
+		"attendanceRequests": "Fix My Attendance",
+		"leaveApplications": "Apply for Leave",
+		"expenseClaims": "Claim an Expense",
+		"essProfile": "My Details",
+		"essAttendance": "My Attendance",
+		"essOvertime": "My Overtime",
+		"leaveBalance": "My Leave Balance",
 		"reportAttendance": "Attendance",
-		"reportOvertime": "Overtime"
+		"reportOvertime": "Overtime",
+		"salarySlips": "My Payslips",
+		"tasks": "My Tasks"
 	},
 	"theme": {
 		"appearance": "Appearance",
@@ -148,16 +149,46 @@
 		"company": "Addition Solutions"
 	},
 	"modules": {
-		"approvals": { "title": "Approvals", "description": "Pending approvals" },
-		"production": { "title": "Production", "description": "Work orders & job cards" },
-		"store": { "title": "Store", "description": "Inventory & stock" },
-		"requests": { "title": "Requests", "description": "Employee requests" },
-		"quality": { "title": "Quality", "description": "Inspection & QC" },
-		"hr": { "title": "HR", "description": "Employee master, attendance & payroll" },
-		"sales": { "title": "Sales", "description": "Customers, orders & invoices" },
-		"purchase": { "title": "Purchase", "description": "Suppliers & purchase orders" },
-		"ess": { "title": "Employee Self Service", "description": "My profile, leave & salary" },
-		"reports": { "title": "Reports", "description": "Analytics & reports" }
+		"approvals": {
+			"title": "Approvals",
+			"description": "Pending approvals"
+		},
+		"production": {
+			"title": "Production",
+			"description": "Work orders & job cards"
+		},
+		"store": {
+			"title": "Store",
+			"description": "Inventory & stock"
+		},
+		"requests": {
+			"title": "Requests",
+			"description": "Employee requests"
+		},
+		"quality": {
+			"title": "Quality",
+			"description": "Inspection & QC"
+		},
+		"hr": {
+			"title": "HR",
+			"description": "Employee master, attendance & payroll"
+		},
+		"sales": {
+			"title": "Sales",
+			"description": "Customers, orders & invoices"
+		},
+		"purchase": {
+			"title": "Purchase",
+			"description": "Suppliers & purchase orders"
+		},
+		"ess": {
+			"title": "Employee Self Service",
+			"description": "My profile, leave & salary"
+		},
+		"reports": {
+			"title": "Reports",
+			"description": "Analytics & reports"
+		}
 	},
 	"dashboard": {
 		"title": "ERP Dashboard",

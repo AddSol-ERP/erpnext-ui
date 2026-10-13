@@ -1,4 +1,5 @@
 import frappe
+from frappe.utils import cint, flt
 
 HR_ROLES = {"HR Manager", "HR User", "Administrator"}
 
@@ -780,3 +781,708 @@ def monthly_attendance(year, month, department=None, employee=None, company=None
         "is_hod": scope["is_hod"],
         "can_view_others": scope["can_view_others"],
     }
+
+
+# ============================================================
+# STORE — INDENTS (MATERIAL REQUEST) AND PROJECT ITEMS
+# ============================================================
+#
+# The Store UI is reorganised around *purposes* rather than doctypes: a person
+# picks "Raise an Indent" or "Give Items", and the doctype and field values are
+# decided server-side by config/storePurposes.js. Everything below exists to
+# support that, and deliberately uses stock ERPNext doctypes unchanged:
+#
+#   Material Request            -> the request itself (an "indent")
+#   Material Request Item       -> carries `project` and `bom_no`
+#   Stock Entry Detail          -> carries `material_request`/`material_request_item`
+#   BOM                        -> the Project -> items bridge (`BOM.project`)
+#
+# Nothing here writes a doctype. These are read-only projections that let the UI
+# answer "what does this project need?" and "what is still owed to me?" without
+# duplicating ERPNext's quantity arithmetic on the client.
+
+
+# `BOM.project` is the only link from a Project to a list of items. ERPNext's
+# `Project` doctype has no item child table (and `Project Template` has only
+# tasks), so a project with no tagged BOM has no items and the UI must say so
+# rather than silently falling back to an empty list.
+def _project_boms(project):
+	"""Active BOMs tagged to a project, that the caller may actually read.
+
+	A project may legitimately have several BOMs (different variants, revisions).
+	We return the list and let the UI ask, rather than guessing: picking the
+	wrong BOM silently would put the wrong item codes on an indent.
+
+	The permission check is per document, not just per doctype -- a user limited
+	to their own BOMs by a User Permission must not be able to read another one
+	by naming the project it belongs to.
+	"""
+	if not frappe.db.exists("DocType", "Project") or not frappe.db.exists("DocType", "BOM"):
+		return []
+
+	if not frappe.has_permission("BOM", "read"):
+		return []
+
+	boms = frappe.get_all(
+		"BOM",
+		filters={"project": project, "docstatus": ("!=", 2)},
+		fields=["name", "item", "quantity", "uom", "is_default", "modified"],
+		order_by="is_default desc, modified desc",
+		limit=20,
+	)
+
+	return [b for b in boms if frappe.has_permission("BOM", "read", b.name)]
+
+
+def _requested_qty_by_project_item(project):
+	"""Sum of still-outstanding request qty per item for one project.
+
+	Outstanding is `stock_qty - ordered_qty` on the Material Request Item, which
+	is the same expression ERPNext uses when it maps a request onto a Stock Entry
+	(`update_item` in material_request.py). Only submitted, not-stopped,
+	not-cancelled requests count, because those are the only ones the store can
+	still act on.
+
+	`ordered_qty` is labelled "Completed Qty" on the child table. `received_qty`
+	deliberately is NOT used: it is only driven by the Purchase flow and stays 0
+	for Stock-Entry-backed requests, so using it would report everything as still
+	owed.
+	"""
+	outstanding = {}
+
+	if not frappe.db.exists("DocType", "Material Request Item"):
+		return outstanding
+
+	parents = frappe.get_all(
+		"Material Request",
+		filters={
+			"docstatus": 1,
+			"status": ("not in", ["Stopped", "Cancelled"]),
+		},
+		fields=["name"],
+		order_by="creation desc",
+		# Bounded on purpose: this becomes an `IN (...)` list, and a site with a
+		# few years of submitted indents would otherwise build an unbounded
+		# query. Recent requests are the ones a person is actually still
+		# tracking; anything older has been issued or re-raised.
+		limit=1000,
+		ignore_permissions=True,
+	)
+	parent_names = [p.name for p in parents]
+	if not parent_names:
+		return outstanding
+
+	for row in frappe.db.sql(
+		"""
+		select item_code, sum(greatest(stock_qty - coalesce(ordered_qty, 0), 0)) as pending
+		from `tabMaterial Request Item`
+		where project = %s
+			and parent in %(parents)s
+		group by item_code
+		""",
+		{"project": project, "parents": tuple(parent_names)},
+		as_dict=True,
+	):
+		outstanding[row.item_code] = flt(row.pending)
+
+	return outstanding
+
+
+def _explode_bom(bom, company, qty):
+	"""Flatten a BOM into a list of stock item rows with usable UOM values.
+
+	Why not call ERPNext's whitelisted `bom.get_bom_items` directly? Two reasons,
+	both load-bearing:
+
+	1. It has no permission check. Calling it from the SPA would let any
+	   authenticated user read the bill of materials of a project they cannot see.
+	   This function is only reachable after the caller has been checked, so the
+	   disclosure stops here.
+
+	2. It hardcodes `include_non_stock_items=True` (bom.py:1259), so it returns
+	   consumables and services that can never appear on an indent -- a Stock
+	   Entry rejects them with "is not a stock Item".
+
+	It also cannot be used with `fetch_exploded=1` for form prefill: the exploded
+	read comes from `BOM Explosion Item`, which has no `uom` or
+	`conversion_factor` column at all, and Material Request Item requires both.
+	"""
+	from erpnext.manufacturing.doctype.bom.bom import get_bom_items_as_dict
+
+	rows = get_bom_items_as_dict(
+		bom,
+		company,
+		qty=qty,
+		fetch_exploded=0,
+		include_non_stock_items=False,
+	)
+
+	if not rows:
+		return []
+
+	# get_bom_items_as_dict resolves per-company defaults but not UOM. Fill them
+	# from the Item master so every row is immediately submittable.
+	item_codes = list(rows.keys())
+	items = {
+		d.name: d
+		for d in frappe.get_all(
+			"Item",
+			filters={"name": ("in", item_codes)},
+			fields=["name", "item_name", "stock_uom", "item_group"],
+		)
+	}
+
+	result = []
+	for item_code, row in sorted(rows.items()):
+		item = items.get(item_code)
+		if not item:
+			continue
+
+		stock_uom = item.stock_uom
+		if not stock_uom:
+			continue
+
+		result.append(
+			{
+				"item_code": item_code,
+				"item_name": item.item_name,
+				"item_group": item.item_group,
+				"uom": row.get("uom") or stock_uom,
+				"stock_uom": stock_uom,
+				"conversion_factor": flt(row.get("conversion_factor")) or 1.0,
+				# The quantity column is always aliased `qty`, even when it is
+				# read from BOM Item.stock_qty -- `get_bom_items_as_dict` names
+				# the result `... * %(qty)s as qty` either way. Reading
+				# `stock_qty` first would always miss and silently fall through.
+				"required_qty": flt(row.get("qty") or row.get("stock_qty")),
+				"source_warehouse": row.get("source_warehouse") or row.get("default_warehouse"),
+				"rate": flt(row.get("rate")),
+				"operation": row.get("operation"),
+			}
+		)
+
+	return result
+
+
+@frappe.whitelist(allow_guest=False)
+def get_project_items(project=None, company=None, bom=None, qty=1):
+	"""Items a Project needs, taken from the BOM tagged to that project.
+
+	The Store module answers "what material does this project need?" by reading
+	the BOM whose `project` field matches. That is the only available bridge --
+	ERPNext's `Project` doctype carries no item list -- so a project with no
+	tagged BOM genuinely has no items to show and the response says so instead of
+	looking like an empty project.
+
+	Permission model: the caller must be able to read `Project` and `BOM`. BOM
+	read is checked explicitly here because ERPNext's own BOM explosion helper
+	does not check it. Fails closed: any error raises rather than degrading to an
+	empty list, because an empty list reads as "this project needs nothing" and
+	would push the user to free-text an item list that should have been
+	generated.
+
+	Args:
+		project (str, optional): Project name. Ignored when `bom` is given.
+		company (str, optional): Company; defaults to the default company.
+		bom (str, optional): Explicit BOM, for a project with several.
+		qty (float, optional): Multiply the BOM quantity, e.g. 2 for two units
+			of the finished item. Defaults to 1.
+
+	Returns:
+		dict: {
+		  "project", "company",
+		  "boms": [{"name", "item", "quantity", "is_default"}],  # for the picker
+		  "bom": "BOM-...",                                        # the one used
+		  "has_bom": bool,
+		  "items": [{"item_code", "item_name", "uom", "stock_uom",
+		             "conversion_factor", "required_qty",
+		             "requested_qty", "outstanding_qty"}]
+		}
+	"""
+	if not project and not bom:
+		frappe.throw("Select a project to see the items it needs.")
+
+	if project:
+		# Document-level, not doctype-level. A user who can read *some* projects
+		# must not be able to read the bill of materials of every project by
+		# naming it. Frappe's own BOM explosion does not check at all, which is
+		# why this endpoint exists.
+		if not frappe.has_permission("Project", "read", project):
+			frappe.throw("You do not have permission to view this project.", frappe.PermissionError)
+
+		available_boms = _project_boms(project)
+		if not available_boms:
+			return {
+				"project": project,
+				"company": company or "",
+				"boms": [],
+				"bom": None,
+				"has_bom": False,
+				"items": [],
+			}
+
+		if bom:
+			if not any(b.name == bom for b in available_boms):
+				# Do not let a caller pass a BOM that is not tagged to this
+				# project: it would silently return another project's items.
+				frappe.throw("That bill of materials is not linked to this project.")
+			bom_name = bom
+		else:
+			bom_name = available_boms[0].name
+	elif bom:
+		if not frappe.has_permission("BOM", "read", bom):
+			frappe.throw("You do not have permission to view this bill of materials.", frappe.PermissionError)
+		bom_name = bom
+		project = frappe.db.get_value("BOM", bom_name, "project")
+		available_boms = _project_boms(project) if project else []
+	else:  # pragma: no cover - guarded by the first `if`
+		frappe.throw("Select a project to see the items it needs.")
+
+	if not company:
+		company = frappe.db.get_default("company") or frappe.db.get_single_value(
+			"Global Defaults", "default_company"
+		)
+
+	try:
+		qty = flt(qty) or 1.0
+		items = _explode_bom(bom_name, company, qty)
+	except frappe.PermissionError:
+		raise
+	except Exception:
+		# Raising rather than returning []: a failure here must not be readable
+		# as "this project needs no material".
+		frappe.log_error(frappe.get_traceback(), "erpnext_ui.get_project_items")
+		frappe.throw("Could not read the bill of materials for this project.")
+
+	requested = _requested_qty_by_project_item(project) if project else {}
+
+	for row in items:
+		requested_qty = flt(requested.get(row["item_code"]))
+		row["project"] = project
+		row["requested_qty"] = requested_qty
+		row["outstanding_qty"] = round(row["required_qty"] - requested_qty, 3)
+
+	return {
+		"project": project,
+		"company": company,
+		"boms": [
+			{
+				"name": b.name,
+				"item": b.item,
+				"quantity": flt(b.quantity),
+				"uom": b.uom,
+				"is_default": cint(b.is_default),
+			}
+			for b in available_boms
+		],
+		"bom": bom_name,
+		"has_bom": True,
+		"items": items,
+	}
+
+
+@frappe.whitelist(allow_guest=False)
+def get_indent_queue(company=None):
+	"""Submitted, still-unfulfilled indents for the store keeper to act on.
+
+	An "indent" is a Material Request the store can hand material against --
+	Material Issue, Material Transfer or Customer Provided. Purchase and
+	Manufacture requests are excluded because ERPNext's own
+	`make_stock_entry` refuses to map them (material_request.py:816-822); showing
+	them here would offer a "Give Items" action that can only fail.
+
+	Outstanding quantity is `stock_qty - ordered_qty` per item, the same figure
+	that becomes the Stock Entry's qty when the storekeeper issues.
+
+	Permission model: requires read on `Material Request` and `Stock Entry`.
+	Fails closed.
+
+	Args:
+		company (str, optional): Restrict to one company.
+
+	Returns:
+		dict: {"total": int, "requests": [
+			{"name", "company", "transaction_date", "schedule_date",
+			 "material_request_type", "status", "per_ordered",
+			 "projects": [str], "warehouse": str,
+			 "items": [{"name", "item_code", "item_name", "project",
+			            "requested_qty", "issued_qty", "outstanding_qty",
+			                "uom", "stock_uom", "warehouse"}]}
+		]}
+	"""
+	if not frappe.has_permission("Material Request", "read"):
+		frappe.throw("You do not have permission to view indent requests.", frappe.PermissionError)
+	if not frappe.has_permission("Stock Entry", "read"):
+		frappe.throw("You do not have permission to view stock entries.", frappe.PermissionError)
+
+	fulfillable = ("Material Issue", "Material Transfer", "Customer Provided")
+
+	filters = {
+		"docstatus": 1,
+		"material_request_type": ("in", fulfillable),
+		"status": ("not in", ["Stopped", "Cancelled"]),
+	}
+	if company:
+		filters["company"] = company
+
+	requests = frappe.get_all(
+		"Material Request",
+		filters=filters,
+		fields=[
+			"name",
+			"company",
+			"transaction_date",
+			"schedule_date",
+			"material_request_type",
+			"status",
+			"per_ordered",
+			"owner",
+		],
+		order_by="transaction_date asc, name asc",
+		limit=100,
+	)
+	if not requests:
+		return {"total": 0, "requests": []}
+
+	by_name = {r.name: dict(r) for r in requests}
+	names = list(by_name)
+
+	item_rows = frappe.get_all(
+		"Material Request Item",
+		filters={"parent": ("in", names)},
+		fields=[
+			"name",
+			"parent",
+			"item_code",
+			"item_name",
+			"project",
+			"qty",
+			"stock_qty",
+			"ordered_qty",
+			"uom",
+			"stock_uom",
+			"warehouse",
+			"from_warehouse",
+		],
+		order_by="idx asc",
+		ignore_permissions=True,
+	)
+
+	for request in by_name.values():
+		request["projects"] = []
+
+	for row in item_rows:
+		request = by_name.get(row.parent)
+		if not request:
+			continue
+
+		requested_qty = flt(row.stock_qty)
+		issued_qty = flt(row.ordered_qty)
+		outstanding = round(max(requested_qty - issued_qty, 0), 3)
+
+		# A fully-issued item is not outstanding work. Dropping it here keeps a
+		# 200-line request from rendering 200 rows the storekeeper cannot act on.
+		if outstanding <= 0:
+			continue
+
+		# Material Transfer reads the source off from_warehouse; the other two
+		# read the target off warehouse. This mirrors `update_item` in
+		# material_request.py, which is what will actually consume the value.
+		source = (
+			row.from_warehouse if request["material_request_type"] == "Material Transfer" else row.warehouse
+		)
+
+		request.setdefault("items", []).append(
+			{
+				"name": row.name,
+				"item_code": row.item_code,
+				"item_name": row.item_name or row.item_code,
+				"project": row.project or "",
+				"requested_qty": requested_qty,
+				"issued_qty": issued_qty,
+				"outstanding_qty": outstanding,
+				"uom": row.uom,
+				"stock_uom": row.stock_uom,
+				"warehouse": source or "",
+			}
+		)
+
+		if row.project and row.project not in request["projects"]:
+			request["projects"].append(row.project)
+
+	# A request whose every line is already issued is finished work, not a
+	# queue entry, even though it is still Submitted.
+	pending = []
+	for request in by_name.values():
+		if not request.get("items"):
+			continue
+		request.setdefault("items", [])
+		request["projects"] = request.get("projects", [])
+		request["outstanding_total"] = round(sum(item["outstanding_qty"] for item in request["items"]), 3)
+		pending.append(request)
+
+	return {"total": len(pending), "requests": pending}
+
+
+# Purpose key -> Material Request `material_request_type`.
+#
+# This is the SERVER-side authority for the Store module's request purposes. The
+# client sends a purpose key ("indent"), never a `material_request_type` string:
+# if it could send the type directly, a caller could create a request of a type
+# this map never vetted.
+#
+# frontend/src/config/storePurposes.js mirrors this mapping for display and for
+# building the document payload, and must be kept in step. The two are separate
+# on purpose -- the browser copy cannot be trusted to enforce anything, and the
+# Node smoke suite cannot import Python -- so any change here needs the same
+# change there.
+#
+# The values must stay inside `Material Request.material_request_type`'s Select
+# options, or Frappe's `_validate_selects` rejects the save with a bare HTTP 417.
+SPA_REQUEST_PURPOSES = {
+	"indent": "Material Issue",
+	"purchase": "Purchase",
+	"transfer": "Material Transfer",
+	"production": "Manufacture",
+	"customerProvided": "Customer Provided",
+}
+
+# The subset the store can actually hand material against. Mirrors ERPNext's own
+# gate in `material_request.make_stock_entry` (material_request.py:816-822),
+# which refuses anything outside this set.
+SPA_STORE_FULFILLABLE_TYPES = ("Material Issue", "Material Transfer", "Customer Provided")
+
+
+@frappe.whitelist(allow_guest=False)
+def get_indent_list(
+	purpose=None,
+	scope="all",
+	company=None,
+	status=None,
+	search=None,
+	start=0,
+	limit=20,
+):
+	"""Material Requests for one purpose, split by whether they carry a project.
+
+	The Store module separates "project indents" from "general indents". That
+	split is computed here rather than in the browser because **Frappe cannot
+	express it as a list filter**: `get_filter` resolves a dotted fieldname
+	(`items.project`) against the *parent* meta and then appends the child table
+	with no join, which is a cross join -- an indent with three items on a project
+	comes back three times and paginates wrongly (verified against MariaDB).
+	An EXISTS subquery is the only correct formulation, so it lives here.
+
+	Selection and pagination stay permission-checked: the candidate set comes
+	from `frappe.get_all`, which applies the caller's read permissions, and only
+	the split and the page window are computed in Python.
+
+	Args:
+		purpose (str, optional): Purpose key from config/storePurposes.js.
+			Omit to list every request type.
+		scope (str): "project" (at least one item has a project), "general"
+			(no item has one), or "all". Defaults to "all".
+		company (str, optional): Restrict to one company.
+		status (str, optional): Exact `status` match.
+		search (str, optional): Substring of the request name.
+		start (int): Row offset. Defaults to 0.
+		limit (int): Page size. Defaults to 20.
+
+	Returns:
+		dict: {"total": int, "scope": str, "counts": {"project": int,
+		          "general": int}, "rows": [ ... ]}
+	"""
+	if not frappe.has_permission("Material Request", "read"):
+		frappe.throw("You do not have permission to view indent requests.", frappe.PermissionError)
+
+	# The purpose key is a UI concept; translate it here so the client never has
+	# to send (or guess) a `material_request_type` string.
+	material_request_type = None
+	if purpose:
+		if purpose not in SPA_REQUEST_PURPOSES:
+			frappe.throw(f"Unknown request purpose: {purpose}")
+		material_request_type = SPA_REQUEST_PURPOSES[purpose]
+
+	filters = {"docstatus": ("!=", 2)}
+	if material_request_type:
+		filters["material_request_type"] = material_request_type
+	if company:
+		filters["company"] = company
+	if status:
+		filters["status"] = status
+
+	# Candidate names, permission-filtered and ordered. Bounded: this becomes an
+	# IN (...) list, and an unbounded store system would otherwise build a query
+	# with tens of thousands of ids in it.
+	CANDIDATE_CAP = 2000
+	candidates = frappe.get_all(
+		"Material Request",
+		filters=filters,
+		fields=["name"],
+		order_by="modified desc",
+		limit_page_length=CANDIDATE_CAP,
+		pluck="name",
+	)
+	if not candidates:
+		return {"total": 0, "scope": scope, "counts": {"project": 0, "general": 0}, "rows": []}
+
+	# One query for every item's project, rather than one per request.
+	project_rows = frappe.get_all(
+		"Material Request Item",
+		filters={"parent": ("in", candidates)},
+		fields=["parent", "project"],
+		limit_page_length=0,
+		ignore_permissions=True,
+	)
+
+	projects_by_request = {}
+	for row in project_rows:
+		if not row.project:
+			continue
+		bucket = projects_by_request.setdefault(row.parent, set())
+		bucket.add(row.project)
+
+	def is_project_indent(name):
+		return bool(projects_by_request.get(name))
+
+	split = {
+		"project": [n for n in candidates if is_project_indent(n)],
+		"general": [n for n in candidates if not is_project_indent(n)],
+	}
+
+	counts = {k: len(v) for k, v in split.items()}
+
+	if scope == "project":
+		ordered = split["project"]
+	elif scope == "general":
+		ordered = split["general"]
+	elif scope == "all":
+		# Interleave so the default view is not "all project indents, then all
+		# general ones" — a user wants their own recent work either way.
+		interleaved = [n for pair in zip(split["project"], split["general"], strict=False) for n in pair]
+		interleaved += split["project"][len(split["general"]) :]
+		interleaved += split["general"][len(split["project"]) :]
+		ordered = interleaved
+	else:
+		frappe.throw("Scope must be one of: project, general, all")
+
+	if search:
+		needle = str(search).lower()
+		ordered = [n for n in ordered if needle in n.lower()]
+
+	total = len(ordered)
+	try:
+		start = max(int(start or 0), 0)
+		limit = max(int(limit or 20), 1)
+	except (TypeError, ValueError):
+		frappe.throw("Invalid pagination.")
+
+	page_names = ordered[start : start + limit]
+	if not page_names:
+		return {"total": total, "scope": scope, "counts": counts, "rows": []}
+
+	rows = frappe.get_all(
+		"Material Request",
+		filters={"name": ("in", page_names)},
+		fields=[
+			"name",
+			"company",
+			"transaction_date",
+			"schedule_date",
+			"material_request_type",
+			"status",
+			"docstatus",
+			"per_ordered",
+			"modified",
+		],
+		limit_page_length=0,
+	)
+	by_name = {r.name: r for r in rows}
+
+	# Preserve the ordering computed above rather than whatever get_all returned.
+	ordered_rows = [by_name[n] for n in page_names if n in by_name]
+
+	for row in ordered_rows:
+		row.projects = sorted(projects_by_request.get(row.name, ()))
+
+	return {
+		"total": total,
+		"scope": scope,
+		"counts": counts,
+		"rows": [dict(r) for r in ordered_rows],
+	}
+
+
+@frappe.whitelist(allow_guest=False)
+def get_item_uom_options(item_code):
+	"""The UOMs an item may be transacted in, with their whole-number flags.
+
+	Deliberately does NOT return `conversion_factor`. A weighed receipt derives
+	its own factor from a measured total (`total / qty`, see
+	`lib/receiptConversion.js`), because the nominal figure in UOM Conversion
+	Detail is wrong for every delivery -- 10 plates weighing 25.4 Kg are 2.54 Kg
+	each, and the next delivery will not weigh the same. Shipping the master
+	value to the client invited exactly that mistake. What the client still
+	needs is: which UOMs exist, which one is the stock UOM, and which of them
+	forbid a fraction.
+
+	`must_be_whole_number` is a property of the UOM, and ERPNext enforces it
+	against TWO different fields on a Purchase Receipt:
+
+	- `validate_uom_is_integer("stock_uom", "stock_qty")`
+	  (purchase_receipt.py:276-278) -- the *stock* qty must be whole.
+	- and the transaction qty against the *transaction* UOM.
+
+	So both flags are needed, keyed by UOM, for the form to check the right pair.
+
+	Permission model: requires read on `Item`. Fails closed -- a caller with no
+	Item permission gets a PermissionError, never an empty list, because an
+	empty list would read as "this item has one UOM" and silently drop the
+	measured-total field.
+
+	Args:
+		item_code (str): Item name.
+
+	Returns:
+		dict: {"item_code", "stock_uom", "uoms": [{"uom", "must_be_whole_number"}]}
+	"""
+	if not item_code:
+		frappe.throw("No item specified.")
+
+	if not frappe.has_permission("Item", "read", item_code):
+		frappe.throw("You do not have permission to view this item.", frappe.PermissionError)
+
+	stock_uom = frappe.db.get_value("Item", item_code, "stock_uom")
+	if not stock_uom:
+		frappe.throw(f"Item {item_code} has no stock UOM configured.")
+
+	rows = frappe.get_all(
+		"UOM Conversion Detail",
+		filters={"parent": item_code},
+		fields=["uom"],
+		order_by="idx asc",
+		ignore_permissions=True,
+	)
+
+	# `must_be_whole_number` is read per UOM rather than joined: it is a handful
+	# of rows and this keeps the query to a single table.
+	whole_number = {
+		row.name: cint(row.must_be_whole_number)
+		for row in frappe.get_all(
+			"UOM",
+			filters={"name": ("in", list({r.uom for r in rows} | {stock_uom}))},
+			fields=["name", "must_be_whole_number"],
+		)
+	}
+
+	uoms = [{"uom": row.uom, "must_be_whole_number": whole_number.get(row.uom, 0)} for row in rows if row.uom]
+
+	# The stock UOM must always be listed even if no conversion row exists for
+	# it: it is by definition what the item is stocked in.
+	if not any(u["uom"] == stock_uom for u in uoms):
+		uoms.append({"uom": stock_uom, "must_be_whole_number": whole_number.get(stock_uom, 0)})
+
+	# Stock UOM first: it is the common case and the safest default.
+	uoms.sort(key=lambda u: (u["uom"] != stock_uom, u["uom"]))
+
+	return {"item_code": item_code, "stock_uom": stock_uom, "uoms": uoms}

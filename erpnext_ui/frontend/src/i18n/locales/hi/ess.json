@@ -1,8 +1,6 @@
 {
 	"requests": {
 		"header": {
-			"title": "अनुरोध",
-			"subtitle": "कर्मचारी अनुरोध बनाएँ और प्रबंधित करें",
 			"attendanceListTitle": "उपस्थिति अनुरोध",
 			"attendanceListSubtitle": "उपस्थिति सुधार समीक्षा और प्रबंधित करें",
 			"attendanceEditTitle": "उपस्थिति अनुरोध {{name}}",
@@ -21,20 +19,6 @@
 			"expenseNewTitle": "नया व्यय दावा",
 			"expenseEditSubtitle": "व्यय विवरण समीक्षा करें और अपडेट करें",
 			"expenseNewSubtitle": "नया व्यय दावा बनाएँ और सबमिट करें"
-		},
-		"tiles": {
-			"attendance": {
-				"title": "उपस्थिति अनुरोध",
-				"description": "उपस्थिति प्रविष्टियाँ सुधारें"
-			},
-			"leave": {
-				"title": "अवकाश अनुरोध",
-				"description": "अवकाश के लिए आवेदन करें"
-			},
-			"expense": {
-				"title": "व्यय अनुरोध",
-				"description": "व्यय जमा करें"
-			}
 		},
 		"status": {
 			"approved": "स्वीकृत",
@@ -149,7 +133,7 @@
 	"ess": {
 		"header": {
 			"title": "कर्मचारी स्व-सेवा",
-			"subtitle": "मेरी प्रोफ़ाइल, उपस्थिति, अवकाश और वेतन",
+			"subtitle": "आपके कार्य की सब कुछ — अवकाश, उपस्थिति, खर्च और वेतन पर्चियाँ",
 			"profileTitle": "मेरी प्रोफ़ाइल",
 			"profileSubtitle": "अपनी कर्मचारी जानकारी देखें",
 			"attendanceTitle": "उपस्थिति कैलेंडर",
@@ -166,40 +150,40 @@
 		},
 		"tiles": {
 			"profile": {
-				"title": "मेरी प्रोफ़ाइल",
-				"description": "अपनी प्रोफ़ाइल देखें और प्रबंधित करें"
+				"title": "मेरा प्रोफ़ाइल",
+				"description": "आपका नाम, फ़ोटो और संपर्क विवरण"
 			},
 			"leave": {
-				"title": "मेरा अवकाश",
-				"description": "अवकाश के लिए आवेदन करें और शेष देखें"
+				"title": "अवकाश के लिए आवेदन करें",
+				"description": "छुट्टी का अनुरोध करें और अपने अनुरोध देखें"
 			},
 			"leaveBalance": {
-				"title": "अवकाश शेष",
-				"description": "इस वर्ष का मेरा अवकाश शेष देखें"
+				"title": "मेरा अवकाश शेष",
+				"description": "इस साल आपके पास कितनी छुट्टी बची है"
 			},
-			"expenses": {
-				"title": "मेरे व्यय",
-				"description": "व्यय दावे जमा करें"
+			"attendanceRequest": {
+				"title": "मेरी उपस्थिति में सुधार करें",
+				"description": "ग़ायब या ग़लत पंच की सूचना दें"
 			},
-			"attendanceRequests": {
-				"title": "उपस्थिति आवश्यक",
-				"description": "उपस्थिति अनुरोध प्रबंधित करें"
-			},
-			"attendanceLogs": {
-				"title": "उपस्थिति लॉग",
-				"description": "इन/आउट समय के साथ मासिक कैलेंडर दृश्य"
+			"attendance": {
+				"title": "मेरी उपस्थिति",
+				"description": "देखें कि आप कब आए और कब गए"
 			},
 			"overtime": {
-				"title": "ओवरटाइम लॉग",
-				"description": "अपने ओवरटाइम रिकॉर्ड देखें"
+				"title": "मेरा ओवरटाइम",
+				"description": "निर्धारित समय से अधिक काम के घंटे"
 			},
-			"salarySlips": {
+			"expenseClaim": {
+				"title": "खर्च का दावा करें",
+				"description": "काम के लिए खर्च किए पैसे की वापसी"
+			},
+			"salarySlip": {
 				"title": "मेरी वेतन पर्चियाँ",
-				"description": "वेतन पर्चियाँ देखें"
+				"description": "अपनी सैलरी स्लिप डाउनलोड करें"
 			},
 			"tasks": {
 				"title": "मेरे कार्य",
-				"description": "सौंपे गए कार्य देखें"
+				"description": "आपको सौंपा गया काम"
 			}
 		},
 		"profile": {

@@ -35,11 +35,14 @@ const MODULE_DEFS = [
   },
   { key: "production", icon: Cog, route: "/production", moduleKey: "Production" },
   { key: "store", icon: Package, route: "/store", moduleKey: "Stock" },
-  { key: "requests", icon: Inbox, route: "/requests", moduleKey: "ESS" },
   { key: "quality", icon: ShieldCheck, route: "/quality", moduleKey: "Quality" },
   { key: "hr", icon: Users, route: "/hr", moduleKey: "HR" },
   { key: "sales", icon: ShoppingCart, route: "/sales", moduleKey: "Sales" },
   { key: "purchase", icon: Truck, route: "/purchase", moduleKey: "Purchase" },
+  // Employee Self Service covers leave, attendance requests, expense claims,
+  // overtime, payslips and tasks. There was a second tile here pointing at
+  // /requests with the SAME moduleKey ("ESS") -- two tiles, one module, which
+  // is what made the old split look like two separate features.
   { key: "ess", icon: UserCheck, route: "/ess", moduleKey: "ESS" },
   { key: "reports", icon: BarChart3, route: "/reports", moduleKey: "Reports" },
 ];

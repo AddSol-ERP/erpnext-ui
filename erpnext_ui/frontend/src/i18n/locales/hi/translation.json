@@ -96,7 +96,6 @@
 		"production": "उत्पादन",
 		"quality": "गुणवत्ता",
 		"store": "स्टोर",
-		"requests": "अनुरोध",
 		"reports": "रिपोर्ट",
 		"hr": "मानव संसाधन",
 		"sales": "बिक्री",
@@ -119,15 +118,17 @@
 		"qualityReports": "गुणवत्ता रिपोर्ट",
 		"jobCards": "जॉब कार्ड",
 		"workOrders": "वर्क ऑर्डर",
-		"attendanceRequests": "उपस्थिति अनुरोध",
-		"leaveApplications": "अवकाश आवेदन",
-		"expenseClaims": "व्यय दावे",
-		"essProfile": "मेरी प्रोफ़ाइल",
-		"essAttendance": "उपस्थिति कैलेंडर",
-		"essOvertime": "ओवरटाइम लॉग",
-		"leaveBalance": "अवकाश शेष",
+		"attendanceRequests": "मेरी उपस्थिति में सुधार करें",
+		"leaveApplications": "अवकाश के लिए आवेदन करें",
+		"expenseClaims": "खर्च का दावा करें",
+		"essProfile": "मेरा प्रोफ़ाइल",
+		"essAttendance": "मेरी उपस्थिति",
+		"essOvertime": "मेरा ओवरटाइम",
+		"leaveBalance": "मेरा अवकाश शेष",
 		"reportAttendance": "उपस्थिति",
-		"reportOvertime": "ओवरटाइम"
+		"reportOvertime": "ओवरटाइम",
+		"salarySlips": "मेरी वेतन पर्चियाँ",
+		"tasks": "मेरे कार्य"
 	},
 	"theme": {
 		"appearance": "रूप-रंग",
@@ -148,16 +149,46 @@
 		"company": "Addition Solutions"
 	},
 	"modules": {
-		"approvals": { "title": "अनुमोदन", "description": "लंबित अनुमोदन" },
-		"production": { "title": "उत्पादन", "description": "कार्य आदेश और जॉब कार्ड" },
-		"store": { "title": "स्टोर", "description": "इन्वेंटरी और स्टॉक" },
-		"requests": { "title": "अनुरोध", "description": "कर्मचारी अनुरोध" },
-		"quality": { "title": "गुणवत्ता", "description": "निरीक्षण और क्यूसी" },
-		"hr": { "title": "एचआर", "description": "कर्मचारी मास्टर, उपस्थिति और वेतन" },
-		"sales": { "title": "बिक्री", "description": "ग्राहक, ऑर्डर और इनवॉइस" },
-		"purchase": { "title": "क्रय", "description": "आपूर्तिकर्ता और खरीद ऑर्डर" },
-		"ess": { "title": "कर्मचारी स्व-सेवा", "description": "मेरी प्रोफ़ाइल, अवकाश और वेतन" },
-		"reports": { "title": "रिपोर्ट", "description": "एनालिटिक्स और रिपोर्ट" }
+		"approvals": {
+			"title": "अनुमोदन",
+			"description": "लंबित अनुमोदन"
+		},
+		"production": {
+			"title": "उत्पादन",
+			"description": "कार्य आदेश और जॉब कार्ड"
+		},
+		"store": {
+			"title": "स्टोर",
+			"description": "इन्वेंटरी और स्टॉक"
+		},
+		"requests": {
+			"title": "अनुरोध",
+			"description": "कर्मचारी अनुरोध"
+		},
+		"quality": {
+			"title": "गुणवत्ता",
+			"description": "निरीक्षण और क्यूसी"
+		},
+		"hr": {
+			"title": "एचआर",
+			"description": "कर्मचारी मास्टर, उपस्थिति और वेतन"
+		},
+		"sales": {
+			"title": "बिक्री",
+			"description": "ग्राहक, ऑर्डर और इनवॉइस"
+		},
+		"purchase": {
+			"title": "क्रय",
+			"description": "आपूर्तिकर्ता और खरीद ऑर्डर"
+		},
+		"ess": {
+			"title": "कर्मचारी स्व-सेवा",
+			"description": "मेरी प्रोफ़ाइल, अवकाश और वेतन"
+		},
+		"reports": {
+			"title": "रिपोर्ट",
+			"description": "एनालिटिक्स और रिपोर्ट"
+		}
 	},
 	"dashboard": {
 		"title": "ERP डैशबोर्ड",

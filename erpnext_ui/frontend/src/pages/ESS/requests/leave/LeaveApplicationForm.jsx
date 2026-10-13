@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, FileText } from "lucide-react";
-import { useHeader } from "../../../context/HeaderContext";
-import { useToast } from "../../../context/ToastContext";
-import { get, post } from "../../../services/api";
+import { useHeader } from "../../../../context/HeaderContext";
+import { useToast } from "../../../../context/ToastContext";
+import { get, post } from "../../../../services/api";
 import {
   canSubmitDocument,
   deleteDocument,
@@ -15,29 +15,29 @@ import {
   submitDocument,
   cancelDocument,
   workflowActionLabelKey,
-} from "../../../lib/docTransition";
-import { getApprovalMeta } from "../../../lib/approvalMeta";
-import { useRole } from "../../../context/RoleContext";
+} from "../../../../lib/docTransition";
+import { getApprovalMeta } from "../../../../lib/approvalMeta";
+import { useRole } from "../../../../context/RoleContext";
 import {
   LEAVE_APPROVED,
   LEAVE_REJECTED,
   resolveLeaveApprovalActions,
   setLeaveApprovalStatus,
-} from "../../../lib/leaveApproval";
-import { useDocStatus } from "../../../hooks/useDocStatus";
-import { FormField } from "../../../components/FormField";
-import FormSection from "../../../components/FormSection";
-import FormErrorSummary from "../../../components/FormErrorSummary";
-import ConfirmDialog from "../../../components/ConfirmDialog";
-import FormSelect from "../../../components/FormSelect";
-import { focusFirstError } from "../../../lib/formValidation";
+} from "../../../../lib/leaveApproval";
+import { useDocStatus } from "../../../../hooks/useDocStatus";
+import { FormField } from "../../../../components/FormField";
+import FormSection from "../../../../components/FormSection";
+import FormErrorSummary from "../../../../components/FormErrorSummary";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
+import FormSelect from "../../../../components/FormSelect";
+import { focusFirstError } from "../../../../lib/formValidation";
 import {
   applyEmployeeScope,
   fetchEmployeeScope,
   isEmployeeLocked,
-} from "../../../lib/employeeScope";
-import { fetchNamedApprovers } from "../../../lib/namedApprovers";
-import LinkField from "../../../components/LinkField";
+} from "../../../../lib/employeeScope";
+import { fetchNamedApprovers } from "../../../../lib/namedApprovers";
+import LinkField from "../../../../components/LinkField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -416,7 +416,7 @@ export default function LeaveApplicationForm() {
         toast.success(t("requests.leave.updatedSuccess"));
         // The <Toaster /> is mounted by ToastProvider above the router, so this
         // confirmation stays visible on the page we land on.
-        navigate("/requests/leave");
+        navigate("/ess/leave");
       } else {
         const res = await saveDocument({
           doctype: "Leave Application",
@@ -427,7 +427,7 @@ export default function LeaveApplicationForm() {
         // Land on the saved document rather than the list: a new form offers
         // Save only, so this is where Submit (or the Workflow transitions)
         // becomes reachable without reopening the document by hand.
-        navigate(`/requests/leave/${res?.data?.name}`);
+        navigate(`/ess/leave/${res?.data?.name}`);
       }
     } catch (e) {
       // Map Frappe's `_server_messages` back onto the individual fields so the
@@ -558,7 +558,7 @@ export default function LeaveApplicationForm() {
     try {
       await submitDocument({ doctype: "Leave Application", name, action });
       toast.success(t("common.submittedSuccess", { name: label }));
-      navigate("/requests/leave");
+      navigate("/ess/leave");
     } catch (e) {
       const message = e?.message || t("common.submitFailed");
       toast.error(message);
@@ -652,7 +652,7 @@ export default function LeaveApplicationForm() {
           name: t("requests.leave.doctypeName"),
         }),
       );
-      navigate("/requests/leave");
+      navigate("/ess/leave");
     } catch (e) {
       toast.error(e?.message || t("common.deleteFailed"));
       // Keep the reason on the page too, in case the toast is missed.
@@ -677,8 +677,8 @@ export default function LeaveApplicationForm() {
 
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
-        { label: t("nav.requests"), path: "/requests" },
-        { label: t("requests.header.leaveListTitle"), path: "/requests/leave" },
+        { label: t("nav.ess"), path: "/ess" },
+        { label: t("requests.header.leaveListTitle"), path: "/ess/leave" },
         { label: isEdit ? name : t("common.new") },
       ],
 
@@ -739,7 +739,7 @@ export default function LeaveApplicationForm() {
           label: t("common.back"),
           variant: "btn-outline-primary",
           disabled: loading || submitting,
-          onClick: () => navigate("/requests/leave"),
+          onClick: () => navigate("/ess/leave"),
         },
 
         // Cancel the stored document (docstatus 1 -> 2). This is a real

@@ -1,8 +1,6 @@
 {
 	"requests": {
 		"header": {
-			"title": "الطلبات",
-			"subtitle": "إنشاء وإدارة طلبات الموظفين",
 			"attendanceListTitle": "طلبات الحضور",
 			"attendanceListSubtitle": "مراجعة وإدارة تصحيحات الحضور",
 			"attendanceEditTitle": "طلب حضور {{name}}",
@@ -21,20 +19,6 @@
 			"expenseNewTitle": "مطالبة مصروفات جديدة",
 			"expenseEditSubtitle": "مراجعة وتحديث تفاصيل المصروفات",
 			"expenseNewSubtitle": "إنشاء وإرسال مطالبة مصروفات جديدة"
-		},
-		"tiles": {
-			"attendance": {
-				"title": "طلب حضور",
-				"description": "إصلاح قيود الحضور"
-			},
-			"leave": {
-				"title": "طلب إجازة",
-				"description": "التقدم بطلب للحصول على إجازة"
-			},
-			"expense": {
-				"title": "طلب مصروفات",
-				"description": "تقديم المصروفات"
-			}
 		},
 		"status": {
 			"approved": "موافق عليه",
@@ -149,7 +133,7 @@
 	"ess": {
 		"header": {
 			"title": "خدمة الموظف الذاتية",
-			"subtitle": "ملفي الشخصي والحضور والإجازة والراتب",
+			"subtitle": "كل ما يخص عملك — الإجازات والحضور والمصروفات وقواتير الراتب",
 			"profileTitle": "ملفي الشخصي",
 			"profileSubtitle": "عرض معلوماتك كموظف",
 			"attendanceTitle": "تقويم الحضور",
@@ -167,39 +151,39 @@
 		"tiles": {
 			"profile": {
 				"title": "ملفي الشخصي",
-				"description": "عرض وإدارة ملفك الشخصي"
+				"description": "اسمك وصورتك وبيانات التواصل"
 			},
 			"leave": {
-				"title": "إجازتي",
-				"description": "التقدم بطلب إجازة وعرض الرصيد"
+				"title": "طلب إجازة",
+				"description": "اطلب إجازة وتابع طلباتك"
 			},
 			"leaveBalance": {
-				"title": "رصيد الإجازة",
-				"description": "عرض رصيد إجازتي لهذا العام"
+				"title": "رصيد إجازتي",
+				"description": "كم يوم إجازة متبقٍ لك هذا العام"
 			},
-			"expenses": {
-				"title": "مصروفاتي",
-				"description": "تقديم مطالبات مصروفات"
+			"attendanceRequest": {
+				"title": "تصحيح دوام الحضور",
+				"description": "أبلغ عن بصمة تسجيل غائبة أو خاطئة"
 			},
-			"attendanceRequests": {
-				"title": "الحضور مطلوب",
-				"description": "إدارة طلبات الحضور"
-			},
-			"attendanceLogs": {
-				"title": "سجلات الحضور",
-				"description": "عرض تقويم شهري بأوقات الدخول والخروج"
+			"attendance": {
+				"title": "دوام حضوري",
+				"description": "تابع وقت دخولك وخروجك كل يوم"
 			},
 			"overtime": {
-				"title": "سجلات العمل الإضافي",
-				"description": "عرض سجلات عملك الإضافي"
+				"title": "ساعات العمل الإضافي",
+				"description": "الساعات التي عملتها خارج جدولك"
 			},
-			"salarySlips": {
-				"title": "قسائم راتبي",
-				"description": "عرض قسائم الراتب"
+			"expenseClaim": {
+				"title": "تقديم مطالبة مصروف",
+				"description": "استرداد مصروفات أنفقتها للعمل"
+			},
+			"salarySlip": {
+				"title": "قواتير راتبي",
+				"description": "حمّل كشوف راتبك"
 			},
 			"tasks": {
 				"title": "مهامي",
-				"description": "عرض المهام المُسندة"
+				"description": "الأعمال المسندة إليك"
 			}
 		},
 		"profile": {

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, Plus, Table2, Trash2 } from "lucide-react";
+import { ClipboardList, Plus, Table2, Trash2, Info } from "lucide-react";
 import { get } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
@@ -11,32 +11,44 @@ import FormSelect from "../../../../components/FormSelect";
 import { focusFirstError } from "../../../../lib/formValidation";
 import LinkField from "../../../../components/LinkField";
 import { useHeader } from "../../../../context/HeaderContext";
+import { requestPurpose } from "../../../../config/storePurposes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { localDateISO } from "../../../../utils/localDateTime";
 
-const TYPE_OPTIONS = [
-  { value: "Purchase", labelKey: "store.types.purchase" },
-  { value: "Transfer", labelKey: "store.types.transfer" },
-  { value: "Material Issue", labelKey: "store.types.materialIssue" },
-  { value: "Material Receipt", labelKey: "store.types.materialReceipt" },
-  { value: "Customer Provided", labelKey: "store.types.customerProvided" },
-];
-
+/**
+ * Raise an indent (and the other four request purposes).
+ *
+ * Two things changed here that matter more than they look:
+ *
+ * 1. **There is no Purpose dropdown.** The type is derived from the `:purpose`
+ *    route segment through config/storePurposes.js. The previous form offered a
+ *    Select containing "Transfer" and "Material Receipt", neither of which is a
+ *    valid `material_request_type` -- every such save died with a bare HTTP 417.
+ *    Removing the control removes the possibility rather than validating it.
+ *
+ * 2. **Every item row carries its own Project.** Setting one switches that row's
+ *    Item field from free search to the project's bill of materials, showing
+ *    what is still needed. Clearing it goes back to free search. That is the
+ *    split between "project specific" and "other than project" the shop floor
+ *    actually works in.
+ */
 export default function MaterialRequestForm() {
-  const { name, type } = useParams();
-  const [params] = useSearchParams();
+  const { name, purpose } = useParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
   const isEdit = !!name;
+  const cfg = purpose ? requestPurpose(purpose) : null;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
   const [doc, setDoc] = useState({
-    material_request_type: "",
+    // On edit the server value wins; on create the purpose supplies it.
+    material_request_type: cfg?.materialRequestType || "",
     company: "",
     customer: "",
     schedule_date: "",
@@ -44,29 +56,32 @@ export default function MaterialRequestForm() {
     docstatus: 0,
   });
 
-  // Always points at the newest document. The Save button is registered into
-  // the page toolbar by an effect that deliberately does not depend on `doc`
-  // (re-running it per keystroke would thrash the toolbar), so the registered
-  // handler closes over the document as of an early render -- validation and
-  // the saved payload then used stale data. Handlers read through this ref.
-  const docRef = useRef(doc);
+  /**
+   * project -> { loading, hasBom, items, error }
+   *
+   * Cached per project because several rows usually share one project, and
+   * re-exploding a BOM on every keystroke in another row's project field would
+   * be wasteful.
+   */
+  const [projectItems, setProjectItems] = useState({});
 
-  // Synced in an effect, not during render: the React Compiler lint rule
-  // forbids mutating a ref while rendering. Handlers run after a commit.
+  // The Save button is registered into the page toolbar by an effect that
+  // deliberately does not depend on `doc` (re-running it per keystroke would
+  // thrash the toolbar), so the registered handler closes over the document as
+  // of an early render -- validation and the saved payload then used stale
+  // data. Handlers read through this ref.
+  const docRef = useRef(doc);
   useEffect(() => {
     docRef.current = doc;
   }, [doc]);
 
-
-  const typeLabel = doc.material_request_type
-    ? t(
-        TYPE_OPTIONS.find((o) => o.value === doc.material_request_type)
-          ?.labelKey || "store.tiles.materialRequest.title",
-      )
-    : t("store.tiles.materialRequest.title");
+  const purposeTitle = cfg ? t(`store.purposes.${cfg.i18nKey}.title`) : t("store.mr.title");
+  const isTransfer = doc.material_request_type === "Material Transfer";
+  const isCustomerProvided = doc.material_request_type === "Customer Provided";
 
   /* ================= HELPERS ================= */
-  const autoCompany = async () => {
+
+  const autoCompany = useCallback(async () => {
     try {
       const res = await get("method/frappe.client.get_list", {
         doctype: "Company",
@@ -75,14 +90,14 @@ export default function MaterialRequestForm() {
       });
 
       if (res.message?.length) {
-        setDoc((p) => ({ ...p, company: res.message[0].name }));
+        setDoc((p) => ({ ...p, company: p.company || res.message[0].name }));
       }
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
-  const loadDoc = async () => {
+  const loadDoc = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -93,8 +108,20 @@ export default function MaterialRequestForm() {
         material_request_type: d.material_request_type,
         company: d.company,
         customer: d.customer || "",
-        schedule_date: d.schedule_date,
-        items: d.items || [],
+        schedule_date: d.schedule_date || "",
+        items: (d.items || []).map((r) => ({
+          ...r,
+          // Keep these as numbers/strings the inputs can bind to; the server
+          // returns floats for qty and stock_qty which render fine either way.
+          qty: r.qty ?? "",
+          project: r.project || "",
+          uom: r.uom || "",
+          stock_uom: r.stock_uom || "",
+          conversion_factor: r.conversion_factor ?? 1,
+          schedule_date: r.schedule_date || "",
+          from_warehouse: r.from_warehouse || "",
+          warehouse: r.warehouse || "",
+        })),
         docstatus: d.docstatus,
       });
     } catch {
@@ -102,9 +129,39 @@ export default function MaterialRequestForm() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [name, t]);
+
+  /**
+   * Explode the project's BOM so its rows can offer only those items.
+   *
+   * Failure is recorded but never blocks typing: a person must still be able to
+   * free-text items if a BOM is missing or unreadable.
+   */
+  const loadProjectItems = useCallback(async (project) => {
+    if (!project) return;
+    setProjectItems((p) => ({
+      ...p,
+      [project]: { ...(p[project] || {}), loading: true, error: "" },
+    }));
+
+    try {
+      const message = await get("method/erpnext_ui.api.get_project_items", {
+        project,
+      });
+      setProjectItems((p) => ({
+        ...p,
+        [project]: { loading: false, hasBom: !!message.has_bom, items: message.items || [] },
+      }));
+    } catch (e) {
+      setProjectItems((p) => ({
+        ...p,
+        [project]: { loading: false, hasBom: false, items: [], error: e.message },
+      }));
+    }
+  }, []);
 
   /* ================= ITEMS ================= */
+
   const addRow = () => {
     setDoc((p) => ({
       ...p,
@@ -117,6 +174,7 @@ export default function MaterialRequestForm() {
           stock_uom: "",
           conversion_factor: 1,
           schedule_date: p.schedule_date,
+          project: "",
           from_warehouse: "",
           warehouse: "",
         },
@@ -127,20 +185,95 @@ export default function MaterialRequestForm() {
   const updateRow = (i, field, value) => {
     setDoc((p) => ({
       ...p,
-      items: p.items.map((row, idx) =>
-        idx === i ? { ...row, [field]: value } : row,
-      ),
+      items: p.items.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)),
     }));
   };
 
   const removeRow = (i) => {
-    setDoc({
-      ...doc,
-      items: doc.items.filter((_, idx) => idx !== i),
-    });
+    setDoc((p) => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
+  };
+
+  /**
+   * Setting a project clears the item on that row.
+   *
+   * Otherwise the row would keep an item chosen under a different project's
+   * BOM, and the UI would claim it is a project item when it is not.
+   */
+  const handleProjectChange = (i, project) => {
+    updateRow(i, "project", project || "");
+    updateRow(i, "item_code", "");
+    updateRow(i, "qty", "");
+    updateRow(i, "uom", "");
+    if (project) loadProjectItems(project);
+  };
+
+  /** Adopt a BOM item: quantity defaults to what is still outstanding. */
+  const applyBomItem = (i, itemCode) => {
+    const cache = projectItems[doc.items[i]?.project];
+    const match = cache?.items?.find((it) => it.item_code === itemCode);
+    if (!match) return;
+
+    const outstanding = Number(match.outstanding_qty ?? 0);
+    setDoc((p) => ({
+      ...p,
+      items: p.items.map((row, idx) =>
+        idx === i
+          ? {
+              ...row,
+              item_code: match.item_code,
+              item_name: match.item_name,
+              uom: match.uom || match.stock_uom,
+              stock_uom: match.stock_uom,
+              conversion_factor: match.conversion_factor || 1,
+              // Pre-fill with the gap, not the full BOM quantity: asking for
+              // material that was already requested is how duplicate indents
+              // happen. Falls back to the BOM quantity when nothing is pending.
+              qty:
+                row.qty !== "" && row.qty != null
+                  ? row.qty
+                  : String(outstanding > 0 ? outstanding : match.required_qty ?? ""),
+              warehouse: row.warehouse || match.source_warehouse || "",
+            }
+          : row,
+      ),
+    }));
+  };
+
+  /** Free-search item: fill UOM from the Item master. */
+  const handleItemChange = async (i, itemCode) => {
+    updateRow(i, "item_code", itemCode || "");
+    if (!itemCode) return;
+
+    try {
+      // encodeURIComponent matters: an item code may legitimately contain "/"
+      // or "#", which would otherwise split the REST path.
+      const res = await get(`resource/Item/${encodeURIComponent(itemCode)}`);
+      const item = res.data;
+
+      setDoc((p) => ({
+        ...p,
+        items: p.items.map((row, idx) =>
+          idx === i
+            ? {
+                ...row,
+                uom: item.stock_uom,
+                stock_uom: item.stock_uom,
+                conversion_factor: 1,
+                // UOM Conversion Factor has no server-side derivation here, so
+                // an explicit change away from stock UOM must at least reset it
+                // to something valid rather than leave a stale 0.
+                qty: row.qty,
+              }
+            : row,
+        ),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   /* ================= VALIDATION ================= */
+
   const validate = (d = docRef.current) => {
     const errs = {};
 
@@ -150,10 +283,7 @@ export default function MaterialRequestForm() {
     if (!d.company) {
       errs.company = t("store.validation.companyRequired");
     }
-    if (
-      d.material_request_type === "Customer Provided" &&
-      !d.customer
-    ) {
+    if (d.material_request_type === "Customer Provided" && !d.customer) {
       errs.customer = t("store.validation.customerRequired");
     }
 
@@ -178,7 +308,10 @@ export default function MaterialRequestForm() {
           errs.items = t("store.validation.qtyGtZero");
           break;
         }
-        if (d.material_request_type === "Transfer") {
+        // "Transfer" was never a valid material_request_type; the correct
+        // value is "Material Transfer". Comparing against the wrong string
+        // meant the transfer warehouse rules never ran.
+        if (d.material_request_type === "Material Transfer") {
           if (!row.from_warehouse || !row.warehouse) {
             errs.items = t("store.validation.fromToWarehouseRequired");
             break;
@@ -203,6 +336,7 @@ export default function MaterialRequestForm() {
   };
 
   /* ================= SAVE ================= */
+
   const handleSave = async () => {
     const current = docRef.current;
 
@@ -223,9 +357,10 @@ export default function MaterialRequestForm() {
         doc: current,
       });
 
-      navigate(
-        `/store/material-request/${current.material_request_type}/view/${res.data.name}`,
-      );
+      // A registered, real route. The old code navigated to
+      // /store/material-request/<type>/view/<name>, which nothing matched --
+      // the user landed on a blank page after every successful save.
+      navigate(`/store/material-request/${res.data.name}`);
     } catch {
       setError(t("common.saveFailed"));
     } finally {
@@ -234,13 +369,13 @@ export default function MaterialRequestForm() {
   };
 
   /* ================= SUBMIT ================= */
+
   const handleSubmit = async () => {
     try {
       setLoading(true);
 
       // `frappe.client.submit` takes the whole document, not {doctype, name}.
       await submitDocument({ doctype: "Material Request", name });
-
       loadDoc();
     } catch {
       setError(t("common.submitFailed"));
@@ -249,54 +384,26 @@ export default function MaterialRequestForm() {
     }
   };
 
-  const handleItemChange = async (i, itemCode) => {
-    updateRow(i, "item_code", itemCode);
-
-    try {
-      const res = await get(`resource/Item/${itemCode}`);
-      const item = res.data;
-
-      setDoc((p) => ({
-        ...p,
-        items: p.items.map((row, idx) =>
-          idx === i
-            ? {
-                ...row,
-                uom: item.stock_uom,
-                stock_uom: item.stock_uom,
-                conversion_factor: 1,
-              }
-            : row,
-        ),
-      }));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   /* ================= HEADER ================= */
+
   useEffect(() => {
     setHeader({
       title: isEdit ? name : t("store.mr.newTitle"),
-      subtitle: isEdit
-        ? doc.docstatus === 1
-          ? t("store.mr.subtitleSubmitted", { type: typeLabel })
-          : t("store.mr.subtitleDraft", { type: typeLabel })
-        : t("store.mr.createSubtitle", { type: typeLabel }),
+      subtitle: t("store.mr.createSubtitle", { type: purposeTitle }),
 
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
         { label: t("nav.store"), path: "/store" },
         {
-          label: t("store.mr.title"),
+          // Points at the single all-requests list, not a per-purpose one.
+          // Purpose cards open the form directly, so a per-purpose list would
+          // have no way in — an unreachable route is worse than no route.
+          label: t("store.mr.allTitle"),
           path: "/store/material-request",
         },
-        doc.material_request_type && {
-          label: typeLabel,
-          path: `/store/material-request/type/${doc.material_request_type}`,
-        },
+        { label: purposeTitle },
         { label: isEdit ? name : t("common.new") },
-      ].filter(Boolean),
+      ],
 
       actions: [
         !doc.docstatus && {
@@ -316,19 +423,17 @@ export default function MaterialRequestForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, doc.docstatus, doc.material_request_type, loading]);
+  }, [isEdit, name, purpose, purposeTitle, doc.docstatus, loading]);
 
   /* ================= DEFAULT ================= */
+
   useEffect(() => {
     if (!isEdit) {
-      const requestType = type || params.get("type");
-
       // Mirror route/default values into the form on first mount.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDoc((p) => ({
         ...p,
-        material_request_type: requestType || "",
-        schedule_date: new Date().toISOString().split("T")[0],
+        material_request_type: cfg?.materialRequestType || "",
+        schedule_date: p.schedule_date || localDateISO(),
       }));
 
       autoCompany();
@@ -336,33 +441,56 @@ export default function MaterialRequestForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ================= TYPE CHANGE CLEANUP ================= */
-  useEffect(() => {
-    // Field cleanup mirrors doc.material_request_type changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDoc((prev) => ({
-      ...prev,
-      customer:
-        prev.material_request_type === "Customer Provided" ? prev.customer : "",
-      items: prev.items.map((row) => ({
-        ...row,
-        from_warehouse:
-          prev.material_request_type === "Transfer" ? row.from_warehouse : "",
-      })),
-    }));
-  }, [doc.material_request_type]);
-
   /* ================= LOAD ================= */
   useEffect(() => {
-    // loadDoc only setStates after the awaited API response / loading flag.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isEdit) loadDoc();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
+  // Warm the BOM cache for every project already on a loaded document, so an
+  // existing indent opens showing its quantities rather than empty rows.
+  useEffect(() => {
+    if (!isEdit || loading) return;
+    const projects = new Set(
+      doc.items.map((r) => r.project).filter(Boolean),
+    );
+    projects.forEach((p) => {
+      if (!projectItems[p]) loadProjectItems(p);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, loading, doc.items]);
+
+  const bomOptionsFor = useMemo(
+    () => (project) => {
+      const cache = projectItems[project];
+      if (!cache || cache.loading || !cache.items?.length) return [];
+      return cache.items.map((it) => {
+        const outstanding = Number(it.outstanding_qty ?? 0);
+        const suffix =
+          outstanding > 0
+            ? ` — ${t("store.projectItems.outstanding")}: ${outstanding}`
+            : ` — ${t("store.projectItems.required")}: ${it.required_qty}`;
+        return { value: it.item_code, label: `${it.item_code} · ${it.item_name}${suffix}` };
+      });
+    },
+    [projectItems, t],
+  );
+
   /* ================= UI ================= */
+
+  if (!cfg && !isEdit) {
+    return (
+      <div className="mx-auto w-full max-w-[1100px] pt-4">
+        <FormErrorSummary
+          summary={t("store.mr.unknownPurpose")}
+          fieldErrors={{}}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3 pt-4">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
       <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* BASIC */}
@@ -371,24 +499,8 @@ export default function MaterialRequestForm() {
         icon={ClipboardList}
         contentClassName="grid grid-cols-1 gap-3 md:grid-cols-3"
       >
-        <FormField
-          label={t("store.form.type")}
-          required
-          name="material_request_type"
-          error={fieldErrors.material_request_type}
-        >
-          <FormSelect
-            value={doc.material_request_type}
-            disabled={isEdit}
-            placeholder={t("store.mr.form.select")}
-            onChange={(v) =>
-              setDoc({ ...doc, material_request_type: v })
-            }
-            options={TYPE_OPTIONS.map((o) => ({
-              value: o.value,
-              label: t(o.labelKey),
-            }))}
-          />
+        <FormField label={t("store.form.purpose")} required name="material_request_type">
+          <Input value={purposeTitle} disabled />
         </FormField>
 
         <FormField
@@ -404,7 +516,7 @@ export default function MaterialRequestForm() {
           />
         </FormField>
 
-        {doc.material_request_type === "Customer Provided" && (
+        {isCustomerProvided && (
           <FormField
             label={t("store.form.customer")}
             required
@@ -419,16 +531,11 @@ export default function MaterialRequestForm() {
           </FormField>
         )}
 
-        <FormField
-          label={t("store.form.scheduleDate")}
-          name="schedule_date"
-        >
+        <FormField label={t("store.form.requiredBy")} name="schedule_date">
           <Input
             type="date"
             value={doc.schedule_date}
-            onChange={(e) =>
-              setDoc({ ...doc, schedule_date: e.target.value })
-            }
+            onChange={(e) => setDoc({ ...doc, schedule_date: e.target.value })}
           />
         </FormField>
       </FormSection>
@@ -447,6 +554,11 @@ export default function MaterialRequestForm() {
         }
         contentClassName="flex flex-col gap-3"
       >
+        <p className="flex items-start gap-2 text-xs text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          {t("store.projectItems.hint")}
+        </p>
+
         <FormField
           name="items"
           error={fieldErrors.items}
@@ -455,116 +567,132 @@ export default function MaterialRequestForm() {
           <span className="sr-only">{t("store.mr.form.items")}</span>
         </FormField>
 
-        {doc.items.map((row, i) => (
-          <div
-            key={i}
-            className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-background p-3 md:grid-cols-12 md:items-end"
-          >
-            {/* ITEM */}
-            <div className="col-span-2 md:col-span-3">
-              <FormField label={t("store.form.item")} required>
-                <LinkField
-                  doctype="Item"
-                  value={row.item_code}
-                  onChange={(v) => handleItemChange(i, v)}
-                />
-              </FormField>
-            </div>
+        {doc.items.map((row, i) => {
+          const cache = row.project ? projectItems[row.project] : null;
+          const bomOptions = bomOptionsFor(row.project);
+          const useBomPicker = Boolean(row.project && bomOptions.length);
 
-            {/* QTY */}
-            <div className="md:col-span-1">
-              <FormField label={t("store.form.qty")} required>
-                <Input
-                  type="number"
-                  value={row.qty}
-                  onChange={(e) => updateRow(i, "qty", e.target.value)}
-                />
-              </FormField>
-            </div>
-
-            {/* UOM */}
-            <div className="md:col-span-2">
-              <FormField label={t("store.form.uom")} required>
-                <LinkField
-                  doctype="UOM"
-                  value={row.uom}
-                  onChange={(v) => updateRow(i, "uom", v)}
-                />
-              </FormField>
-            </div>
-
-            {/* STOCK UOM (READ ONLY) */}
-            <div className="md:col-span-2">
-              <FormField label={t("store.form.stockUom")}>
-                <Input value={row.stock_uom || ""} disabled />
-              </FormField>
-            </div>
-
-            {/* CONVERSION */}
-            <div className="md:col-span-1">
-              <FormField label={t("store.form.conv")}>
-                <Input
-                  type="number"
-                  value={row.conversion_factor || 1}
-                  onChange={(e) =>
-                    updateRow(i, "conversion_factor", e.target.value)
-                  }
-                />
-              </FormField>
-            </div>
-
-            {/* SOURCE (TRANSFER ONLY) */}
-            {doc.material_request_type === "Transfer" && (
-              <div className="md:col-span-3">
-                <FormField label={t("store.form.source")} required>
+          return (
+            <div
+              key={i}
+              className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-background p-3 md:grid-cols-12 md:items-end"
+            >
+              {/* PROJECT — the switch between project-scoped and free items */}
+              <div className="col-span-2 md:col-span-2">
+                <FormField label={t("store.labels.projectOptional")}>
                   <LinkField
-                    doctype="Warehouse"
-                    value={row.from_warehouse}
-                    onChange={(v) => updateRow(i, "from_warehouse", v)}
+                    doctype="Project"
+                    value={row.project}
+                    onChange={(v) => handleProjectChange(i, v)}
+                    placeholder={t("store.projectItems.chooseProject", {
+                      defaultValue: "Choose a project",
+                    })}
                   />
                 </FormField>
               </div>
-            )}
 
-            {/* TARGET */}
-            <div className="md:col-span-3">
-              <FormField label={t("store.form.warehouse")} required>
-                <LinkField
-                  doctype="Warehouse"
-                  value={row.warehouse}
-                  onChange={(v) => updateRow(i, "warehouse", v)}
-                />
-              </FormField>
-            </div>
+              {/* ITEM — BOM picker when a project with a BOM is set */}
+              <div className="col-span-2 md:col-span-4">
+                <FormField label={t("store.form.item")} required>
+                  {useBomPicker ? (
+                    <FormSelect
+                      value={row.item_code}
+                      placeholder={t("store.projectItems.chooseBom", {
+                        defaultValue: "Choose an item",
+                      })}
+                      onChange={(v) => applyBomItem(i, v)}
+                      options={bomOptions}
+                    />
+                  ) : (
+                    <LinkField
+                      doctype="Item"
+                      value={row.item_code}
+                      onChange={(v) => handleItemChange(i, v)}
+                    />
+                  )}
+                </FormField>
 
-            {/* DATE */}
-            <div className="md:col-span-2">
-              <FormField label={t("store.form.schedule")}>
-                <Input
-                  type="date"
-                  value={row.schedule_date}
-                  onChange={(e) =>
-                    updateRow(i, "schedule_date", e.target.value)
-                  }
-                />
-              </FormField>
-            </div>
-
-            {/* DELETE */}
-            {!doc.docstatus && (
-              <div className="col-span-2 flex items-end md:col-span-1">
-                <Button
-                  variant="destructive"
-                  className="w-full"
-                  onClick={() => removeRow(i)}
-                  aria-label={t("common.delete")}
-                >
-                  <Trash2 />
-                </Button>
+                {row.project && cache?.loading && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {t("common.loading")}
+                  </p>
+                )}
+                {row.project && !cache?.loading && cache && !cache.hasBom && (
+                  <p className="mt-1 text-[11px] text-amber-600">
+                    {t("store.projectItems.noBomShort")}
+                  </p>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+
+              {/* QTY */}
+              <div className="md:col-span-1">
+                <FormField label={t("store.form.qty")} required>
+                  <Input
+                    type="number"
+                    value={row.qty}
+                    onChange={(e) => updateRow(i, "qty", e.target.value)}
+                  />
+                </FormField>
+              </div>
+
+              {/* UOM */}
+              <div className="md:col-span-1">
+                <FormField label={t("store.form.uom")} required>
+                  <Input value={row.uom || ""} disabled />
+                </FormField>
+              </div>
+
+              {/* SOURCE — transfer only */}
+              {isTransfer && (
+                <div className="col-span-2 md:col-span-2">
+                  <FormField label={t("store.labels.sourceWarehouse")} required>
+                    <LinkField
+                      doctype="Warehouse"
+                      value={row.from_warehouse}
+                      onChange={(v) => updateRow(i, "from_warehouse", v)}
+                    />
+                  </FormField>
+                </div>
+              )}
+
+              {/* TARGET */}
+              <div className="col-span-2 md:col-span-2">
+                <FormField label={t("store.labels.targetWarehouse")} required>
+                  <LinkField
+                    doctype="Warehouse"
+                    value={row.warehouse}
+                    onChange={(v) => updateRow(i, "warehouse", v)}
+                  />
+                </FormField>
+              </div>
+
+              {/* REQUIRED BY */}
+              <div className="md:col-span-1">
+                <FormField label={t("store.form.requiredBy")}>
+                  <Input
+                    type="date"
+                    value={row.schedule_date}
+                    onChange={(e) => updateRow(i, "schedule_date", e.target.value)}
+                  />
+                </FormField>
+              </div>
+
+              {/* DELETE */}
+              {!doc.docstatus && (
+                <div className="col-span-2 flex items-end md:col-span-1">
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => removeRow(i)}
+                    aria-label={t("common.delete")}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </FormSection>
     </div>
   );
