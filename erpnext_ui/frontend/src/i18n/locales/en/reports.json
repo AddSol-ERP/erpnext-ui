@@ -44,6 +44,7 @@
 		"checkin": "Check-in",
 		"checkout": "Check-out",
 		"noCheckinLogs": "No check-in logs found",
+		"checkinLogsError": "Could not load check-in logs.",
 		"overtimeTitle": "Overtime Report",
 		"totalLogs": "Total Logs",
 		"totalOtHours": "Total OT Hours",

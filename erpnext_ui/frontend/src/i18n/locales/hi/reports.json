@@ -44,6 +44,7 @@
 		"checkin": "चेक-इन",
 		"checkout": "चेक-आउट",
 		"noCheckinLogs": "कोई चेक-इन लॉग नहीं मिला",
+		"checkinLogsError": "चेक-इन लॉग लोड नहीं हो सके।",
 		"overtimeTitle": "ओवरटाइम रिपोर्ट",
 		"totalLogs": "कुल लॉग",
 		"totalOtHours": "कुल ओटी घंटे",

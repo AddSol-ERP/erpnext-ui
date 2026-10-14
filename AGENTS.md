@@ -32,7 +32,7 @@ browser-free:
 # lib/profileFlags, LinkField/searchTerm and config/storePurposes
 SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-rules/entry.mjs        # -> "220 passed, 0 failed"
+node .smoke-tmp/out-rules/entry.mjs        # -> "234 passed, 0 failed"
 
 # SSR render smoke test (Leave/Attendance/Expense forms, GenericForm,
 # DocStatusField, EmployeeDocuments) with fetch and the API stubbed to throw
@@ -50,7 +50,7 @@ node .smoke-tmp/out/entry.mjs              # -> "all forms render"
 # title/children/footer inline. Without it this suite fails 9 assertions.
 SSR_MODAL_STUB=1 SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-store/entry.mjs        # -> "84 passed, 0 failed"
+node .smoke-tmp/out-store/entry.mjs        # -> "101 passed, 0 failed"
 ```
 
 All three currently pass. All exit `1` on failure.
@@ -60,6 +60,28 @@ All three currently pass. All exit `1` on failure.
 > git** (≈2.5 MB). `git checkout -- erpnext_ui/frontend/.smoke-tmp/` after
 > running, and don't commit the churn. (`out-store/` is untracked — just delete
 > it.)
+
+**The rules suite also audits routing.** It parses every `path=` in `App.jsx` and
+every `navigate()` literal under `src/`, and asserts that each target resolves to
+a registered route — *and* that a target matched only by a generic `:doctype`
+route names a real doctype from `config/doctypes.js`. The second check is the
+one that matters: `/store/:doctype/:name` **does** match `/store/delivery/DN-1`,
+it just matches the wrong thing, which is how a dead route shipped. Adding a
+`navigate()` to a page whose detail route was never registered fails the build.
+
+**`api.py` endpoints that take an `employee` must authorise it through
+`_get_scope`, never trust it.** An employee code is trivially guessable
+(`HR-EMP-00001, HR-EMP-00002, ...`), so accepting one unchecked turns a
+self-service endpoint into a company-wide reader. `get_checkin_logs` is the
+worked example: ESS passes nothing and the server falls back to the session's
+own Employee, the Attendance report passes the row's employee, and the named
+Employee is admitted only if `scope["can_view_others"]` holds *and* a
+department-restricted scope actually contains them.
+
+It **throws** rather than silently substituting the caller's own employee, which
+is what `leave_balance_employees` does. Substitution is right for a list scoped
+by permission; for a punch log it would show one person's check-ins under
+another person's name in a report, so it fails closed.
 
 **Every new `def get_*` / `def create_*` in `erpnext_ui/api.py` must carry
 `@frappe.whitelist(allow_guest=False)`.** A rules-suite assertion parses the

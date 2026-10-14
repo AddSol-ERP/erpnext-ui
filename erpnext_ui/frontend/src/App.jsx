@@ -95,10 +95,6 @@ export default function App() {
             element={<InspectionParameterForm />}
           />
           <Route
-            path="/quality/templates/:name"
-            element={<QualityTemplateForm />}
-          />
-          <Route
             path="/quality/templates/new"
             element={<QualityTemplateForm />}
           />
@@ -178,6 +174,14 @@ export default function App() {
 
           <Route path="/store/delivery" element={<DeliveryNoteList />} />
           <Route path="/store/delivery/new" element={<DeliveryNoteForm />} />
+          {/* The detail route was never registered, so both `onRowClick` and the
+              post-save redirect fell through to `/store/:doctype/:name` with
+              doctype="delivery" -- a lowercase path segment, not the doctype
+              name "Delivery Note". GenericForm then queried a doctype that does
+              not exist and rendered an empty form. A route that pattern-matches
+              is not the same as a route that is *correct*, which is why a
+              pattern-based audit passed it. */}
+          <Route path="/store/delivery/:name" element={<DeliveryNoteForm />} />
           <Route path="/store/stock-balance" element={<StockBalance />} />
           {/* Store generic routes for new doctypes (Item, Warehouse, etc.) */}
           <Route path="/store/:doctype" element={<GenericListPage />} />

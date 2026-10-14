@@ -1303,18 +1303,17 @@ Audited 2026-10-13 across every `navigate()` target in `pages/Store/**`.
 
 1. ~~`MaterialRequestForm` navigates to `/store/material-request/<type>/view/<name>`~~
    — **fixed**. It now goes to `/store/material-request/:name`.
-2. `DeliveryNoteList` row click and `DeliveryNoteForm` post-save both navigate to
-   `/store/delivery/:name` — **still broken, out of scope**. `/store/delivery/:name`
-   is not registered, so it falls through to `/store/:doctype/:name` with
-   `doctype="delivery"` — a lowercase path segment, not the doctype name
-   `Delivery Note`. `GenericForm` then queries a doctype that does not exist.
-   Note this is *not* caught by a naive route matcher: `/store/:doctype/:name`
-   does match the pattern, it just matches the wrong thing.
-3. `QualityTemplateForm` navigates to `/quality-templates` — **unregistered**
-   (list is `/quality/templates`) (`:189`).
-4. `App.jsx:96-107` registers `/quality/templates/:name` and `/new` **twice**.
-5. `App.jsx:140-148` uses `path="store/..."` without a leading slash while every
-   sibling uses `/store/...`.
+2. ~~`DeliveryNoteList` row click and `DeliveryNoteForm` post-save both navigate
+   to `/store/delivery/:name`~~ — **fixed.** The route was never registered, so
+   both fell through to `/store/:doctype/:name` with `doctype="delivery"`, and
+   `GenericForm` put that literal into the resource path. `DeliveryNoteForm`
+   already read `useParams()`, so only the registration was missing.
+3. ~~`QualityTemplateForm` navigates to `/quality-templates`~~ — **fixed**,
+   it now goes to `/quality/templates`.
+4. ~~`App.jsx` registered `/quality/templates/:name` twice~~ — **fixed**, the
+   duplicate is gone and the suite now fails on any duplicate `path=`.
+5. ~~A `path="store/..."` without a leading slash~~ — **already resolved**; no
+   route in `App.jsx` lacks one.
 
 Store's own routes are now all live, all reachable, and every `navigate()`,
 tile-route and breadcrumb target under `pages/Store/**` resolves to a registered
@@ -1325,6 +1324,60 @@ route (audited 2026-10-13). Two rules came out of that audit:
 - A route that merely *pattern-matches* is not necessarily reachable: see item 2
   above. Also check the reverse direction — a registered route with no in-app
   entry point is unreachable UI and should not exist.
+
+### 9.8a Two UI gaps found 2026-10-14
+
+**The Stock Balance toolbar repeated the result count.** The card footer already
+renders `Showing 1–20 of 47` through `Pagination`, so the toolbar pill was a
+second, weaker copy. Removed — but only after confirming `Pagination:75-80`
+still renders the range when `totalPages === 1` (`singlePageWithMeta`); with two
+results there is one page, and had that path returned `null` the pill would have
+been carrying the only copy of the number. That condition is now asserted by a
+direct render of `Pagination`.
+
+**The attendance day popup had no check-in log.** `handleDayClick` sends ONLY a
+plain `Present` day to the `CheckinLogs` modal; `Half Day`, `Late`, `Absent`,
+`On Leave` and `Missing` all open the *detail* modal, which rendered
+`in_time` / `out_time` / `shift` but never the punch log. A half day has real
+punches with no route to them from the calendar. It reads as mobile-only because
+the calendar cell hides those times below `sm` (`hidden sm:flex`, DayCell:740) —
+on desktop the times were already on screen, so only the tap was missing the log.
+`CheckinLogs` is now rendered in the detail modal, gated on `att` so leave and
+missing days do not fire a request just to render an empty list.
+
+### 9.8b `Employee Checkin` schema was guessed, and guessing is unsafe here
+
+The ESS calendar's check-in popup called `resource/Employee Checkin` directly
+with a guessed field list. **Every field was wrong**: `checkin_time`,
+`checkout_time`, `status` and `log_date` do not exist. Frappe rejects the first
+unknown field with `DataError: Field not permitted in query: checkin_time`, and
+since `validate_fields` raises on the *first* bad field, the message named
+whichever happened to be listed first -- so it read like a permissions fault, not
+a schema one.
+
+The real columns (HRMS version-15): `time` (the punch moment), `log_type`
+(`IN`/`OUT`), `device_id`, `shift`, `attendance`. One punch is one row; there is
+never a checkout column to pair against.
+
+**Correcting the names in the client would not have been enough**, and this is
+the part worth remembering:
+
+```python
+# frappe/desk/reportview.py, validate_fields
+if df.fieldname in [...meta.get_high_permlevel_fields()]:
+    if df.get("permlevel") not in meta.get_permlevel_access(...):
+        data.fields.remove(field)      # silently dropped -- NOT raised
+```
+
+`time` is `permlevel: 1`. A field that does not exist raises; a high-permlevel
+field you may not read is **removed from the result without any error**. So a
+wrong guess renders an empty table with nothing in the console. The column
+choice has to be server-side and resolved from the live meta, which is what
+`get_checkin_logs` does — it reads `meta.has_field` and builds the SQL from the
+resolved column.
+
+Also note `log_date`/`checkin_time` genuinely exist on older HRMS, so the
+endpoint supports both rather than hardcoding either.
 
 ### 9.9 Logic bugs
 
@@ -1462,9 +1515,9 @@ Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
 
 | Check | Result |
 |---|---|
-| rules suite | **220 passed, 0 failed** |
+| rules suite | **234 passed, 0 failed** |
 | request-form render | **all forms render** |
-| store + ESS + receipt dialogs + balance + return | **84 passed, 0 failed** |
+| store + ESS + receipt dialogs + balance + return | **101 passed, 0 failed** |
 | `npx eslint src` | **clean, 0 problems** |
 | `npm run build` | **✓ built** |
 | `ruff check erpnext_ui/api.py` | 1 error — `F841` at `:416`, **pre-existing** (reproduced against `HEAD`) |
@@ -1946,3 +1999,84 @@ its initial state, so without it the batch/serial rules are untestable.
 - The auto-batch/auto-serial notes read `ctx` directly while the fields read
   `effective`. With `context` injected, `ctx` is null and the notes silently
   vanished. Both now read the merged view.
+
+## 17. Stock Balance UX: trail placement and inline filters (2026-10-13)
+
+### 17.1 The trail rendered under the wrong row
+
+Expanding a row mounted the ledger **after the closing `</tbody>`**, so opening
+row 3 of 20 dropped the history below row 20 -- the user had to scroll past
+every other line to see what they had just clicked, and the connection between
+the row and its history was lost entirely.
+
+It is now a `<tr>` inside the tbody, directly after its own row, spanning every
+column. The column count lives in one `COLUMN_COUNT` constant, because a
+mismatch does not error -- it silently squeezes the trail into column one. Both
+counts are asserted against the rendered HTML: header `<th>` count, data-row
+`<td>` count, and the `colSpan` all have to agree.
+
+### 17.1a The desktop row was three flex children fighting
+
+The first inline version laid the row out badly, and no source-level check
+caught it. Three children all claimed the row at once:
+
+- the search box was `sm:w-1/2` -- a hard half of the toolbar
+- the filter row was `flex-1`
+- the action cluster was **also** `flex-1`
+
+So the filters received what was left after search took half and actions took
+half of the remainder: roughly a quarter of the toolbar, for the thing the
+inline row exists to give space to.
+
+The row is now a single flex line with one clear job per part: search takes a
+fixed `w-56 shrink-0` slot when inline, the result pill never grows, the
+filter row is `flex-1 min-w-0` and wraps internally, and the actions are
+content-width pushed right with `ml-auto`.
+
+### 17.1b A regression the source greps could not see
+
+Giving the action cluster `shrink-0` unconditionally passed every assertion I
+wrote against the source -- and broke **every other list in the app**, because
+without the inline row its `flex-1` is what pinned it to the far right. With
+`shrink-0` the actions sat beside the result count instead.
+
+It was only visible by rendering the toolbar and reading the classes off the
+DOM. The compact path now keeps `flex-1`; only the inline path uses `ml-auto`,
+and both are asserted from the rendered markup rather than from source. That is
+the same lesson as the whitelist bug in the opposite direction: source checks
+catch renames, rendering catches layout.
+
+### 17.2 Filters inline, dropdown when short
+
+`ActionBar` gained an opt-in `inlineFilters`. When the toolbar is wide enough
+the filters render as a wrapping row beside the search box; when it is not,
+they fall back to the existing dropdown. Stock Balance opts in because five
+filters behind one button is a click per use.
+
+**The width test is a measurement, not a breakpoint.** A media query knows the
+viewport; the toolbar is only part of it, and the filter count varies per report,
+so "5 filters" and "3 filters" should collapse at different widths. New hook
+`hooks/useElementWidth.js` uses a `ResizeObserver` against the container.
+
+The required width is an *estimate* (search + count pill + per-filter slot +
+action cluster), deliberately not measured from the fields themselves --
+measuring them means rendering them first, which is the thing being decided.
+Measured width starts at 0 so the first paint shows the compact control rather
+than flashing a filter row that then wraps.
+
+`FilterFields` gained an `inline` mode because it renders
+`grid grid-cols-1`; appending a flex `className` fights that rather than
+replacing it. The Sheet and popover callers do not pass `inline`, so every other
+list is byte-for-byte unchanged.
+
+### 17.3 A bug the suites caught immediately
+
+`showInline` was first declared **above** `ownsFilter`, which it reads. Every
+ActionBar consumer -- i.e. every list in the app -- threw
+`Cannot access 'ownsFilter' before initialization`. The store suite renders
+ActionBar through the Stock Balance page and failed on the spot.
+
+This is the same shape as the whitelist bug in a different place: a change to a
+**shared** component, where one consumer's test is enough to catch it because
+that consumer is exercised. Worth noting the contrast -- the whitelist gap
+survived because nothing called the endpoint, while this one did not.

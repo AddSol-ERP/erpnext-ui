@@ -44,6 +44,7 @@
 		"checkin": "تسجيل الدخول",
 		"checkout": "تسجيل الخروج",
 		"noCheckinLogs": "لا توجد سجلات تسجيل دخول",
+		"checkinLogsError": "تعذر تحميل سجلات تسجيل الدخول.",
 		"overtimeTitle": "تقرير العمل الإضافي",
 		"totalLogs": "إجمالي السجلات",
 		"totalOtHours": "إجمالي ساعات العمل الإضافي",

@@ -267,6 +267,7 @@
 			"nextMonth": "अगला माह",
 			"heroDesc": "इन/आउट समय और त्वरित कार्यों के साथ मासिक उपस्थिति",
 			"checkinLogs": "चेक-इन लॉग - {{date}}",
+			"checkinLogsShort": "चेक-इन लॉग",
 			"months": {
 				"january": "जनवरी",
 				"february": "फ़रवरी",

@@ -267,6 +267,7 @@
 			"nextMonth": "Next month",
 			"heroDesc": "Monthly attendance with in/out times and quick actions",
 			"checkinLogs": "Check-in Logs - {{date}}",
+			"checkinLogsShort": "Check-in logs",
 			"months": {
 				"january": "January",
 				"february": "February",

@@ -186,7 +186,9 @@ export default function QualityTemplateForm() {
       });
 
       toast.success(t("quality.savedSuccess"));
-      navigate("/quality-templates");
+      // The list is /quality/templates; /quality-templates was never registered, so
+      // this redirected into the catch-all and looked like a dead app.
+      navigate("/quality/templates");
     } catch (e) {
       console.error(e);
       toast.error(t("quality.saveFailed"));

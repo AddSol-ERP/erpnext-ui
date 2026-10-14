@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import cint, flt
+from frappe.utils import cint, flt, getdate, nowdate
 
 HR_ROLES = {"HR Manager", "HR User", "Administrator"}
 
@@ -2173,4 +2173,150 @@ def create_return_stock_entry(
 		"item_code": item_code,
 		"item_created": created_item,
 		"submitted": submitted,
+	}
+
+
+@frappe.whitelist(allow_guest=False)
+def get_checkin_logs(employee=None, date=None, limit=100):
+	"""Check-in punches for one employee on one calendar day.
+
+	Defaults to the logged-in user's own Employee, so the ESS calendar needs no
+	argument; the Attendance report passes the row's employee so HR/HOD can
+	inspect someone else.
+
+	The SPA used to read `resource/Employee Checkin` directly and guess the
+	schema. Every field it named was wrong -- `checkin_time`, `checkout_time`,
+	`status` and `log_date` do not exist on HRMS' `Employee Checkin` (the punch
+	moment is `time`, the direction is `log_type`). Frappe rejects the first
+	unknown field with `DataError: Field not permitted in query: checkin_time`,
+	and because `validate_fields` raises on the FIRST bad field, the message
+	named whichever happened to be listed first. It reads like a permissions
+	problem; it is a schema one.
+
+	The columns are resolved from the live meta rather than hardcoded, because the
+	date-bearing column is `time` on version-15 and `log_date`/`checkin_time` on
+	older HRMS. Guessing is not safe here in a way it is for most fields:
+	`time` is permlevel 1, and for a high-permlevel field Frappe does NOT raise
+	-- it drops the field from the result (`reportview.validate_fields`). A wrong
+	guess would therefore return an empty table with no error anywhere.
+
+	Permission model: `employee` is accepted so the same endpoint serves the ESS
+	calendar and the Attendance report, but it is AUTHORISED, never trusted --
+	an employee code is guessable (HR-EMP-00001, ...), so accepting it unchecked
+	would let any employee read anyone's punches. The caller may only name their
+	own record, or one their scope already permits (`_get_scope`: HR, HOD, or an
+	allowed department), and the named Employee must additionally be readable.
+
+	Unlike `leave_balance_employees`, which silently substitutes the caller's own
+	employee when asked for someone they may not see, this THROWS. Substitution is
+	right for a list scoped by permission, but here it would show one person's
+	punches under another person's name in a report -- so it fails closed.
+
+	Fails closed without read on `Employee Checkin`, and fails closed with an
+	explicit message when the caller lacks the permlevel guarding the punch time,
+	so a blank list never masquerades as "no punches".
+	"""
+	if not frappe.has_permission("Employee Checkin", "read"):
+		frappe.throw(
+			frappe._("You do not have permission to read check-in logs."),
+			frappe.PermissionError,
+		)
+
+	scope = _get_scope(frappe.session.user)
+	my_employee = scope["my_employee"]
+
+	if not my_employee:
+		frappe.throw(
+			frappe._("No Employee record is linked to your user."),
+			frappe.PermissionError,
+		)
+
+	employee = employee or my_employee
+	if employee != my_employee:
+		allowed = scope["can_view_others"]
+		if allowed and scope["allowed_departments"] is not None:
+			# HOD/HR restricted to a set of departments: the named employee has to
+			# actually be in one of them.
+			department = frappe.db.get_value("Employee", employee, "department")
+			allowed = department in scope["allowed_departments"]
+		if not allowed:
+			frappe.throw(
+				frappe._("You do not have permission to view check-in logs for this employee."),
+				frappe.PermissionError,
+			)
+
+	if not frappe.has_permission("Employee", "read", employee):
+		frappe.throw(
+			frappe._("You do not have permission to read this Employee record."),
+			frappe.PermissionError,
+		)
+
+	date = getdate(date or nowdate())
+	limit = min(max(cint(limit) or 100, 1), 200)
+
+	meta = frappe.get_meta("Employee Checkin")
+
+	# Newest schema first. `checkout_time` never existed -- one punch is one row
+	# and its `log_type` says whether it was an IN or an OUT.
+	time_field = next((f for f in ("time", "checkin_time") if meta.has_field(f)), None)
+	if not time_field:
+		frappe.throw(
+			frappe._("Check-in logs are not available on this site."),
+			frappe.PermissionError,
+		)
+
+	punch_df = meta.get_field(time_field)
+	if punch_df.permlevel and punch_df.permlevel not in meta.get_permlevel_access(
+		parenttype="Employee Checkin"
+	):
+		frappe.throw(
+			frappe._("Your role cannot read the punch time recorded on check-in logs."),
+			frappe.PermissionError,
+		)
+
+	type_field = next((f for f in ("log_type", "checkin_type") if meta.has_field(f)), None)
+	device_field = "device_id" if meta.has_field("device_id") else None
+
+	select = ["`name`", f"`{time_field}` as `punch_time`"]
+	params = [employee]
+
+	if type_field:
+		select.append(f"`{type_field}` as `log_type`")
+	if device_field:
+		select.append(f"`{device_field}` as `device_id`")
+
+	# Older HRMS carries a dedicated `log_date`; version-15 has only the
+	# Datetime, so the day is a half-open range rather than an equality.
+	if meta.has_field("log_date"):
+		where = "`log_date` = %s"
+		params.append(date)
+	else:
+		where = f"`{time_field}` between %s and %s"
+		params += [f"{date} 00:00:00", f"{date} 23:59:59"]
+
+	rows = frappe.db.sql(
+		f"""
+		select {", ".join(select)}
+		from `tabEmployee Checkin`
+		where `employee` = %s and {where}
+		order by `{time_field}` asc, `name` asc
+		limit {limit}
+		""",
+		tuple(params),
+		as_dict=True,
+	)
+
+	return {
+		"date": str(date),
+		"employee": employee,
+		"is_own_record": employee == my_employee,
+		"logs": [
+			{
+				"name": r.get("name"),
+				"time": r.get("punch_time"),
+				"log_type": r.get("log_type"),
+				"device_id": r.get("device_id"),
+			}
+			for r in rows
+		],
 	}

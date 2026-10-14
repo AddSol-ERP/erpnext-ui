@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, ChevronRight, Info, TriangleAlert, Undo2 } from "lucide-react";
@@ -56,7 +56,15 @@ const fmt = (v, digits = 2) =>
  * component that fetches on mount can only ever render its loading state, so
  * its columns cannot be asserted.
  */
-export function BalanceTable({ rows = [], expanded, onToggle, onReturn }) {
+/**
+ * Must equal the number of <th> below. The expanded row spans all of them, and
+ * a mismatch shows up as a trail squeezed into the first column -- an ugly
+ * failure for a purely cosmetic mistake, so the count lives in one place and
+ * storecheck compares it against the rendered header.
+ */
+const COLUMN_COUNT = 11;
+
+export function BalanceTable({ rows = [], expanded, onToggle, onReturn, navigate }) {
   const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
@@ -82,8 +90,8 @@ export function BalanceTable({ rows = [], expanded, onToggle, onReturn }) {
             const open = expanded === key;
             const closed = (row.closing_qty || 0) <= 0;
             return (
+              <Fragment key={key}>
               <tr
-                key={key}
                 className="cursor-pointer border-b border-border/40 hover:bg-accent/40"
                 onClick={() => onToggle(row)}
               >
@@ -145,6 +153,19 @@ export function BalanceTable({ rows = [], expanded, onToggle, onReturn }) {
                   </button>
                 </td>
               </tr>
+
+              {/* The trail belongs directly under the row it explains. It used
+                  to render after the closing </tbody>, so expanding row 3 of
+                  20 dropped the history below row 20 -- you had to scroll past
+                  everything else to see what you had just opened. */}
+              {open ? (
+                <tr>
+                  <td colSpan={COLUMN_COUNT} className="bg-muted/20 p-0">
+                    <BalanceTrail row={row} onNavigate={navigate} />
+                  </td>
+                </tr>
+              ) : null}
+              </Fragment>
             );
           })}
         </tbody>
@@ -279,9 +300,17 @@ export default function StockBalance() {
       actionBar={
         <ActionBar
           onSearch={handleSearch}
-          resultCount={totalItems}
+          // No resultCount: the card footer already renders "Showing 1-20 of 47"
+          // through Pagination. With a single page Pagination still shows it
+          // (`singlePageWithMeta`, Pagination:77-78), so nothing is lost -- the
+          // toolbar pill was a second, weaker copy of a number the user could
+          // already read one line below.
           filterConfig={filterConfig}
           selectedFilters={filters}
+          // Five filters on a report is exactly the case where hiding them
+          // behind one button costs a click on every use. Inline when they fit,
+          // dropdown when they do not.
+          inlineFilters
           {...filterUi}
         />
       }
@@ -340,22 +369,12 @@ export default function StockBalance() {
           rows={rows}
           expanded={expanded}
           onToggle={toggle}
+          navigate={navigate}
           onReturn={(r) => {
             setLastReturn(null);
             setReturning(r);
           }}
         />
-
-        {/* One trail at a time: each is a query, and holding several open turns
-            a scroll through the report into a burst of them. */}
-        {expanded
-          ? (() => {
-              const row = rows.find(
-                (r) => `${r.item_code}|${r.warehouse}` === expanded,
-              );
-              return row ? <BalanceTrail row={row} onNavigate={navigate} /> : null;
-            })()
-          : null}
 
         <ReturnToStock
           show={!!returning}

@@ -20,6 +20,9 @@ import StockBalance from "@/pages/Store/stock-balance/index.jsx";
 import { TrailTable } from "@/pages/Store/stock-balance/BalanceTrail.jsx";
 import { BalanceTable } from "@/pages/Store/stock-balance/index.jsx";
 import ReturnToStock from "@/pages/Store/stock-balance/ReturnToStock.jsx";
+import Pagination from "@/components/Pagination";
+import { readFileSync } from "node:fs";
+import ActionBar from "@/components/ActionBar/index.jsx";
 
 /*
  * Renders the Store surfaces and asserts that NO translation key leaks into the
@@ -509,6 +512,156 @@ ok("return: un-series serial item DOES ask for serial numbers",
    needsSerialReturn.includes("Serial numbers"));
 ok("return: serial item explains the one-per-line format",
    needsSerialReturn.includes("One per line"));
+
+
+
+/* =======================================================================
+   The expanded trail must sit under ITS OWN row.
+
+   It used to render after the closing </tbody>, so expanding row 3 of 20 put
+   the history below row 20 -- you had to scroll past every other line to see
+   what you had just clicked. Asserted by expanding the FIRST row and checking
+   the trail lands inside the table, ahead of the second row's item code.
+   ======================================================================= */
+
+const balanceHtmlExpanded = renderWithFetch(
+  {},
+  <BalanceTable
+    rows={[
+      CORE_ROW,
+      { ...CORE_ROW, item_code: "SECOND-ROW-ITEM", warehouse: "Stores - Other" },
+    ]}
+    expanded="CORE|Stores - DVPL"
+    onToggle={() => {}}
+    onReturn={() => {}}
+  />,
+).html;
+
+// The trail's own loading text proves BalanceTrail rendered.
+ok("balance: an expanded row renders its trail", balanceHtmlExpanded.includes("Loading"));
+
+const trailAt = balanceHtmlExpanded.indexOf("Loading");
+const secondRowAt = balanceHtmlExpanded.indexOf("SECOND-ROW-ITEM");
+ok(
+  "balance: the trail renders BEFORE the next row, not below the table",
+  trailAt > 0 && secondRowAt > 0 && trailAt < secondRowAt,
+  `trail@${trailAt} secondRow@${secondRowAt}`,
+);
+ok(
+  "balance: the trail spans every column",
+  /<td col[Ss]pan="11"/.test(balanceHtmlExpanded),
+  "expected a full-width cell; a mismatched colspan squeezes the trail into column 1",
+);
+ok(
+  "balance: the trail closes inside the table, not after it",
+  balanceHtmlExpanded.indexOf("Loading") < balanceHtmlExpanded.indexOf("</table>"),
+);
+
+
+
+/* =======================================================================
+   Toolbar layout, asserted from the RENDERED DOM rather than the source.
+
+   An earlier version of this passed every source-level check and still broke
+   every other list in the app: the action cluster had been given `shrink-0`
+   unconditionally, so it stopped being pushed to the far right on lists that do
+   NOT use inline filters. Source greps cannot see that; rendering can.
+   ======================================================================= */
+
+const toolbarHtml = renderWithFetch(
+  {},
+  <ActionBar
+    onSearch={() => {}}
+    resultCount={7}
+    filterConfig={{
+      filters: [
+        { label: "Item", field: "item_code", type: "link", doctype: "Item" },
+        { label: "From", field: "from_date", type: "date" },
+      ],
+    }}
+    selectedFilters={{}}
+    onApplyFilters={() => {}}
+  />,
+).html;
+
+const actionsMatch = toolbarHtml.match(/<div class="[^"]*justify-end gap-1\.5[^"]*">/);
+ok("toolbar: the action cluster exists", !!actionsMatch);
+
+const actionsCls = actionsMatch ? actionsMatch[0] : "";
+ok("toolbar: compact path keeps flex-1 so actions stay right-aligned",
+   /flex-1/.test(actionsCls), actionsCls.slice(0, 120));
+ok("toolbar: compact path does not use ml-auto",
+   !/ml-auto/.test(actionsCls));
+ok("toolbar: search falls back to the existing half-width on the compact path",
+   /sm:w-1\/2 sm:flex-none/.test(toolbarHtml));
+ok("toolbar: the filter dropdown is still offered when not inline",
+   /aria-label/.test(toolbarHtml) && /justify-end/.test(toolbarHtml));
+
+
+
+/* =======================================================================
+   Two removals/additions that must not silently regress.
+
+   1. The Stock Balance toolbar dropped its "N results" pill because the card
+      footer already shows it. The assertion that matters is the SECOND one:
+      Pagination still renders the range on a SINGLE page. If that ever stops
+      happening, the toolbar pill was carrying the only copy of the number and
+      its removal would have lost information rather than duplicated it.
+   ======================================================================= */
+
+const pagSinglePage = renderWithFetch(
+  {},
+  <Pagination currentPage={1} totalPages={1} totalItems={2} pageSize={20} onPageChange={() => {}} />,
+).html;
+ok("balance: the footer still states the total when there is only one page",
+   /Showing/.test(pagSinglePage) && /2/.test(pagSinglePage), pagSinglePage.replace(/<[^>]+>/g, " ").slice(0, 120));
+
+const balancePageSrc = readFileSync(
+  new URL("../../src/pages/Store/stock-balance/index.jsx", import.meta.url), "utf8");
+const balanceToolbar = balancePageSrc.slice(
+  balancePageSrc.indexOf("<ActionBar"),
+  balancePageSrc.indexOf("/>", balancePageSrc.indexOf("<ActionBar")),
+);
+ok("balance: the toolbar does not repeat the result count",
+   // Match the PROP, not the word: the comment above it explains the removal
+   // and says "No resultCount", which a bare /resultCount/ happily matches.
+   !/resultCount=\{/.test(balanceToolbar),
+   balanceToolbar.replace(/\s+/g, " ").slice(0, 140));
+ok("balance: the footer still receives totalItems",
+   /totalItems=\{totalItems\}/.test(balancePageSrc));
+
+/* --- attendance day popup ---------------------------------------------
+   handleDayClick sends ONLY a plain "Present" day to the check-in modal;
+   Half Day / Late / Absent / On Leave / Missing all open the detail modal,
+   which showed in_time/out_time/shift but never the punch log. A half day
+   has real punches with no way to reach them from the calendar -- and on
+   mobile the cell itself hides the times (`hidden sm:flex`), so the popup is
+   the only view.
+
+   Source-level, not a render: the calendar needs a fetched employee and a
+   month of attendance, and fetch is stubbed here, so a render could only
+   ever assert the loading state. Labelled honestly rather than pretending. */
+
+const attendanceSrc = readFileSync(
+  new URL("../../src/pages/ESS/Attendance.jsx", import.meta.url), "utf8");
+const detailModal = attendanceSrc.slice(
+  attendanceSrc.indexOf('show={!!activeDay}'),
+  attendanceSrc.indexOf('show={!!checkinDate}'),
+);
+ok("attendance: the day popup renders the check-in log, not just in/out times",
+   /<CheckinLogs/.test(detailModal));
+ok("attendance: the check-in log is gated on an attendance record",
+   /\{activeDay\.att && \(/.test(detailModal),
+   "leave/missing days have no punches; firing a request for them is noise");
+ok("attendance: only a plain Present day still routes to the logs modal",
+   /cell\.att\?\.status === "Present"[\s\S]{0,80}setCheckinDate\(/.test(attendanceSrc));
+ok("attendance: the popup heading does not repeat the date in its own title",
+   /checkinLogsShort/.test(detailModal) && !/checkinLogs", \{ date:/.test(detailModal));
+
+const essLocales = ["en", "hi", "ar"].map((l) =>
+  readFileSync(new URL(`../../src/i18n/locales/${l}/ess.json`, import.meta.url), "utf8"));
+ok("attendance: checkinLogsShort exists in all three locales",
+   essLocales.every((t) => t.includes('"checkinLogsShort"')));
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

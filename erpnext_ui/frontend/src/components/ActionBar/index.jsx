@@ -17,7 +17,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useIsMobile } from "../../hooks/use-mobile";
+import { useElementWidth } from "../../hooks/useElementWidth";
 import { useHeader } from "../../context/HeaderContext";
+import { cn } from "cn";
 import { mapVariant } from "../../lib/mapVariant";
 import ActiveFilterChips from "../List/ActiveFilterChips";
 import FilterFields from "../FilterModal/FilterFields";
@@ -91,6 +93,9 @@ export default function ActionBar({
   onRemoveFilter,
   onClearFilters,
   resultCount = null,
+  // Opt-in: render the filters in the toolbar row when they fit, instead of
+  // behind the dropdown. Off by default so existing lists are untouched.
+  inlineFilters = false,
 }) {
   const { t } = useTranslation();
   const { header, shellMode } = useHeader();
@@ -138,6 +143,34 @@ export default function ActionBar({
   const hasConfig = Boolean(filterConfig?.filters?.length);
   const showFilterButton =
     Boolean(onFilter) || (ownsFilter && (hasConfig || activeCount > 0));
+
+  // Placed here, after ownsFilter/showFilterButton, because showInline reads
+  // ownsFilter -- declaring it earlier hits the temporal dead zone.
+  const [rowRef, rowWidth] = useElementWidth();
+  const filterFieldCount = (filterConfig?.filters || []).length;
+
+  // Intrinsic width of an inline filter row: the search box, one slot per
+  // filter, and the result-count pill. Deliberately an estimate rather than a
+  // measured DOM -- measuring the fields themselves would mean rendering them
+  // first, which is the thing being decided.
+  const INLINE_SEARCH_PX = 220;
+  const INLINE_RESULT_PX = 96;
+  const INLINE_FILTER_PX = 168;
+  const inlineNeeds =
+    INLINE_SEARCH_PX +
+    INLINE_RESULT_PX +
+    filterFieldCount * INLINE_FILTER_PX +
+    140; // the action cluster on the end side
+
+  // width 0 = not measured yet, so default to the compact control rather than
+  // rendering a row of filters that immediately wraps.
+  const showInline =
+    inlineFilters &&
+    ownsFilter &&
+    filterFieldCount > 0 &&
+    !isMobile &&
+    rowWidth >= inlineNeeds;
+
 
   const chips = ownsFilter
     ? buildFilterChips({
@@ -187,10 +220,18 @@ export default function ActionBar({
 
   return (
     <div className="rounded-none bg-transparent">
-      {/* ROW 1: search + actions (flush inside list card) */}
-      <div className="flex flex-wrap items-center gap-2 p-2 sm:p-3">
-        {/* SEARCH — full width on mobile, ~50% on sm+ */}
-        <div className="relative min-w-40 w-full sm:w-1/2 sm:flex-none">
+      {/* ROW 1: search + inline filters + actions (flush inside list card) */}
+      <div ref={rowRef} className="flex flex-wrap items-center gap-2 p-2 sm:p-3">
+        {/* SEARCH — full width on mobile. With inline filters it takes a fixed
+            slot instead of `sm:w-1/2`: five filters plus a half-width search
+            box do not fit in one row, and the half is taken from the filters
+            that the inline row exists to give space to. */}
+        <div
+          className={cn(
+            "relative min-w-40",
+            showInline ? "w-56 shrink-0" : "w-full sm:w-1/2 sm:flex-none",
+          )}
+        >
           <Search className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
@@ -215,13 +256,38 @@ export default function ActionBar({
 
         {/* RESULT COUNT — total matching rows */}
         {resultCount != null && resultCount !== "" ? (
-          <span className="inline-flex h-7 items-center rounded-full border border-border/70 bg-muted/50 px-2.5 text-xs font-medium tabular-nums text-muted-foreground">
+          <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-border/70 bg-muted/50 px-2.5 text-xs font-medium tabular-nums text-muted-foreground">
             {t("common.resultCount", { count: resultCount })}
           </span>
         ) : null}
 
+        {/* INLINE FILTERS — only when they measurably fit. Below the width the
+            estimate asks for, the compact dropdown above takes over, so a
+            narrow window degrades to one button rather than a wrapped mess. */}
+        {showInline ? (
+          <div className="flex min-w-0 flex-1 flex-wrap items-start gap-2">
+            <FilterFields
+              config={filterConfig}
+              values={selectedFilters || {}}
+              onValuesChange={(next) => onApplyFilters?.(next)}
+              inline
+            />
+          </div>
+        ) : null}
+
         {/* ACTIONS — right-aligned; Filter is last (end side) */}
-        <div className="flex flex-1 shrink-0 flex-wrap items-center justify-end gap-1.5">
+        {/* ACTIONS — right-aligned.
+            Inline: content-width + ml-auto, so the FILTER row takes the slack.
+            Without the inline row: `flex-1`, which is what pins the cluster to
+            the far right when there is free space. Keeping only the first half
+            silently left every other list's actions sitting beside the result
+            count instead of at the end. */}
+        <div
+          className={cn(
+            "flex shrink-0 flex-wrap items-center justify-end gap-1.5",
+            showInline ? "ml-auto" : "flex-1",
+          )}
+        >
           {extra}
 
           {onPrint && (
@@ -249,7 +315,7 @@ export default function ActionBar({
           {/* Page actions from setHeader (list mode) — before Filter */}
           <HeaderActions actions={headerActions} />
 
-          {showFilterButton && ownsFilter ? (
+          {showFilterButton && ownsFilter && !showInline ? (
             isMobile ? (
               <Button
                 variant="outline"

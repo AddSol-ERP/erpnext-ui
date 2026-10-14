@@ -559,6 +559,28 @@ export default function AttendanceCalendar() {
               </div>
             )}
 
+            {/* The punch log, not just the first in/out summary above.
+                handleDayClick routes ONLY a plain "Present" day to the
+                check-in modal; Half Day / Late / Absent / On Leave / Missing
+                all land here, where in_time/out_time are shown but the
+                check-in log never was. So a half day -- which has real punches
+                -- had no way to show them from the calendar at all. Worse on
+                mobile, where the grid cell itself only renders a compact mark
+                (the in/out times are `hidden sm:flex`), so the tap is the only
+                chance to see the detail.
+
+                Gated on `att` so days with no attendance record (leave,
+                missing) don't fire a request just to render an empty list; the
+                status above already explains those. */}
+            {activeDay.att && (
+              <div className="space-y-2 border-t pt-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("ess.attendance.checkinLogsShort")}
+                </div>
+                <CheckinLogs date={activeDay.dateStr} />
+              </div>
+            )}
+
             {activeDayNeedsActions && (
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <Button
@@ -601,7 +623,7 @@ export default function AttendanceCalendar() {
         width="lg"
       >
         {checkinDate ? (
-          <CheckinLogs date={checkinDate} employee={employee} />
+          <CheckinLogs date={checkinDate} />
         ) : null}
       </AppModal>
     </DashboardShell>

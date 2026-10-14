@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   resolveForwardActions,
   resolveDocstatusActions,
@@ -28,6 +28,7 @@ import {
   validateLineRow,
   wholeNumberRules,
 } from "../src/lib/receiptConversion.js";
+import { DOCTYPE_CONFIG } from "../src/config/doctypes.js";
 import {
   directionOf,
   freeQty,
@@ -804,6 +805,275 @@ ok(
   "return: the dialog offers the same-item vs new-item choice the user asked for",
   dialogSrc.includes('t("store.returnStock.useSameItem")') &&
     dialogSrc.includes('t("store.returnStock.createNewItem")'),
+);
+
+
+// ---------------------------------------------------------------------------
+// The desktop toolbar row, and every navigate() target.
+//
+// Two dead routes shipped because the route audit was a manual read of MEMORY
+// §9.8: `/store/delivery/:name` (row click + post-save both fell through to the
+// generic route) and `/quality-templates` (post-save redirect). A pattern
+// matcher alone does NOT catch the first one -- `/store/:doctype/:name` happily
+// matches `/store/delivery/DN-1`. It matches the wrong thing, which is why the
+// hand audit missed it too.
+// ---------------------------------------------------------------------------
+
+const readSrc = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
+const actionBarSrc = readSrc("../../src/components/ActionBar/index.jsx");
+const filterFieldsSrc = readSrc("../../src/components/FilterModal/FilterFields.jsx");
+const balanceSrc = readSrc("../../src/pages/Store/stock-balance/index.jsx");
+
+// --- the desktop row -------------------------------------------------------
+// Three flex children used to claim it at once: search was `sm:w-1/2`, and BOTH
+// the filter row and the action cluster were `flex-1`. The filters got what was
+// left after search took half and actions took half of the remainder.
+
+ok("toolbar: inline search takes a fixed slot instead of half the row",
+   /showInline \? "w-56 shrink-0" : "w-full sm:w-1\/2 sm:flex-none"/.test(actionBarSrc));
+ok("toolbar: the action cluster yields the slack only when inline",
+   /showInline \? "ml-auto" : "flex-1"/.test(actionBarSrc) &&
+   /"flex shrink-0 flex-wrap items-center justify-end gap-1\.5"/.test(actionBarSrc),
+   "inline: ml-auto lets the filter row grow. NOT inline: flex-1 pins the actions right");
+ok("toolbar: the result-count pill never grows",
+   /inline-flex h-7 shrink-0 items-center/.test(actionBarSrc));
+ok("toolbar: the filter row may shrink and wraps internally",
+   /"flex min-w-0 flex-1 flex-wrap items-start gap-2"/.test(actionBarSrc));
+ok("toolbar: inline filters align from the top so mixed-height labels stay level",
+   /inline \? "flex flex-wrap items-start gap-2" : "grid grid-cols-1 gap-3"/.test(filterFieldsSrc));
+
+const balanceFilterCount = (balanceSrc.match(/field: "/g) || []).length;
+const px = (name) => Number(actionBarSrc.match(new RegExp(name + " = (\\d+)"))[1]);
+const declaredNeeds = px("INLINE_SEARCH_PX") + px("INLINE_RESULT_PX") + px("INLINE_FILTER_PX") * balanceFilterCount + 140;
+const realNeeds = 224 + 96 + balanceFilterCount * 168 + 120 + 32;
+ok("toolbar: the inline threshold is not optimistic",
+   balanceFilterCount === 5 && declaredNeeds >= realNeeds - 40,
+   `declared ${declaredNeeds}px vs ~${realNeeds}px for ${balanceFilterCount} filters`);
+
+// --- navigate() targets ----------------------------------------------------
+
+const walk = (dir, out = []) => {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const q = `${dir}/${e.name}`;
+    if (e.isDirectory()) walk(q, out);
+    else if (e.name.endsWith(".jsx")) out.push(q);
+  }
+  return out;
+};
+const norm = (q) =>
+  q.replace(/\$\{[^}]*\}/g, ":p").split("?")[0].split("#")[0].replace(/\/$/, "") || "/";
+const pat = (q) =>
+  "^/" + norm(q).split("/").filter(Boolean)
+    .map((s) => (s.startsWith(":") ? "[^/]+" : s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    .join("/") + "/?$";
+
+const appRouteSrc = readSrc("../../src/App.jsx");
+const allRoutes = [...appRouteSrc.matchAll(/path="([^"]*)"/g)].map((m) => m[1]).filter((r) => r.startsWith("/"));
+const allPats = allRoutes.map((r) => [r, new RegExp(pat(r))]);
+const genericPats = allRoutes.filter((r) => r.includes(":doctype")).map((r) => [r, new RegExp(pat(r))]);
+const specificPats = allPats.filter(([r]) => !r.includes(":doctype") && !r.includes(":hub"));
+
+// GenericList/GenericForm navigate with a DYNAMIC hub (`/${hub}/${doctype}`)
+// while routes name the hub literally. Widen a route's FIRST segment only when
+// the target's own first segment is dynamic, so /nope/:doctype is still caught.
+const hubWide = allRoutes
+  .filter((r) => !norm(r).split("/").filter(Boolean)[0]?.startsWith(":"))
+  .map((r) => new RegExp(pat("/" + [":hub", ...norm(r).split("/").filter(Boolean).slice(1)].join("/"))));
+
+const navTargets = [];
+for (const file of walk(new URL("../../src", import.meta.url).pathname)) {
+  if (file.endsWith("/App.jsx")) continue;
+  for (const m of readFileSync(file, "utf8").matchAll(/navigate\(\s*(`[^`]*`|"[^"]*")/g)) {
+    navTargets.push([file.replace(/.*\/src\//, ""), m[1].slice(1, -1)]);
+  }
+}
+
+const knownDoctypes = new Set(Object.keys(DOCTYPE_CONFIG));
+const unresolvedNav = [];
+const wrongDoctypeNav = [];
+for (const [file, raw] of navTargets) {
+  if (!raw.startsWith("/")) continue;                       // relative: resolved against the mounted route
+  const n = norm(raw);
+  const cands = n.startsWith("/:p/") ? allPats.map(([, rx]) => rx).concat(hubWide) : allPats.map(([, rx]) => rx);
+  if (!cands.some((rx) => rx.test(n))) { unresolvedNav.push([file, raw]); continue; }
+  // Only when NO specific literal route matches. `/store/delivery/new` matches
+  // both a specific and a generic route and is fine; `/store/delivery/DN-1`
+  // matches ONLY the generic one, so that segment is sent to the server verbatim
+  // as the doctype (GenericForm decodes the param into the resource path).
+  if (specificPats.some(([, rx]) => rx.test(n))) continue;
+  const hits = genericPats.filter(([, rx]) => rx.test(n));
+  if (!hits.length) continue;
+  const idx = Math.min(...hits.map(([r]) => norm(r).split("/").filter(Boolean).indexOf(":doctype")));
+  const val = decodeURIComponent(n.split("/")[idx + 1]);
+  if (val === ":p") continue;                               // dynamic doctype from config at runtime
+  if (!knownDoctypes.has(val)) wrongDoctypeNav.push([file, raw, val]);
+}
+
+ok("routes: every navigate() target resolves to a registered route",
+   unresolvedNav.length === 0, unresolvedNav.map(([f, r]) => `${r} in ${f}`));
+ok("routes: a target matched ONLY by a generic :doctype route names a real doctype",
+   wrongDoctypeNav.length === 0,
+   wrongDoctypeNav.map(([f, r, v]) => `${r} -> doctype ${JSON.stringify(v)} in ${f}`));
+
+ok("routes: /store/delivery/:name is registered", /path="\/store\/delivery\/:name"/.test(appRouteSrc));
+ok("routes: nothing navigates to the never-registered /quality-templates",
+   !navTargets.some(([, r]) => norm(r) === "/quality-templates"));
+ok("routes: no duplicate path= registrations",
+   allRoutes.length === new Set(allRoutes).size,
+   allRoutes.filter((r, i) => allRoutes.indexOf(r) !== i));
+
+
+
+// ---------------------------------------------------------------------------
+// Employee Checkin: the SPA once guessed this doctype's schema and every field
+// it named was wrong (`checkin_time`, `checkout_time`, `status`, `log_date` do
+// not exist; the moment is `time`, the direction is `log_type`). Frappe raises
+// on the FIRST unknown field, so the message named whichever was listed first
+// and read like a permissions fault.
+//
+// The reason it cannot simply be corrected in the client is permlevel: `time`
+// is permlevel 1, and reportview.validate_fields DROPS a high-permlevel field
+// the caller may not read instead of raising. A wrong guess renders an empty
+// table with no error at all -- so the column choice has to be server-side and
+// resolved from the live meta.
+// ---------------------------------------------------------------------------
+
+// Assertions below read COMMENTS-OUT. Explaining the bug means naming
+// `checkout_time` and `resource/Employee Checkin` in prose, and a naive grep
+// then reports the explanation as the defect -- which is how three of these
+// failed while the code was correct.
+const stripJsComments = (src) =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((l) => l.replace(/\/\/.*$/, ""))
+    .join("\n");
+// Python side needs BOTH: the docstring names every wrong field on purpose, and
+// so do the inline `#` comments beside them.
+//
+// The docstring regex is deliberately NOT global. With /g it matches the real
+// docstring and then keeps going, swallowing the `f"""` SQL block as a second
+// pair -- which deletes the very lines the assertions below check for, and
+// fails them while the code is correct. First pair only.
+const stripPyComments = (src) =>
+  src
+    .replace(/"""[\s\S]*?"""/, "")
+    .split("\n")
+    .map((l) => l.replace(/#.*$/, ""))
+    .join("\n");
+
+const checkinFn = apiSource.slice(
+  apiSource.indexOf("def get_checkin_logs("),
+  apiSource.indexOf("@frappe.whitelist", apiSource.indexOf("def get_checkin_logs(")),
+);
+const checkinCode = stripPyComments(checkinFn);
+
+ok(
+  "checkin: the endpoint resolves its columns from the live meta, not literals",
+  /meta\.has_field/.test(checkinCode) && /"time", "checkin_time"/.test(checkinCode),
+  "a hardcoded column name is exactly what broke the client version",
+);
+ok(
+  "checkin: no reference to a field that never existed on the doctype",
+  !/\bcheckout_time\b/.test(checkinCode),
+  "checkout_time has never existed on Employee Checkin",
+);
+// `time` vs `log_date`/`checkin_time` is a real version split, so those two may
+// appear -- but only as guarded meta lookups, never as a literal in the SQL.
+ok(
+  "checkin: the SQL is built from resolved columns, never literal field names",
+  /\.join\(select\)/.test(checkinCode) &&
+    /order by `\{time_field\}`/.test(checkinCode),
+  "a literal column in the f-string is the bug being fixed",
+);
+ok(
+  "checkin: it fails closed on the doctype permission",
+  /frappe\.has_permission\("Employee Checkin", "read"\)/.test(checkinFn),
+);
+ok(
+  "checkin: it fails closed on the punch-time permlevel rather than returning blank",
+  /get_permlevel_access/.test(checkinFn) && /permlevel/.test(checkinFn),
+  "otherwise a missing permlevel looks exactly like 'no punches today'",
+);
+ok(
+  "checkin: the day is a bounded range when only the Datetime exists",
+  /between %s and %s/.test(checkinFn) && /00:00:00/.test(checkinFn),
+);
+
+const checkinClientCode = stripJsComments(
+  readSrc("../../src/components/CheckinLogs.jsx"),
+);
+ok(
+  "checkin: the client calls the endpoint, not the raw resource route",
+  /method\/erpnext_ui\.api\.get_checkin_logs/.test(checkinClientCode) &&
+    !/resource\/Employee Checkin/.test(checkinClientCode),
+);
+// The employee param is deliberate -- the Attendance report has to inspect a
+// row's employee, not the caller's own. What matters is that it is optional,
+// defaults to null so the ESS calendar cannot widen access by accident, and is
+// authorised server-side through _get_scope.
+ok(
+  "checkin: the employee's employee is optional and defaults to null",
+  /CheckinLogs\(\{ employee = null, date \}\)/.test(checkinClientCode) &&
+    /\{ employee, date \}/.test(checkinClientCode),
+  "a required employee would force the ESS calendar to send one",
+);
+// Asserting that `_get_scope` APPEARS is not enough: leaving the call in place
+// and gutting the branch around it still passes, and the branch is the whole
+// point. These check the gate's own body -- a version of this file with the
+// throw replaced by `pass`, or by a silent substitution, has to fail.
+const gateStart = checkinCode.indexOf("if employee != my_employee:");
+const gateEnd = checkinCode.indexOf('frappe.has_permission("Employee", "read"', gateStart);
+const employeeGate = gateStart === -1 ? "" : checkinCode.slice(gateStart, gateEnd);
+
+ok(
+  "checkin: naming another employee passes through _get_scope",
+  /_get_scope\(frappe\.session\.user\)/.test(checkinCode),
+  "employee codes are guessable; an unauthorised check would expose anyone's punches",
+);
+ok(
+  "checkin: the other-employee gate really gates (throws, and consults scope)",
+  /frappe\.throw/.test(employeeGate) &&
+    /PermissionError/.test(employeeGate) &&
+    /can_view_others/.test(employeeGate),
+  "the gate must throw when the scope refuses, not merely exist",
+);
+ok(
+  "checkin: the gate never falls back to the caller's own employee",
+  !/employee\s*=\s*my_employee/.test(employeeGate),
+  "substituting would show one person's punches under another's name",
+);
+ok(
+  "checkin: the named Employee must additionally be readable",
+  /frappe\.has_permission\("Employee", "read", employee\)/.test(checkinCode),
+);
+// Match the CONDITION, not just the word: dead-coding the `if` left
+// `allowed_departments` in the branch body and the loose check passed, so an HOD
+// scoped to their own departments could see the rest of the company.
+ok(
+  "checkin: a department-restricted scope is honoured, not just can_view_others",
+  /allowed_departments"\] is not None/.test(employeeGate) &&
+    /department in scope\["allowed_departments"\]/.test(employeeGate),
+  "an HOD scoped to their own departments must not see the rest",
+);
+ok(
+  "checkin: the attendance report passes its row's employee",
+  /<CheckinLogs employee=\{selectedEmployee\} date=\{selectedDate\} \/>/.test(
+    readSrc("../../src/pages/Reports/attendance/AttendancePage.jsx")),
+);
+ok(
+  "checkin: the report opens the log for Half Day and Late, not just Present",
+  /\["Present", "Half Day", "Late"\]\.includes\(status\)/.test(
+    readSrc("../../src/pages/Reports/attendance/AttendancePage.jsx")),
+);
+ok(
+  "checkin: the client renders log_type as the direction, not a checkout column",
+  /log\.log_type/.test(checkinClientCode) && !/checkout_time/.test(checkinClientCode),
+);
+ok(
+  "checkin: a load failure is surfaced, not swallowed into an empty list",
+  /setError/.test(checkinClientCode) && /reports\.checkinLogsError/.test(checkinClientCode),
+  "an empty list is indistinguishable from 'you had no punches'",
 );
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

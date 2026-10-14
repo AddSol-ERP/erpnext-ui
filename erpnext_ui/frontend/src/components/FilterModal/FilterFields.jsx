@@ -22,6 +22,10 @@ export default function FilterFields({
   values = {},
   onValuesChange,
   className,
+  // Inline lays the fields out as a wrapping row beside the search box, for a
+  // toolbar with room. Without it the fields stack, which is right inside the
+  // dropdown/Sheet and wrong in a toolbar.
+  inline = false,
 }) {
   const { t } = useTranslation();
 
@@ -44,7 +48,15 @@ export default function FilterFields({
   }
 
   return (
-    <div className={cn("grid grid-cols-1 gap-3", className)}>
+    <div
+      className={cn(
+        // items-start, not items-end: the controls are the same height but a
+        // field with a hint is not, and bottom-aligning a row of mixed heights
+        // makes the labels sit at different levels.
+        inline ? "flex flex-wrap items-start gap-2" : "grid grid-cols-1 gap-3",
+        className,
+      )}
+    >
       {filters.map((f) => (
         <div key={f.field}>
           <FormField label={f.label}>

@@ -256,8 +256,11 @@ export default function AttendancePage() {
     setSelectedEmployee(employee);
     setSelectedStatus(status);
 
-    // Show check-in logs for present status
-    if (status === "Present") {
+    // Show check-in logs for every status that can actually carry a punch.
+    // Half Day and Late have real check-ins -- they were routed to the request
+    // modal (or nowhere) before, so the report had punches it could not show.
+    const hasPunches = ["Present", "Half Day", "Late"].includes(status);
+    if (hasPunches) {
       setShowCheckinModal(true);
     } else if (status === "Absent" || (!status && !isWeeklyOff)) {
       // Show request options for absent / no-data days (skip weekly offs)
@@ -621,7 +624,7 @@ export default function AttendancePage() {
         title={t("reports.checkinLogs", { date: selectedDate })}
         width="lg"
       >
-        <CheckinLogs date={selectedDate} employee={selectedEmployee} />
+        <CheckinLogs employee={selectedEmployee} date={selectedDate} />
       </AppModal>
 
       {/* REQUEST MODAL */}
