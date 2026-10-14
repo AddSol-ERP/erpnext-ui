@@ -11,7 +11,6 @@ import {
   HelpCircle,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import { createTileNav } from "../../lib/tileNav";
 
@@ -81,10 +80,6 @@ export default function PurchaseDashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero
-        icon={Truck}
-        description={t("purchase.header.subtitle")}
-      />
       <ModuleGrid items={modules} onClick={handleTileClick} />
     </DashboardShell>
   );

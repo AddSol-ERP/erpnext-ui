@@ -203,8 +203,7 @@
 		"openRequests": "الطلبات المفتوحة",
 		"pendingApprovals": "الموافقات المعلقة",
 		"activeJobs": "الوظائف النشطة",
-		"qcPending": "فحص الجودة معلق",
-		"quickAccess": "وصول سريع إلى جميع الوحدات"
+		"qcPending": "فحص الجودة معلق"
 	},
 	"userMenu": {
 		"profile": "الملف الشخصي",

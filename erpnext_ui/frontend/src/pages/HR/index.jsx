@@ -13,10 +13,8 @@ import {
   Receipt,
   Briefcase,
   Contact,
-  Users,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import { createTileNav } from "../../lib/tileNav";
 
@@ -108,7 +106,6 @@ export default function HRDashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero icon={Users} description={t("hr.header.subtitle")} />
       <ModuleGrid items={modules} onClick={handleTileClick} />
     </DashboardShell>
   );

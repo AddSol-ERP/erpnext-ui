@@ -4,7 +4,6 @@ import {
   CalendarCheck,
   FileText,
   Hourglass,
-  Inbox,
   Receipt,
   ShoppingBag,
 } from "lucide-react";
@@ -13,7 +12,6 @@ import { useRole } from "../../context/RoleContext";
 import { useNavigate } from "react-router-dom";
 import { get } from "../../services/api";
 import DashboardShell from "../dashboard/DashboardShell";
-import DashboardHero from "../dashboard/DashboardHero";
 import {
   Empty,
   EmptyDescription,
@@ -236,10 +234,6 @@ export default function Approval() {
 
   return (
     <DashboardShell>
-      <DashboardHero
-        icon={Inbox}
-        description={t("approvals.subtitle")}
-      />
 
       {loading || rolesLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

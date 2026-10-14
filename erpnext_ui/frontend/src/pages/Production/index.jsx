@@ -2,9 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { useHeader } from "../../context/HeaderContext";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, Cog, Factory } from "lucide-react";
+import { ClipboardList, Cog } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 
 export default function ProductionDashboard() {
@@ -45,7 +44,6 @@ export default function ProductionDashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero icon={Factory} description={t("production.subtitle")} />
       <ModuleGrid items={modules} onClick={(tile) => navigate(tile.route)} />
     </DashboardShell>
   );

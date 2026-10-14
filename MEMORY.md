@@ -1292,6 +1292,14 @@ There is no `url_map`/`url_routes` in `hooks.py` and no whitelisted handler. **A
 - ~~`components/StockEntry/components/HeaderBar.jsx`, `FooterBar.jsx`~~ —
   **deleted 2026-10-13.** Along with `SourceSelector.jsx` and
   `ToastContainer.jsx`, they were unreachable: no file imported any of them.
+- ~~`components/dashboard/DashboardHero.jsx`~~ — **deleted 2026-10-14.** It
+  rendered a dashboard's own subtitle inside a card directly beneath the top bar
+  that already showed the same string from `setHeader`, so every dashboard opened
+  with a full-width strip repeating the header and the tiles started below the
+  fold. Store and ESS had already dropped it with that reasoning recorded in
+  place; the remaining seven dashboards had not, which is why it looked
+  deliberate. The nine subtitles it displayed are all still in use — by
+  `setHeader`, which is the correct place for them.
 - `pages/DemoList/index.jsx` — 4 hardcoded rows, zero API calls; a design-system
   fixture.
 - `pages/StockEntry.jsx` (route `/demo-form`) — a field-widget gallery, not Stock
@@ -1505,6 +1513,14 @@ Two ERPNext details this had to respect:
 
 The other four purposes keep the per-row field: those requests genuinely mix
 project-specific and free items, which is the split the shop floor works in.
+
+### 9.8g `dashboard.quickAccess` was never rendered at all
+
+"Quick access to all modules" existed as `dashboard.quickAccess` in all three
+locales and was referenced by **no component** — not even the hero, which used
+`dashboard.subtitle` (the same English text). So removing the hero did not make
+it dead; it already was. Removed from `en`/`hi`/`ar`, and since it was the last
+key in its object the preceding line lost its trailing comma too.
 
 ### 9.9 Logic bugs
 

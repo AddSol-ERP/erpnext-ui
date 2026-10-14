@@ -13,10 +13,8 @@ import {
   Truck,
   UserCheck,
   BarChart3,
-  LayoutDashboard,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import StatRow from "../../components/dashboard/StatRow";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import StatCard from "../../components/StatCard";
@@ -128,10 +126,6 @@ export default function Dashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero
-        icon={LayoutDashboard}
-        description={t("dashboard.subtitle")}
-      />
 
       {/* Highlight Approvals */}
       {approvals && (

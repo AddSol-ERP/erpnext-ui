@@ -8,12 +8,10 @@ import {
   ClipboardList,
   FileCheck,
   NotebookText,
-  ShieldCheck,
   SlidersHorizontal,
   Wrench,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 
 export default function QualityDashboard() {
@@ -89,7 +87,6 @@ export default function QualityDashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero icon={ShieldCheck} description={t("quality.subtitle")} />
       <ModuleGrid items={modules} onClick={(tile) => navigate(tile.route)} />
     </DashboardShell>
   );

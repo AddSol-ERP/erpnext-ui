@@ -203,8 +203,7 @@
 		"openRequests": "खुले अनुरोध",
 		"pendingApprovals": "लंबित अनुमोदन",
 		"activeJobs": "सक्रिय जॉब",
-		"qcPending": "क्यूसी लंबित",
-		"quickAccess": "सभी मॉड्यूल तक त्वरित पहुँच"
+		"qcPending": "क्यूसी लंबित"
 	},
 	"userMenu": {
 		"profile": "प्रोफ़ाइल",

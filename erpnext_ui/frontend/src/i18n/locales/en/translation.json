@@ -203,8 +203,7 @@
 		"openRequests": "Open Requests",
 		"pendingApprovals": "Pending Approvals",
 		"activeJobs": "Active Jobs",
-		"qcPending": "QC Pending",
-		"quickAccess": "Quick access to all modules"
+		"qcPending": "QC Pending"
 	},
 	"userMenu": {
 		"profile": "Profile",

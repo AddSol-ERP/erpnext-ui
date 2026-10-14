@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
 import { useRole } from "../../context/RoleContext";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import {
   Empty,
@@ -13,7 +12,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
-  BarChart3,
   CalendarCheck,
   CalendarX,
   Lock,
@@ -76,7 +74,6 @@ export default function ReportDashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero icon={BarChart3} description={t("reports.subtitle")} />
 
       {/* Hold the grid back until permissions resolve, otherwise the page would
           flash empty for users who do have access. */}

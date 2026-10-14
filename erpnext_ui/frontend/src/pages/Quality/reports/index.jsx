@@ -33,13 +33,11 @@ import {
   YAxis,
 } from "recharts";
 import DashboardShell from "../../../components/dashboard/DashboardShell";
-import DashboardHero from "../../../components/dashboard/DashboardHero";
 import StatRow from "../../../components/dashboard/StatRow";
 import ChartPanel from "../../../components/dashboard/ChartPanel";
 import ChartGrid from "../../../components/dashboard/ChartGrid";
 import StatCard from "../../../components/StatCard";
 import {
-  ShieldCheck,
   CircleCheck,
   CircleX,
   Percent,
@@ -205,10 +203,6 @@ export default function QualityInspectionReport() {
   /* ================= UI ================= */
   return (
     <DashboardShell>
-      <DashboardHero
-        icon={ShieldCheck}
-        description={t("quality.dashboardSubtitle")}
-      />
 
       {/* ================= FILTERS ================= */}
       <div className="rounded-none bg-card p-4 ring-1 ring-foreground/10">

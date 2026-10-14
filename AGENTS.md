@@ -69,6 +69,15 @@ one that matters: `/store/:doctype/:name` **does** match `/store/delivery/DN-1`,
 it just matches the wrong thing, which is how a dead route shipped. Adding a
 `navigate()` to a page whose detail route was never registered fails the build.
 
+**No dashboard hero.** `DashboardHero` rendered the page's own subtitle inside a
+card directly beneath the top bar, which already showed that subtitle from
+`setHeader` — so every dashboard opened with a full-width strip repeating what
+the header said, and the tiles, which are the actual content, started below the
+fold. Store and ESS had dropped it with that reasoning recorded in place; the
+other seven dashboards had not, which is why it read as deliberate. The
+component is deleted. The subtitles stay: they are what `setHeader` shows, and
+that is the one place the page's context line should live.
+
 **A production Material Request picks its project ONCE, on the header.**
 `/store/material-request/purpose/production/new` used to carry the Project field
 on every item row, so the user re-read the same bill of materials once per line

@@ -1343,5 +1343,76 @@ ok(
   "two controls that can disagree are worse than one",
 );
 
+
+// ---------------------------------------------------------------------------
+// No dashboard hero.
+//
+// `DashboardHero` rendered the page's own subtitle inside a card directly
+// beneath the top bar, which already showed that subtitle from `setHeader`. So
+// every dashboard opened with a full-width strip saying nothing the header had
+// not already said, and the actual content -- the tiles -- started below the
+// fold. Store and ESS had already dropped it with that reasoning recorded in
+// place; the remaining seven dashboards did not, which is why it looked like a
+// deliberate design element rather than an accident.
+//
+// The component is now deleted, so the strongest form of this check is simply
+// that it is gone AND that no dashboard reintroduces a hero-shaped block.
+// ---------------------------------------------------------------------------
+
+const DASHBOARDS = [
+  "../../src/components/Approval/index.jsx",
+  "../../src/pages/Sales/index.jsx",
+  "../../src/pages/Quality/index.jsx",
+  "../../src/pages/Quality/reports/index.jsx",
+  "../../src/pages/Dashboard/index.jsx",
+  "../../src/pages/HR/index.jsx",
+  "../../src/pages/Production/index.jsx",
+  "../../src/pages/Purchase/index.jsx",
+  "../../src/pages/Reports/index.jsx",
+  "../../src/pages/ESS/index.jsx",
+  "../../src/pages/Store/index.jsx",
+];
+
+ok(
+  "dashboard: the hero component is gone",
+  !existsSync(
+    new URL("../../src/components/dashboard/DashboardHero.jsx", import.meta.url),
+  ),
+);
+ok(
+  "dashboard: no dashboard renders a hero",
+  DASHBOARDS.every((rel) => {
+    const src = stripJsComments(readSrc(rel));
+    return !/DashboardHero/.test(src);
+  }),
+  DASHBOARDS.filter((rel) =>
+    /DashboardHero/.test(stripJsComments(readSrc(rel))),
+  ),
+);
+// The subtitles the heroes displayed must still be reachable -- through
+// setHeader. Removing a hero must not take the page's context line with it.
+// `dashboard.quickAccess` ("Quick access to all modules") was never rendered by
+// anything, even before the hero went. Dead in all three locales.
+ok(
+  "dashboard: the never-rendered quickAccess key is gone from every locale",
+  ["en", "hi", "ar"].every(
+    (l) => !/"quickAccess"/.test(readSrc(`../../src/i18n/locales/${l}/translation.json`)),
+  ),
+);
+ok(
+  "dashboard: every hero subtitle is still shown by setHeader",
+  [
+    "../../src/components/Approval/index.jsx",
+    "../../src/pages/Sales/index.jsx",
+    "../../src/pages/Quality/index.jsx",
+    "../../src/pages/Dashboard/index.jsx",
+    "../../src/pages/HR/index.jsx",
+    "../../src/pages/Production/index.jsx",
+    "../../src/pages/Purchase/index.jsx",
+    "../../src/pages/Reports/index.jsx",
+  ].every((rel) => /subtitle:/.test(stripJsComments(readSrc(rel)))),
+  "the hero repeated this text; deleting it must not orphan the string",
+);
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

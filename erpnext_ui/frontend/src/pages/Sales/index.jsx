@@ -12,7 +12,6 @@ import {
   Package,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import DashboardHero from "../../components/dashboard/DashboardHero";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import { createTileNav } from "../../lib/tileNav";
 
@@ -88,10 +87,6 @@ export default function SalesDashboard() {
 
   return (
     <DashboardShell>
-      <DashboardHero
-        icon={TrendingUp}
-        description={t("sales.header.subtitle")}
-      />
       <ModuleGrid items={modules} onClick={handleTileClick} />
     </DashboardShell>
   );
