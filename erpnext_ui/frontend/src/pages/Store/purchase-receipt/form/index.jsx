@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, Plus, Trash2, Info, Lock, Pencil, Scale } from "lucide-react";
+import {
+  ClipboardList,
+  Plus,
+  Trash2,
+  Info,
+  Lock,
+  Pencil,
+  Scale,
+} from "lucide-react";
 import { get } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
@@ -13,7 +21,14 @@ import { useHeader } from "../../../../context/HeaderContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { localDateISO } from "../../../../utils/localDateTime";
-import { needsMeasuredTotal, validateLineRow } from "../../../../lib/receiptConversion";
+import {
+  needsMeasuredTotal,
+  parseSerials,
+  serialCount,
+  validateBatch,
+  validateLineRow,
+  validateSerials,
+} from "../../../../lib/receiptConversion";
 import ReceiptItemWorkbench from "../components/ReceiptItemWorkbench";
 import ReceiptLineDialog from "../components/ReceiptLineDialog";
 
@@ -68,14 +83,37 @@ import ReceiptLineDialog from "../components/ReceiptLineDialog";
  */
 
 const SYSTEM_FIELDS = [
-  "name", "owner", "creation", "modified", "modified_by", "idx", "docstatus",
-  "amended_from", "amended_by", "_user_tags", "_comments", "_assign",
-  "_liked_by", "doctype", "__islocal", "__unsaved",
+  "name",
+  "owner",
+  "creation",
+  "modified",
+  "modified_by",
+  "idx",
+  "docstatus",
+  "amended_from",
+  "amended_by",
+  "_user_tags",
+  "_comments",
+  "_assign",
+  "_liked_by",
+  "doctype",
+  "__islocal",
+  "__unsaved",
 ];
 
 const CHILD_SYSTEM_FIELDS = [
-  "name", "parent", "parenttype", "parentfield", "docstatus", "idx",
-  "__islocal", "__unsaved", "owner", "creation", "modified", "modified_by",
+  "name",
+  "parent",
+  "parenttype",
+  "parentfield",
+  "docstatus",
+  "idx",
+  "__islocal",
+  "__unsaved",
+  "owner",
+  "creation",
+  "modified",
+  "modified_by",
 ];
 
 /** Strip system fields so the mapped doc can be saved as a new document. */
@@ -176,11 +214,13 @@ export default function PurchaseReceiptForm() {
   const autoCompany = useCallback(async () => {
     try {
       const company =
-        (await get("method/frappe.client.get_list", {
-          doctype: "Company",
-          fields: JSON.stringify(["name"]),
-          limit_page_length: 1,
-        }))?.message?.[0]?.name || "";
+        (
+          await get("method/frappe.client.get_list", {
+            doctype: "Company",
+            fields: JSON.stringify(["name"]),
+            limit_page_length: 1,
+          })
+        )?.message?.[0]?.name || "";
       if (company) {
         setDoc((p) => (p.company ? p : { ...p, company }));
       }
@@ -206,34 +246,44 @@ export default function PurchaseReceiptForm() {
       // We do not have the user's roles here, so we take the conservative
       // reading: editable only when the flag is off, or an override role is
       // configured (in which case RoleContext can grant it per-user).
-      const blocked = !!s.maintain_same_rate && s.maintain_same_rate_action === "Stop";
+      const blocked =
+        !!s.maintain_same_rate && s.maintain_same_rate_action === "Stop";
       setRateEditable(!blocked || !!s.role_to_override_stop_action);
     } catch {
       setRateEditable(false);
     }
   }, []);
 
-  const loadUomInfo = useCallback(async (rid, itemCode) => {
-    if (!itemCode) return;
-    try {
-      const message = await get("method/erpnext_ui.api.get_item_uom_options", {
-        item_code: itemCode,
-      });
-      setUomInfo((p) => ({ ...p, [rid]: message }));
-      setUomErrors((p) => ({ ...p, [rid]: null }));
-    } catch {
-      // Previously this was swallowed, which made a missing backend deployment
-      // look exactly like "this item has one UOM" -- the measured-total field
-      // silently disappeared with no error anywhere. Now the failure is kept
-      // and rendered on the row, because a missing UOM list does not mean a
-      // single-UOM item.
-      setUomInfo((p) => ({
-        ...p,
-        [rid]: { stock_uom: "", uoms: [], failed: true },
-      }));
-      setUomErrors((p) => ({ ...p, [rid]: t("store.receipt.uomLookupFailed") }));
-    }
-  }, [t]);
+  const loadUomInfo = useCallback(
+    async (rid, itemCode) => {
+      if (!itemCode) return;
+      try {
+        const message = await get(
+          "method/erpnext_ui.api.get_item_uom_options",
+          {
+            item_code: itemCode,
+          },
+        );
+        setUomInfo((p) => ({ ...p, [rid]: message }));
+        setUomErrors((p) => ({ ...p, [rid]: null }));
+      } catch {
+        // Previously this was swallowed, which made a missing backend deployment
+        // look exactly like "this item has one UOM" -- the measured-total field
+        // silently disappeared with no error anywhere. Now the failure is kept
+        // and rendered on the row, because a missing UOM list does not mean a
+        // single-UOM item.
+        setUomInfo((p) => ({
+          ...p,
+          [rid]: { stock_uom: "", uoms: [], failed: true },
+        }));
+        setUomErrors((p) => ({
+          ...p,
+          [rid]: t("store.receipt.uomLookupFailed"),
+        }));
+      }
+    },
+    [t],
+  );
 
   const loadDoc = useCallback(async () => {
     setLoading(true);
@@ -285,7 +335,9 @@ export default function PurchaseReceiptForm() {
   const patchById = useCallback((rid, patch) => {
     setDoc((p) => ({
       ...p,
-      items: p.items.map((row) => (row._rid === rid ? { ...row, ...patch } : row)),
+      items: p.items.map((row) =>
+        row._rid === rid ? { ...row, ...patch } : row,
+      ),
     }));
   }, []);
 
@@ -350,6 +402,11 @@ export default function PurchaseReceiptForm() {
       stock_qty: line.stock_qty ?? "",
       rate: line.rate ?? "",
       warehouse: line.warehouse || docRef.current.set_warehouse || "",
+      // Tracking fields. Empty until the user supplies them (or ERPNext generates
+      // them from a series), but present on the row so an edit round-trip through
+      // the server does not silently drop them.
+      serial_no: "",
+      batch_no: "",
       purchase_order: line.purchase_order || poName || "",
       purchase_order_item: line.purchase_order_item || "",
       rate_from_po: line.rate ?? "",
@@ -359,7 +416,11 @@ export default function PurchaseReceiptForm() {
     // catalogue here (rather than relying on a "picked" check at render time)
     // keeps the catalogue and doc.items in step even if a row is removed again.
     setAvailable((p) =>
-      p.filter((l) => (l.purchase_order_item || l.item_code) !== (line.purchase_order_item || line.item_code)),
+      p.filter(
+        (l) =>
+          (l.purchase_order_item || l.item_code) !==
+          (line.purchase_order_item || line.item_code),
+      ),
     );
     setDoc((p) => ({ ...p, items: [...p.items, row] }));
     if (row.item_code) loadUomInfo(rid, row.item_code);
@@ -410,7 +471,8 @@ export default function PurchaseReceiptForm() {
   const validate = (d = docRef.current) => {
     const errs = {};
 
-    if (!d.supplier) errs.supplier = t("store.receipt.validation.supplierRequired");
+    if (!d.supplier)
+      errs.supplier = t("store.receipt.validation.supplierRequired");
     if (!d.company) errs.company = t("store.validation.companyRequired");
 
     if (!d.posting_date) {
@@ -423,7 +485,10 @@ export default function PurchaseReceiptForm() {
     if (!d.items.length) {
       errs.items = t("store.receipt.validation.addItem");
       setFieldErrors(errs);
-      return { fieldErrors: errs, summary: t("store.receipt.validation.addItem") };
+      return {
+        fieldErrors: errs,
+        summary: t("store.receipt.validation.addItem"),
+      };
     }
 
     // Duplicate PO lines: ERPNext throws "Duplicate row N with same ...".
@@ -451,6 +516,26 @@ export default function PurchaseReceiptForm() {
       const lineErr = validateLineRow(row, info, t);
       if (lineErr) {
         errs.items = lineErr;
+        break;
+      }
+
+      // Serial and batch rules. Separate from `validateLineRow` because they are
+      // about TRACKING rather than arithmetic -- but they are just as fatal: a
+      // serialised row whose count does not match stock_qty fails in
+      // serial_batch_bundle with a message that never mentions serials.
+      const serialErr = validateSerials(row, info);
+      if (serialErr) {
+        errs.items = t(serialErr, {
+          expected: serialCount(row),
+          entered: parseSerials(row.serial_no).length,
+          uom: info?.stock_uom,
+        });
+        break;
+      }
+
+      const batchErr = validateBatch(row, info);
+      if (batchErr) {
+        errs.items = t(batchErr);
         break;
       }
 
@@ -566,7 +651,9 @@ export default function PurchaseReceiptForm() {
             "method/erpnext.buying.doctype.purchase_order.purchase_order.make_purchase_receipt",
             { source_name: poName },
           );
-          const draft = Array.isArray(res.message) ? res.message[0] : res.message;
+          const draft = Array.isArray(res.message)
+            ? res.message[0]
+            : res.message;
           if (!draft || cancelled) return;
 
           const catalogue = (draft.items || []).map((r) => ({
@@ -621,7 +708,9 @@ export default function PurchaseReceiptForm() {
     return null;
   }
 
-  const editingRow = editing ? rows.find((r) => r._rid === editing) || null : null;
+  const editingRow = editing
+    ? rows.find((r) => r._rid === editing) || null
+    : null;
   const pickedKeys = rows.map((r) => r.purchase_order_item || r.item_code);
   const outstanding = fromPo ? available.length : null;
 
@@ -692,7 +781,9 @@ export default function PurchaseReceiptForm() {
                 set_warehouse: v || "",
                 // One warehouse for the whole receipt: propagating it here is
                 // what stops each row needing its own.
-                items: p.items.map((r) => (r.warehouse ? { ...r, warehouse: v || "" } : r)),
+                items: p.items.map((r) =>
+                  r.warehouse ? { ...r, warehouse: v || "" } : r,
+                ),
               }));
             }}
           />
@@ -704,7 +795,8 @@ export default function PurchaseReceiptForm() {
         title={t("store.receipt.addedLines")}
         icon={ClipboardList}
         action={
-          !doc.docstatus && (fromPo ? (
+          !doc.docstatus &&
+          (fromPo ? (
             <Button size="sm" onClick={() => setPickerOpen(true)}>
               <Plus />
               {t("store.receipt.addFromPo")}
@@ -722,7 +814,10 @@ export default function PurchaseReceiptForm() {
             shopfloor user needs at a glance. */}
         {fromPo && rows.length + (outstanding || 0) > 0 ? (
           <p className="mb-1 text-xs text-muted-foreground">
-            {t("store.receipt.progress", { picked: rows.length, total: rows.length + (outstanding || 0) })}
+            {t("store.receipt.progress", {
+              picked: rows.length,
+              total: rows.length + (outstanding || 0),
+            })}
           </p>
         ) : null}
 
@@ -773,7 +868,9 @@ export default function PurchaseReceiptForm() {
                       ) : null}
                       {row.warehouse ? <span>{row.warehouse}</span> : null}
                       {row.rate !== "" && row.rate !== undefined ? (
-                        <span>{t("store.receipt.rate")}: {row.rate}</span>
+                        <span>
+                          {t("store.receipt.rate")}: {row.rate}
+                        </span>
                       ) : null}
                     </div>
                     {rowErr ? (
@@ -829,19 +926,25 @@ export default function PurchaseReceiptForm() {
         />
       ) : null}
 
-      {/* Tray edit only -- never stacked on the workbench. */}
-      {fromPo ? null : (
-        <ReceiptLineDialog
-          show={!!editingRow}
-          onClose={() => setEditing(null)}
-          row={editingRow}
-          info={editingRow ? uomInfo[editingRow._rid] : null}
-          uomError={editingRow ? uomErrors[editingRow._rid] : null}
-          rateEditable={rateEditable || !editingRow?.purchase_order_item}
-          onItemChange={handleItemChange}
-          onSave={(next) => patchById(next._rid, next)}
-        />
-      )}
+      {/* Tray edit. NOT gated on `fromPo`: the workbench covers ADDING a line,
+          while this row is already on the receipt, so there is no picker behind
+          it to stack on. Gating this on the purpose is what broke the Edit
+          button on a PO receipt -- it set `editing`, and the only surface that
+          reads `editing` for that purpose was the workbench, which is closed.
+
+          Gated on `!pickerOpen` so the two can never be open at once: picking a
+          line inside the workbench sets `editing` too, and that must show in the
+          workbench's own pane rather than in a dialog on top of it. */}
+      <ReceiptLineDialog
+        show={!!editingRow && !pickerOpen}
+        onClose={() => setEditing(null)}
+        row={editingRow}
+        info={editingRow ? uomInfo[editingRow._rid] : null}
+        uomError={editingRow ? uomErrors[editingRow._rid] : null}
+        rateEditable={rateEditable || !editingRow?.purchase_order_item}
+        onItemChange={handleItemChange}
+        onSave={(next) => patchById(next._rid, next)}
+      />
     </div>
   );
 }

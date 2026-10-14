@@ -5,10 +5,20 @@ import { FormField } from "../../../../components/FormField";
 import FormSelect from "../../../../components/FormSelect";
 import LinkField from "../../../../components/LinkField";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { BadgeCheck, Hash } from "lucide-react";
 import {
   applyMeasuredTotal,
+  batchRule,
   computeFactor,
   needsMeasuredTotal,
+  needsSerials,
+  perSerialFigures,
+  parseSerials,
+  serialCount,
+  serialsAreGenerated,
+  validateBatch,
+  validateSerials,
   wholeNumberRules,
 } from "../../../../lib/receiptConversion";
 
@@ -62,6 +72,12 @@ export default function ReceiptLineForm({
     () => (wantsTotal ? computeFactor(row?.qty, row?.measured_total) : 1),
     [wantsTotal, row?.qty, row?.measured_total],
   );
+
+  const serialised = needsSerials(info);
+  const autoSerials = serialsAreGenerated(info);
+  const serials = serialCount(row);
+  const figures = perSerialFigures(row);
+  const batch = batchRule(info);
 
   if (!row) return null;
 
@@ -211,6 +227,108 @@ export default function ReceiptLineForm({
           onChange={(v) => edit({ warehouse: v || "" })}
         />
       </FormField>
+
+      {/* SERIAL NUMBERS -- one per STOCK unit, which for a weighed item means one
+          per Kg. Not "one per piece": ERPNext builds one bundle entry per serial
+          (qty 1) and asserts the bundle total equals the SLE's stock_qty, so the
+          count is measured in stock, never in transaction UOM. */}
+      {serialised ? (
+        <FormField
+          label={t("store.receipt.serialNumbers", { count: serials, uom: info?.stock_uom })}
+          hint={
+            autoSerials
+              ? t("store.receipt.serialAuto", { count: serials })
+              : t("store.receipt.serialTyped", { count: serials })
+          }
+          required
+          error={validateSerials(row, info)}
+        >
+          {autoSerials ? (
+            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+              <BadgeCheck className="size-4 shrink-0 text-emerald-600" />
+              <span className="text-sm text-muted-foreground">
+                {t("store.receipt.serialWillGenerate", { series: info.serial_no_series })}
+              </span>
+            </div>
+          ) : (
+            <Textarea
+              value={row.serial_no || ""}
+              rows={Math.min(8, Math.max(3, serials))}
+              onChange={(e) => onSave({ ...row, serial_no: e.target.value })}
+              placeholder={t("store.receipt.serialPlaceholder", { count: serials })}
+              aria-label={t("store.receipt.serialNumbers", {
+                count: serials,
+                uom: info?.stock_uom,
+              })}
+              className="font-mono text-xs"
+            />
+          )}
+
+          {/* Derived per-serial figures. Read-only on purpose: neither Serial No
+              nor Serial and Batch Entry has a weight field, and their rate
+              fields are read_only / no_copy -- ERPNext derives both from the row.
+              Showing them here is a statement, not an input. */}
+          {serials > 0 ? (
+            <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  {t("store.receipt.perSerialWeight", { uom: info?.stock_uom })}
+                </span>
+                <span className="font-medium tabular-nums">
+                  {Number(figures.weightPerSerial.toFixed(6))} {info?.stock_uom}
+                </span>
+              </div>
+              <div className="mt-1 flex justify-between">
+                <span className="text-muted-foreground">
+                  {t("store.receipt.perSerialValue")}
+                </span>
+                <span className="font-medium tabular-nums">
+                  {Number(figures.ratePerSerial.toFixed(6))}
+                </span>
+              </div>
+              {!autoSerials && parseSerials(row.serial_no).length !== serials ? (
+                <p className="mt-1 text-[11px] text-amber-600">
+                  {t("store.receipt.serialProgress", {
+                    entered: parseSerials(row.serial_no).length,
+                    expected: serials,
+                  })}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </FormField>
+      ) : null}
+
+      {/* BATCH -- only when the item is batched, and typed only when ERPNext
+          will not generate one (create_new_batch + a batch_number_series). */}
+      {batch === "required" ? (
+        <FormField
+          label={t("store.receipt.batchNo")}
+          required
+          error={validateBatch(row, info)}
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              value={row.batch_no || ""}
+              onChange={(e) => onSave({ ...row, batch_no: e.target.value })}
+              placeholder={t("store.receipt.batchPlaceholder")}
+            />
+            <Hash className="size-3.5 shrink-0 text-muted-foreground" />
+          </div>
+        </FormField>
+      ) : batch === "auto" ? (
+        <FormField
+          label={t("store.receipt.batchNo")}
+          hint={t("store.receipt.batchAuto", { series: info.batch_number_series })}
+        >
+          <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+            <BadgeCheck className="size-4 shrink-0 text-emerald-600" />
+            <span className="text-sm text-muted-foreground">
+              {t("store.receipt.batchWillGenerate")}
+            </span>
+          </div>
+        </FormField>
+      ) : null}
 
       {/* REJECTED */}
       <FormField label={t("store.receipt.rejectedQty")}>

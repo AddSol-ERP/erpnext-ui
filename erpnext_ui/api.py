@@ -1449,8 +1449,26 @@ def get_item_uom_options(item_code):
 	Args:
 		item_code (str): Item name.
 
+	The serial/batch flags come from the Item itself, because the number of serials
+	ERPNext will accept is not free: for a serialised item the serial count must
+	equal the quantity in STOCK UOM, since `serial_batch_bundle.py` builds one
+	`Serial and Batch Entry` per serial (qty 1 by default) and then asserts the
+	bundle total equals the Stock Ledger Entry's `actual_qty`. So a weighed item
+	stocked in Kg takes one serial per Kg -- 12.5 Kg would need 12.5 serials, which
+	is impossible, and the save fails. The client cannot infer that from UOM data
+	alone; it needs to know the item is serialised.
+
+	`serial_no_series` / `batch_number_series` / `create_new_batch` decide whether
+	the user types anything: with a series configured ERPNext generates them
+	(`serial_batch_bundle.py:187` checks exactly this pair).
+
 	Returns:
-		dict: {"item_code", "stock_uom", "uoms": [{"uom", "must_be_whole_number"}]}
+		dict: {
+		  "item_code", "stock_uom",
+		  "uoms": [{"uom", "must_be_whole_number"}],
+		  "has_serial_no", "serial_no_series",
+		  "has_batch_no", "create_new_batch", "batch_number_series",
+		}
 	"""
 	if not item_code:
 		frappe.throw("No item specified.")
@@ -1491,7 +1509,29 @@ def get_item_uom_options(item_code):
 	# Stock UOM first: it is the common case and the safest default.
 	uoms.sort(key=lambda u: (u["uom"] != stock_uom, u["uom"]))
 
-	return {"item_code": item_code, "stock_uom": stock_uom, "uoms": uoms}
+	tracking = frappe.db.get_value(
+		"Item",
+		item_code,
+		[
+			"has_serial_no",
+			"serial_no_series",
+			"has_batch_no",
+			"create_new_batch",
+			"batch_number_series",
+		],
+		as_dict=True,
+	) or {}
+
+	return {
+		"item_code": item_code,
+		"stock_uom": stock_uom,
+		"uoms": uoms,
+		"has_serial_no": cint(tracking.get("has_serial_no")),
+		"serial_no_series": tracking.get("serial_no_series") or "",
+		"has_batch_no": cint(tracking.get("has_batch_no")),
+		"create_new_batch": cint(tracking.get("create_new_batch")),
+		"batch_number_series": tracking.get("batch_number_series") or "",
+	}
 
 
 # ============================================================

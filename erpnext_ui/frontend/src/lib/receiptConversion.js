@@ -192,3 +192,130 @@ export function validateLineRow(row, info, t) {
 
   return null;
 }
+
+/* ===========================================================================
+   Serial numbers and batches
+   ---------------------------------------------------------------------------
+   One rule drives everything here, and it is ERPNext's, not ours:
+
+   For a serialised item the number of serial numbers must equal the quantity in
+   STOCK UOM.
+
+   `erpnext/stock/serial_batch_bundle.py` creates one `Serial and Batch Entry`
+   per serial -- whose `qty` defaults to 1 -- and then asserts the bundle total
+   equals the Stock Ledger Entry's `actual_qty`, which is in stock UOM. Separately
+   `erpnext/stock/utils.py:get_valid_serial_nos` throws when the count does not
+   match the qty it is handed.
+
+   So a weighed item stocked in Kg takes one serial per Kg. 12.5 Kg would need
+   12.5 serials, which cannot exist, and the save fails with "Total qty ... is not
+   equal to Actual Qty" -- not with anything that names the real problem.
+
+   That makes "whole stock_qty" a HARD requirement for a serialised item even
+   when the UOM itself permits fractions, which is why it is checked here rather
+   than left to `must_be_whole_number`.
+
+   Per-serial weight and price are DERIVED, never stored. Neither `Serial No`,
+   `Serial and Batch Bundle` nor `Serial and Batch Entry` has a weight field, and
+   their rate fields are `read_only` / `no_copy` -- ERPNext derives them from the
+   row. Per-serial weight is therefore 1 stock unit by construction.
+   =========================================================================== */
+
+/** Does this item carry serial numbers at all? */
+export function needsSerials(info) {
+  return !!info && Number(info.has_serial_no) === 1;
+}
+
+/** True when ERPNext will generate the serials from the item's series. */
+export function serialsAreGenerated(info) {
+  return needsSerials(info) && !!info?.serial_no_series;
+}
+
+/** "auto" | "required" | "none" -- whether the user must supply a batch number. */
+export function batchRule(info) {
+  if (!info || Number(info.has_batch_no) !== 1) return "none";
+  return Number(info.create_new_batch) === 1 && info?.batch_number_series
+    ? "auto"
+    : "required";
+}
+
+/**
+ * How many serials this row needs: one per STOCK unit, per the rule above.
+ * Fractional stock_qty has no valid answer, so this reports what was asked for
+ * and `validateSerials` refuses it.
+ */
+export function serialCount(row) {
+  const stockQty = Number(row?.stock_qty);
+  if (row?.stock_qty === "" || row?.stock_qty == null || !Number.isFinite(stockQty)) {
+    return 0;
+  }
+  return Math.round(stockQty);
+}
+
+/** Split a textarea value into serials, the way ERPNext's own parser does. */
+export function parseSerials(value) {
+  return String(value ?? "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Derived, read-only per-serial figures. Never an input. */
+export function perSerialFigures(row) {
+  const count = serialCount(row);
+  const stockQty = Number(row?.stock_qty) || 0;
+  const rate = Number(row?.rate) || 0;
+  return {
+    count,
+    // One serial is one stock unit, so each carries exactly 1 of the stock UOM.
+    weightPerSerial: count > 0 ? stockQty / count : 0,
+    // ERPNext values from the row rate against stock_qty, so the per-serial
+    // figure is that same rate -- shown for the user's benefit, never posted.
+    ratePerSerial: count > 0 ? (stockQty > 0 ? rate : 0) : 0,
+    total: stockQty * rate,
+  };
+}
+
+/**
+ * Validate the serial side of a row. Returns an i18n key string or null.
+ *
+ * Order matters: the whole-number check comes first because a fractional
+ * stock_qty makes the required count meaningless, and reporting "expected 13
+ * serials" for a quantity that cannot exist would send the user hunting.
+ */
+export function validateSerials(row, info) {
+  if (!needsSerials(info)) return null;
+
+  const stockQty = Number(row?.stock_qty);
+  if (row?.stock_qty === "" || row?.stock_qty == null || !Number.isFinite(stockQty)) {
+    return "store.receipt.validation.serialNeedsQty";
+  }
+  if (stockQty <= 0) {
+    return "store.receipt.validation.serialNeedsPositiveQty";
+  }
+  if (stockQty % 1 !== 0) {
+    return "store.receipt.validation.serialWholeStockQty";
+  }
+
+  if (serialsAreGenerated(info)) return null;
+
+  const entered = parseSerials(row?.serial_no);
+  const expected = serialCount(row);
+  if (entered.length !== expected) {
+    return "store.receipt.validation.serialCountMismatch";
+  }
+  if (new Set(entered).size !== entered.length) {
+    return "store.receipt.validation.serialDuplicate";
+  }
+  return null;
+}
+
+/** Validate the batch side of a row. Returns an i18n key string or null. */
+export function validateBatch(row, info) {
+  const rule = batchRule(info);
+  if (rule === "none") return null;
+  if (rule === "auto") return null;
+  return row?.batch_no && String(row.batch_no).trim()
+    ? null
+    : "store.receipt.validation.batchRequired";
+}

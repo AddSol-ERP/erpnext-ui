@@ -1458,10 +1458,15 @@ line and lost sight of what they were building — the same problem one level up
 two sections get their own scroll and the page stays put.
 
 The invariant worth writing down is **exactly one** dialog: not two (the
-original stacking) and not zero (the inline version). The two entry points are
-mutually exclusive branches in the receipt form — `{fromPo ? <Workbench/> : null}`
-and `{fromPo ? null : <LineDialog/>}` — which is what keeps a second overlay from
-appearing on top.
+original stacking) and not zero (the inline version). What actually enforces it
+is **open state, not purpose**: the line dialog is
+`show={!!editingRow && !pickerOpen}` and is **not** gated on `fromPo`.
+
+Gating it on the purpose instead — `{fromPo ? null : <LineDialog/>}` — looks
+correct and ships a dead Edit button. On a PO receipt the tray's Edit button
+sets `editing`, and the only surface reading `editing` for that purpose is the
+workbench, which is closed at that moment, so it renders `null`. The user clicks
+Edit and nothing happens. Both surfaces stay in the tree; only one may be open.
 
 Two things worth keeping:
 
@@ -1521,6 +1526,44 @@ locales and was referenced by **no component** — not even the hero, which used
 `dashboard.subtitle` (the same English text). So removing the hero did not make
 it dead; it already was. Removed from `en`/`hi`/`ar`, and since it was the last
 key in its object the preceding line lost its trailing comma too.
+
+### 9.8h Serialised + weighed: the serial count is a STOCK quantity
+
+For a serialised item, `erpnext/stock/serial_batch_bundle.py` creates one
+`Serial and Batch Entry` per serial — `qty` defaults to `1` — and then asserts
+the bundle total equals the Stock Ledger Entry's `actual_qty`:
+
+```python
+"qty": self.sle.actual_qty,
+...
+if flt(sn_doc.total_qty, precision) != flt(self.sle.actual_qty, precision):
+    "Total qty ... is not equal to Actual Qty ..."
+```
+
+`sle.actual_qty` is in **stock UOM**. `get_valid_serial_nos` in
+`erpnext/stock/utils.py` throws when the serial count does not match the qty it
+is handed.
+
+So a Kg-stocked, serialised item takes **one serial per Kg**. 10 Nos weighing
+12.5 Kg would require 12.5 serials — impossible, and the save fails with a
+message that never mentions serials. "One serial per piece" is not expressible.
+
+That makes a **whole `stock_qty`** mandatory for a serialised line *even when the
+UOM itself permits fractions*. `must_be_whole_number` is a property of the UOM
+and cannot express it, so `validateSerials` carries a separate whole-number gate
+and reports it before the count gate — asking for "13 serials" against a
+quantity that cannot exist would send the user hunting.
+
+Per-serial weight and price are derived, not stored: no weight field exists on
+`Serial No`, `Serial and Batch Bundle` or `Serial and Batch Entry`, and
+`incoming_rate` / `Serial No.purchase_rate` are `read_only` / `no_copy`. The form
+shows them read-only — one stock unit and the row rate.
+
+Auto-generation works when the Item has a `serial_no_series`
+(`serial_batch_bundle.py:187` checks `has_serial_no and not serial_no_series`),
+and the same pattern covers batches via `create_new_batch` +
+`batch_number_series`. `get_item_uom_options` now returns all five flags; the
+suite asserts the endpoint contract, because the JS rules are inert without them.
 
 ### 9.9 Logic bugs
 

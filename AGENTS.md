@@ -117,6 +117,14 @@ The line fields live in `ReceiptLineForm`, shared by the workbench and the tray'
 Edit dialog, so the measured-total logic cannot drift between the two entry
 points.
 
+The two surfaces are mutually exclusive on **open state**, never on purpose:
+`<ReceiptLineDialog show={!!editingRow && !pickerOpen}>`, and the line dialog is
+**not** gated on `fromPo`. Gating it on the purpose shipped a dead Edit button —
+on a PO receipt the button set `editing`, and the only surface reading `editing`
+for that purpose was the workbench, which was closed, so nothing appeared at
+all. Picking a line inside the workbench also sets `editing`, and that must
+render in the workbench's own pane rather than in a dialog on top of it.
+
 **A null query parameter arrives at Python as the four-character string
 `"null"`.** `new URLSearchParams({employee: null})` serialises it that way, Frappe
 copies query params into `frappe.form_dict` verbatim, and the string is *truthy*

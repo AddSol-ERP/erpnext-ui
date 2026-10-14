@@ -23,9 +23,17 @@ import {
 } from "../src/config/storePurposes.js";
 import {
   applyMeasuredTotal,
+  batchRule,
   computeFactor,
   needsMeasuredTotal,
+  needsSerials,
+  parseSerials,
+  perSerialFigures,
+  serialCount,
+  serialsAreGenerated,
+  validateBatch,
   validateLineRow,
+  validateSerials,
   wholeNumberRules,
 } from "../src/lib/receiptConversion.js";
 import { DOCTYPE_CONFIG } from "../src/config/doctypes.js";
@@ -1196,6 +1204,7 @@ const lineFormSrc = readSrc(
 const receiptFormSrc = readSrc(
   "../../src/pages/Store/purchase-receipt/form/index.jsx",
 );
+const receiptFormCode = stripJsComments(receiptFormSrc);
 
 // Exactly ONE dialog -- not zero, and not two. Rendered inline it grew the
 // document instead of the surface, so the user scrolled the page to work a line;
@@ -1214,11 +1223,23 @@ ok(
   "receipt picker: the modal scrolls internally so the page never grows",
   /width="xl"/.test(workbenchCode) && /max-h-\[/.test(workbenchCode),
 );
+// Mutually exclusive on OPEN STATE, not on purpose. Gating the line dialog on
+// `fromPo` shipped a dead Edit button: on a PO receipt the button set `editing`,
+// and the only surface reading `editing` for that purpose was the workbench,
+// which was closed -- so nothing appeared at all.
 ok(
-  "receipt picker: the receipt form never shows the workbench and the line dialog together",
-  /\{fromPo \? \(\s*<ReceiptItemWorkbench/.test(receiptFormSrc) &&
-    /\{fromPo \? null : \(\s*<ReceiptLineDialog/.test(receiptFormSrc),
-  "mutually exclusive branches are what keep a second overlay off the workbench",
+  "receipt picker: the tray Edit dialog is NOT gated on the purpose",
+  !/\{fromPo \? null : \(\s*<ReceiptLineDialog/.test(receiptFormCode),
+  "on a PO receipt this left the Edit button setting state nothing rendered",
+);
+ok(
+  "receipt picker: the line dialog opens only while the workbench is closed",
+  /show=\{!!editingRow && !pickerOpen\}/.test(receiptFormCode),
+  "picking a line also sets `editing`, and that must show in the workbench pane",
+);
+ok(
+  "receipt picker: the tray Edit button opens the line dialog",
+  /onClick=\{\(\) => setEditing\(row\._rid\)\}/.test(receiptFormCode),
 );
 ok(
   "receipt picker: the workbench has both sections in one render",
@@ -1412,6 +1433,118 @@ ok(
     "../../src/pages/Reports/index.jsx",
   ].every((rel) => /subtitle:/.test(stripJsComments(readSrc(rel)))),
   "the hero repeated this text; deleting it must not orphan the string",
+);
+
+
+// ---------------------------------------------------------------------------
+// Serial numbers on a weighed receipt.
+//
+// ERPNext's rule, from serial_batch_bundle.py and stock/utils.py: for a
+// serialised item the serial count must equal the quantity in STOCK UOM. The
+// bundle builds one `Serial and Batch Entry` per serial (qty 1) and then asserts
+// the bundle total equals the Stock Ledger Entry's `actual_qty`, which is in
+// stock UOM. So a Kg-stocked item takes one serial per Kg -- never per piece.
+//
+// That makes a whole `stock_qty` mandatory for a serialised item EVEN WHEN the
+// UOM itself permits fractions, which no `must_be_whole_number` flag expresses.
+// A 12.5 Kg delivery would otherwise reach ERPNext and fail with "Total qty ...
+// is not equal to Actual Qty", which never mentions serials at all.
+// ---------------------------------------------------------------------------
+
+const SERIAL_INFO = { stock_uom: "Kg", has_serial_no: 1, serial_no_series: "" };
+const AUTO_SERIAL_INFO = { stock_uom: "Kg", has_serial_no: 1, serial_no_series: "SN-.#####" };
+
+ok(
+  "serials: the count is per STOCK unit, not per transaction unit",
+  serialCount({ uom: "Nos", stock_uom: "Kg", qty: 10, stock_qty: 13 }) === 13,
+  "10 Nos weighing 13 Kg needs 13 serials, not 10",
+);
+ok(
+  "serials: a serialised item refuses a fractional stock qty",
+  validateSerials({ qty: 10, stock_qty: 12.5 }, SERIAL_INFO) ===
+    "store.receipt.validation.serialWholeStockQty",
+  "12.5 Kg cannot have 12.5 serials; this is the save failure, caught early",
+);
+ok(
+  "serials: a whole stock qty passes the whole-number gate",
+  validateSerials({ qty: 10, stock_qty: 13, serial_no: "a\nb\nc" }, SERIAL_INFO) === null ||
+    validateSerials({ qty: 10, stock_qty: 13, serial_no: "" }, SERIAL_INFO) ===
+      "store.receipt.validation.serialCountMismatch",
+  "the count gate still applies once the qty is whole",
+);
+ok(
+  "serials: the typed list must match the expected count exactly",
+  validateSerials({ qty: 10, stock_qty: 3, serial_no: "a\nb" }, SERIAL_INFO) ===
+    "store.receipt.validation.serialCountMismatch",
+);
+ok(
+  "serials: a repeated serial is rejected",
+  validateSerials({ qty: 2, stock_qty: 2, serial_no: "a\na" }, SERIAL_INFO) ===
+    "store.receipt.validation.serialDuplicate",
+);
+ok(
+  "serials: a series means nothing has to be typed",
+  serialsAreGenerated(AUTO_SERIAL_INFO) &&
+    !serialsAreGenerated(SERIAL_INFO) &&
+    validateSerials({ qty: 10, stock_qty: 13, serial_no: "" }, AUTO_SERIAL_INFO) === null,
+);
+ok(
+  "serials: an unserialised item is untouched by all of this",
+  !needsSerials({ stock_uom: "Kg" }) &&
+    validateSerials({ qty: 10, stock_qty: 12.5 }, { stock_uom: "Kg" }) === null,
+  "a fractional Kg line that is not serialised is perfectly legal",
+);
+ok(
+  "serials: a missing or zero quantity is reported before the count",
+  validateSerials({ qty: "", stock_qty: "" }, SERIAL_INFO) ===
+    "store.receipt.validation.serialNeedsQty" &&
+    validateSerials({ qty: 1, stock_qty: 0 }, SERIAL_INFO) ===
+      "store.receipt.validation.serialNeedsPositiveQty",
+);
+ok(
+  "serials: parsing matches ERPNext's own newline split",
+  parseSerials("a\n\n b \nc\n").join(",") === "a,b,c",
+);
+ok(
+  "serials: per-serial weight is 1 stock unit and the value is the row rate",
+  perSerialFigures({ qty: 10, stock_qty: 13, rate: 250 }).weightPerSerial === 1 &&
+    perSerialFigures({ qty: 10, stock_qty: 13, rate: 250 }).ratePerSerial === 250,
+  "derived, never an input -- neither doctype has a per-serial weight field",
+);
+ok(
+  "batches: required, auto, or absent, per the item flags",
+  batchRule({ has_batch_no: 0 }) === "none" &&
+    batchRule({ has_batch_no: 1, create_new_batch: 1, batch_number_series: "B-.####" }) === "auto" &&
+    batchRule({ has_batch_no: 1, create_new_batch: 0 }) === "required" &&
+    validateBatch({ batch_no: "" }, { has_batch_no: 1, create_new_batch: 0 }) ===
+      "store.receipt.validation.batchRequired" &&
+    validateBatch({}, { has_batch_no: 1, create_new_batch: 1, batch_number_series: "B-.####" }) === null,
+);
+// The JS rules are useless if the endpoint stops telling the client the item is
+// serialised -- the form would silently fall back to a non-serial receipt and
+// ERPNext would reject it. Assert the contract, not just the arithmetic.
+const uomOptionsFn = apiSource.slice(
+  apiSource.indexOf("def get_item_uom_options("),
+  apiSource.indexOf("@frappe.whitelist", apiSource.indexOf("def get_item_uom_options(")),
+);
+ok(
+  "serials: the endpoint reports the item's serial and batch configuration",
+  // Anchor on the `"key":` form. A bare `"batch_number_series"` also appears in
+  // the get_value field list, so the loose check passed while the flag was no
+  // longer returned -- and the form would then never generate a batch number.
+  /"has_serial_no": cint\(tracking\.get\("has_serial_no"\)\)/.test(uomOptionsFn) &&
+    /"serial_no_series": tracking\.get/.test(uomOptionsFn) &&
+    /"has_batch_no": cint\(tracking\.get\("has_batch_no"\)\)/.test(uomOptionsFn) &&
+    /"create_new_batch": cint\(tracking\.get\("create_new_batch"\)\)/.test(uomOptionsFn) &&
+    /"batch_number_series": tracking\.get/.test(uomOptionsFn),
+  "without these the form cannot tell a serialised item from a plain one",
+);
+
+ok(
+  "serials: the form saves ONLY when both gates pass",
+  /validateSerials\(row, info\)/.test(receiptFormSrc) &&
+    /validateBatch\(row, info\)/.test(receiptFormSrc),
+  "without these the failure surfaces from ERPNext as a bundle total mismatch",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);
