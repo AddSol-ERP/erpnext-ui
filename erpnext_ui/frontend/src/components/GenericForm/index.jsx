@@ -1,3 +1,4 @@
+import { deskNewUrl, deskDocUrl } from "../../lib/deskUrl";
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -481,11 +482,10 @@ export default function GenericFormPage() {
   useEffect(() => {
     const cfg = getDoctypeConfig(decodedDoctype);
     if (cfg.nativeForm) {
-      const doctypeUrl = decodedDoctype.toLowerCase().replace(/\s+/g, "-");
-      const url = isNew
-        ? `/app/${doctypeUrl}/new-${doctypeUrl}`
-        : `/app/${doctypeUrl}/${decodedName}`;
-      window.open(url, "_blank");
+      window.open(
+        isNew ? deskNewUrl(decodedDoctype) : deskDocUrl(decodedDoctype, decodedName),
+        "_blank",
+      );
       navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

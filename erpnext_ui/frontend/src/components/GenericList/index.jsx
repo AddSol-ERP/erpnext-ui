@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
 import { getDoctypeConfig } from "../../config/doctypes";
+import { openInDesk } from "../../lib/deskUrl";
 import ActionBar from "../ActionBar";
 import Pagination from "../Pagination";
 import ListLayout from "../ListLayout";
@@ -310,11 +311,7 @@ export default function GenericListPage({ doctypeOverride }) {
         label: t("common.new"),
         variant: "btn-primary",
         icon: Plus,
-        onClick: () =>
-          window.open(
-            `/app/${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}/new-${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}`,
-            "_blank",
-          ),
+        onClick: () => openInDesk(decodedDoctype, null, true),
       });
     } else if (!config.readOnly) {
       actions.push({
@@ -376,10 +373,7 @@ export default function GenericListPage({ doctypeOverride }) {
 
   const handleRowClick = (doc) => {
     if (config.nativeForm) {
-      window.open(
-        `/app/${decodedDoctype.toLowerCase().replace(/\s+/g, "-")}/${doc.name}`,
-        "_blank",
-      );
+      openInDesk(decodedDoctype, doc.name);
     } else if (config.readOnly) {
       navigate(
         `/${hub}/print/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(doc.name)}`,

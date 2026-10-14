@@ -1492,3 +1492,382 @@ def get_item_uom_options(item_code):
 	uoms.sort(key=lambda u: (u["uom"] != stock_uom, u["uom"]))
 
 	return {"item_code": item_code, "stock_uom": stock_uom, "uoms": uoms}
+
+
+# ============================================================
+# STOCK BALANCE + TRACEABILITY
+# ============================================================
+#
+# Why this exists rather than a `resource/Bin` list: `Bin` is a single current
+# snapshot per item+warehouse. It answers "how much" and nothing else -- not
+# where the stock came from, what it cost, or what has happened to it. On QA,
+# item `CORE` holds 3 Kg that all arrived on one Purchase Receipt at two
+# different rates (2 Kg @ 1000, 1 Kg @ 1200). The old 4-field list rendered that
+# as "3 Kg @ 1066.67" and hid the only interesting fact about it.
+#
+# Two SQL rules learned the hard way here, both in this file:
+#   - `frappe.db.sql` has NO support for `%(name)s` named parameters. Using
+#     them str()-s the dict into the statement. That shipped once, in
+#     `_requested_qty_by_project_item`, and only failed when a live site called
+#     it. Everything below uses positional `%s`.
+#   - `IN %s` takes a tuple (see ERPNext's own general_ledger.py:745-750).
+
+
+def _stock_balance_defaults(from_date=None, to_date=None):
+	"""Resolve the reporting window, defaulting to the current month.
+
+	The default is a cost decision, not a convenience one: an opening balance is
+	everything posted *before* `from_date`, so defaulting to "forever ago" makes
+	the default query the most expensive one available.
+	"""
+	today = frappe.utils.today()
+	to_date = str(to_date) if to_date else today
+	from_date = str(from_date) if from_date else frappe.utils.format_date(
+		frappe.utils.get_first_day(to_date), "yyyy-mm-dd"
+	)
+
+	if from_date > to_date:
+		from_date, to_date = to_date, from_date
+
+	return from_date, to_date, today
+
+
+def _require_stock_read():
+	"""Fail closed unless the caller may read both sides of the report.
+
+	`Bin` and `Stock Ledger Entry` are separate doctypes with separate
+	permissions. This report reads both -- a balance with no provenance is
+	exactly the thin report being replaced -- so if either is denied the whole
+	thing is denied rather than quietly degraded to quantities without a trail.
+	"""
+	for doctype in ("Bin", "Stock Ledger Entry"):
+		try:
+			allowed = frappe.has_permission(doctype, "read")
+		except Exception:
+			# Unknown doctype, permission cache miss, thrown validation: all mean
+			# "cannot prove access", which must read as "no access".
+			allowed = False
+		if not allowed:
+			frappe.throw(
+				f"You do not have permission to view stock balances ({doctype}).",
+				frappe.PermissionError,
+			)
+
+
+def _where(filters, extra=()):
+	"""Build a WHERE fragment and its positional params, in matching order.
+
+	Keeping the clauses and the values in one place is the only reliable way to
+	stay aligned when the filter set is conditional -- which is precisely how
+	the `%(name)s` bug happened: the values and the `%s` count drifted apart.
+	"""
+	clauses = []
+	params = []
+	# `extra` is (clause, value) pairs, and their values have to land in `params`
+	# too -- the clause text and the values must be appended together or the
+	# two lists drift apart. Previously only the filter values were collected
+	# and every caller had to prepend its date bounds by hand; getting that
+	# wrong duplicated a bound into the values while the SQL still had one %s
+	# for it.
+	for clause, value in extra:
+		clauses.append(clause)
+		params.append(value)
+	for field, value in filters:
+		if value:
+			clauses.append(f"`{field}` = %s")
+			params.append(value)
+	return (" where " + " and ".join(clauses)) if clauses else "", params
+
+
+def get_stock_balance_summary(
+	from_date=None, to_date=None, item_code=None, warehouse=None, company=None, start=0, limit=20
+):
+	"""Opening -> in -> out -> closing stock, valued and ready to be traced.
+
+	The arithmetic is `closing = opening + in - out`, and the opening is *solved
+	for*, not scanned: the closing position is read directly -- from `Bin` when
+	the period ends today, which needs no scan at all -- and then
+	`opening = closing - in + out`. Computing it independently would mean
+	reading every ledger row ever written before the window.
+
+	For a period ending in the past there is no `Bin` snapshot, so the closing
+	position is summed from the ledger up to `to_date` instead.
+
+	Returns `valuation_current` rather than pretending otherwise:
+	`Bin.valuation_rate` is today's moving average, so it is only meaningful
+	beside a balance as of today. The caller leaves value blank for an earlier
+	period instead of showing a rate that did not apply then.
+
+	Permission model: requires read on `Bin` AND `Stock Ledger Entry`, checked
+	up front, failing closed.
+
+	Args:
+		from_date (str, optional): Window start; defaults to the first of the
+			month containing `to_date`.
+		to_date (str, optional): Window end; defaults to today.
+		item_code (str, optional): Restrict to one item.
+		warehouse (str, optional): Restrict to one warehouse.
+		company (str, optional): Restrict to one company.
+		start (int): Offset for paging.
+		limit (int): Page size, capped at 200.
+
+	Returns:
+		dict: {"rows", "total", "from_date", "to_date", "valuation_current",
+		       "today", "performance_warning"}
+	"""
+	_require_stock_read()
+
+	from_date, to_date, today = _stock_balance_defaults(from_date, to_date)
+	start = max(cint(start), 0)
+	limit = min(max(cint(limit) or 20, 1), 200)
+
+	filters = [("item_code", item_code), ("warehouse", warehouse), ("company", company)]
+
+	# --- movement inside the window --------------------------------------------
+	# Split by the SIGN of actual_qty, not by voucher type: a Purchase Return is
+	# an inward movement that happens to have a "return" name.
+	window_sql, window_params = _where(
+		filters, [("`posting_date` >= %s", from_date), ("`posting_date` <= %s", to_date)]
+	)
+	movements = frappe.db.sql(
+		f"""
+		select `item_code`, `warehouse`,
+		       sum(case when `actual_qty` > 0 then `actual_qty` else 0 end) as `in_qty`,
+		       sum(case when `actual_qty` < 0 then -`actual_qty` else 0 end) as `out_qty`
+		from `tabStock Ledger Entry`
+		{window_sql}
+		group by `item_code`, `warehouse`
+		""",
+		tuple(window_params),
+		as_dict=True,
+	)
+	movement_by_key = {
+		(r.item_code, r.warehouse): (flt(r.in_qty), flt(r.out_qty)) for r in movements
+	}
+
+	# --- the closing position ----------------------------------------------------
+	valuation_current = to_date >= today
+	balance_by_key = {}
+
+	if valuation_current:
+		bin_sql, bin_params = _where(filters)
+		balance_by_key = {
+			(r.item_code, r.warehouse): r
+			for r in frappe.db.sql(
+				f"""
+				select `item_code`, `warehouse`, `stock_uom`, `actual_qty`,
+				       `reserved_qty`, `projected_qty`, `stock_value`, `valuation_rate`
+				from `tabBin`
+				{bin_sql + (" and" if bin_sql else " where")} `actual_qty` != 0
+				""",
+				tuple(bin_params),
+				as_dict=True,
+			)
+		}
+	else:
+		to_sql, to_params = _where(filters, [("`posting_date` <= %s", to_date)])
+		balance_by_key = {
+			(r.item_code, r.warehouse): r
+			for r in frappe.db.sql(
+				f"""
+				select `item_code`, `warehouse`, sum(`actual_qty`) as `actual_qty`
+				from `tabStock Ledger Entry`
+				{to_sql}
+				group by `item_code`, `warehouse`
+				""",
+				tuple(to_params),
+				as_dict=True,
+			)
+		}
+
+	# --- merge, derive the opening, reconcile -------------------------------------
+	rows = []
+	for key in set(balance_by_key) | set(movement_by_key):
+		item, wh = key
+		bal = balance_by_key.get(key)
+		in_qty, out_qty = movement_by_key.get(key, (0.0, 0.0))
+
+		closing_qty = flt(bal.actual_qty) if bal else 0.0
+		if closing_qty == 0 and in_qty == 0 and out_qty == 0:
+			continue
+
+		rows.append(
+			{
+				"item_code": item,
+				"warehouse": wh,
+				# .get(), not attribute access: the past-period closing query
+				# selects only item_code/warehouse/actual_qty, and a `_dict`
+				# raises AttributeError for a key it does not have.
+				"stock_uom": (bal.get("stock_uom") if bal else None) or "",
+				"opening_qty": closing_qty - in_qty + out_qty,
+				"in_qty": in_qty,
+				"out_qty": out_qty,
+				"closing_qty": closing_qty,
+				"reserved_qty": flt(bal.get("reserved_qty")) if bal else 0.0,
+				"free_qty": closing_qty - (flt(bal.get("reserved_qty")) if bal else 0.0),
+				# Blank, never zero, when the rate does not describe the period.
+				"stock_value": flt(bal.stock_value) if valuation_current and bal else None,
+				"valuation_rate": flt(bal.valuation_rate) if valuation_current and bal else None,
+				"projected_qty": flt(bal.projected_qty) if valuation_current and bal else None,
+			}
+		)
+
+	rows.sort(key=lambda r: (-abs(flt(r["closing_qty"])), r["item_code"] or ""))
+	total = len(rows)
+
+	performance_warning = None
+	if total > 200 and not (item_code or warehouse):
+		performance_warning = "Narrow this with an item or warehouse filter."
+
+	return {
+		"rows": rows[start : start + limit],
+		"total": total,
+		"from_date": from_date,
+		"to_date": to_date,
+		"valuation_current": valuation_current,
+		"today": today,
+		"performance_warning": performance_warning,
+	}
+
+
+def get_stock_ledger_trail(
+	item_code, warehouse, from_date=None, to_date=None, limit=50, company=None
+):
+	"""Every stock movement for one item in one warehouse, with a running balance.
+
+	This is the answer to "where did this come from". Each row is a Stock Ledger
+	Entry carrying its own voucher, so the receipt that added the stock and the
+	entry that consumed it are both named rather than averaged into one rate.
+
+	The running balance starts at the window's opening quantity rather than zero,
+	so the first row agrees with the summary sitting above it.
+
+	Permission model: requires read on `Stock Ledger Entry`, failing closed.
+	"""
+	_require_stock_read()
+
+	if not item_code or not warehouse:
+		frappe.throw("Pick an item and a warehouse to see its movement history.")
+
+	from_date, to_date, _today = _stock_balance_defaults(from_date, to_date)
+	limit = min(max(cint(limit) or 50, 1), 500)
+
+	filters = [("item_code", item_code), ("warehouse", warehouse), ("company", company)]
+
+	window_sql, window_params = _where(
+		filters, [("`posting_date` >= %s", from_date), ("`posting_date` <= %s", to_date)]
+	)
+	entries = frappe.db.sql(
+		f"""
+		select `posting_date`, `posting_time`, `voucher_type`, `voucher_no`,
+		       `actual_qty`, `incoming_rate`, `outgoing_rate`, `stock_value`,
+		       `serial_and_batch_bundle`, `company`
+		from `tabStock Ledger Entry`
+		{window_sql}
+		order by `posting_date` asc, `posting_time` asc, `name` asc
+		limit {limit}
+		""",
+		tuple(window_params),
+		as_dict=True,
+	)
+
+	before_sql, before_params = _where(filters, [("`posting_date` < %s", from_date)])
+	opening = 0.0
+	opening_rows = frappe.db.sql(
+		f"""
+		select coalesce(sum(`actual_qty`), 0) as `opening_qty`
+		from `tabStock Ledger Entry`
+		{before_sql}
+		""",
+		tuple(before_params),
+		as_dict=True,
+	)
+	if opening_rows:
+		opening = flt(opening_rows[0].opening_qty)
+
+	running = opening
+	rows = []
+	for e in entries:
+		qty = flt(e.actual_qty)
+		running += qty
+		rows.append(
+			{
+				"posting_date": e.posting_date,
+				"posting_time": str(e.posting_time) if e.posting_time else "",
+				"voucher_type": e.voucher_type,
+				"voucher_no": e.voucher_no,
+				"actual_qty": qty,
+				"direction": "in" if qty > 0 else ("out" if qty < 0 else ""),
+				"running_balance": running,
+				"incoming_rate": flt(e.incoming_rate) if e.incoming_rate is not None else None,
+				"outgoing_rate": flt(e.outgoing_rate) if e.outgoing_rate is not None else None,
+				"stock_value": flt(e.stock_value) if e.stock_value is not None else None,
+				"serial_and_batch_bundle": e.serial_and_batch_bundle,
+				"company": e.company,
+			}
+		)
+
+	return {
+		"item_code": item_code,
+		"warehouse": warehouse,
+		"from_date": from_date,
+		"to_date": to_date,
+		"opening_qty": opening,
+		"closing_qty": running,
+		"rows": rows,
+		"has_more": len(rows) >= limit,
+	}
+
+
+def get_bundle_trace(bundles):
+	"""Which batches and serial numbers sit inside each Serial and Batch Bundle.
+
+	In this ERPNext version serial tracking lives entirely in
+	`Serial and Batch Bundle` and its `Serial and Batch Entry` child table --
+	there is no `Serial Number` doctype to read (the virtual one is `Serial No`).
+	So a bundle id on a ledger row says "batch-tracked", not which batches.
+
+	That child table is separately permissioned and the shopfloor role does not
+	necessarily hold it. Rather than failing the request or returning `{}` --
+	both of which read as "this item has no batches", the same lie the old
+	report told -- this returns `permission_required` and lets the UI say so.
+	That reports a real state; it does not grant access.
+	"""
+	if not isinstance(bundles, list) or not bundles:
+		return {"results": {}, "permission_required": False, "requested": []}
+
+	bundles = [b for b in bundles if b][:50]
+
+	try:
+		allowed = frappe.has_permission("Serial and Batch Entry", "read")
+	except Exception:
+		allowed = False
+
+	if not allowed:
+		return {"results": {}, "permission_required": True, "requested": bundles}
+
+	entry_dt = frappe.qb.DocType("Serial and Batch Entry")
+	rows = frappe.db.sql(
+		frappe.qb.new_query(entry_dt)
+		.where(entry_dt.parent.isin(bundles))
+		.select(
+			entry_dt.parent,
+			entry_dt.batch_no,
+			entry_dt.serial_no,
+			entry_dt.qty,
+			entry_dt.incoming_rate,
+		)
+		.run(),
+		as_dict=True,
+	)
+
+	results = {}
+	for r in rows:
+		entry = results.setdefault(r.parent, {"batches": [], "serials": [], "qty": 0.0})
+		if r.batch_no:
+			entry["batches"].append({"batch_no": r.batch_no, "qty": flt(r.qty)})
+		if r.serial_no:
+			entry["serials"].append({"serial_no": r.serial_no, "qty": flt(r.qty)})
+		entry["qty"] += flt(r.qty)
+
+	return {"results": results, "permission_required": False, "requested": bundles}

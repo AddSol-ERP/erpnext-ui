@@ -289,7 +289,9 @@
 			"customer": "العميل",
 			"company": "الشركة",
 			"item": "الصنف",
-			"warehouse": "المستودع"
+			"warehouse": "المستودع",
+			"fromDate": "من تاريخ",
+			"toDate": "إلى تاريخ"
 		},
 		"types": {
 			"purchase": "شراء",
@@ -351,7 +353,31 @@
 			"title": "رصيد المخزون",
 			"subtitle": "حالة المخزون اللحظية",
 			"empty": "لا يوجد مخزون متاح",
-			"value": "القيمة"
+			"value": "القيمة",
+			"fromDate": "من تاريخ",
+			"toDate": "إلى تاريخ",
+			"opening": "الرصيد الافتتاحي",
+			"inQty": "وارد",
+			"outQty": "منصرف",
+			"closing": "الرصيد",
+			"reserved": "محجوز",
+			"free": "متاح",
+			"rate": "السعر",
+			"projected": "متوقع",
+			"valuationAsOf": "القيمة معروضة حسب اليوم",
+			"performanceWarning": "ضيّق النتائج بصنف أو مستودع — القائمة الكاملة تشمل كل سجلات الحركات.",
+			"trail": "سجل الحركات",
+			"noMovements": "لا حركات في هذه الفترة",
+			"showTrail": "اعرض مصدر هذه المخزون",
+			"incomingRate": "سعر الوارد",
+			"outgoingRate": "سعر المنصرف",
+			"runningBalance": "الرصيد بعد",
+			"balanceQty": "الرصيد",
+			"serial": "الرقم التسلسلي",
+			"batch": "الدفعة",
+			"batchPermission": "تفاصيل الدفعة والرقم التسلسلي تتطلب صلاحية على Serial and Batch Entry",
+			"noBatchOnThisLine": "غير متتبع بالدفعة أو الرقم التسلسلي",
+			"truncated": "توجد حركات أخرى — قيّد التواريخ لرؤية الباقي"
 		},
 		"source": {
 			"loadItems": "تحميل الأصناف",

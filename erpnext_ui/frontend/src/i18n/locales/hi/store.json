@@ -289,7 +289,9 @@
 			"customer": "ग्राहक",
 			"company": "कंपनी",
 			"item": "आइटम",
-			"warehouse": "गोदाम"
+			"warehouse": "गोदाम",
+			"fromDate": "शुरुआत की तारीख",
+			"toDate": "समाप्ति तारीख"
 		},
 		"types": {
 			"purchase": "खरीद",
@@ -351,7 +353,31 @@
 			"title": "स्टॉक बैलेंस",
 			"subtitle": "रीयल-टाइम इन्वेंटरी स्थिति",
 			"empty": "कोई स्टॉक उपलब्ध नहीं",
-			"value": "मूल्य"
+			"value": "मूल्य",
+			"fromDate": "शुरुआत की तारीख",
+			"toDate": "समाप्ति तारीख",
+			"opening": "शुरुआती",
+			"inQty": "आया",
+			"outQty": "गया",
+			"closing": "शेष",
+			"reserved": "आरक्षित",
+			"free": "उपलब्ध",
+			"rate": "दर",
+			"projected": "अनुमानित",
+			"valuationAsOf": "मूल्य आज के अनुसार दिखाया गया है",
+			"performanceWarning": "किसी आइटम या गोदाम से इसे सीमित करें — पूरी सूची में हर लेजर पंक्ति शामिल होती है।",
+			"trail": "गतिविधि इतिहास",
+			"noMovements": "इस अवधि में कोई गतिविधि नहीं",
+			"showTrail": "यह स्टॉक कहाँ से आया, देखें",
+			"incomingRate": "आने की दर",
+			"outgoingRate": "जाने की दर",
+			"runningBalance": "इसके बाद शेष",
+			"balanceQty": "शेष",
+			"serial": "सीरियल",
+			"batch": "बैच",
+			"batchPermission": "बैच और सीरियल विवरण के लिए Serial and Batch Entry की अनुमति चाहिए",
+			"noBatchOnThisLine": "बैच या सीरियल ट्रैक नहीं है",
+			"truncated": "और गतिविधियाँ हैं — सीमित करने के लिए तारीखें बदलें"
 		},
 		"source": {
 			"loadItems": "आइटम लोड करें",

@@ -1445,7 +1445,9 @@ SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
 # SSR render of the request forms + GenericForm + DocStatusField
 npx vite build --config .smoke-tmp/vite.config.mjs && node .smoke-tmp/out/entry.mjs
 
-# SSR render of 8 Store + Employee Self Service surfaces, asserting no
+# SSR render of Store + Employee Self Service surfaces AND the Purchase Receipt
+# picker/dialog (needs SSR_MODAL_STUB=1 -- see AGENTS.md; Radix portals
+# AppModal so its content is "" under renderToString), asserting no
 # translation key leaks
 SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
   npx vite build --config .smoke-tmp/vite.config.mjs && node .smoke-tmp/out-store/entry.mjs
@@ -1460,9 +1462,9 @@ Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
 
 | Check | Result |
 |---|---|
-| rules suite | **184 passed, 0 failed** |
+| rules suite | **203 passed, 0 failed** |
 | request-form render | **all forms render** |
-| store + ESS suite (8 pages) | **44 passed, 0 failed** |
+| store + ESS + receipt dialogs + balance | **73 passed, 0 failed** |
 | `npx eslint src` | **clean, 0 problems** |
 | `npm run build` | **✓ built** |
 | `ruff check erpnext_ui/api.py` | 1 error — `F841` at `:416`, **pre-existing** (reproduced against `HEAD`) |
@@ -1708,7 +1710,25 @@ enforces, so it must not depend on a UI decision to be checked at all.
 - `W-0268-01-001` has `Kg` at conversion factor **1.0** ("1 Kg = 1 Nos"),
   which is placeholder data.
 
-### 13.8 Still open
+### 13.8 Verified against live QA (2026-10-13, after deploy)
+
+- All four endpoints answer. `get_project_items` returns the project BOM with
+  28 items (so the earlier "no BOM is tagged to a project" note is stale -- a
+  `BOM-FG-W0268-PT-001` now carries `project = W-0268`).
+- `make_purchase_receipt` on `PUR-ORD-2026-00010` returns exactly the 28
+  outstanding lines, every one carrying a distinct `purchase_order_item` and no
+  duplicates -- which is what the picker keys on.
+- Ran the **real client module** over all 28 live lines: 0 would offer a
+  measured total, 0 would fail client validation, and `needsMeasuredTotal(info,
+  "Kg")` is false for `W-0268-01-001` -- the Nos trap from §13.6 is closed.
+- Rendered the real picker and dialog against that data. The weighed row shows
+  `Total received (Kg)` / `= 2.54 Kg each` / `Stock quantity (Kg) 25.4 Kg`
+  and no conversion-factor input.
+- A copy bug surfaced only from rendered text: the whole-number note sat under
+  "Rejected Qty" and read as though it belonged to that field. It now renders
+  as the quantity field's own hint.
+
+### 13.9 Still open
 
 - The four endpoints added this session (`get_item_uom_options`,
   `get_indent_queue`, `get_project_items`, `get_indent_list`) were **not on QA**
@@ -1721,3 +1741,72 @@ enforces, so it must not depend on a UI decision to be checked at all.
   batch itself, so there is genuinely nothing to ask. Note this ERPNext version
   spells it `batch_number_series` + `create_new_batch` + `has_batch_no` — not
   `batch_no_series`.
+
+## 14. Stock Balance with traceability (2026-10-13)
+
+### 14.1 What was wrong
+
+The page queried `Bin` for four fields and rendered item code, warehouse, a
+quantity badge and a value. `Bin` is a current snapshot per item+warehouse, so
+it can answer "how much" and nothing else -- not where stock came from, what it
+cost, or what has happened to it.
+
+The live demonstration is item `CORE`: 3 Kg, all from **PR-26-00008**, at
+**2 Kg @ 1000 and 1 Kg @ 1200**. The old view rendered that as
+"3 Kg @ 1066.67" and hid the only interesting fact about the stock -- that it
+is two lots bought at two prices.
+
+### 14.2 The shape
+
+    opening -> in -> out -> closing, with value, reserved and free stock
+
+and, per row, the Stock Ledger that produced it.
+
+**The opening is solved for, not scanned.** The closing position is read
+directly -- from `Bin` when the period ends today, which needs no scan at all --
+and then `opening = closing - in + out`. Computing it independently would mean
+reading every ledger row ever written before the window.
+
+### 14.3 Two limits built in rather than hidden
+
+**Value is only exact for today.** `Bin.valuation_rate` is today's moving
+average. For a period ending in the past the quantity columns are exact but the
+value would describe a different moment, so `isValuationAccurate` blanks those
+cells and the page says "value as of today". A confident wrong number is worse
+than a blank.
+
+**The opening scan is unbounded in principle.** ERPNext's own report has the
+same shape (`stock_balance.py:449-452`). Mitigated by a current-month default,
+a row cap, and a warning when no item/warehouse filter is set -- not eliminated.
+
+### 14.4 Presentational split, and why it was forced
+
+`renderToString` is synchronous, so a component that fetches on mount always
+renders its loading state under SSR and its content can never be asserted. The
+first store-suite run failed 10 assertions for exactly this reason. So
+`BalanceTable` and `TrailTable` are exported separately from their fetching
+wrappers. That is not test-driven contortion -- it is also the reason "both
+rates appear, not one blend" can be asserted at all.
+
+### 14.5 Two bugs caught before deployment
+
+Neither was reachable from the unit suites, and both would have thrown on the
+first live call.
+
+**`_where` would have crashed.** It did `clauses = list(extra)` where `extra` is
+a list of `(clause, value)` *tuples*, so `" and ".join(clauses)` raised
+`TypeError: expected str instance, tuple found` on every call that passed a date
+bound -- i.e. every call. It also collected only the filter values, forcing
+each caller to prepend its date bounds by hand, which is how a bound ended up
+duplicated in the values while the SQL still had one `%s` for it. Now clause
+text and values are appended together in one place, and callers just use the
+params handed back.
+
+**A past-period row read fields that query does not select.** The historical
+closing query selects `item_code, warehouse, actual_qty`, but the merge read
+`bal.stock_uom` and `bal.reserved_qty` unguarded. A `_dict` raises
+`AttributeError` for a key it does not have, so **every historical To Date
+would have 500'd**. Both are now `.get()`.
+
+Found by simulating the generated SQL and comparing `%s` counts against the
+values passed -- a check worth repeating for any new raw SQL in this file.

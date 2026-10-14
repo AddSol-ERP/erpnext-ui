@@ -289,7 +289,9 @@
 			"customer": "Customer",
 			"company": "Company",
 			"item": "Item",
-			"warehouse": "Warehouse"
+			"warehouse": "Warehouse",
+			"fromDate": "From date",
+			"toDate": "To date"
 		},
 		"types": {
 			"purchase": "Purchase",
@@ -351,7 +353,31 @@
 			"title": "Stock Balance",
 			"subtitle": "Real-time inventory status",
 			"empty": "No stock available",
-			"value": "Value"
+			"value": "Value",
+			"fromDate": "From date",
+			"toDate": "To date",
+			"opening": "Opening",
+			"inQty": "In",
+			"outQty": "Out",
+			"closing": "Balance",
+			"reserved": "Reserved",
+			"free": "Free",
+			"rate": "Rate",
+			"projected": "Projected",
+			"valuationAsOf": "Value is shown as of today",
+			"performanceWarning": "Narrow this with an item or warehouse filter — the full list covers every ledger row ever written.",
+			"trail": "Movement history",
+			"noMovements": "No movements in this period",
+			"showTrail": "Show where this stock came from",
+			"incomingRate": "In rate",
+			"outgoingRate": "Out rate",
+			"runningBalance": "Balance after",
+			"balanceQty": "Balance",
+			"serial": "Serial",
+			"batch": "Batch",
+			"batchPermission": "Batch and serial details need permission on Serial and Batch Entry",
+			"noBatchOnThisLine": "Not batch or serial tracked",
+			"truncated": "More movements exist — narrow the dates to see the rest"
 		},
 		"source": {
 			"loadItems": "Load Items",

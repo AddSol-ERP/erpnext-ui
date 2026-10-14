@@ -32,21 +32,25 @@ browser-free:
 # lib/profileFlags, LinkField/searchTerm and config/storePurposes
 SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-rules/entry.mjs        # -> "184 passed, 0 failed"
+node .smoke-tmp/out-rules/entry.mjs        # -> "203 passed, 0 failed"
 
 # SSR render smoke test (Leave/Attendance/Expense forms, GenericForm,
 # DocStatusField, EmployeeDocuments) with fetch and the API stubbed to throw
 npx vite build --config .smoke-tmp/vite.config.mjs
 node .smoke-tmp/out/entry.mjs              # -> "all forms render"
 
-# 8 Store + Employee Self Service surfaces rendered (Store dashboard, requests,
-# give-items, purchase receipt both entry paths, Stock Entry, the merged ESS
-# dashboard), asserting no translation key leaks into the UI, that Stock
-# Entry's posting date/time inputs default to today/now, and that all nine ESS
-# tile names render
-SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
+# Store + Employee Self Service surfaces AND the Purchase Receipt picker and
+# line dialog: no translation key leaks, Stock Entry's posting date/time
+# default to today/now, all nine ESS tile names render, and a weighed receipt
+# line shows its derived factor with NO factor input anywhere.
+#
+# SSR_MODAL_STUB=1 is REQUIRED. Radix's Dialog renders through a Portal, so a
+# real AppModal yields an empty string under renderToString and nothing inside a
+# dialog can be asserted. The stub (.smoke-tmp/AppModalStub.jsx) renders
+# title/children/footer inline. Without it this suite fails 9 assertions.
+SSR_MODAL_STUB=1 SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-store/entry.mjs        # -> "44 passed, 0 failed"
+node .smoke-tmp/out-store/entry.mjs        # -> "73 passed, 0 failed"
 ```
 
 All three currently pass. All exit `1` on failure.
@@ -57,9 +61,9 @@ All three currently pass. All exit `1` on failure.
 > running, and don't commit the churn. (`out-store/` is untracked — just delete
 > it.)
 
-**When you change `lib/docTransition.js`, `lib/leaveApproval.js`,
-`lib/profileFlags.js`, `LinkField/searchTerm.js` or `config/storePurposes.js`,
-add a case to `.smoke-tmp/rules.jsx`.** Those files encode Frappe invariants
+**When you change `lib/stockBalance.js`, `lib/docTransition.js`, `lib/leaveApproval.js`,
+`lib/profileFlags.js`, `LinkField/searchTerm.js`, `config/storePurposes.js` or
+`lib/receiptConversion.js`, add a case to `.smoke-tmp/rules.jsx`.** Those files encode ERPNext invariants
 that fail *silently* in the browser, so the assertions are the only guard.
 `storePurposes.js` in particular guards doctype strings that ERPNext rejects
 outright, and that a wrong value surfaces as a bare `417` with no field name.

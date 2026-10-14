@@ -135,6 +135,11 @@ export default function ReceiptLineDialog({
         {/* QUANTITY in the received UOM */}
         <FormField
           label={t("store.receipt.qtyIn", { uom: receivedUom })}
+          hint={
+            rules.mustWholeQty
+              ? t("store.receipt.wholeNumberNote", { uom: receivedUom })
+              : undefined
+          }
           required
         >
           <Input
@@ -231,11 +236,6 @@ export default function ReceiptLineDialog({
         {uomError ? (
           <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             {uomError}
-          </p>
-        ) : null}
-        {rules.mustWholeQty ? (
-          <p className="text-xs text-muted-foreground">
-            {t("store.receipt.wholeNumberNote", { uom: receivedUom })}
           </p>
         ) : null}
       </div>

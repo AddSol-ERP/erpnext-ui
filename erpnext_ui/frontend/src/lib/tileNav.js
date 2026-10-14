@@ -1,3 +1,4 @@
+import { deskNewUrl } from "./deskUrl";
 import { getDoctypeConfig } from "../config/doctypes";
 
 /**
@@ -11,8 +12,7 @@ export function createTileNav(navigate) {
       const doctype = tile.route.split("/").filter(Boolean).pop();
       const config = getDoctypeConfig(doctype);
       if (config.nativeForm) {
-        const doctypeUrl = doctype.toLowerCase().replace(/\s+/g, "-");
-        window.open(`/app/${doctypeUrl}/new-${doctypeUrl}`, "_blank");
+        window.open(deskNewUrl(doctype), "_blank");
         return;
       }
       navigate(tile.createRoute);

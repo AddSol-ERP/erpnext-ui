@@ -27,6 +27,15 @@ import {
   validateLineRow,
   wholeNumberRules,
 } from "../src/lib/receiptConversion.js";
+import {
+  directionOf,
+  freeQty,
+  isValuationAccurate,
+  reconcile,
+  splitMovement,
+  valueOf,
+  withRunningBalance,
+} from "../src/lib/stockBalance.js";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => (c ? pass++ : (fail++, console.log("  FAIL:", n, "got:", JSON.stringify(got))));
@@ -567,5 +576,78 @@ let threw = false;
 try { buildStockEntryPayload("not-a-purpose", { items: [] }); } catch { threw = true; }
 ok("unknown stock movement purpose throws", threw);
 
+
+// ---------------------------------------------------------------------------
+// Stock balance arithmetic.
+//
+// The reason this module is separated from the SQL: a balance report that shows
+// one blended number hides that the stock is made of several receipts of value.
+// Live case -- item CORE, 3 Kg, all from PR-26-00008, at 2 Kg @ 1000 and
+// 1 Kg @ 1200. The trail must show both, not 3 Kg @ 1066.67.
+// ---------------------------------------------------------------------------
+
+ok("splitMovement: positive is all inbound",
+   JSON.stringify(splitMovement(5)) === JSON.stringify({ inQty: 5, outQty: 0 }));
+ok("splitMovement: negative becomes a POSITIVE outbound magnitude",
+   JSON.stringify(splitMovement(-5)) === JSON.stringify({ inQty: 0, outQty: 5 }),
+   "out_qty is a magnitude, never negative");
+ok("splitMovement: zero is neither",
+   JSON.stringify(splitMovement(0)) === JSON.stringify({ inQty: 0, outQty: 0 }));
+
+// closing = opening + in - out
+const r1 = reconcile({ openingQty: 10, inQty: 5, outQty: 3 });
+ok("reconcile: closing = opening + in - out",
+   r1.closingQty === 12 && r1.openingQty === 10 && r1.inQty === 5 && r1.outQty === 3,
+   JSON.stringify(r1));
+
+// The CORE case: two receipts, two rates, one balance.
+const r2 = reconcile({
+  openingQty: 0,
+  movements: [{ actual_qty: 2 }, { actual_qty: 1 }],
+});
+ok("reconcile: two inbound movements sum to 3", r2.closingQty === 3 && r2.inQty === 3);
+ok("reconcile: value is NOT the blend of the two receipts",
+   valueOf(r2.closingQty, (2 * 1000 + 1 * 1200) / 3) === 3200 &&
+   valueOf(2, 1000) !== valueOf(2, 1200),
+   "the two receipts must stay distinguishable in the trail");
+
+ok("reconcile: mixed in and out from detail",
+   reconcile({ openingQty: 5, movements: [{ actual_qty: 10 }, { actual_qty: -3 }] }).closingQty === 12);
+ok("reconcile: empty movement list leaves the opening untouched",
+   reconcile({ openingQty: 7, movements: [] }).closingQty === 7);
+ok("reconcile: missing everything defaults to zero",
+   reconcile({}).closingQty === 0);
+
+ok("freeQty: balance minus reserved", freeQty(40, 12) === 28);
+ok("freeQty: over-reserved goes negative rather than clamping",
+   freeQty(5, 12) === -7, "a negative free balance is information, not a bug");
+
+ok("directionOf: labels each movement",
+   directionOf(3) === "in" && directionOf(-3) === "out" && directionOf(0) === "");
+
+// The running balance must START at the opening, or the trail's first row
+// visibly disagrees with the summary above it.
+const folded = withRunningBalance(
+  [{ actual_qty: 2 }, { actual_qty: 1 }],
+  10,
+);
+ok("withRunningBalance: starts from the window opening, not zero",
+   folded[0].running_balance === 12 && folded[1].running_balance === 13,
+   JSON.stringify(folded.map((f) => f.running_balance)));
+ok("withRunningBalance: an outbound subtracts",
+   withRunningBalance([{ actual_qty: 5 }, { actual_qty: -2 }], 0)[1].running_balance === 3);
+ok("withRunningBalance: direction attached per row",
+   withRunningBalance([{ actual_qty: -1 }], 0)[0].direction === "out");
+ok("withRunningBalance: empty ledger is empty",
+   withRunningBalance([], 5).length === 0);
+
+// Bin.valuation_rate is TODAY's moving average. Rendering it next to a past
+// balance states a wrong number confidently.
+ok("isValuationAccurate: true for a window ending today",
+   isValuationAccurate("2026-10-13", "2026-10-13") === true);
+ok("isValuationAccurate: false for a past window",
+   isValuationAccurate("2026-09-30", "2026-10-13") === false);
+ok("isValuationAccurate: false when either date is missing",
+   isValuationAccurate("", "2026-10-13") === false && isValuationAccurate("2026-10-13", null) === false);
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
