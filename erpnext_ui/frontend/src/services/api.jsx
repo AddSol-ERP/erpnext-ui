@@ -194,7 +194,24 @@ async function request(method, url, data = {}, canRetryCsrf = true) {
 
 // 🔹 GET
 export async function get(method, params = {}) {
-  const query = new URLSearchParams(params).toString();
+  // Drop null/undefined before serialising.
+  //
+  // `new URLSearchParams({employee: null})` produces `employee=null` -- the
+  // four-character STRING, not an absent parameter. Frappe puts that in
+  // `frappe.form_dict` as a truthy value, so a server-side
+  // `employee = employee or default` keeps it and then tries to read a document
+  // named "null", which is a DoesNotExistError rather than the intended
+  // fallback. This bit the check-in popup: the ESS calendar passes no employee,
+  // the client sent the string "null", and the endpoint looked up Employee null.
+  //
+  // Stripped here rather than at the call site so no optional parameter can
+  // reintroduce it. Empty strings are left alone: `""` is a real, deliberate
+  // value for filter fields meaning "no filter".
+  const clean = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== null && v !== undefined) clean[k] = v;
+  }
+  const query = new URLSearchParams(clean).toString();
   const url = query ? `${method}?${query}` : method;
 
   return request("GET", url);

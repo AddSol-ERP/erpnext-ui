@@ -109,6 +109,7 @@
 				"wholeNumberUom": "{{uom}} must be a whole number"
 			},
 			"picker": {
+				"pickFirst": "Pick a line to complete it",
 				"title": "Add items to receive",
 				"search": "Search by item name, code or warehouse",
 				"count": "{{shown}} of {{total}} lines shown",
@@ -138,6 +139,8 @@
 			"chooseProject": "Choose a project",
 			"chooseBom": "Choose an item",
 			"noBom": "No bill of materials is linked to {{project}} yet. Link one from Bill of Materials in the Store module, or clear the project to pick items yourself.",
+			"filledFromBom": "Filled {{added}} of {{total}} items from the bill of materials for {{project}}.",
+			"allPresent": "Every item in the bill of materials for {{project}} is already on this indent.",
 			"noBomShort": "No bill of materials linked",
 			"required": "Required",
 			"requestedQty": "Already asked for",
@@ -271,6 +274,7 @@
 			"subtitleDraft": "{{type}} • Draft",
 			"createSubtitle": "Create {{type}}",
 			"form": {
+				"project": "Project",
 				"items": "Items",
 				"select": "Select"
 			},

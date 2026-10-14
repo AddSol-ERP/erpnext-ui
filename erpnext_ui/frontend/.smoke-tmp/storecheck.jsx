@@ -14,7 +14,7 @@ import PurchaseReceiptPicker from "@/pages/Store/purchase-receipt/index.jsx";
 import PurchaseReceiptForm from "@/pages/Store/purchase-receipt/form/index.jsx";
 import StockEntryPage from "@/components/StockEntry/StockEntryPage.jsx";
 import ESSDashboard from "@/pages/ESS/index.jsx";
-import ReceiptItemPicker from "@/pages/Store/purchase-receipt/components/ReceiptItemPicker.jsx";
+import ReceiptItemWorkbench from "@/pages/Store/purchase-receipt/components/ReceiptItemWorkbench.jsx";
 import ReceiptLineDialog from "@/pages/Store/purchase-receipt/components/ReceiptLineDialog.jsx";
 import StockBalance from "@/pages/Store/stock-balance/index.jsx";
 import { TrailTable } from "@/pages/Store/stock-balance/BalanceTrail.jsx";
@@ -220,21 +220,106 @@ function renderNode(node) {
 }
 const plainText = (h) => h.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-const pickerText = plainText(
-  renderNode(
-    <ReceiptItemPicker
-      show
-      onClose={() => {}}
-      lines={PO_LINES}
-      pickedKeys={["poitem-0"]}
-      onPick={() => {}}
-    />,
+// The workbench is ONE surface with two sections, not a dialog over a dialog.
+// `row` is supplied so both sections render in one pass; the empty right-hand
+// state is asserted separately below.
+const workbenchHtml = renderNode(
+  <ReceiptItemWorkbench
+    show
+    onClose={() => {}}
+    lines={PO_LINES}
+    pickedKeys={["poitem-0"]}
+    onPick={() => {}}
+    row={{
+      _rid: "a",
+      item_code: "W-0268-01-001",
+      item_name: "Weighted item",
+      uom: "Kg",
+      qty: 5,
+      rate: 10,
+      warehouse: "Stores - TC",
+      purchase_order_item: "poitem-0",
+      conversion_factor: 1,
+      stock_qty: 5,
+    }}
+    info={{ stock_uom: "Kg", must_be_whole_number: 0, uoms: [{ uom: "Kg" }] }}
+    uomError={null}
+    rateEditable={false}
+    onItemChange={() => {}}
+    onSave={() => {}}
+  />,
+);
+const workbenchText = plainText(workbenchHtml);
+
+ok("workbench: lists the first line", workbenchText.includes("W-0268-01-001"));
+ok("workbench: reports 28 of 28", workbenchText.includes("28 of 28"));
+ok("workbench: marks an already-picked line", workbenchText.includes("Added"));
+ok("workbench: no translation key leaked", !/\bstore\.[a-z.]+/i.test(workbenchText));
+
+// Section 1 is the searchable list. The placeholder is an ATTRIBUTE, so it is
+// absent from the text content -- assert against the markup.
+ok(
+  "workbench: section 1 carries the search box",
+  /placeholder="Search by item name, code or warehouse"/.test(workbenchHtml),
+);
+// Section 2 is the line form, on the SAME surface. The warehouse value is also
+// an attribute (an <input value>), so only the item name is text.
+ok(
+  "workbench: section 2 carries the line form on the same surface",
+  /Weighted item/.test(workbenchText) && /value="Stores - TC"/.test(workbenchHtml),
+);
+ok(
+  "workbench: both sections render together, not one behind the other",
+  /placeholder="Search by item name/.test(workbenchHtml) &&
+    /Weighted item/.test(workbenchText),
+);
+ok(
+  "workbench: the empty right-hand state asks for a pick",
+  /Pick a line to complete it/.test(
+    plainText(
+      renderNode(
+        <ReceiptItemWorkbench
+          show
+          onClose={() => {}}
+          lines={PO_LINES}
+          pickedKeys={[]}
+          onPick={() => {}}
+          row={null}
+          info={null}
+          uomError={null}
+          rateEditable
+          onItemChange={() => {}}
+          onSave={() => {}}
+        />,
+      ),
+    ),
   ),
 );
-ok("picker: lists the first line", pickerText.includes("W-0268-01-001"));
-ok("picker: reports 28 of 28", pickerText.includes("28 of 28"));
-ok("picker: marks an already-picked line", pickerText.includes("Added"));
-ok("picker: no translation key leaked", !/\bstore\.[a-z.]+/i.test(pickerText));
+// Assert on ABSENCE of the workbench's own content rather than on an empty
+// string: the provider wrappers around it are not obliged to emit nothing, so
+// pinning `=== ""` would fail on someone else's markup.
+const workbenchClosed = renderNode(
+  <ReceiptItemWorkbench
+    show={false}
+    onClose={() => {}}
+    lines={PO_LINES}
+    pickedKeys={[]}
+    onPick={() => {}}
+    row={null}
+    info={null}
+    uomError={null}
+    rateEditable
+    onItemChange={() => {}}
+    onSave={() => {}}
+  />,
+);
+ok(
+  "workbench: renders no list and no empty state while closed",
+  !/W-0268-01-001/.test(workbenchClosed) &&
+    !/Pick a line to complete it/.test(workbenchClosed) &&
+    !/Search by item name/.test(workbenchClosed),
+  workbenchClosed.slice(0, 120),
+);
 
 // A PO line where the UOMs match: no total field, rate held by the PO.
 const plainDialog = plainText(

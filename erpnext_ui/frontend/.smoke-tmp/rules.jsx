@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import {
   resolveForwardActions,
   resolveDocstatusActions,
@@ -1014,8 +1014,8 @@ ok(
 // authorised server-side through _get_scope.
 ok(
   "checkin: the employee's employee is optional and defaults to null",
-  /CheckinLogs\(\{ employee = null, date \}\)/.test(checkinClientCode) &&
-    /\{ employee, date \}/.test(checkinClientCode),
+  /CheckinLogs\(\{ employee = null, date[,}]/.test(checkinClientCode) &&
+    /\{ employee, date[ ,]/.test(checkinClientCode),
   "a required employee would force the ESS calendar to send one",
 );
 // Asserting that `_get_scope` APPEARS is not enough: leaving the call in place
@@ -1075,5 +1075,273 @@ ok(
   /setError/.test(checkinClientCode) && /reports\.checkinLogsError/.test(checkinClientCode),
   "an empty list is indistinguishable from 'you had no punches'",
 );
+
+
+// ---------------------------------------------------------------------------
+// `?employee=null` reached the server as a four-character STRING.
+//
+// `new URLSearchParams({employee: null})` serialises a null JS value as the
+// literal "null". Frappe copies query params into `frappe.form_dict`, so the
+// endpoint received the string -- truthy, therefore kept by
+// `employee = employee or my_employee`, and then read as a document name:
+// `DoesNotExistError: Employee null not found`.
+//
+// Two fixes, both asserted: the query string is built without null/undefined,
+// and the server normalises the literal spellings anyway. The server half is not
+// redundant -- any bundle predating the client fix keeps sending `employee=null`
+// until it is redeployed, and this endpoint is the security boundary.
+// ---------------------------------------------------------------------------
+
+const apiClientSrc = readSrc("../../src/services/api.jsx");
+
+ok(
+  "query params: null/undefined are dropped before serialising",
+  /v !== null && v !== undefined/.test(apiClientSrc) &&
+    /new URLSearchParams\(clean\)/.test(apiClientSrc),
+  "URLSearchParams turns a null value into the string 'null'",
+);
+ok(
+  "query params: an empty string is still sent",
+  /v !== null && v !== undefined/.test(apiClientSrc) && !/v !== ""/.test(apiClientSrc),
+  '"" is a deliberate "no filter" for filter fields and must survive',
+);
+
+ok(
+  "checkin: the server treats a literal null/undefined/empty as no employee",
+  /if employee in \("", "null", "undefined", "None"\):\s*\n\s*employee = None/.test(checkinFn) &&
+    /if date in \("", "null", "undefined", "None"\):\s*\n\s*date = None/.test(checkinFn),
+  "query params arrive as strings, so 'absent' has to be detected by spelling",
+);
+ok(
+  "checkin: normalisation happens BEFORE the employee is used",
+  checkinCode.indexOf('if employee in ("", "null"') <
+    checkinCode.indexOf("scope = _get_scope(") &&
+    checkinCode.indexOf('if employee in ("", "null"') <
+    checkinCode.indexOf("employee = employee or my_employee"),
+  "normalising after the fallback has already chosen is too late",
+);
+
+
+
+// ---------------------------------------------------------------------------
+// The ESS day popup used to show the same punch twice.
+//
+// `Attendance.in_time` / `out_time` ARE the first and last check-in of the day
+// (HRMS derives them from the check-ins). Adding the punch log to this popup --
+// so a Half Day could show its middle punches at all -- therefore left the
+// summary repeating the log's first IN and last OUT. Invisible on a Present day
+// with one punch in and one out; obvious on a Half Day, which has four punches
+// and so looks like two duplicated pairs.
+//
+// The summary is now suppressed once the log reports rows, and kept when the log
+// is empty or failed -- an `Attendance` row can carry in/out with no check-in
+// rows behind it (manually entered), and that case must not lose its times.
+// ---------------------------------------------------------------------------
+
+const essAttendanceSrc = readSrc("../../src/pages/ESS/Attendance.jsx");
+
+ok(
+  "attendance popup: the in/out summary is suppressed once the log lists punches",
+  /dayHasPunches === false && activeDay\.att\?\.in_time/.test(essAttendanceSrc) &&
+    /dayHasPunches === false && activeDay\.att\?\.out_time/.test(essAttendanceSrc),
+  "otherwise a half day renders its first and last punch a second time below",
+);
+ok(
+  "attendance popup: the state is tri-state so the summary cannot flash while loading",
+  /useState\(null\)/.test(
+    essAttendanceSrc.slice(
+      essAttendanceSrc.indexOf("dayHasPunches"),
+      essAttendanceSrc.indexOf("dayHasPunches") + 200,
+    ),
+  ) && /setDayHasPunches\(null\)/.test(essAttendanceSrc),
+  "a boolean renders the summary for a frame and then pulls it away",
+);
+ok(
+  "attendance popup: the log tells the parent how many punches it found",
+  /onResult=\{\(\{ count \}\) => setDayHasPunches\(count > 0\)\}/.test(essAttendanceSrc),
+);
+ok(
+  "attendance popup: onResult is NOT a fetch dependency (refetch loop otherwise)",
+  /}, \[employee, date\]\);/.test(checkinClientCode) &&
+    !/}, \[employee, date, onResult\]\);/.test(checkinClientCode),
+  "an inline arrow changes identity each render: effect -> onResult -> render -> new arrow -> effect",
+);
+
+
+
+// ---------------------------------------------------------------------------
+// Purchase Receipt: one surface, two sections -- never a dialog on a dialog.
+//
+// `ReceiptItemPicker` opened `ReceiptLineDialog` on top of itself, so adding a
+// line meant two stacked overlays and dismissing two to get back to the
+// receipt. On a phone the picker stayed fully rendered behind the form, so the
+// user could not tell which surface they were editing.
+//
+// The split is two columns from `md` up and ONE PANE AT A TIME below it, which
+// is a content decision rather than a width one: the list is a scrolling column
+// and the form is a tall stack of number fields, and side by side on a phone
+// both end up clipped.
+// ---------------------------------------------------------------------------
+
+const workbenchSrc = readSrc(
+  "../../src/pages/Store/purchase-receipt/components/ReceiptItemWorkbench.jsx",
+);
+// Structural checks read COMMENTS-OUT. The docstring explains the stacked-dialog
+// bug by naming both components, so a naive grep reports the explanation as the
+// defect -- the same trap as the Employee Checkin fields.
+const workbenchCode = stripJsComments(workbenchSrc);
+const lineFormSrc = readSrc(
+  "../../src/pages/Store/purchase-receipt/components/ReceiptLineForm.jsx",
+);
+const receiptFormSrc = readSrc(
+  "../../src/pages/Store/purchase-receipt/form/index.jsx",
+);
+
+// Exactly ONE dialog -- not zero, and not two. Rendered inline it grew the
+// document instead of the surface, so the user scrolled the page to work a line;
+// a second dialog inside it is the stacking this replaced.
+ok(
+  "receipt picker: the workbench is itself the single dialog",
+  /<AppModal/.test(workbenchCode) &&
+    (workbenchCode.match(/<AppModal/g) || []).length === 1,
+);
+ok(
+  "receipt picker: no second dialog is opened from inside it",
+  !/ReceiptLineDialog/.test(workbenchCode) && !/<AppModal[\s\S]*<AppModal/.test(workbenchCode),
+  "that is the stacked-overlay bug, verbatim",
+);
+ok(
+  "receipt picker: the modal scrolls internally so the page never grows",
+  /width="xl"/.test(workbenchCode) && /max-h-\[/.test(workbenchCode),
+);
+ok(
+  "receipt picker: the receipt form never shows the workbench and the line dialog together",
+  /\{fromPo \? \(\s*<ReceiptItemWorkbench/.test(receiptFormSrc) &&
+    /\{fromPo \? null : \(\s*<ReceiptLineDialog/.test(receiptFormSrc),
+  "mutually exclusive branches are what keep a second overlay off the workbench",
+);
+ok(
+  "receipt picker: the workbench has both sections in one render",
+  (workbenchCode.match(/<section/g) || []).length === 2,
+  "one surface, two sections",
+);
+ok(
+  "receipt picker: split panes from md up",
+  /md:grid-cols-\[/.test(workbenchCode),
+);
+ok(
+  "receipt picker: one pane at a time below md, via CSS not a media query",
+  /pane === "list" \? "flex" : "hidden md:flex"/.test(workbenchCode) &&
+    /pane === "form" \? "flex" : "hidden md:flex"/.test(workbenchCode) &&
+    !/useIsMobile|matchMedia/.test(workbenchCode),
+  "a JS breakpoint disagrees with the stylesheet after a resize",
+);
+// Match the Back BUTTON's own handler, not any `setPane("list")` -- `close()`
+// also calls it, so the loose check passed a Back button wired to nothing.
+ok(
+  "receipt picker: the Back control itself returns to the list pane",
+  /onClick=\{\(\) => setPane\("list"\)\}/.test(workbenchCode) &&
+    /ArrowLeft/.test(workbenchCode) &&
+    /md:hidden/.test(workbenchCode),
+  "a dead Back button strands the user on the form with no route to the list",
+);
+ok(
+  "receipt picker: choosing a line swaps to the form pane",
+  /const choose = \(line\) => \{[\s\S]{0,160}setPane\("form"\)/.test(workbenchCode),
+);
+ok(
+  "receipt picker: the empty state asks for a pick instead of blank space",
+  /picker\.pickFirst/.test(workbenchCode),
+);
+ok(
+  "receipt picker: the old picker is gone and nothing imports it",
+  !existsSync(new URL("../../src/pages/Store/purchase-receipt/components/ReceiptItemPicker.jsx", import.meta.url)),
+);
+ok(
+  "receipt picker: the line form is shared, so the two entry points cannot drift",
+  /<ReceiptLineForm/.test(workbenchCode) &&
+    /<ReceiptLineForm/.test(
+      readSrc("../../src/pages/Store/purchase-receipt/components/ReceiptLineDialog.jsx"),
+    ),
+  "two copies of the measured-total logic would drift",
+);
+ok(
+  "receipt picker: the derived factor stays read-only in the shared form",
+  /t\("store\.receipt\.factor"\)/.test(lineFormSrc) &&
+    !/name="conversion_factor"[^]*?Input/.test(lineFormSrc),
+);
+ok(
+  "receipt picker: the workbench renders the form, not a second dialog",
+  /<ReceiptItemWorkbench/.test(receiptFormSrc) && !/<ReceiptItemPicker/.test(receiptFormSrc),
+);
+
+
+// ---------------------------------------------------------------------------
+// A production indent is a bill of materials, so its project belongs on the
+// HEADER, not on each row.
+//
+// Picking it per row meant transcribing a list the server already knows: every
+// row opened the same BOM and the user re-read it N times. Worse, two rows could
+// disagree about the project, so one indent could quietly request material for
+// two different projects -- which `validate_with_previous_doc` never sees,
+// because it compares rows against the source document, not against each other.
+//
+// ERPNext still stores `project` per ITEM row, so the header value is copied
+// onto every row on selection and stripped back off before the save: it is a
+// form control, and Material Request has no such header column.
+// ---------------------------------------------------------------------------
+
+const mrSrc = readSrc("../../src/pages/Store/material-request/form/index.jsx");
+const mrCode = stripJsComments(mrSrc);
+
+ok(
+  "material request: the production project is chosen once, on the header",
+  /isProjectDriven = purpose === "production"/.test(mrCode) &&
+    /doctype="Project"[\s\S]{0,120}handleHeaderProjectChange/.test(mrCode),
+  "a per-row project means transcribing one BOM once per line",
+);
+ok(
+  "material request: choosing the project fills the items from its BOM",
+  /get_project_items/.test(mrSrc) &&
+    /bomAdded/.test(mrCode) &&
+    /outstanding_qty/.test(mrCode),
+  "the endpoint already returns BOM lines; the form must consume them",
+);
+ok(
+  "material request: filling is additive -- existing rows and duplicates survive",
+  // Check the Set is POPULATED, not merely that `.has()` is called -- an empty
+  // Set still reads as "dedupe present" to a looser check.
+  /const onDoc = new Set\([\s\S]{0,140}doc\.items\.map\(\(r\) => r\.item_code\)/.test(mrCode) &&
+    /onDoc\.has\(it\.item_code\)/.test(mrCode) &&
+    /const filled = withProject\.filter\(\(r\) => r\.item_code\)/.test(mrCode),
+  "re-picking a project must not discard a typed row or duplicate a line",
+);
+ok(
+  "material request: exactly one spare empty row is left at the end",
+  /empties\.slice\(0, 1\)/.test(mrCode),
+  "the user needs somewhere to add the next item",
+);
+ok(
+  "material request: quantity defaults to the OUTSTANDING gap, not the BOM qty",
+  /outstanding > 0 \? outstanding : it\.required_qty/.test(mrCode),
+  "re-requesting what is already pending is how duplicate indents happen",
+);
+ok(
+  "material request: the header project never reaches the server as a header field",
+  /const \{ project: _formProject, \.\.\.payload \} = current/.test(mrCode) &&
+    /doc: payload/.test(mrCode),
+  "Material Request has no header project column; the rows carry it",
+);
+ok(
+  "material request: an existing indent recovers its header project from the rows",
+  /find\(\(r\) => r\.project\)\?\.project/.test(mrCode),
+  "otherwise editing blanks every row when the empty box is cleared",
+);
+ok(
+  "material request: the per-row project is hidden where the header owns it",
+  /\{!isProjectDriven \? \([\s\S]{0,220}projectOptional/.test(mrCode),
+  "two controls that can disagree are worse than one",
+);
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

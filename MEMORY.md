@@ -1379,6 +1379,133 @@ resolved column.
 Also note `log_date`/`checkin_time` genuinely exist on older HRMS, so the
 endpoint supports both rather than hardcoding either.
 
+### 9.8c `?employee=null` is a truthy string, and it crashes the endpoint
+
+Shipping the authorised-employee endpoint immediately produced
+`DoesNotExistError: Employee null not found` on the ESS calendar, which passes
+no employee at all.
+
+Cause: `new URLSearchParams({employee: null}).toString()` is `employee=null` —
+the literal four characters. Frappe copies query params into `frappe.form_dict`
+as strings, so the endpoint received `"null"`, which is truthy, so
+`employee = employee or my_employee` kept it and the next line tried to read a
+document named `null`.
+
+Fixed in both places on purpose:
+
+- `get()` in `services/api.jsx` drops `null`/`undefined` before serialising, so
+  no optional parameter anywhere in the app can reintroduce it. `""` is
+  deliberately preserved — it is a real "no filter" for filter fields.
+- `get_checkin_logs` normalises `""`/`"null"`/`"undefined"`/`"None"` for both
+  `employee` and `date`. The server half is not redundant: a browser holding a
+  bundle from before the client fix keeps sending `employee=null` until it is
+  redeployed, and an endpoint that 500s on a plausible caller input is not one
+  to trust with anything.
+
+The general lesson: **every query parameter is a string by the time Python sees
+it.** A JS `null` is not absent, it is four characters.
+
+### 9.8d Adding the log to a popup that already summarised it duplicated the punches
+
+`Attendance.in_time` / `out_time` ARE the first and last check-in of the day —
+HRMS derives them from the check-ins. So adding the punch log to the ESS day
+popup (so a Half Day could show its middle punches at all) left the old summary
+repeating the log's first IN and last OUT.
+
+Invisible on a Present day, which is one punch in and one out — the summary and
+the log show the same two rows and read as "summary, then detail". Obvious on a
+**Half Day**, which has four punches: the summary shows 09:00 and 18:00, then
+the log lists 09:00, 13:00, 14:00, 18:00. Two of those are duplicates, so the
+popup reads as the same in/out twice.
+
+The summary is now suppressed once the log reports rows, and kept when the log
+is empty or errored — an `Attendance` row can carry in/out with no check-in rows
+behind it (manually entered), and that case must not lose its times. The flag is
+tri-state (`null` = loading) so the summary cannot flash for a frame and then
+disappear.
+
+Worth recording separately: wiring that required a `onResult` callback from
+`CheckinLogs` to its parent, and listing that callback in the effect deps is a
+**continuous refetch loop** — an inline arrow has a new identity every render,
+so effect → onResult → parent render → new arrow → effect. It is a notification
+sink, not a fetch input, and must stay out of the dependency array.
+
+### 9.8e A dialog stacked on a dialog in the Purchase Receipt
+
+Picking a PO line opened `ReceiptLineDialog` **on top of** `ReceiptItemPicker`.
+Two overlays to dismiss to return to the receipt, and on a phone the picker list
+stayed fully rendered behind the form — so it was not obvious which surface was
+being edited, or whether closing the top one would return to the list or to the
+receipt.
+
+Replaced with `ReceiptItemWorkbench`: **one modal**, two `<section>`s inside it.
+Split into two columns at `md` and up; **one pane at a time below `md`**, with a
+Back control, because side-by-side on a phone gives both panes a short scroll
+area and pushes the form's primary action under the fold.
+
+It is a dialog rather than an inline panel on purpose. Inline, it grew the
+document instead of the surface, so the user scrolled the receipt page to work a
+line and lost sight of what they were building — the same problem one level up.
+`AppModal` already caps its body at `max-h-[95vh]` with `overflow-y-auto`, so the
+two sections get their own scroll and the page stays put.
+
+The invariant worth writing down is **exactly one** dialog: not two (the
+original stacking) and not zero (the inline version). The two entry points are
+mutually exclusive branches in the receipt form — `{fromPo ? <Workbench/> : null}`
+and `{fromPo ? null : <LineDialog/>}` — which is what keeps a second overlay from
+appearing on top.
+
+Two things worth keeping:
+
+- The pane switch is **CSS**, not `useIsMobile`. A JS breakpoint holds a stale
+  render across a resize that the stylesheet has already honoured.
+- The pane reset happens in a `close()` wrapper rather than in an effect keyed on
+  `show`. The parent keeps `editing` set across a close, and a render-driven
+  `setState` in an effect cascades.
+
+`ReceiptLineForm` now holds the fields, shared by the workbench and the tray's
+Edit dialog — otherwise the measured-total and derived-factor logic would exist
+twice and drift. The tray Edit dialog survives because that row is already on the
+receipt and has no picker behind it, so it never stacks.
+
+### 9.8f Production indents: the project belongs on the header
+
+`/store/material-request/purpose/production/new` carried the Project field on
+**every item row**. Picking it per row meant re-reading the same bill of
+materials once per line to transcribe a list the server already knows.
+
+The worse consequence is disagreement: two rows could name two different
+projects on one indent, so a single Material Request would request material for
+both. `validate_with_previous_doc` cannot catch that — it compares each row
+against the *source document*, never rows against each other.
+
+The project is now chosen once in the header and the items arrive from its BOM:
+
+- **Additive.** Rows that already carry an item are left alone and BOM lines
+  already on the indent are skipped, so re-picking the project cannot discard
+  work or duplicate a line. One spare empty row is kept at the end.
+- **Outstanding, not required.** Quantities prefill with the gap
+  (`outstanding_qty`, falling back to `required_qty`). Prefilling the full BOM
+  quantity is how duplicate indents happen.
+- **Clearing is non-destructive.** The project is dropped from every row but the
+  items stay; they are real items either way.
+- **A visible note says what happened** (`filledFromBom` / `allPresent` /
+  `noBom`), because rows appearing from nowhere otherwise reads as either a
+  failed BOM read or an empty project.
+
+Two ERPNext details this had to respect:
+
+- `project` lives on the **item row**, never the header, so the form-level value
+  is copied onto each row and stripped back out before the save. Material Request
+  has no header project column, and posting one would send a key with no column
+  behind it.
+- On edit the header project is recovered from the first row carrying one.
+  Without that an existing indent opens with an empty box, and clearing it would
+  silently blank every row.
+
+The other four purposes keep the per-row field: those requests genuinely mix
+project-specific and free items, which is the split the shop floor works in.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second
@@ -1517,7 +1644,7 @@ Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
 |---|---|
 | rules suite | **234 passed, 0 failed** |
 | request-form render | **all forms render** |
-| store + ESS + receipt dialogs + balance + return | **101 passed, 0 failed** |
+| store + ESS + receipt dialogs + balance + return | **106 passed, 0 failed** |
 | `npx eslint src` | **clean, 0 problems** |
 | `npm run build` | **✓ built** |
 | `ruff check erpnext_ui/api.py` | 1 error — `F841` at `:416`, **pre-existing** (reproduced against `HEAD`) |

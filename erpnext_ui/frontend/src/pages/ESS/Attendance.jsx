@@ -111,6 +111,15 @@ export default function AttendanceCalendar() {
   const [loading, setLoading] = useState(true);
   const [checkinDate, setCheckinDate] = useState(null);
   const [activeDay, setActiveDay] = useState(null);
+  // Whether the selected day's punch log came back non-empty. The popup's
+  // in/out summary is the FIRST and LAST check-in of the day (Attendance derives
+  // them from the check-ins), so once the log is on screen the summary repeats
+  // those exact two punches -- which is what a Half Day makes obvious, because a
+  // half day has four punches and therefore two duplicated-looking pairs.
+  // Tri-state on purpose: null = still loading, so the summary stays hidden
+  // until we know whether the log will supersede it. A boolean would render the
+  // in/out for a frame and then pull it away when the log arrived.
+  const [dayHasPunches, setDayHasPunches] = useState(null);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -295,6 +304,7 @@ export default function AttendanceCalendar() {
 
   const handleDayClick = (cell) => {
     if (!cell) return;
+    setDayHasPunches(null);
     if (cell.att?.status === "Present") {
       setCheckinDate(cell.dateStr);
       return;
@@ -531,7 +541,7 @@ export default function AttendanceCalendar() {
               )}
             </div>
 
-            {activeDay.att?.in_time && (
+            {dayHasPunches === false && activeDay.att?.in_time && (
               <div className="flex items-center gap-2 text-sm">
                 <LogIn className="size-4 text-emerald-600" />
                 <span className="text-muted-foreground">
@@ -542,7 +552,7 @@ export default function AttendanceCalendar() {
                 </span>
               </div>
             )}
-            {activeDay.att?.out_time && (
+            {dayHasPunches === false && activeDay.att?.out_time && (
               <div className="flex items-center gap-2 text-sm">
                 <LogOut className="size-4 text-destructive" />
                 <span className="text-muted-foreground">
@@ -577,7 +587,10 @@ export default function AttendanceCalendar() {
                 <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {t("ess.attendance.checkinLogsShort")}
                 </div>
-                <CheckinLogs date={activeDay.dateStr} />
+                <CheckinLogs
+                  date={activeDay.dateStr}
+                  onResult={({ count }) => setDayHasPunches(count > 0)}
+                />
               </div>
             )}
 

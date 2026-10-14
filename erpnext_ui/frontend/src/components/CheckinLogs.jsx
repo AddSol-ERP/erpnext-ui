@@ -22,7 +22,7 @@ function punchTime(value) {
   return parts.length > 1 ? parts.slice(1).join(" ").slice(0, 8) : s;
 }
 
-export default function CheckinLogs({ employee = null, date }) {
+export default function CheckinLogs({ employee = null, date, onResult }) {
   const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,13 +55,20 @@ export default function CheckinLogs({ employee = null, date }) {
       // _get_scope -- sending a code proves nothing, since employee codes are
       // guessable. Sending null never widens access.
       const res = await get("method/erpnext_ui.api.get_checkin_logs", { employee, date });
-      setLogs(res.message?.logs || []);
+      const rows = res.message?.logs || [];
+      setLogs(rows);
+      // The caller uses this to drop its own in/out summary when the log already
+      // lists those punches. Attendance.in_time/out_time ARE the first and last
+      // check-in of the day, so rendering both showed the same two punches twice.
+      onResult?.({ count: rows.length, error: null });
     } catch (e) {
       // Surfaced rather than swallowed. The old catch set an empty list, which
       // is indistinguishable from "you had no punches" -- exactly how a
       // permission fault hides behind an empty state.
-      setError(e?.message || t("reports.checkinLogsError"));
+      const message = e?.message || t("reports.checkinLogsError");
+      setError(message);
       setLogs([]);
+      onResult?.({ count: 0, error: message });
     } finally {
       setLoading(false);
     }
@@ -72,6 +79,11 @@ export default function CheckinLogs({ employee = null, date }) {
     // compiler rule conservatively flags any setState-reaching effect call.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCheckinLogs();
+    // `onResult` is deliberately NOT listed below. It is a notification sink,
+    // not an input to the fetch, and callers pass an inline arrow -- a new
+    // identity on every parent render. Depending on it re-fires this effect,
+    // which calls onResult, which renders the parent, which makes a new arrow:
+    // a continuous refetch loop on an open popup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee, date]);
 

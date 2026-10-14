@@ -2215,12 +2215,35 @@ def get_checkin_logs(employee=None, date=None, limit=100):
 	Fails closed without read on `Employee Checkin`, and fails closed with an
 	explicit message when the caller lacks the permlevel guarding the punch time,
 	so a blank list never masquerades as "no punches".
+
+	Accepts `?employee=null` as "no employee given". Query-string parameters reach
+	Python as strings, so a client serialising a null JS value with
+	`URLSearchParams` sends a truthy four-character "null" that would otherwise be
+	read as an employee code. See the comment at the normalisation below.
 	"""
 	if not frappe.has_permission("Employee Checkin", "read"):
 		frappe.throw(
 			frappe._("You do not have permission to read check-in logs."),
 			frappe.PermissionError,
 		)
+
+	# Frappe puts whatever arrived in the query string into `frappe.form_dict`, so
+	# an "absent" parameter is a STRING by the time it gets here. A client that
+	# sends `employee=null` -- which is exactly what
+	# `new URLSearchParams({employee: null})` produces, and what any bundle
+	# predating the client-side fix will keep sending until it is redeployed --
+	# would otherwise have "null" treated as a real employee code: it is truthy,
+	# so `employee or my_employee` keeps it, and the permission lookup raises
+	# DoesNotExistError on a document named "null". Treat the literal spellings
+	# of absent as absent. An empty string means the same thing to a filter field.
+	#
+	# Handled server-side as well as in `services/api.jsx` deliberately: this
+	# endpoint is the security boundary, and an endpoint that crashes on a
+	# plausible caller input is not one to trust with anything.
+	if employee in ("", "null", "undefined", "None"):
+		employee = None
+	if date in ("", "null", "undefined", "None"):
+		date = None
 
 	scope = _get_scope(frappe.session.user)
 	my_employee = scope["my_employee"]

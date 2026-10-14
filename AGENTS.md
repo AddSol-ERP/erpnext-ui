@@ -50,7 +50,7 @@ node .smoke-tmp/out/entry.mjs              # -> "all forms render"
 # title/children/footer inline. Without it this suite fails 9 assertions.
 SSR_MODAL_STUB=1 SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-store/entry.mjs        # -> "101 passed, 0 failed"
+node .smoke-tmp/out-store/entry.mjs        # -> "106 passed, 0 failed"
 ```
 
 All three currently pass. All exit `1` on failure.
@@ -68,6 +68,57 @@ route names a real doctype from `config/doctypes.js`. The second check is the
 one that matters: `/store/:doctype/:name` **does** match `/store/delivery/DN-1`,
 it just matches the wrong thing, which is how a dead route shipped. Adding a
 `navigate()` to a page whose detail route was never registered fails the build.
+
+**A production Material Request picks its project ONCE, on the header.**
+`/store/material-request/purpose/production/new` used to carry the Project field
+on every item row, so the user re-read the same bill of materials once per line
+and two rows could disagree about the project — an indent quietly requesting
+material for two projects, which `validate_with_previous_doc` never catches
+because it compares rows against the source document, not each other. Selecting
+the header project now fills the items from its BOM. It is **additive**: rows
+already carrying an item survive, BOM lines already present are skipped, and one
+spare empty row is left at the end. Quantities prefill with the **outstanding
+gap**, not the full BOM quantity — re-requesting what is already pending is how
+duplicate indents happen.
+
+ERPNext still stores `project` per item row, so the header value is copied onto
+every row and **stripped back off before the save** — Material Request has no
+header project column, and on edit it is recovered from the first row that
+carries one. The other four purposes keep the per-row field, because those
+genuinely mix project and non-project items on one request.
+
+**Never stack one modal on another in the Store module.** The Purchase Receipt
+picker used to open a line-entry dialog *on top of* the picker dialog, so adding
+an item meant two overlays and dismissing two to get back to the receipt — and on
+a phone the picker stayed fully rendered behind the form, so it was impossible to
+tell which surface was being edited. List-and-form is now **one modal**
+(`ReceiptItemWorkbench`) holding two sections. It is a dialog *deliberately*:
+rendered inline on the receipt page it grew the document instead of the surface,
+so the user scrolled the page to work a line and lost sight of the receipt they
+were building. `AppModal` already caps the body at `max-h-[95vh]` with
+`overflow-y-auto`, so the page never grows. The invariant is **exactly one**
+dialog — never two, and never zero. It splits into two columns from `md`
+up and shows **one pane at a time below `md`**: that is a content decision, not a
+width one, because the list is a scrolling column and the form is a tall stack of
+number fields, and side by side on a phone both get clipped. The pane swap is
+driven by CSS breakpoints, not a JS media query, so there is no render to
+disagree with the stylesheet after a resize.
+
+The line fields live in `ReceiptLineForm`, shared by the workbench and the tray's
+Edit dialog, so the measured-total logic cannot drift between the two entry
+points.
+
+**A null query parameter arrives at Python as the four-character string
+`"null"`.** `new URLSearchParams({employee: null})` serialises it that way, Frappe
+copies query params into `frappe.form_dict` verbatim, and the string is *truthy*
+— so `employee = employee or my_employee` keeps it and the endpoint then reads a
+document literally named `null` (`DoesNotExistError: Employee null not found`).
+`get()` in `services/api.jsx` therefore strips `null`/`undefined` before
+building the query string, and `get_checkin_logs` also normalises
+`""`/`"null"`/`"undefined"`/`"None"` server-side. **Both halves are required:**
+a bundle predating the client fix keeps sending `employee=null` until it is
+redeployed. Empty strings are deliberately *not* stripped — `""` is a real "no
+filter" for filter fields.
 
 **`api.py` endpoints that take an `employee` must authorise it through
 `_get_scope`, never trust it.** An employee code is trivially guessable

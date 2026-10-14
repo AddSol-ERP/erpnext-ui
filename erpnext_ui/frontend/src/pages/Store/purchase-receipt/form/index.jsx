@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { localDateISO } from "../../../../utils/localDateTime";
 import { needsMeasuredTotal, validateLineRow } from "../../../../lib/receiptConversion";
-import ReceiptItemPicker from "../components/ReceiptItemPicker";
+import ReceiptItemWorkbench from "../components/ReceiptItemWorkbench";
 import ReceiptLineDialog from "../components/ReceiptLineDialog";
 
 /**
@@ -808,26 +808,40 @@ export default function PurchaseReceiptForm() {
         )}
       </FormSection>
 
+      {/* ONE surface, two sections: the outstanding lines on the left, the line
+          being completed on the right, collapsing to one-at-a-time below `md`.
+          This used to be `ReceiptItemPicker` opening `ReceiptLineDialog` on top
+          of itself. The tray's Edit button still opens the dialog -- that row is
+          already on the receipt and has no picker behind it. */}
       {fromPo ? (
-        <ReceiptItemPicker
+        <ReceiptItemWorkbench
           show={pickerOpen}
           onClose={() => setPickerOpen(false)}
           lines={available}
           pickedKeys={pickedKeys}
           onPick={pickLine}
+          row={editingRow}
+          info={editingRow ? uomInfo[editingRow._rid] : null}
+          uomError={editingRow ? uomErrors[editingRow._rid] : null}
+          rateEditable={rateEditable || !editingRow?.purchase_order_item}
+          onItemChange={handleItemChange}
+          onSave={(next) => patchById(next._rid, next)}
         />
       ) : null}
 
-      <ReceiptLineDialog
-        show={!!editingRow}
-        onClose={() => setEditing(null)}
-        row={editingRow}
-        info={editingRow ? uomInfo[editingRow._rid] : null}
-        uomError={editingRow ? uomErrors[editingRow._rid] : null}
-        rateEditable={rateEditable || !editingRow?.purchase_order_item}
-        onItemChange={handleItemChange}
-        onSave={(next) => patchById(next._rid, next)}
-      />
+      {/* Tray edit only -- never stacked on the workbench. */}
+      {fromPo ? null : (
+        <ReceiptLineDialog
+          show={!!editingRow}
+          onClose={() => setEditing(null)}
+          row={editingRow}
+          info={editingRow ? uomInfo[editingRow._rid] : null}
+          uomError={editingRow ? uomErrors[editingRow._rid] : null}
+          rateEditable={rateEditable || !editingRow?.purchase_order_item}
+          onItemChange={handleItemChange}
+          onSave={(next) => patchById(next._rid, next)}
+        />
+      )}
     </div>
   );
 }
