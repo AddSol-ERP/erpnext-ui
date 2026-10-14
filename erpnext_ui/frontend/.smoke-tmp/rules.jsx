@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   resolveForwardActions,
   resolveDocstatusActions,
@@ -649,5 +650,64 @@ ok("isValuationAccurate: false for a past window",
    isValuationAccurate("2026-09-30", "2026-10-13") === false);
 ok("isValuationAccurate: false when either date is missing",
    isValuationAccurate("", "2026-10-13") === false && isValuationAccurate("2026-10-13", null) === false);
+
+// ---------------------------------------------------------------------------
+// Every SPA endpoint must be reachable.
+//
+// This exists because all three stock-balance endpoints shipped without
+// `@frappe.whitelist`, so every call died with
+//
+//   "Function erpnext_ui.api.get_stock_balance_summary is not whitelisted."
+//
+// Nothing caught it. The store suite stubs `fetch` to throw and so never calls
+// an endpoint; the rules suite only exercises pure `lib/`; eslint and ruff have
+// no idea what a Frappe decorator is. All green, feature completely unreachable.
+//
+// So this parses the file instead. Scoped to `def get_*`, which is the endpoint
+// naming convention here: the two public functions that legitimately have no
+// decorator -- `has_app_permission` and `boot_session` -- are called by a boot
+// hook rather than by the SPA, and are outside this scope on purpose.
+// ---------------------------------------------------------------------------
+// `import.meta.url` points at the BUILT entry (out-rules/entry.mjs), not at the
+// source, so the depth depends on outDir. Walk up until api.py is found rather
+// than hardcoding it -- otherwise this guard silently stops parsing anything the
+// day SSR_OUT changes.
+const API_CANDIDATES = [
+  "../../../api.py",
+  "../../../../api.py",
+  "../../erpnext_ui/api.py",
+];
+let apiSource = "";
+let apiPath = "";
+for (const rel of API_CANDIDATES) {
+  try {
+    apiSource = readFileSync(new URL(rel, import.meta.url), "utf8");
+    apiPath = rel;
+    break;
+  } catch {
+    /* try the next depth */
+  }
+}
+const apiLines = apiSource.split("\n");
+const undecorated = [];
+for (let i = 0; i < apiLines.length; i++) {
+  const m = apiLines[i].match(/^def (get_\w+)\(/);
+  if (!m) continue;
+  let j = i - 1;
+  while (j >= 0 && (!apiLines[j].trim() || apiLines[j].trim().startsWith("#"))) j--;
+  if (!apiLines[j].trim().startsWith("@frappe.whitelist")) {
+    undecorated.push(`${m[1]} (line ${i + 1})`);
+  }
+}
+ok(
+  "every get_* endpoint in api.py carries @frappe.whitelist",
+  undecorated.length === 0,
+  `not whitelisted: ${undecorated.join(", ")} -- the SPA cannot call these`,
+);
+ok(
+  "the whitelist guard actually located and parsed api.py",
+  apiPath !== "" && apiLines.length > 500,
+  `path=${apiPath || "NOT FOUND"} lines=${apiLines.length}`,
+);
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

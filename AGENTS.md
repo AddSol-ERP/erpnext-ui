@@ -32,7 +32,7 @@ browser-free:
 # lib/profileFlags, LinkField/searchTerm and config/storePurposes
 SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-rules/entry.mjs        # -> "203 passed, 0 failed"
+node .smoke-tmp/out-rules/entry.mjs        # -> "205 passed, 0 failed"
 
 # SSR render smoke test (Leave/Attendance/Expense forms, GenericForm,
 # DocStatusField, EmployeeDocuments) with fetch and the API stubbed to throw
@@ -60,6 +60,16 @@ All three currently pass. All exit `1` on failure.
 > git** (≈2.5 MB). `git checkout -- erpnext_ui/frontend/.smoke-tmp/` after
 > running, and don't commit the churn. (`out-store/` is untracked — just delete
 > it.)
+
+**Every new `def get_*` in `erpnext_ui/api.py` must carry
+`@frappe.whitelist(allow_guest=False)`.** A rules-suite assertion parses the
+file and fails the build if one does not. This is not belt-and-braces: all three
+stock-balance endpoints shipped without it and every call returned *"is not
+whitelisted"*, while both suites stayed green — the store suite stubs `fetch` to
+throw and never calls an endpoint, so **nothing in the harness can catch it**.
+Don't satisfy the guard by renaming the function or by widening it to all public
+functions: `has_app_permission` and `boot_session` are called by a boot hook and
+legitimately have no decorator.
 
 **When you change `lib/stockBalance.js`, `lib/docTransition.js`, `lib/leaveApproval.js`,
 `lib/profileFlags.js`, `LinkField/searchTerm.js`, `config/storePurposes.js` or

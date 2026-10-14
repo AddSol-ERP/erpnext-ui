@@ -1522,8 +1522,10 @@ def _stock_balance_defaults(from_date=None, to_date=None):
 	"""
 	today = frappe.utils.today()
 	to_date = str(to_date) if to_date else today
-	from_date = str(from_date) if from_date else frappe.utils.format_date(
-		frappe.utils.get_first_day(to_date), "yyyy-mm-dd"
+	from_date = (
+		str(from_date)
+		if from_date
+		else frappe.utils.get_first_day(to_date, as_str=True)
 	)
 
 	if from_date > to_date:
@@ -1579,6 +1581,7 @@ def _where(filters, extra=()):
 	return (" where " + " and ".join(clauses)) if clauses else "", params
 
 
+@frappe.whitelist(allow_guest=False)
 def get_stock_balance_summary(
 	from_date=None, to_date=None, item_code=None, warehouse=None, company=None, start=0, limit=20
 ):
@@ -1730,6 +1733,7 @@ def get_stock_balance_summary(
 	}
 
 
+@frappe.whitelist(allow_guest=False)
 def get_stock_ledger_trail(
 	item_code, warehouse, from_date=None, to_date=None, limit=50, company=None
 ):
@@ -1819,6 +1823,7 @@ def get_stock_ledger_trail(
 	}
 
 
+@frappe.whitelist(allow_guest=False)
 def get_bundle_trace(bundles):
 	"""Which batches and serial numbers sit inside each Serial and Batch Bundle.
 
@@ -1848,8 +1853,7 @@ def get_bundle_trace(bundles):
 
 	entry_dt = frappe.qb.DocType("Serial and Batch Entry")
 	rows = frappe.db.sql(
-		frappe.qb.new_query(entry_dt)
-		.where(entry_dt.parent.isin(bundles))
+		frappe.qb.from_(entry_dt)
 		.select(
 			entry_dt.parent,
 			entry_dt.batch_no,
@@ -1857,6 +1861,7 @@ def get_bundle_trace(bundles):
 			entry_dt.qty,
 			entry_dt.incoming_rate,
 		)
+		.where(entry_dt.parent.isin(bundles))
 		.run(),
 		as_dict=True,
 	)

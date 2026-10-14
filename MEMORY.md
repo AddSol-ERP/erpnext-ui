@@ -1462,7 +1462,7 @@ Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
 
 | Check | Result |
 |---|---|
-| rules suite | **203 passed, 0 failed** |
+| rules suite | **205 passed, 0 failed** |
 | request-form render | **all forms render** |
 | store + ESS + receipt dialogs + balance | **73 passed, 0 failed** |
 | `npx eslint src` | **clean, 0 problems** |
@@ -1810,3 +1810,59 @@ would have 500'd**. Both are now `.get()`.
 
 Found by simulating the generated SQL and comparing `%s` counts against the
 values passed -- a check worth repeating for any new raw SQL in this file.
+
+## 15. The endpoint that was not whitelisted (2026-10-13)
+
+### 15.1 What happened
+
+All three stock-balance endpoints shipped without `@frappe.whitelist`, so every
+call from the SPA died with:
+
+    Function erpnext_ui.api.get_stock_balance_summary is not whitelisted.
+
+Reported live by the user, not caught by anything I ran.
+
+### 15.2 Why nothing caught it
+
+- Both smoke suites **stub `fetch` to throw**, so they never call an endpoint.
+- The rules suite only exercises pure `lib/` modules.
+- ESLint and ruff have no concept of a Frappe decorator.
+- I simulated the generated SQL by hand, which proved the queries were
+  well-formed but never proved they were *reachable*.
+
+All suites green and the feature completely unreachable. I described that as
+"verified"; the suites were genuinely green and it did not mean the endpoint
+worked. That was overclaiming.
+
+### 15.3 The guard
+
+A rules-suite assertion parses `erpnext_ui/api.py` and fails if any `def get_*`
+lacks `@frappe.whitelist`. Scoped to `get_*` deliberately: `has_app_permission`
+and `boot_session` are public, have no decorator, and are called by a boot hook
+rather than by the SPA -- flagging them would have made the check unusable.
+
+Verified by removing one decorator and confirming the suite fails with exit 1,
+then restoring it and confirming exit 0. It resolves `api.py` by walking up
+candidate depths rather than hardcoding one, because `import.meta.url` points at
+the *built* entry, so a fixed depth silently stops parsing the day `SSR_OUT`
+changes.
+
+### 15.4 Two more bugs found while diagnosing
+
+**`frappe.qb.new_query` does not exist.** Used in `get_bundle_trace`; searching
+all of frappe and ERPNext finds **zero** usages. The real constructor is
+`frappe.qb.from_(table)` (see
+`buying/report/supplier_quotation_comparison.py:39-42`). So that endpoint was
+broken twice over. `.isin()` itself is fine -- ERPNext uses it widely.
+
+**`frappe.utils.get_first_day(dt)` returns a `date` object** unless called with
+`as_str=True` (`data.py:395-410`). The original code round-tripped it through
+`format_date(...)`, which did work, but `as_str=True` is the intended call.
+
+### 15.5 The process gap this exposed
+
+I cannot verify from here that a Frappe endpoint is *reachable* -- only that its
+SQL and its pure logic are sound. Until this guard existed, every new endpoint
+carried that risk silently. Worth asking whether the next endpoint should be
+smoke-called against QA immediately after deploy rather than waiting to be
+reported.
