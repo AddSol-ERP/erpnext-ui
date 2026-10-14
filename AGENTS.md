@@ -32,7 +32,7 @@ browser-free:
 # lib/profileFlags, LinkField/searchTerm and config/storePurposes
 SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-rules/entry.mjs        # -> "205 passed, 0 failed"
+node .smoke-tmp/out-rules/entry.mjs        # -> "220 passed, 0 failed"
 
 # SSR render smoke test (Leave/Attendance/Expense forms, GenericForm,
 # DocStatusField, EmployeeDocuments) with fetch and the API stubbed to throw
@@ -50,7 +50,7 @@ node .smoke-tmp/out/entry.mjs              # -> "all forms render"
 # title/children/footer inline. Without it this suite fails 9 assertions.
 SSR_MODAL_STUB=1 SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-store/entry.mjs        # -> "73 passed, 0 failed"
+node .smoke-tmp/out-store/entry.mjs        # -> "84 passed, 0 failed"
 ```
 
 All three currently pass. All exit `1` on failure.
@@ -61,7 +61,7 @@ All three currently pass. All exit `1` on failure.
 > running, and don't commit the churn. (`out-store/` is untracked — just delete
 > it.)
 
-**Every new `def get_*` in `erpnext_ui/api.py` must carry
+**Every new `def get_*` / `def create_*` in `erpnext_ui/api.py` must carry
 `@frappe.whitelist(allow_guest=False)`.** A rules-suite assertion parses the
 file and fails the build if one does not. This is not belt-and-braces: all three
 stock-balance endpoints shipped without it and every call returned *"is not

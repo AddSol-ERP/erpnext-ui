@@ -1876,3 +1876,301 @@ def get_bundle_trace(bundles):
 		entry["qty"] += flt(r.qty)
 
 	return {"results": results, "permission_required": False, "requested": bundles}
+
+
+# ============================================================
+# RETURN REMAINING MATERIAL TO STOCK
+# ============================================================
+#
+# One Stock Entry, one purpose: leftover material coming back from a job goes
+# Work In Progress -> Stores as a Material Transfer. Deliberately narrow -- the
+# request was a single action a shopfloor user can finish without understanding
+# ERPNext, not a general-purpose movement screen.
+#
+# The whole thing is ONE whitelisted call rather than the SPA issuing several
+# document creates. Two reasons, both load-bearing:
+#   - Item creation and a Stock Entry must be atomic. A half-done pair leaves a
+#     junk Item in the master with no movement, or a movement of an item that
+#     was never created.
+#   - The SPA cannot be trusted to check its own permissions; it does not know
+#     what the user's role holds. That check belongs here.
+
+
+def _require_create(doctype, label):
+	"""Fail closed unless the caller may create `doctype`.
+
+	Checked per-doctype and deliberately NOT bypassed with ignore_permissions.
+	"""
+	if not frappe.has_permission(doctype, "create"):
+		frappe.throw(f"You do not have permission to create {label}.", frappe.PermissionError)
+
+
+@frappe.whitelist(allow_guest=False)
+def get_return_stock_entry_context(item_code):
+	"""What this item needs before it can be returned to stock.
+
+	The dialog uses this to ask only the questions that actually apply. An item
+	with no batch tracking gets one question (how many); a batch item whose
+	series is configured gets none at all, because ERPNext names the batch itself.
+
+	Auto-batch rule, from ERPNext's own logic
+	(`serial_batch_bundle.py:190-195` and `:294-308`): a batch is generated
+	automatically only when the item has BOTH `create_new_batch` and a
+	`batch_number_series`. With `create_new_batch` but no series, ERPNext throws;
+	we report that up front rather than letting a save fail.
+
+	Permission model: requires read on `Item`, failing closed.
+	"""
+	if not item_code:
+		frappe.throw("No item specified.")
+	if not frappe.has_permission("Item", "read", item_code):
+		frappe.throw("You do not have permission to view this item.", frappe.PermissionError)
+
+	row = frappe.db.get_value(
+		"Item",
+		item_code,
+		["stock_uom", "item_name", "has_batch_no", "has_serial_no", "create_new_batch",
+		 "batch_number_series", "serial_no_series", "is_stock_item"],
+		as_dict=True,
+	)
+	if not row:
+		frappe.throw(f"Item {item_code} does not exist.")
+
+	auto_batch = bool(row.has_batch_no) and bool(row.create_new_batch) and bool(row.batch_number_series)
+	# create_new_batch without a series is the trap: ERPNext will not invent a
+	# number and has no way to tell the user that before saving.
+	needs_batch_number = bool(row.has_batch_no) and not auto_batch
+	auto_serial = bool(row.has_serial_no) and bool(row.serial_no_series)
+
+	return {
+		"item_code": item_code,
+		"item_name": row.item_name,
+		"stock_uom": row.stock_uom,
+		"is_stock_item": bool(row.is_stock_item),
+		"has_batch_no": bool(row.has_batch_no),
+		"has_serial_no": bool(row.has_serial_no),
+		"auto_batch": auto_batch,
+		"auto_serial": auto_serial,
+		"needs_batch_number": needs_batch_number,
+		"needs_serials": bool(row.has_serial_no) and not auto_serial,
+		# An item created on the fly needs its tracking configured at creation,
+		# because that is the only moment it can be set cleanly.
+		"batch_series": row.batch_number_series or "",
+		"serial_series": row.serial_no_series or "",
+	}
+
+
+def _create_item_from_return(spec):
+	"""Create the Item for a return whose leftover is a different specification.
+
+	Only `item_code`, `item_group` and `stock_uom` are mandatory
+	(`item.json`); `Item.validate()` fills `item_name`, `description` and the
+	stock-UOM row in the conversion table. Tracking flags are copied from the
+	spec because they cannot be changed meaningfully afterwards, and an item
+	whose leftover will be batch-tracked must be created that way.
+
+	`item_code` is the autoname (`field:item_code`), so it is the identity -- a
+	collision is an overwrite risk, hence the explicit exists() check.
+	"""
+	item_code = (spec.get("item_code") or "").strip()
+	item_group = (spec.get("item_group") or "").strip()
+	stock_uom = (spec.get("stock_uom") or "").strip()
+
+	for field, value in (("item_code", item_code), ("item_group", item_group), ("stock_uom", stock_uom)):
+		if not value:
+			frappe.throw(f"New item needs a {field.replace('_', ' ')}.")
+	if frappe.db.exists("Item", item_code):
+		frappe.throw(f"Item {item_code} already exists.", frappe.DuplicateEntryError)
+
+	doc = frappe.new_doc("Item")
+	doc.update(
+		{
+			"item_code": item_code,
+			"item_name": (spec.get("item_name") or item_code).strip(),
+			"item_group": item_group,
+			"stock_uom": stock_uom,
+			"is_stock_item": 1,
+			"has_batch_no": 1 if spec.get("has_batch_no") else 0,
+			"has_serial_no": 1 if spec.get("has_serial_no") else 0,
+		}
+	)
+	doc.insert()  # permission-checked: no ignore_permissions
+	return doc.name
+
+
+def _stock_entry_type_for_transfer():
+	"""The Stock Entry Type whose purpose is Material Transfer.
+
+	Looked up by purpose rather than hardcoded by name, so a site that renames
+	its Stock Entry Types still works. Falls back to the conventional name only
+	if the lookup somehow yields nothing.
+	"""
+	name = frappe.db.get_value(
+		"Stock Entry Type", {"purpose": "Material Transfer"}, "name", order_by="modified asc"
+	)
+	if not name:
+		frappe.throw(
+			"No Stock Entry Type with purpose 'Material Transfer' exists. "
+			"Create one before returning material to stock."
+		)
+	return name
+
+
+@frappe.whitelist(allow_guest=False)
+def create_return_stock_entry(
+	company,
+	from_warehouse,
+	to_warehouse,
+	qty,
+	item_code=None,
+	new_item=None,
+	posting_date=None,
+	remarks=None,
+	batch_no=None,
+	serial_nos=None,
+	submit_now=True,
+):
+	"""Return leftover material from a job back into Stores.
+
+	Creates ONE Stock Entry, purpose `Material Transfer`, from
+	`from_warehouse` (Work In Progress) to `to_warehouse` (Stores). Optionally
+	creates the Item first, so the pair is atomic: either both land or neither
+	does.
+
+	Batch/serial handling follows ERPNext's own rule rather than inventing one.
+	The bundle is built server-side by `make_bundle_using_old_serial_batch_fields`
+	from `batch_no` / `serial_no` on the row, which is the supported path -- the
+	SPA cannot call `make_serial_batch_bundle` because it is a Python helper, not
+	a whitelisted method.
+
+		- batch item with `create_new_batch` + series -> send nothing; ERPNext
+		  names the batch itself
+		- batch item without that setup -> a batch number must be supplied
+		- serial item with a series -> ERPNext generates them
+		- serial item without a series -> the numbers must be supplied
+
+	Expiry is not a risk here: `validate_serialized_batch` skips the expiry check
+	for Material Transfer (`stock_controller.py:206`, `:225-226`), so returning
+	leftover material from a job is not blocked by an old batch.
+
+	Permission model: requires CREATE on `Stock Entry`, and on `Item` when
+	`new_item` is supplied. Read on the warehouses. Fails closed throughout.
+
+	Returns:
+		dict: {"stock_entry": name, "item_code": str, "submitted": bool}
+	"""
+	_require_create("Stock Entry", "Stock Entries")
+
+	qty = flt(qty)
+	if qty <= 0:
+		frappe.throw("Enter how much material you are returning.")
+
+	if from_warehouse == to_warehouse:
+		frappe.throw("Choose two different warehouses.")
+
+	for wh in (from_warehouse, to_warehouse):
+		if not frappe.db.exists("Warehouse", wh):
+			frappe.throw(f"Warehouse {wh} does not exist.")
+
+	# Both sides of a transfer belong to one company; a cross-company transfer
+	# is not a Material Transfer and would be rejected far later, obscurely.
+	wh_companies = {
+		c
+		for c in (
+			frappe.db.get_value("Warehouse", from_warehouse, "company"),
+			frappe.db.get_value("Warehouse", to_warehouse, "company"),
+		)
+		if c
+	}
+	if len(wh_companies) > 1 or (company and wh_companies != {company}):
+		frappe.throw("Both warehouses must belong to the same company.")
+
+	posting_date = str(posting_date) if posting_date else frappe.utils.today()
+	if posting_date > frappe.utils.today():
+		frappe.throw("Posting date cannot be a future date.")
+
+	# --- the item, optionally created on the spot -------------------------------
+	created_item = False
+	if new_item:
+		if isinstance(new_item, str):
+			new_item = frappe.parse_json(new_item)
+		_require_create("Item", "Items")
+		item_code = _create_item_from_return(new_item)
+		created_item = True
+	elif not item_code:
+		frappe.throw("Choose the item you are returning.")
+
+	ctx = get_return_stock_entry_context(item_code)
+
+	# --- batch / serial ---------------------------------------------------------
+	row_batch = (batch_no or "").strip() or None
+	serials = [s.strip() for s in (serial_nos or []) if s and s.strip()]
+
+	if ctx["auto_batch"]:
+		# A number is already on the row; leaving it set would defeat the auto
+		# naming the item was configured for.
+		row_batch = None
+	elif ctx["needs_batch_number"]:
+		if not row_batch:
+			frappe.throw(
+				f"{item_code} tracks batches and has no batch series, so a batch "
+				f"number must be entered."
+			)
+		if not frappe.db.exists("Batch", row_batch):
+			frappe.throw(f"Batch {row_batch} does not exist.")
+	else:
+		row_batch = None
+
+	if ctx["needs_serials"] and not serials:
+		frappe.throw(f"{item_code} tracks serial numbers, so enter them.")
+
+	# --- the movement -----------------------------------------------------------
+	se = frappe.new_doc("Stock Entry")
+	se.update(
+		{
+			"purpose": "Material Transfer",
+			"stock_entry_type": _stock_entry_type_for_transfer(),
+			"company": company,
+			"posting_date": posting_date,
+			"remarks": frappe.utils.strip_html(remarks or "") or None,
+		}
+	)
+	row = se.append("items", {})
+	row.update(
+		{
+			"item_code": item_code,
+			"qty": qty,
+			"transfer_qty": qty,
+			"s_warehouse": from_warehouse,
+			"t_warehouse": to_warehouse,
+			"stock_uom": ctx["stock_uom"],
+			"conversion_factor": 1,
+			"basic_rate": 0,
+		}
+	)
+	if row_batch:
+		row.batch_no = row_batch
+	if serials:
+		# serial_no is a Text field holding one number per line; this is the
+		# legacy path `make_bundle_using_old_serial_batch_fields` exists to
+		# support, and it sets use_serial_batch_fields itself.
+		row.serial_no = "\n".join(serials)
+
+	se.insert()
+	submitted = False
+	if cint(submit_now):
+		se.submit()
+		submitted = True
+
+	if created_item and not submitted:
+		frappe.msgprint(
+			f"Item {item_code} was created and the Stock Entry saved as draft.",
+			indicator="blue",
+		)
+
+	return {
+		"stock_entry": se.name,
+		"item_code": item_code,
+		"item_created": created_item,
+		"submitted": submitted,
+	}

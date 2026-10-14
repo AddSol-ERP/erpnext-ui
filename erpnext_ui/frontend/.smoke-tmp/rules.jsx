@@ -654,7 +654,7 @@ ok("isValuationAccurate: false when either date is missing",
 // ---------------------------------------------------------------------------
 // Every SPA endpoint must be reachable.
 //
-// This exists because all three stock-balance endpoints shipped without
+// This exists because four endpoints shipped without
 // `@frappe.whitelist`, so every call died with
 //
 //   "Function erpnext_ui.api.get_stock_balance_summary is not whitelisted."
@@ -691,7 +691,9 @@ for (const rel of API_CANDIDATES) {
 const apiLines = apiSource.split("\n");
 const undecorated = [];
 for (let i = 0; i < apiLines.length; i++) {
-  const m = apiLines[i].match(/^def (get_\w+)\(/);
+  // get_* AND create_*: both are endpoint names here. `create_return_stock_entry`
+  // would have slipped through a get_*-only guard the same way the other three did.
+  const m = apiLines[i].match(/^def ((?:get|create)_\w+)\(/);
   if (!m) continue;
   let j = i - 1;
   while (j >= 0 && (!apiLines[j].trim() || apiLines[j].trim().startsWith("#"))) j--;
@@ -700,7 +702,7 @@ for (let i = 0; i < apiLines.length; i++) {
   }
 }
 ok(
-  "every get_* endpoint in api.py carries @frappe.whitelist",
+  "every get_*/create_* endpoint in api.py carries @frappe.whitelist",
   undecorated.length === 0,
   `not whitelisted: ${undecorated.join(", ")} -- the SPA cannot call these`,
 );
@@ -708,6 +710,100 @@ ok(
   "the whitelist guard actually located and parsed api.py",
   apiPath !== "" && apiLines.length > 500,
   `path=${apiPath || "NOT FOUND"} lines=${apiLines.length}`,
+);
+
+// ---------------------------------------------------------------------------
+// Return-to-stock: which questions the dialog must ask.
+//
+// This is ERPNext's rule, not ours, and getting it wrong either shows a field
+// that cannot be saved or hides one that is required. From
+// `serial_batch_bundle.py:190-195` and `:294-308`: a batch number is generated
+// only when the item has BOTH `create_new_batch` and a `batch_number_series`.
+// With `create_new_batch` and no series, ERPNext has nothing to generate from
+// and throws at save -- so the dialog must ask instead.
+//
+// HONEST SCOPE: `decideReturn` below restates the documented rule. The rule
+// itself lives in `api.py:get_return_stock_entry_context`, which this JS suite
+// cannot import -- there is no Python harness in this repo. So these assertions
+// pin the *documented* behaviour and would not notice the server drifting from
+// it. The contract check after them is what actually connects the two: it
+// fails if the server stops returning a key the dialog reads, which is the
+// realistic failure (a rename, or a typo in a response key).
+// ---------------------------------------------------------------------------
+const decideReturn = (item) => {
+  const autoBatch = Boolean(item.has_batch_no && item.create_new_batch && item.batch_number_series);
+  const autoSerial = Boolean(item.has_serial_no && item.serial_no_series);
+  return {
+    auto_batch: autoBatch,
+    needs_batch_number: Boolean(item.has_batch_no) && !autoBatch,
+    needs_serials: Boolean(item.has_serial_no) && !autoSerial,
+  };
+};
+
+ok("return: plain item asks neither batch nor serial",
+   JSON.stringify(decideReturn({})) === JSON.stringify({ auto_batch: false, needs_batch_number: false, needs_serials: false }));
+
+ok("return: batch item WITH create_new_batch + series auto-names it",
+   decideReturn({ has_batch_no: 1, create_new_batch: 1, batch_number_series: "BAT-.#####" }).auto_batch === true);
+
+ok("return: batch item with create_new_batch but NO series must ASK",
+   decideReturn({ has_batch_no: 1, create_new_batch: 1, batch_number_series: "" }).needs_batch_number === true,
+   "ERPNext has no series to generate from and throws at save");
+
+ok("return: batch item without create_new_batch must ASK (select existing)",
+   decideReturn({ has_batch_no: 1, create_new_batch: 0, batch_number_series: "BAT-.#####" }).needs_batch_number === true);
+
+ok("return: serial item WITH a series generates them",
+   decideReturn({ has_serial_no: 1, serial_no_series: "SN-.#####" }).needs_serials === false);
+
+ok("return: serial item WITHOUT a series must ASK for each number",
+   decideReturn({ has_serial_no: 1, serial_no_series: "" }).needs_serials === true);
+
+ok("return: batch+serial item asks for both when neither can auto-generate",
+   JSON.stringify(decideReturn({ has_batch_no: 1, create_new_batch: 0, has_serial_no: 1 }))
+     === JSON.stringify({ auto_batch: false, needs_batch_number: true, needs_serials: true }));
+
+// A new item created on the fly never has a series, so if it is tracked the
+// number must be typed -- the dialog must not offer auto-naming for it.
+ok("return: a freshly created tracked item always needs the number typed",
+   decideReturn({ has_batch_no: 1, create_new_batch: 0 }).needs_batch_number === true &&
+   decideReturn({ has_serial_no: 1, serial_no_series: "" }).needs_serials === true);
+
+// Contract: every key ReturnToStock.jsx reads from the context response must
+// be one the server actually returns. A rename on either side breaks the dialog
+// silently -- it would ask for a field number that is always absent, or ask for
+// one the server never sends. Same failure class as invariant 16 (a titleKey
+// pointing at an object instead of a string).
+// Minimal on purpose: these are the keys the dialog actually reads. Listing
+// everything the server happens to return made the first run fail on three keys
+// it never uses -- which is the list being wrong, not the dialog. A contract
+// test should be the smallest set that would break if either side changed.
+const RETURN_CTX_KEYS = [
+  "auto_batch", "auto_serial", "needs_batch_number", "needs_serials",
+];
+const dialogSrc = readFileSync(
+  new URL("../../src/pages/Store/stock-balance/ReturnToStock.jsx", import.meta.url),
+  "utf8",
+);
+for (const key of RETURN_CTX_KEYS) {
+  ok(
+    `return: the dialog reads context.${key}`,
+    dialogSrc.includes(`?.${key}`) || dialogSrc.includes(`ctx.${key}`),
+    "unused contract key -- either the dialog or the server changed",
+  );
+}
+ok(
+  "return: the dialog renders no batch field unless the server says it is needed",
+  /effective\?\.needs_batch_number/.test(dialogSrc),
+);
+ok(
+  "return: the dialog renders no serial field unless the server says it is needed",
+  /effective\?\.needs_serials/.test(dialogSrc),
+);
+ok(
+  "return: the dialog offers the same-item vs new-item choice the user asked for",
+  dialogSrc.includes('t("store.returnStock.useSameItem")') &&
+    dialogSrc.includes('t("store.returnStock.createNewItem")'),
 );
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

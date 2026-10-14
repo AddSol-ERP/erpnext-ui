@@ -504,6 +504,33 @@
 			"noFileSelected": "No file selected",
 			"itemCode": "Item Code",
 			"rate": "Rate"
+		},
+		"returnStock": {
+			"title": "Return material to stock",
+			"action": "Return this material to stock",
+			"explainer": "Material left over from a job goes back into Stores as one Stock Entry. Nothing is saved until you confirm.",
+			"whichItem": "What is coming back?",
+			"useSameItem": "Use this item",
+			"useSameItemHint": "Goes back under its own code",
+			"createNewItem": "Create a new item",
+			"createNewItemHint": "The leftover is a different specification",
+			"itemName": "Item name",
+			"itemGroup": "Item group",
+			"trackBatch": "Track batches",
+			"trackSerial": "Track serial numbers",
+			"fromWarehouse": "From (where it is now)",
+			"toWarehouse": "To (where it goes back)",
+			"qty": "How much ({{uom}})",
+			"batchNumber": "Batch number",
+			"serialNumbers": "Serial numbers",
+			"serialNumbersHint": "One per line, or separated by commas",
+			"serialPlaceholder": "SN001\nSN002",
+			"autoBatch": "A new batch number will be generated automatically for this item.",
+			"remarks": "Note (optional)",
+			"makesEntry": "Creates a Stock Entry: {{from}} to {{to}}",
+			"confirm": "Return to stock",
+			"done": "{{item}} is back in stock ({{qty}}).",
+			"autoSerial": "Serial numbers will be generated automatically for this item."
 		}
 	}
 }

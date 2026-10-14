@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, Info, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ChevronRight, Info, TriangleAlert, Undo2 } from "lucide-react";
 import { useHeader } from "../../../context/HeaderContext";
 import { get } from "../../../services/api";
 
@@ -11,8 +11,10 @@ import ListLayout from "../../../components/ListLayout";
 import useListPagination from "../../../hooks/useListPagination";
 import { listFilterHandlers } from "../../../lib/filterChips";
 import { isValuationAccurate } from "../../../lib/stockBalance";
+import { deskDocUrl } from "../../../lib/deskUrl";
 import { localDateISO } from "../../../utils/localDateTime";
 import BalanceTrail from "./BalanceTrail";
+import ReturnToStock from "./ReturnToStock";
 
 /**
  * Stock balance, with the provenance to answer "where did this come from".
@@ -54,7 +56,7 @@ const fmt = (v, digits = 2) =>
  * component that fetches on mount can only ever render its loading state, so
  * its columns cannot be asserted.
  */
-export function BalanceTable({ rows = [], expanded, onToggle }) {
+export function BalanceTable({ rows = [], expanded, onToggle, onReturn }) {
   const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
@@ -62,6 +64,7 @@ export function BalanceTable({ rows = [], expanded, onToggle }) {
         <thead>
           <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
             <th className="w-8 py-2 pr-1" />
+            <th className="w-10 py-2" />
             <th className="py-2 pr-3 font-medium">{t("common.name")}</th>
             <th className="py-2 pr-3 text-end font-medium">{t("store.balance.opening")}</th>
             <th className="py-2 pr-3 text-end font-medium">{t("store.balance.inQty")}</th>
@@ -121,8 +124,25 @@ export function BalanceTable({ rows = [], expanded, onToggle }) {
                     ? "\u2014"
                     : `\u20b9 ${fmt(row.stock_value)}`}
                 </td>
-                <td className="py-2 text-end tabular-nums text-muted-foreground">
+                <td className="py-2 pr-3 text-end tabular-nums text-muted-foreground">
                   {fmt(row.valuation_rate, 2)}
+                </td>
+                <td className="py-2">
+                  {/* Return-to-stock sits on the row because the context it
+                      needs -- which item, which warehouse, how much -- is
+                      already in view. */}
+                  <button
+                    type="button"
+                    title={t("store.returnStock.action")}
+                    aria-label={t("store.returnStock.action")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReturn?.(row);
+                    }}
+                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+                  >
+                    <Undo2 className="size-4" />
+                  </button>
                 </td>
               </tr>
             );
@@ -144,6 +164,8 @@ export default function StockBalance() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [returning, setReturning] = useState(null);
+  const [lastReturn, setLastReturn] = useState(null);
 
   const {
     page,
@@ -277,6 +299,29 @@ export default function StockBalance() {
       }
     >
       <div className="flex flex-col gap-3 px-3 py-3">
+        {lastReturn ? (
+          <p className="flex flex-wrap items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="size-3.5 shrink-0" />
+            {t("store.returnStock.done", { item: lastReturn.item_code, qty: lastReturn.qty })}
+            {lastReturn.stock_entry ? (
+              <button
+                type="button"
+                onClick={() => window.open(deskDocUrl("Stock Entry", lastReturn.stock_entry), "_blank")}
+                className="underline underline-offset-2"
+              >
+                {lastReturn.stock_entry}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setLastReturn(null)}
+              className="ml-auto underline underline-offset-2"
+            >
+              {t("common.close")}
+            </button>
+          </p>
+        ) : null}
+
         {meta.performance_warning ? (
           <p className="flex items-center gap-2 rounded border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-xs text-orange-700 dark:text-orange-400">
             <TriangleAlert className="size-3.5 shrink-0" />
@@ -291,7 +336,15 @@ export default function StockBalance() {
           </p>
         ) : null}
 
-        <BalanceTable rows={rows} expanded={expanded} onToggle={toggle} />
+        <BalanceTable
+          rows={rows}
+          expanded={expanded}
+          onToggle={toggle}
+          onReturn={(r) => {
+            setLastReturn(null);
+            setReturning(r);
+          }}
+        />
 
         {/* One trail at a time: each is a query, and holding several open turns
             a scroll through the report into a burst of them. */}
@@ -303,6 +356,23 @@ export default function StockBalance() {
               return row ? <BalanceTrail row={row} onNavigate={navigate} /> : null;
             })()
           : null}
+
+        <ReturnToStock
+          show={!!returning}
+          onClose={() => setReturning(null)}
+          row={returning}
+          onDone={async (result) => {
+            setReturning(null);
+            // Refresh so the row's balance visibly changes -- that change IS
+            // the proof the movement happened.
+            setLastReturn({
+              item_code: result?.item_code || returning?.item_code,
+              qty: returning?.qty,
+              stock_entry: result?.stock_entry,
+            });
+            await loadData();
+          }}
+        />
       </div>
     </ListLayout>
   );

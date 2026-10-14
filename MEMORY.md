@@ -1462,9 +1462,9 @@ Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
 
 | Check | Result |
 |---|---|
-| rules suite | **205 passed, 0 failed** |
+| rules suite | **220 passed, 0 failed** |
 | request-form render | **all forms render** |
-| store + ESS + receipt dialogs + balance | **73 passed, 0 failed** |
+| store + ESS + receipt dialogs + balance + return | **84 passed, 0 failed** |
 | `npx eslint src` | **clean, 0 problems** |
 | `npm run build` | **✓ built** |
 | `ruff check erpnext_ui/api.py` | 1 error — `F841` at `:416`, **pre-existing** (reproduced against `HEAD`) |
@@ -1866,3 +1866,83 @@ SQL and its pure logic are sound. Until this guard existed, every new endpoint
 carried that risk silently. Worth asking whether the next endpoint should be
 smoke-called against QA immediately after deploy rather than waiting to be
 reported.
+
+## 16. Return remaining material to stock (2026-10-13)
+
+### 16.1 The action
+
+A per-row **Return this material to stock** button on the Stock Balance report.
+One Stock Entry, purpose **Material Transfer**, from where the material is now
+(Work In Progress) to Stores. Deliberately one purpose: the ask was a single
+thing a shopfloor user can finish without learning ERPNext.
+
+The button lives on the balance row rather than its own screen because the
+context it needs -- which item, which warehouse, how much -- is already in view.
+
+### 16.2 Item creation is part of it, and atomic
+
+The user can either return under the existing code or create a **new Item** for
+leftover that is a different specification. Both paths plus the movement are ONE
+whitelisted call, not three document creates:
+
+- a half-done pair leaves a junk Item in the master with no movement against it
+- the SPA does not know what its user's role holds, so the permission check
+  belongs server-side (CREATE on `Stock Entry`, and on `Item` only when creating)
+
+Only `item_code`, `item_group` and `stock_uom` are mandatory (`item.json`);
+`Item.validate()` fills `item_name`, `description` and the stock-UOM conversion
+row itself (`item.py:184-215`). `item_code` is the autoname
+(`autoname: field:item_code`), so a collision is an overwrite risk -- hence the
+explicit `frappe.db.exists` check.
+
+### 16.3 Batch and serial: ERPNext's rule, surfaced honestly
+
+`get_return_stock_entry_context` reports what the item needs so the dialog asks
+only that. The rule, from `serial_batch_bundle.py:190-195` and `:294-308`:
+
+| Item setup | Dialog behaviour |
+|---|---|
+| batch + `create_new_batch` + `batch_number_series` | asks nothing, says it will be generated |
+| batch + `create_new_batch`, **no** series | **must ask** -- ERPNext has nothing to generate from and throws at save |
+| batch, no `create_new_batch` | must ask (existing batch) |
+| serial + `serial_no_series` | asks nothing |
+| serial, no series | must ask, one number per line |
+
+A newly created item never has a series, so if it is tracked the number must be
+typed -- the dialog does not offer auto-naming for it.
+
+The bundle itself is built server-side by
+`make_bundle_using_old_serial_batch_fields` from `batch_no` / `serial_no` on the
+row (`stock_controller.py:252-288`), which sets `use_serial_batch_fields` itself.
+That is the supported path: the SPA cannot call `make_serial_batch_bundle`
+because it is a Python helper, not a whitelisted method. ERPNext's own working
+payload is `test_stock_entry.py:711-750` -- one bundle per row, anchored to
+`t_warehouse`.
+
+**Expired batches are not a risk here.** `validate_serialized_batch` skips the
+expiry check for Material Transfer (`stock_controller.py:206`, `:225-226`), so
+leftover from a job comes back regardless of batch age.
+
+### 16.4 Test scope, stated honestly
+
+The batch/serial decision logic lives in `api.py`, which the JS suites cannot
+import -- there is no Python harness in this repo. So the rules suite
+**restates the documented rule** rather than executing the server's, and a
+comment in `rules.jsx` says so. What *is* executed is a contract check: every
+context key the dialog reads must be one the server returns, which catches a
+rename or a response typo. That is the realistic failure, and it is the same
+class as invariant 16.
+
+`ReturnToStock` takes an optional `context` prop purely as an injection seam.
+Under `renderToString` a component that fetches on mount can only ever render
+its initial state, so without it the batch/serial rules are untestable.
+
+### 16.5 Two bugs the assertions caught
+
+- The contract check failed on three keys (`auto_serial`, `has_batch_no`,
+  `has_serial_no`). Two were my list being wrong; `auto_serial` was a genuine
+  gap -- a serial item with a series asked nothing and said nothing, so the
+  dialog now explains that. The list was trimmed to the four keys actually read.
+- The auto-batch/auto-serial notes read `ctx` directly while the fields read
+  `effective`. With `context` injected, `ctx` is null and the notes silently
+  vanished. Both now read the merged view.

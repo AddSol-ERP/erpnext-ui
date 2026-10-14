@@ -19,6 +19,7 @@ import ReceiptLineDialog from "@/pages/Store/purchase-receipt/components/Receipt
 import StockBalance from "@/pages/Store/stock-balance/index.jsx";
 import { TrailTable } from "@/pages/Store/stock-balance/BalanceTrail.jsx";
 import { BalanceTable } from "@/pages/Store/stock-balance/index.jsx";
+import ReturnToStock from "@/pages/Store/stock-balance/ReturnToStock.jsx";
 
 /*
  * Renders the Store surfaces and asserts that NO translation key leaks into the
@@ -410,6 +411,104 @@ ok("trail: shows BOTH rates, not a blend",
    "the two lots must stay distinguishable");
 ok("trail: shows the running balance", /Balance after/.test(trailText));
 ok("trail: no translation key leaked", !/\bstore\.[a-z.]+/i.test(trailText));
+
+
+
+/* =======================================================================
+   Return material to stock.
+
+   The dialog's whole promise is that it asks only what this item needs, so the
+   assertions are about which fields APPEAR, not just that it renders.
+   ======================================================================= */
+
+const rowForReturn = {
+  item_code: "W-0268-01-001",
+  item_name: "LV CTC",
+  warehouse: "Work In Progress - DVPL",
+  stock_uom: "Nos",
+  free_qty: 10,
+  closing_qty: 10,
+};
+
+const renderReturn = (ctxRow) =>
+  plainText(
+    renderWithFetch(
+      { message: ctxRow },
+      <ReturnToStock
+        show
+        row={rowForReturn}
+        defaultCompany="DE Voltrans"
+        context={ctxRow}
+      />,
+    ).html,
+  );
+
+// A plain item: one question, no batch or serial anywhere.
+const plainReturn = renderReturn({
+  item_code: "W-0268-01-001",
+  stock_uom: "Nos",
+  has_batch_no: 0,
+  has_serial_no: 0,
+  auto_batch: false,
+  auto_serial: false,
+  needs_batch_number: false,
+  needs_serials: false,
+});
+ok("return: offers the use-same-item vs new-item choice",
+   plainReturn.includes("Use this item") && plainReturn.includes("Create a new item"));
+ok("return: shows where it is now and where it goes back",
+   plainReturn.includes("Work In Progress - DVPL"));
+ok("return: plain item asks for NO batch number", !plainReturn.includes("Batch number"));
+ok("return: plain item asks for NO serial numbers", !plainReturn.includes("Serial numbers"));
+ok("return: explains what will happen",
+   plainReturn.includes("Creates a Stock Entry"));
+ok("return: no translation key leaked", !/\bstore\.[a-z.]+/i.test(plainReturn));
+
+// A batch item the server can auto-name: still no batch box, but it says so,
+// so silence is not mistaken for a missing feature.
+const autoBatchReturn = renderReturn({
+  item_code: "BATCHY",
+  stock_uom: "Kg",
+  has_batch_no: 1,
+  has_serial_no: 0,
+  auto_batch: true,
+  auto_serial: false,
+  needs_batch_number: false,
+  needs_serials: false,
+});
+ok("return: auto-batch item asks for no batch number", !autoBatchReturn.includes("Batch number"));
+ok("return: auto-batch item says the number will be generated",
+   autoBatchReturn.includes("generated automatically"));
+
+// A batch item with no series: ERPNext cannot invent a number, so we must ask.
+const needsBatchReturn = renderReturn({
+  item_code: "BATCHY",
+  stock_uom: "Kg",
+  has_batch_no: 1,
+  has_serial_no: 0,
+  auto_batch: false,
+  auto_serial: false,
+  needs_batch_number: true,
+  needs_serials: false,
+});
+ok("return: un-series batch item DOES ask for a batch number",
+   needsBatchReturn.includes("Batch number"));
+
+// Serials: asked for only when the item has no series.
+const needsSerialReturn = renderReturn({
+  item_code: "SERIALY",
+  stock_uom: "Nos",
+  has_batch_no: 0,
+  has_serial_no: 1,
+  auto_batch: false,
+  auto_serial: false,
+  needs_batch_number: false,
+  needs_serials: true,
+});
+ok("return: un-series serial item DOES ask for serial numbers",
+   needsSerialReturn.includes("Serial numbers"));
+ok("return: serial item explains the one-per-line format",
+   needsSerialReturn.includes("One per line"));
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
