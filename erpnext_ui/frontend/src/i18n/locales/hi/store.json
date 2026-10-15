@@ -201,7 +201,10 @@
 			"viewReceipt": "देखें",
 			"submittedReceiptReadOnly": "जमा की गई रसीद {{name}} · केवल पढ़ने के लिए।",
 			"totalEstimatedWeight": "कुल अनुमानित वज़न (Kg)",
-			"totalAcceptedWeight": "कुल स्वीकृत वज़न (Kg)"
+			"totalAcceptedWeight": "कुल स्वीकृत वज़न (Kg)",
+			"receiveQueueTab": "प्राप्ति के लिए",
+			"draftsTab": "ड्राफ्ट",
+			"submittedTab": "जमा"
 		},
 		"projectItems": {
 			"title": "{{project}} के सामान",

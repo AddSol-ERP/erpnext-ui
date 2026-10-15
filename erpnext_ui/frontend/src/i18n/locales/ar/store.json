@@ -201,7 +201,10 @@
 			"viewReceipt": "عرض",
 			"submittedReceiptReadOnly": "الإيصال {{name}} مقدم · للقراءة فقط.",
 			"totalEstimatedWeight": "إجمالي الوزن التقديري (Kg)",
-			"totalAcceptedWeight": "إجمالي الوزن المقبول (Kg)"
+			"totalAcceptedWeight": "إجمالي الوزن المقبول (Kg)",
+			"receiveQueueTab": "بانتظار الاستلام",
+			"draftsTab": "مسودات",
+			"submittedTab": "مقدمة"
 		},
 		"projectItems": {
 			"title": "مواد المشروع {{project}}",

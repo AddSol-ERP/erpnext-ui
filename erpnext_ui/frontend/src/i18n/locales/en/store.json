@@ -201,7 +201,10 @@
 			"viewReceipt": "View",
 			"submittedReceiptReadOnly": "Submitted receipt {{name}} · read only.",
 			"totalEstimatedWeight": "Total estimated weight (Kg)",
-			"totalAcceptedWeight": "Total accepted weight (Kg)"
+			"totalAcceptedWeight": "Total accepted weight (Kg)",
+			"receiveQueueTab": "To Receive",
+			"draftsTab": "Drafts",
+			"submittedTab": "Submitted"
 		},
 		"projectItems": {
 			"title": "Items for {{project}}",

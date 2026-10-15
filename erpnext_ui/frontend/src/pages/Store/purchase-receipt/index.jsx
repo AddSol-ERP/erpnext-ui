@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { get } from "../../../services/api";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { deleteDocument } from "../../../lib/docTransition";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 
 /**
  * Pick a Purchase Order to receive against.
@@ -277,6 +278,13 @@ export default function PurchaseReceiptPicker() {
 
   return (
     <div className="flex flex-col gap-4">
+    <Tabs defaultValue="orders" className="gap-3">
+      <TabsList className="grid w-full grid-cols-3">
+        <TabsTrigger value="orders" className="text-xs sm:text-sm">{t("store.receipt.receiveQueueTab")}</TabsTrigger>
+        <TabsTrigger value="drafts" className="text-xs sm:text-sm">{t("store.receipt.draftsTab")}</TabsTrigger>
+        <TabsTrigger value="submitted" className="text-xs sm:text-sm">{t("store.receipt.submittedTab")}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="orders">
     <ListLayout
       contentMode="table"
       loading={loading}
@@ -328,6 +336,8 @@ export default function PurchaseReceiptPicker() {
         </div>
       ) : null}
     </ListLayout>
+      </TabsContent>
+      <TabsContent value="drafts">
     <ConfirmDialog
       open={!!deleteTarget}
       loading={deleting}
@@ -376,6 +386,8 @@ export default function PurchaseReceiptPicker() {
         </p>
       )}
     </section>
+      </TabsContent>
+      <TabsContent value="submitted">
     <section className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
         <div>
@@ -404,6 +416,8 @@ export default function PurchaseReceiptPicker() {
         <p className="px-4 py-4 text-sm text-muted-foreground">{submittedLoading ? t("common.loading") : t("store.receipt.noSubmittedReceipts")}</p>
       )}
     </section>
+      </TabsContent>
+    </Tabs>
     </div>
   );
 }
