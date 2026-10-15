@@ -412,6 +412,17 @@ export default function ReceiptLineForm({
               }
             />
           </FormField>
+          <FormField label={t("store.receipt.weighbridgeWeight")}>
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={row.custom_weighbridge_weight_kg ?? ""}
+              onChange={(e) =>
+                onSave({ ...row, custom_weighbridge_weight_kg: e.target.value })
+              }
+            />
+          </FormField>
 
           <div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
             <div className="flex justify-between gap-3">
@@ -477,22 +488,6 @@ export default function ReceiptLineForm({
                       }
                     />
                   </FormField>
-                  {row.custom_weight_decision === "Accept Weighbridge Weight" ? (
-                    <FormField label={t("store.receipt.weighbridgeWeight")} required>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={row.custom_weighbridge_weight_kg ?? ""}
-                        onChange={(e) =>
-                          onSave({
-                            ...row,
-                            custom_weighbridge_weight_kg: e.target.value,
-                          })
-                        }
-                      />
-                    </FormField>
-                  ) : null}
                 </>
               ) : (
                 <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
