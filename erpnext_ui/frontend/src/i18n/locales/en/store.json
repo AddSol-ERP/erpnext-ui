@@ -193,7 +193,15 @@
 			"noLinesYet": "Nothing added yet. Pick the items you are receiving.",
 			"addFromPo": "Add items",
 			"editLine": "Edit",
-			"uomLookupFailed": "Could not load unit information"
+			"uomLookupFailed": "Could not load unit information",
+			"deleteDraftTitle": "Delete receipt draft?",
+			"submittedReceipts": "Submitted purchase receipts",
+			"submittedReceiptsHint": "Open a submitted receipt to review its details.",
+			"noSubmittedReceipts": "No submitted purchase receipts.",
+			"viewReceipt": "View",
+			"submittedReceiptReadOnly": "Submitted receipt {{name}} · read only.",
+			"totalEstimatedWeight": "Total estimated weight (Kg)",
+			"totalAcceptedWeight": "Total accepted weight (Kg)"
 		},
 		"projectItems": {
 			"title": "Items for {{project}}",

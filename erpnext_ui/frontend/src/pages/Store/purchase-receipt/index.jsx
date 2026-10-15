@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { PackagePlus } from "lucide-react";
+import { PackagePlus, Trash2 } from "lucide-react";
 import { useHeader } from "../../../context/HeaderContext";
 import ListLayout from "../../../components/ListLayout";
 import ActionBar from "../../../components/ActionBar";
@@ -10,6 +10,8 @@ import Pagination from "../../../components/Pagination";
 import { StatusBadge } from "../../../components/List/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { get } from "../../../services/api";
+import ConfirmDialog from "../../../components/ConfirmDialog";
+import { deleteDocument } from "../../../lib/docTransition";
 
 /**
  * Pick a Purchase Order to receive against.
@@ -51,6 +53,11 @@ export default function PurchaseReceiptPicker() {
   const [error, setError] = useState(null);
   const [drafts, setDrafts] = useState([]);
   const [draftLoading, setDraftLoading] = useState(true);
+  const [submitted, setSubmitted] = useState([]);
+  const [submittedLoading, setSubmittedLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Whether this site insists every receipt line carries a PO. When it does,
   // the "receive without a PO" path cannot save, so it is not offered at all
@@ -126,6 +133,23 @@ export default function PurchaseReceiptPicker() {
     }
   }, [debouncedSearch, page]);
 
+  const loadSubmitted = useCallback(async () => {
+    setSubmittedLoading(true);
+    try {
+      const res = await get("resource/Purchase Receipt", {
+        fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "status", "modified"]),
+        filters: JSON.stringify([["docstatus", "=", 1]]),
+        order_by: "modified desc",
+        limit_page_length: 10,
+      });
+      setSubmitted(res.data || []);
+    } catch {
+      setSubmitted([]);
+    } finally {
+      setSubmittedLoading(false);
+    }
+  }, []);
+
   const loadDrafts = useCallback(async () => {
     setDraftLoading(true);
     try {
@@ -160,7 +184,23 @@ export default function PurchaseReceiptPicker() {
     // The loader synchronizes with the server and updates state after its await.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDrafts();
-  }, [loadDrafts]);
+    loadSubmitted();
+  }, [loadDrafts, loadSubmitted]);
+
+  const confirmDeleteDraft = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deleteDocument({ doctype: "Purchase Receipt", name: deleteTarget.name });
+      setDeleteTarget(null);
+      await loadDrafts();
+    } catch (e) {
+      setDeleteError(e.message || t("common.deleteFailed"));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const openForm = useCallback(
     (po) => navigate(`/store/purchase-receipt/new?po=${encodeURIComponent(po.name)}`),
@@ -288,6 +328,15 @@ export default function PurchaseReceiptPicker() {
         </div>
       ) : null}
     </ListLayout>
+    <ConfirmDialog
+      open={!!deleteTarget}
+      loading={deleting}
+      title={t("store.receipt.deleteDraftTitle")}
+      message={t("common.deleteConfirm", { name: deleteTarget?.name || "" })}
+      onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      onConfirm={confirmDeleteDraft}
+    />
+    {deleteError ? <p role="alert" className="text-sm text-destructive">{deleteError}</p> : null}
     <section className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
         <div>
@@ -301,11 +350,11 @@ export default function PurchaseReceiptPicker() {
       {drafts.length ? (
         <ul className="divide-y divide-border/60">
           {drafts.map((draft) => (
-            <li key={draft.name}>
+            <li key={draft.name} className="flex items-center gap-2 px-4 py-1">
               <button
                 type="button"
                 onClick={() => navigate(`/store/purchase-receipt/${encodeURIComponent(draft.name)}`)}
-                className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left hover:bg-accent/50"
+                className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 py-2 text-left hover:bg-accent/50"
               >
                 <span>
                   <span className="block text-sm font-medium">{draft.name}</span>
@@ -313,10 +362,11 @@ export default function PurchaseReceiptPicker() {
                     {draft.supplier_name || draft.supplier} · {draft.posting_date || "—"}
                   </span>
                 </span>
-                <span className="text-xs font-medium text-primary">
-                  {t("store.receipt.resumeDraft")}
-                </span>
+                <span className="text-xs font-medium text-primary">{t("store.receipt.resumeDraft")}</span>
               </button>
+              <Button variant="ghost" size="icon" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => setDeleteTarget(draft)}>
+                <Trash2 className="size-4 text-destructive" />
+              </Button>
             </li>
           ))}
         </ul>
@@ -324,6 +374,34 @@ export default function PurchaseReceiptPicker() {
         <p className="px-4 py-4 text-sm text-muted-foreground">
           {draftLoading ? t("common.loading") : t("store.receipt.noDraftReceipts")}
         </p>
+      )}
+    </section>
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+        <div>
+          <h2 className="text-sm font-semibold">{t("store.receipt.submittedReceipts")}</h2>
+          <p className="text-xs text-muted-foreground">{t("store.receipt.submittedReceiptsHint")}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadSubmitted} disabled={submittedLoading}>
+          {submittedLoading ? t("common.loading") : t("common.refresh")}
+        </Button>
+      </div>
+      {submitted.length ? (
+        <ul className="divide-y divide-border/60">
+          {submitted.map((receipt) => (
+            <li key={receipt.name}>
+              <button type="button" onClick={() => navigate(`/store/purchase-receipt/${encodeURIComponent(receipt.name)}`)} className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left hover:bg-accent/50">
+                <span>
+                  <span className="block text-sm font-medium">{receipt.name}</span>
+                  <span className="block text-xs text-muted-foreground">{receipt.supplier_name || receipt.supplier} · {receipt.posting_date || "—"}</span>
+                </span>
+                <span className="text-xs font-medium text-primary">{t("store.receipt.viewReceipt")}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-4 py-4 text-sm text-muted-foreground">{submittedLoading ? t("common.loading") : t("store.receipt.noSubmittedReceipts")}</p>
       )}
     </section>
     </div>

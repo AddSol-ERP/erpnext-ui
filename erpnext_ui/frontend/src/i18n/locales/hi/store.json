@@ -193,7 +193,15 @@
 			"noLinesYet": "अभी कुछ नहीं जोड़ा। जो सामान प्राप्त कर रहे हैं वह चुनें।",
 			"addFromPo": "सामान जोड़ें",
 			"editLine": "संपादित करें",
-			"uomLookupFailed": "इकाई की जानकारी लोड नहीं हो सकी"
+			"uomLookupFailed": "इकाई की जानकारी लोड नहीं हो सकी",
+			"deleteDraftTitle": "प्राप्ति ड्राफ्ट हटाएँ?",
+			"submittedReceipts": "जमा की गई खरीद रसीदें",
+			"submittedReceiptsHint": "विवरण देखने के लिए जमा की गई रसीद खोलें।",
+			"noSubmittedReceipts": "कोई जमा की गई खरीद रसीद नहीं है।",
+			"viewReceipt": "देखें",
+			"submittedReceiptReadOnly": "जमा की गई रसीद {{name}} · केवल पढ़ने के लिए।",
+			"totalEstimatedWeight": "कुल अनुमानित वज़न (Kg)",
+			"totalAcceptedWeight": "कुल स्वीकृत वज़न (Kg)"
 		},
 		"projectItems": {
 			"title": "{{project}} के सामान",

@@ -193,7 +193,15 @@
 			"noLinesYet": "لم تتم إضافة شيء بعد. اختر الأصناف التي تستلمها.",
 			"addFromPo": "إضافة أصناف",
 			"editLine": "تعديل",
-			"uomLookupFailed": "تعذّر تحميل معلومات الوحدة"
+			"uomLookupFailed": "تعذّر تحميل معلومات الوحدة",
+			"deleteDraftTitle": "حذف مسودة الإيصال؟",
+			"submittedReceipts": "إيصالات الشراء المقدمة",
+			"submittedReceiptsHint": "افتح إيصالًا مقدمًا لمراجعة تفاصيله.",
+			"noSubmittedReceipts": "لا توجد إيصالات شراء مقدمة.",
+			"viewReceipt": "عرض",
+			"submittedReceiptReadOnly": "الإيصال {{name}} مقدم · للقراءة فقط.",
+			"totalEstimatedWeight": "إجمالي الوزن التقديري (Kg)",
+			"totalAcceptedWeight": "إجمالي الوزن المقبول (Kg)"
 		},
 		"projectItems": {
 			"title": "مواد المشروع {{project}}",

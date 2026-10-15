@@ -31,6 +31,8 @@ import {
 } from "../../../../lib/receiptConversion";
 import ReceiptItemWorkbench from "../components/ReceiptItemWorkbench";
 import ReceiptLineDialog from "../components/ReceiptLineDialog";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { deleteDocument } from "../../../../lib/docTransition";
 
 /**
  * Receive material into the store -- a Purchase Receipt.
@@ -209,6 +211,8 @@ export default function PurchaseReceiptForm() {
   const [rateEditable, setRateEditable] = useState(false);
   const [plateConfig, setPlateConfig] = useState({ enabled: false });
   const [plateItems, setPlateItems] = useState({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const plateConfigRef = useRef(plateConfig);
 
   const docRef = useRef(doc);
@@ -728,6 +732,19 @@ export default function PurchaseReceiptForm() {
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      await deleteDocument({ doctype: "Purchase Receipt", name });
+      navigate("/store/purchase-receipt");
+    } catch (e) {
+      setError(e.message || t("common.deleteFailed"));
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const current = docRef.current;
     let checkedPlateItems = plateItems;
@@ -784,6 +801,11 @@ export default function PurchaseReceiptForm() {
             variant: "btn-primary",
             onClick: handleSubmit,
           },
+        isEdit && doc.docstatus === 0 && {
+          label: t("common.delete"),
+          variant: "btn-destructive",
+          onClick: () => setConfirmDelete(true),
+        },
       ].filter(Boolean),
     });
 
@@ -881,7 +903,25 @@ export default function PurchaseReceiptForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
+      <ConfirmDialog
+        open={confirmDelete}
+        loading={deleting}
+        title={t("store.receipt.deleteDraftTitle")}
+        message={t("common.deleteConfirm", { name })}
+        onCancel={() => { if (!deleting) setConfirmDelete(false); }}
+        onConfirm={handleDelete}
+      />
       <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
+
+      {doc.docstatus === 1 ? (
+        <section className="rounded border border-green-600/30 bg-green-600/10 px-3 py-2 text-sm">
+          <p role="status">{t("store.receipt.submittedReceiptReadOnly", { name })}</p>
+          <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+            <span>{t("store.receipt.totalEstimatedWeight")}: {doc.custom_total_est_weight_kg || 0} Kg</span>
+            <span>{t("store.receipt.totalAcceptedWeight")}: {doc.custom_total_billable_weight_kg || 0} Kg</span>
+          </div>
+        </section>
+      ) : null}
 
       {fromPo ? (
         <p className="flex items-center gap-2 rounded border border-border/70 bg-card px-3 py-2 text-xs text-muted-foreground">
@@ -906,7 +946,7 @@ export default function PurchaseReceiptForm() {
             doctype="Supplier"
             value={doc.supplier}
             onChange={(v) => setDoc((p) => ({ ...p, supplier: v || "" }))}
-            disabled={fromPo || isEdit}
+            disabled={fromPo || isEdit || !!doc.docstatus}
           />
         </FormField>
 
@@ -940,6 +980,7 @@ export default function PurchaseReceiptForm() {
           <LinkField
             doctype="Warehouse"
             value={doc.set_warehouse}
+            disabled={!!doc.docstatus}
             onChange={(v) => {
               setDoc((p) => ({
                 ...p,
@@ -1037,17 +1078,30 @@ export default function PurchaseReceiptForm() {
                           {t("store.receipt.rate")}: {row.rate}
                         </span>
                       ) : null}
-                      {plateItems[row._rid] ? (
+                      {plateItems[row._rid] || row.custom_is_plate ? (
                         <>
                           {row.custom_supplier_weight_kg ? (
                             <span>
                               {t("store.receipt.supplierWeight")}: {row.custom_supplier_weight_kg} Kg
                             </span>
                           ) : null}
+                          {row.custom_est_weight_kg !== undefined ? (
+                            <span>{t("store.receipt.estimatedWeight")}: {row.custom_est_weight_kg} Kg</span>
+                          ) : null}
+                          {row.custom_billable_weight_kg !== undefined ? (
+                            <span>{t("store.receipt.acceptedWeight")}: {row.custom_billable_weight_kg} Kg</span>
+                          ) : null}
+                          {row.custom_weighbridge_weight_kg ? (
+                            <span>{t("store.receipt.weighbridgeWeight")}: {row.custom_weighbridge_weight_kg} Kg</span>
+                          ) : null}
                           {row.custom_heat_number ? (
-                            <span>
-                              {t("store.receipt.heatNumber")}: {row.custom_heat_number}
-                            </span>
+                            <span>{t("store.receipt.heatNumber")}: {row.custom_heat_number}</span>
+                          ) : null}
+                          {row.custom_mtc_no ? (
+                            <span>{t("store.receipt.mtcNumber")}: {row.custom_mtc_no}</span>
+                          ) : null}
+                          {row.custom_rate_per_kg ? (
+                            <span>{t("store.receipt.ratePerKg")}: {row.custom_rate_per_kg}</span>
                           ) : null}
                         </>
                       ) : null}
