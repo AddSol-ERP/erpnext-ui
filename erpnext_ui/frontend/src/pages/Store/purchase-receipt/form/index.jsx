@@ -692,7 +692,20 @@ export default function PurchaseReceiptForm() {
 
   const handleSave = async () => {
     const current = docRef.current;
-    const result = validate(current);
+    let checkedPlateItems = plateItems;
+    if (plateConfig.enabled) {
+      const statusRows = await Promise.all(
+        current.items.map(async (row) => [
+          row._rid,
+          await loadPlateStatus(row._rid, row.item_code),
+        ]),
+      );
+      checkedPlateItems = {
+        ...plateItems,
+        ...Object.fromEntries(statusRows),
+      };
+    }
+    const result = validate(current, false, checkedPlateItems);
     if (Object.keys(result.fieldErrors).length) {
       setError(result.summary);
       requestAnimationFrame(() => focusFirstError(result.fieldErrors));

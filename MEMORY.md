@@ -2376,6 +2376,14 @@ the receipt, while a non-PO receipt can enter or edit the rate. The server
 continues to validate the submitted values and permissions. Drafts can be
 saved with incomplete plate fields and completed later.
 
+Both draft Save and Submit must refresh plate classification for every current
+receipt row before validating. The UI's `plateLookupFailed` message is shown
+when classification is unknown (`null`), and Submit previously retried the API
+while Save only read cached state. A quick draft save could therefore be
+blocked without making a request. Keep the save and submit preflight behavior
+aligned, and pass the returned status map directly to validation rather than
+waiting for React state updates.
+
 Keep `ReceiptLineForm` shared by the workbench and edit dialog so computed
 weight, validation, and NL fields behave the same in both. Existing ERPNext
 child fields and PO mapper fields must survive loading and saving; strip only
