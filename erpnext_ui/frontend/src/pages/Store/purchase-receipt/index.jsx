@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { get } from "../../../services/api";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { deleteDocument } from "../../../lib/docTransition";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 
 /**
  * Pick a Purchase Order to receive against.
@@ -53,9 +52,14 @@ export default function PurchaseReceiptPicker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [drafts, setDrafts] = useState([]);
+  const [draftTotal, setDraftTotal] = useState(0);
+  const [draftPage, setDraftPage] = useState(1);
   const [draftLoading, setDraftLoading] = useState(true);
   const [submitted, setSubmitted] = useState([]);
+  const [submittedTotal, setSubmittedTotal] = useState(0);
+  const [submittedPage, setSubmittedPage] = useState(1);
   const [submittedLoading, setSubmittedLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("orders");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -136,38 +140,52 @@ export default function PurchaseReceiptPicker() {
 
   const loadSubmitted = useCallback(async () => {
     setSubmittedLoading(true);
+    const filters = JSON.stringify([["docstatus", "=", 1]]);
     try {
-      const res = await get("resource/Purchase Receipt", {
-        fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "status", "modified"]),
-        filters: JSON.stringify([["docstatus", "=", 1]]),
-        order_by: "modified desc",
-        limit_page_length: 10,
-      });
-      setSubmitted(res.data || []);
+      const [listRes, countRes] = await Promise.all([
+        get("resource/Purchase Receipt", {
+          fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "status", "modified"]),
+          filters,
+          order_by: "modified desc",
+          limit_start: (submittedPage - 1) * PAGE_SIZE,
+          limit_page_length: PAGE_SIZE,
+        }),
+        get("method/frappe.client.get_count", { doctype: "Purchase Receipt", filters }),
+      ]);
+      setSubmitted(listRes.data || []);
+      setSubmittedTotal(Number(countRes.message) || 0);
     } catch {
       setSubmitted([]);
+      setSubmittedTotal(0);
     } finally {
       setSubmittedLoading(false);
     }
-  }, []);
+  }, [submittedPage]);
 
   const loadDrafts = useCallback(async () => {
     setDraftLoading(true);
+    const filters = JSON.stringify([["docstatus", "=", 0]]);
     try {
-      const res = await get("resource/Purchase Receipt", {
-        fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "modified"]),
-        filters: JSON.stringify([["docstatus", "=", 0]]),
-        order_by: "modified desc",
-        limit_page_length: 10,
-      });
-      setDrafts(res.data || []);
+      const [listRes, countRes] = await Promise.all([
+        get("resource/Purchase Receipt", {
+          fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "modified"]),
+          filters,
+          order_by: "modified desc",
+          limit_start: (draftPage - 1) * PAGE_SIZE,
+          limit_page_length: PAGE_SIZE,
+        }),
+        get("method/frappe.client.get_count", { doctype: "Purchase Receipt", filters }),
+      ]);
+      setDrafts(listRes.data || []);
+      setDraftTotal(Number(countRes.message) || 0);
     } catch {
       // The PO queue remains usable if this user cannot list existing receipts.
       setDrafts([]);
+      setDraftTotal(0);
     } finally {
       setDraftLoading(false);
     }
-  }, []);
+  }, [draftPage]);
 
   useEffect(() => {
     // loadPoRequired only setStates after the awaited response.
@@ -195,7 +213,11 @@ export default function PurchaseReceiptPicker() {
     try {
       await deleteDocument({ doctype: "Purchase Receipt", name: deleteTarget.name });
       setDeleteTarget(null);
-      await loadDrafts();
+      if (draftPage > 1 && drafts.length === 1) {
+        setDraftPage((current) => Math.max(1, current - 1));
+      } else {
+        await loadDrafts();
+      }
     } catch (e) {
       setDeleteError(e.message || t("common.deleteFailed"));
     } finally {
@@ -224,6 +246,32 @@ export default function PurchaseReceiptPicker() {
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const draftTotalPages = Math.max(1, Math.ceil(draftTotal / PAGE_SIZE));
+  const submittedTotalPages = Math.max(1, Math.ceil(submittedTotal / PAGE_SIZE));
+
+  const receiptTabs = (
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5 pb-2">
+      {[
+        ["orders", t("store.receipt.receiveQueueTab")],
+        ["drafts", t("store.receipt.draftsTab")],
+        ["submitted", t("store.receipt.submittedTab")],
+      ].map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => setActiveTab(value)}
+          aria-current={activeTab === value ? "page" : undefined}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            activeTab === value
+              ? "bg-primary/15 text-primary ring-1 ring-primary/40"
+              : "text-chrome-muted hover:bg-muted hover:text-chrome-foreground"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   const columns = useMemo(
     () => [
@@ -278,18 +326,12 @@ export default function PurchaseReceiptPicker() {
 
   return (
     <div className="flex flex-col gap-4">
-    <Tabs defaultValue="orders" className="gap-3">
-      <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="orders" className="text-xs sm:text-sm">{t("store.receipt.receiveQueueTab")}</TabsTrigger>
-        <TabsTrigger value="drafts" className="text-xs sm:text-sm">{t("store.receipt.draftsTab")}</TabsTrigger>
-        <TabsTrigger value="submitted" className="text-xs sm:text-sm">{t("store.receipt.submittedTab")}</TabsTrigger>
-      </TabsList>
-      <TabsContent value="orders">
-    <ListLayout
+    {activeTab === "orders" ? <ListLayout
       contentMode="table"
       loading={loading}
       error={error}
       onRetry={loadData}
+      tabs={receiptTabs}
       actionBar={
         <ActionBar onSearch={setDebouncedSearch} resultCount={total} />
       }
@@ -335,9 +377,22 @@ export default function PurchaseReceiptPicker() {
           </Button>
         </div>
       ) : null}
-    </ListLayout>
-      </TabsContent>
-      <TabsContent value="drafts">
+    </ListLayout> : null}
+    {activeTab === "drafts" ? <ListLayout
+      contentMode="children"
+      loading={draftLoading}
+      tabs={receiptTabs}
+      pagination={
+        <Pagination
+          currentPage={draftPage}
+          totalPages={draftTotalPages}
+          onPageChange={setDraftPage}
+          totalItems={draftTotal}
+          pageSize={PAGE_SIZE}
+          disabled={draftLoading}
+        />
+      }
+    >
     <ConfirmDialog
       open={!!deleteTarget}
       loading={deleting}
@@ -347,7 +402,7 @@ export default function PurchaseReceiptPicker() {
       onConfirm={confirmDeleteDraft}
     />
     {deleteError ? <p role="alert" className="text-sm text-destructive">{deleteError}</p> : null}
-    <section className="rounded-lg border border-border bg-card">
+    <div>
       <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">{t("store.receipt.draftReceipts")}</h2>
@@ -385,10 +440,24 @@ export default function PurchaseReceiptPicker() {
           {draftLoading ? t("common.loading") : t("store.receipt.noDraftReceipts")}
         </p>
       )}
-    </section>
-      </TabsContent>
-      <TabsContent value="submitted">
-    <section className="rounded-lg border border-border bg-card">
+    </div>
+    </ListLayout> : null}
+    {activeTab === "submitted" ? <ListLayout
+      contentMode="children"
+      loading={submittedLoading}
+      tabs={receiptTabs}
+      pagination={
+        <Pagination
+          currentPage={submittedPage}
+          totalPages={submittedTotalPages}
+          onPageChange={setSubmittedPage}
+          totalItems={submittedTotal}
+          pageSize={PAGE_SIZE}
+          disabled={submittedLoading}
+        />
+      }
+    >
+    <div>
       <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">{t("store.receipt.submittedReceipts")}</h2>
@@ -415,9 +484,8 @@ export default function PurchaseReceiptPicker() {
       ) : (
         <p className="px-4 py-4 text-sm text-muted-foreground">{submittedLoading ? t("common.loading") : t("store.receipt.noSubmittedReceipts")}</p>
       )}
-    </section>
-      </TabsContent>
-    </Tabs>
+    </div>
+    </ListLayout> : null}
     </div>
   );
 }
