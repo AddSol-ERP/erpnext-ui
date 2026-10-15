@@ -54,10 +54,12 @@ export default function PurchaseReceiptPicker() {
   const [drafts, setDrafts] = useState([]);
   const [draftTotal, setDraftTotal] = useState(0);
   const [draftPage, setDraftPage] = useState(1);
+  const [draftSearch, setDraftSearch] = useState("");
   const [draftLoading, setDraftLoading] = useState(true);
   const [submitted, setSubmitted] = useState([]);
   const [submittedTotal, setSubmittedTotal] = useState(0);
   const [submittedPage, setSubmittedPage] = useState(1);
+  const [submittedSearch, setSubmittedSearch] = useState("");
   const [submittedLoading, setSubmittedLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("orders");
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -141,16 +143,27 @@ export default function PurchaseReceiptPicker() {
   const loadSubmitted = useCallback(async () => {
     setSubmittedLoading(true);
     const filters = JSON.stringify([["docstatus", "=", 1]]);
+    const orFilters = submittedSearch
+      ? JSON.stringify([
+          ["name", "like", `%${submittedSearch}%`],
+          ["supplier", "like", `%${submittedSearch}%`],
+        ])
+      : null;
     try {
       const [listRes, countRes] = await Promise.all([
         get("resource/Purchase Receipt", {
           fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "status", "modified"]),
           filters,
+          ...(orFilters ? { or_filters: orFilters } : {}),
           order_by: "modified desc",
           limit_start: (submittedPage - 1) * PAGE_SIZE,
           limit_page_length: PAGE_SIZE,
         }),
-        get("method/frappe.client.get_count", { doctype: "Purchase Receipt", filters }),
+        get("method/frappe.client.get_count", {
+          doctype: "Purchase Receipt",
+          filters,
+          ...(orFilters ? { or_filters: orFilters } : {}),
+        }),
       ]);
       setSubmitted(listRes.data || []);
       setSubmittedTotal(Number(countRes.message) || 0);
@@ -160,21 +173,32 @@ export default function PurchaseReceiptPicker() {
     } finally {
       setSubmittedLoading(false);
     }
-  }, [submittedPage]);
+  }, [submittedPage, submittedSearch]);
 
   const loadDrafts = useCallback(async () => {
     setDraftLoading(true);
     const filters = JSON.stringify([["docstatus", "=", 0]]);
+    const orFilters = draftSearch
+      ? JSON.stringify([
+          ["name", "like", `%${draftSearch}%`],
+          ["supplier", "like", `%${draftSearch}%`],
+        ])
+      : null;
     try {
       const [listRes, countRes] = await Promise.all([
         get("resource/Purchase Receipt", {
           fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "modified"]),
           filters,
+          ...(orFilters ? { or_filters: orFilters } : {}),
           order_by: "modified desc",
           limit_start: (draftPage - 1) * PAGE_SIZE,
           limit_page_length: PAGE_SIZE,
         }),
-        get("method/frappe.client.get_count", { doctype: "Purchase Receipt", filters }),
+        get("method/frappe.client.get_count", {
+          doctype: "Purchase Receipt",
+          filters,
+          ...(orFilters ? { or_filters: orFilters } : {}),
+        }),
       ]);
       setDrafts(listRes.data || []);
       setDraftTotal(Number(countRes.message) || 0);
@@ -185,7 +209,7 @@ export default function PurchaseReceiptPicker() {
     } finally {
       setDraftLoading(false);
     }
-  }, [draftPage]);
+  }, [draftPage, draftSearch]);
 
   useEffect(() => {
     // loadPoRequired only setStates after the awaited response.
@@ -382,6 +406,7 @@ export default function PurchaseReceiptPicker() {
       contentMode="children"
       loading={draftLoading}
       tabs={receiptTabs}
+      actionBar={<ActionBar defaultValue={draftSearch} onSearch={(value) => { setDraftSearch(value); setDraftPage(1); }} resultCount={draftTotal} />}
       pagination={
         <Pagination
           currentPage={draftPage}
@@ -446,6 +471,7 @@ export default function PurchaseReceiptPicker() {
       contentMode="children"
       loading={submittedLoading}
       tabs={receiptTabs}
+      actionBar={<ActionBar defaultValue={submittedSearch} onSearch={(value) => { setSubmittedSearch(value); setSubmittedPage(1); }} resultCount={submittedTotal} />}
       pagination={
         <Pagination
           currentPage={submittedPage}

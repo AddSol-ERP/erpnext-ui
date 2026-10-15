@@ -78,7 +78,7 @@
     "src": "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-latin-wght-normal.woff2"
   },
   "src/main.jsx": {
-    "file": "main.icV8kqtz.js",
+    "file": "main.DEU7PBex.js",
     "name": "main",
     "src": "src/main.jsx",
     "isEntry": true,
@@ -112,7 +112,7 @@
     ]
   },
   "src/pages/Quality/reports/index.jsx": {
-    "file": "reports.C1VDhPxh.js",
+    "file": "reports.CCqUv6je.js",
     "name": "reports",
     "src": "src/pages/Quality/reports/index.jsx",
     "isDynamicEntry": true,
@@ -124,7 +124,7 @@
     ]
   },
   "src/pages/Reports/attendance/AttendancePage.jsx": {
-    "file": "AttendancePage.DyNE27bw.js",
+    "file": "AttendancePage.Cu1e_KQe.js",
     "name": "AttendancePage",
     "src": "src/pages/Reports/attendance/AttendancePage.jsx",
     "isDynamicEntry": true,
@@ -136,7 +136,7 @@
     ]
   },
   "src/pages/Reports/leave-balance/LeaveBalance.jsx": {
-    "file": "LeaveBalance.bfyhTS7J.js",
+    "file": "LeaveBalance.DuVGTgmf.js",
     "name": "LeaveBalance",
     "src": "src/pages/Reports/leave-balance/LeaveBalance.jsx",
     "isDynamicEntry": true,
@@ -148,7 +148,7 @@
     ]
   },
   "src/pages/Reports/overtime/OvertimeReportPage.jsx": {
-    "file": "OvertimeReportPage.DyIaQzoS.js",
+    "file": "OvertimeReportPage.Dk5fGL4c.js",
     "name": "OvertimeReportPage",
     "src": "src/pages/Reports/overtime/OvertimeReportPage.jsx",
     "isDynamicEntry": true,
