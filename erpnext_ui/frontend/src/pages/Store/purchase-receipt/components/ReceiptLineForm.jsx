@@ -27,6 +27,25 @@ import {
   wholeNumberRules,
 } from "../../../../lib/receiptConversion";
 
+function formatReceiptNumber(value, maximumFractionDigits = 3) {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return number.toLocaleString("en-IN", { maximumFractionDigits });
+}
+
+function formatRupees(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(number);
+}
+
 /**
  * The fields for one Purchase Receipt line, with no dialog chrome around them.
  *
@@ -118,6 +137,24 @@ export default function ReceiptLineForm({
             Number(row?.custom_weighbridge_weight_kg) > 0
           ? Number(row.custom_weighbridge_weight_kg)
           : null;
+  const weightPerPlate =
+    acceptedWeight !== null && plateQty > 0
+      ? acceptedWeight / plateQty
+      : Number(row?.custom_weight_per_plate_kg) > 0
+        ? Number(row.custom_weight_per_plate_kg)
+        : null;
+  const plateAmount =
+    acceptedWeight !== null && Number(row?.custom_rate_per_kg) > 0
+      ? Math.round(
+          (acceptedWeight * Number(row.custom_rate_per_kg) + Number.EPSILON) * 100,
+        ) / 100
+      : null;
+  const plateRate =
+    plateAmount !== null && plateQty > 0
+      ? plateAmount / plateQty
+      : Number(row?.rate) > 0
+        ? Number(row.rate)
+        : null;
 
   // The ordered rate, kept so clearing a measurement restores it instead of
   // stranding the row at factor 1.
@@ -378,9 +415,15 @@ export default function ReceiptLineForm({
 
           <div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
             <div className="flex justify-between gap-3">
+              <span>{t("store.receipt.theoreticalWeightPerPlate")}</span>
+              <span className="font-medium tabular-nums">
+                {unitWeight > 0 ? `${formatReceiptNumber(unitWeight)} Kg` : "—"}
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between gap-3">
               <span>{t("store.receipt.estimatedWeight")}</span>
               <span className="font-medium tabular-nums">
-                {estimatedWeight > 0 ? estimatedWeight.toFixed(3) : "—"} Kg
+                {estimatedWeight > 0 ? `${formatReceiptNumber(estimatedWeight)} Kg` : "—"}
               </span>
             </div>
             <div className="mt-1 flex justify-between gap-3">
@@ -397,17 +440,23 @@ export default function ReceiptLineForm({
             <div className="mt-1 flex justify-between gap-3">
               <span>{t("store.receipt.acceptedWeight")}</span>
               <span className="font-medium tabular-nums">
-                {acceptedWeight === null ? "—" : `${acceptedWeight.toFixed(3)} Kg`}
+                {acceptedWeight === null ? "—" : `${formatReceiptNumber(acceptedWeight)} Kg`}
               </span>
             </div>
-            {acceptedWeight !== null && Number(row.custom_rate_per_kg) > 0 ? (
-              <div className="mt-1 flex justify-between gap-3 font-medium">
-                <span>{t("store.receipt.estimatedAmount")}</span>
-                <span className="tabular-nums">
-                  {Number((acceptedWeight * Number(row.custom_rate_per_kg)).toFixed(2))}
-                </span>
-              </div>
-            ) : null}
+            <div className="mt-1 flex justify-between gap-3">
+              <span>{t("store.receipt.weightPerPlate")}</span>
+              <span className="font-medium tabular-nums">
+                {weightPerPlate === null ? "—" : `${formatReceiptNumber(weightPerPlate)} Kg`}
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between gap-3">
+              <span>{t("store.receipt.standardRate")}</span>
+              <span className="font-medium tabular-nums">{formatRupees(plateRate)}</span>
+            </div>
+            <div className="mt-1 flex justify-between gap-3 font-medium">
+              <span>{t("store.receipt.lineAmount")}</span>
+              <span className="tabular-nums">{formatRupees(plateAmount)}</span>
+            </div>
           </div>
 
           {needsWeightDecision ? (

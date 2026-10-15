@@ -2376,6 +2376,15 @@ the receipt, while a non-PO receipt can enter or edit the rate. The server
 continues to validate the submitted values and permissions. Drafts can be
 saved with incomplete plate fields and completed later.
 
+The plate detail summary should expose the full receipt calculation: theoretical
+weight per plate, estimated total weight, variance, accepted weight, accepted
+weight per plate, standard per-plate `rate` in INR, and line `amount` in INR.
+The latter two are previews derived from accepted weight × rate per kg when a
+weight has been accepted. `custom_unit_weight_kg`, supplier/weighbridge weights,
+`custom_rate_per_kg`, heat, and MTC remain the stored or editable inputs as
+appropriate. The regular editable rate input stays hidden for plate lines; show
+the ERPNext rate as a read-only derived value.
+
 Both draft Save and Submit must refresh plate classification for every current
 receipt row before validating. The UI's `plateLookupFailed` message is shown
 when classification is unknown (`null`), and Submit previously retried the API
