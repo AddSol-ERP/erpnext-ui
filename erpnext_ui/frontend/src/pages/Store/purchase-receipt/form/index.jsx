@@ -128,6 +128,12 @@ function toSavePayload(doc) {
     // field; sending them would produce an unknown-attribute error.
     delete clean._rid;
     delete clean.measured_total;
+    delete clean.pending_qty;
+    delete clean.rate_from_po;
+    delete clean.factor_from_po;
+    delete clean.factor_source_po;
+    delete clean.conversion_source;
+    delete clean.weight_per_unit;
     // transfer_qty / received_stock_qty are read_only and re-derived server-side
     // (set_stock_qty); posting a stale value would be discarded at best.
     delete clean.transfer_qty;
@@ -201,6 +207,9 @@ export default function PurchaseReceiptForm() {
    * server will reject is worse than a read-only one, so this fails closed.
    */
   const [rateEditable, setRateEditable] = useState(false);
+  const [plateConfig, setPlateConfig] = useState({ enabled: false });
+  const [plateItems, setPlateItems] = useState({});
+  const plateConfigRef = useRef(plateConfig);
 
   const docRef = useRef(doc);
   useEffect(() => {
@@ -254,6 +263,48 @@ export default function PurchaseReceiptForm() {
     }
   }, []);
 
+  const loadPlateConfig = useCallback(async () => {
+    try {
+      const res = await get(
+        "method/addsol_nl_custom.addsol_nl_custom.plates.api.get_plate_settings",
+      );
+      const settings = res.message || {};
+      const next = {
+        ...settings,
+        enabled: !!settings.enable_weight_based_purchasing,
+      };
+      plateConfigRef.current = next;
+      setPlateConfig(next);
+      return next;
+    } catch {
+      // Other customers do not install addsol_nl_custom. A missing extension
+      // means ordinary receipts, never a broken generic receiving page.
+      const next = { enabled: false };
+      plateConfigRef.current = next;
+      setPlateConfig(next);
+      return next;
+    }
+  }, []);
+
+  const loadPlateStatus = useCallback(async (rid, itemCode) => {
+    if (!itemCode || !plateConfigRef.current.enabled) {
+      setPlateItems((p) => ({ ...p, [rid]: false }));
+      return false;
+    }
+    try {
+      const res = await get(
+        "method/addsol_nl_custom.addsol_nl_custom.plates.api.is_weight_managed_item",
+        { item_code: itemCode },
+      );
+      const isPlate = !!res.message;
+      setPlateItems((p) => ({ ...p, [rid]: isPlate }));
+      return isPlate;
+    } catch {
+      setPlateItems((p) => ({ ...p, [rid]: null }));
+      return null;
+    }
+  }, []);
+
   const loadUomInfo = useCallback(
     async (rid, itemCode) => {
       if (!itemCode) return;
@@ -291,6 +342,7 @@ export default function PurchaseReceiptForm() {
       const res = await get(`resource/Purchase Receipt/${name}`);
       const d = res.data;
       const items = (d.items || []).map((r) => ({
+        ...r,
         _rid: nextRid(),
         item_code: r.item_code,
         item_name: r.item_name,
@@ -309,26 +361,27 @@ export default function PurchaseReceiptForm() {
         rate_from_po: r.rate ?? "",
       }));
       setDoc({
-        supplier: d.supplier || "",
-        company: d.company || "",
+        ...d,
         posting_date: d.posting_date || todayISO(),
-        set_warehouse: d.set_warehouse || "",
-        currency: d.currency || "",
-        conversion_rate: d.conversion_rate ?? 1,
         items,
         docstatus: d.docstatus,
       });
 
       // Warm the UOM cache so an existing receipt shows its unit data.
-      items.forEach((r) => {
-        if (r.item_code) loadUomInfo(r._rid, r.item_code);
-      });
+      await Promise.all(items.map(async (r) => {
+        if (r.item_code) {
+          await Promise.all([
+            loadUomInfo(r._rid, r.item_code),
+            loadPlateStatus(r._rid, r.item_code),
+          ]);
+        }
+      }));
     } catch {
       setError(t("common.failedToLoad", { name: t("store.receipt.title") }));
     } finally {
       setLoading(false);
     }
-  }, [name, t, loadUomInfo]);
+  }, [name, t, loadUomInfo, loadPlateStatus]);
 
   /* ================= ITEMS ================= */
 
@@ -357,7 +410,11 @@ export default function PurchaseReceiptForm() {
           uom: "",
           stock_uom: "",
           measured_total: "",
+          // A blank direct-entry row has no source document, so the factor is a
+          // placeholder rather than a rate -- and the form has to be able to tell
+          // the difference when deciding whether a weight is required.
           conversion_factor: 1,
+          conversion_source: "default",
           stock_qty: 1,
           rate: "",
           warehouse: p.set_warehouse || "",
@@ -388,7 +445,13 @@ export default function PurchaseReceiptForm() {
   /** Add a catalogue line to the receipt. */
   const pickLine = (line) => {
     const rid = nextRid();
+    // A factor of 0 or missing is not a rate. `TEST-KG-NOS` carries 0.0 on its
+    // Nos conversion row precisely because the real factor is a measurement, so
+    // this must be a presence test and not a truthiness one.
+    const poFactor = Number(line.conversion_factor);
+    const hasPoFactor = Number.isFinite(poFactor) && poFactor > 0;
     const row = {
+      ...line,
       _rid: rid,
       item_code: line.item_code,
       item_name: line.item_name || "",
@@ -398,8 +461,17 @@ export default function PurchaseReceiptForm() {
       uom: line.uom || "",
       stock_uom: line.stock_uom || "",
       measured_total: "",
-      conversion_factor: 1,
-      stock_qty: line.stock_qty ?? "",
+      // The PO line's factor, which `make_purchase_receipt` already returned and
+      // which `validate_with_previous_doc` never compares -- so it is free to
+      // use and correct as ordered. This used to be hardcoded to 1 while the PO's
+      // stock_qty was kept, leaving the row self-contradictory: the server
+      // recomputes stock_qty = qty * conversion_factor, so a delivery that could
+      // not be weighed booked 10 Kg instead of 10,000 Kg, silently.
+      conversion_factor: poFactor,
+      conversion_source: hasPoFactor
+        ? "purchase_order"
+        : "default",
+      stock_qty: hasPoFactor ? Number(line.qty) * poFactor : line.stock_qty ?? "",
       rate: line.rate ?? "",
       warehouse: line.warehouse || docRef.current.set_warehouse || "",
       // Tracking fields. Empty until the user supplies them (or ERPNext generates
@@ -410,6 +482,10 @@ export default function PurchaseReceiptForm() {
       purchase_order: line.purchase_order || poName || "",
       purchase_order_item: line.purchase_order_item || "",
       rate_from_po: line.rate ?? "",
+      // Remembered so clearing a measured weight returns the ordered rate
+      // instead of dropping the row to factor 1.
+      factor_from_po: hasPoFactor ? poFactor : null,
+      factor_source_po: hasPoFactor ? "purchase_order" : null,
       pending_qty: line.pending_qty,
     };
     // A picked line is no longer offered by the picker. Dropping it from the
@@ -424,6 +500,7 @@ export default function PurchaseReceiptForm() {
     );
     setDoc((p) => ({ ...p, items: [...p.items, row] }));
     if (row.item_code) loadUomInfo(rid, row.item_code);
+    if (row.item_code) loadPlateStatus(rid, row.item_code);
     setEditing(rid);
   };
 
@@ -431,6 +508,7 @@ export default function PurchaseReceiptForm() {
   const handleItemChange = async (rid, itemCode) => {
     if (!itemCode) {
       patchById(rid, { item_code: "", item_name: "", uom: "", stock_uom: "" });
+      loadPlateStatus(rid, "");
       return;
     }
     try {
@@ -458,9 +536,11 @@ export default function PurchaseReceiptForm() {
         uom: stockUom,
         stock_uom: stockUom,
         rate: d.rate || d.last_purchase_rate || "",
+        custom_unit_weight_kg: d.weight_per_unit || "",
         warehouse: current.set_warehouse || d.warehouse || "",
       });
       await loadUomInfo(rid, itemCode);
+      await loadPlateStatus(rid, itemCode);
     } catch (e) {
       setError(e.message || String(e));
     }
@@ -468,7 +548,11 @@ export default function PurchaseReceiptForm() {
 
   /* ================= VALIDATION ================= */
 
-  const validate = (d = docRef.current) => {
+  const validate = (
+    d = docRef.current,
+    forSubmit = false,
+    plateStatus = plateItems,
+  ) => {
     const errs = {};
 
     if (!d.supplier)
@@ -508,6 +592,11 @@ export default function PurchaseReceiptForm() {
       }
 
       const info = uomInfo[row._rid];
+      if (plateConfig.enabled && plateStatus[row._rid] == null) {
+        errs.items = t("store.receipt.validation.plateLookupFailed");
+        break;
+      }
+      const isPlate = plateConfig.enabled && plateStatus[row._rid];
       if (info?.failed) {
         errs.items = t("store.receipt.uomLookupFailed");
         break;
@@ -539,13 +628,55 @@ export default function PurchaseReceiptForm() {
         break;
       }
 
-      if (row.rate === "" || row.rate === undefined || row.rate === null) {
+      if (!isPlate && (row.rate === "" || row.rate === undefined || row.rate === null)) {
         errs.items = t("store.receipt.validation.rateRequired");
         break;
       }
       if (!row.warehouse) {
         errs.items = t("store.receipt.validation.warehouseRequired");
         break;
+      }
+
+      if (forSubmit && isPlate) {
+        if (!(Number(row.custom_supplier_weight_kg) > 0)) {
+          errs.items = t("store.receipt.validation.plateSupplierWeightRequired");
+          break;
+        }
+        if (!row.custom_heat_number) {
+          errs.items = t("store.receipt.validation.plateHeatRequired");
+          break;
+        }
+        if (!(Number(row.custom_rate_per_kg) > 0)) {
+          errs.items = t("store.receipt.validation.plateRateRequired");
+          break;
+        }
+        const estimate =
+          Number(row.qty) *
+          Number(
+            row.custom_unit_weight_kg || row.item_weight_per_unit || row.weight_per_unit,
+          );
+        const variance = estimate > 0
+          ? Number(
+              (((Number(row.custom_supplier_weight_kg) - estimate) / estimate) * 100).toFixed(2),
+            )
+          : 0;
+        const outsideTolerance =
+          Math.abs(variance) > Number(plateConfig.weight_tolerance_pct || 0);
+        if (outsideTolerance && !row.custom_weight_decision) {
+          errs.items = t("store.receipt.validation.plateDecisionRequired");
+          break;
+        }
+        if (outsideTolerance && !plateConfig.can_decide_weight) {
+          errs.items = t("store.receipt.validation.plateApproverRequired");
+          break;
+        }
+        if (
+          row.custom_weight_decision === "Accept Weighbridge Weight" &&
+          !(Number(row.custom_weighbridge_weight_kg) > 0)
+        ) {
+          errs.items = t("store.receipt.validation.plateWeighbridgeRequired");
+          break;
+        }
       }
     }
 
@@ -585,6 +716,26 @@ export default function PurchaseReceiptForm() {
   };
 
   const handleSubmit = async () => {
+    const current = docRef.current;
+    let checkedPlateItems = plateItems;
+    if (plateConfig.enabled) {
+      const statusRows = await Promise.all(
+        current.items.map(async (row) => [
+          row._rid,
+          await loadPlateStatus(row._rid, row.item_code),
+        ]),
+      );
+      checkedPlateItems = {
+        ...plateItems,
+        ...Object.fromEntries(statusRows),
+      };
+    }
+    const result = validate(current, true, checkedPlateItems);
+    if (Object.keys(result.fieldErrors).length) {
+      setError(result.summary);
+      requestAnimationFrame(() => focusFirstError(result.fieldErrors));
+      return;
+    }
     try {
       setLoading(true);
       await submitDocument({ doctype: "Purchase Receipt", name });
@@ -634,6 +785,7 @@ export default function PurchaseReceiptForm() {
 
     (async () => {
       loadRatePolicy();
+      await loadPlateConfig();
       if (isEdit) {
         await loadDoc();
         return;
@@ -657,6 +809,7 @@ export default function PurchaseReceiptForm() {
           if (!draft || cancelled) return;
 
           const catalogue = (draft.items || []).map((r) => ({
+            ...r,
             item_code: r.item_code,
             item_name: r.item_name,
             project: r.project || "",
@@ -664,6 +817,9 @@ export default function PurchaseReceiptForm() {
             uom: r.uom || "",
             stock_uom: r.stock_uom || "",
             rate: r.rate ?? "",
+            // The mapper returns this and the form discarded it, which is how the
+            // row ended up with the PO's stock_qty and a factor of 1.
+            conversion_factor: r.conversion_factor ?? "",
             warehouse: r.warehouse || draft.set_warehouse || "",
             purchase_order: r.purchase_order || poName,
             purchase_order_item: r.purchase_order_item || "",
@@ -673,12 +829,8 @@ export default function PurchaseReceiptForm() {
           setAvailable(catalogue);
 
           setDoc({
-            supplier: draft.supplier || "",
-            company: draft.company || "",
+            ...draft,
             posting_date: draft.posting_date || todayISO(),
-            set_warehouse: draft.set_warehouse || "",
-            currency: draft.currency || "",
-            conversion_rate: draft.conversion_rate ?? 1,
             items: [],
             docstatus: 0,
           });
@@ -872,6 +1024,20 @@ export default function PurchaseReceiptForm() {
                           {t("store.receipt.rate")}: {row.rate}
                         </span>
                       ) : null}
+                      {plateItems[row._rid] ? (
+                        <>
+                          {row.custom_supplier_weight_kg ? (
+                            <span>
+                              {t("store.receipt.supplierWeight")}: {row.custom_supplier_weight_kg} Kg
+                            </span>
+                          ) : null}
+                          {row.custom_heat_number ? (
+                            <span>
+                              {t("store.receipt.heatNumber")}: {row.custom_heat_number}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : null}
                     </div>
                     {rowErr ? (
                       <p className="mt-1 text-xs text-destructive">{rowErr}</p>
@@ -921,6 +1087,9 @@ export default function PurchaseReceiptForm() {
           info={editingRow ? uomInfo[editingRow._rid] : null}
           uomError={editingRow ? uomErrors[editingRow._rid] : null}
           rateEditable={rateEditable || !editingRow?.purchase_order_item}
+          plateEnabled={plateConfig.enabled}
+          plateRow={!!editingRow && !!plateItems[editingRow._rid]}
+          plateConfig={plateConfig}
           onItemChange={handleItemChange}
           onSave={(next) => patchById(next._rid, next)}
         />
@@ -942,6 +1111,9 @@ export default function PurchaseReceiptForm() {
         info={editingRow ? uomInfo[editingRow._rid] : null}
         uomError={editingRow ? uomErrors[editingRow._rid] : null}
         rateEditable={rateEditable || !editingRow?.purchase_order_item}
+        plateEnabled={plateConfig.enabled}
+        plateRow={!!editingRow && !!plateItems[editingRow._rid]}
+        plateConfig={plateConfig}
         onItemChange={handleItemChange}
         onSave={(next) => patchById(next._rid, next)}
       />

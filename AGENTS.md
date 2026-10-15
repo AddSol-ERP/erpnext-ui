@@ -32,7 +32,7 @@ browser-free:
 # lib/profileFlags, LinkField/searchTerm and config/storePurposes
 SSR_ENTRY=.smoke-tmp/rules.jsx SSR_OUT=.smoke-tmp/out-rules \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-rules/entry.mjs        # -> "234 passed, 0 failed"
+node .smoke-tmp/out-rules/entry.mjs        # -> "327 passed, 0 failed"
 
 # SSR render smoke test (Leave/Attendance/Expense forms, GenericForm,
 # DocStatusField, EmployeeDocuments) with fetch and the API stubbed to throw
@@ -50,7 +50,7 @@ node .smoke-tmp/out/entry.mjs              # -> "all forms render"
 # title/children/footer inline. Without it this suite fails 9 assertions.
 SSR_MODAL_STUB=1 SSR_ENTRY=.smoke-tmp/storecheck.jsx SSR_OUT=.smoke-tmp/out-store \
   npx vite build --config .smoke-tmp/vite.config.mjs
-node .smoke-tmp/out-store/entry.mjs        # -> "106 passed, 0 failed"
+node .smoke-tmp/out-store/entry.mjs        # -> "108 passed, 0 failed"
 ```
 
 All three currently pass. All exit `1` on failure.
@@ -410,3 +410,86 @@ JSON pair per module so parallel work never collides on `translation.json`.
 - **Don't "tidy" the inert duplicate `Workflow State` rows or the dead code**
   without checking `MEMORY.md` §9.7 — several are deliberate and documented
   in-code.
+
+
+19. **Serial numbers on a weighed receipt count in STOCK UOM, never in
+    pieces.** For a serialised item ERPNext builds one `Serial and Batch Entry`
+    per serial (`qty` defaults to 1) and then asserts the bundle total equals the
+    Stock Ledger Entry's `actual_qty` — which is in stock UOM
+    (`erpnext/stock/serial_batch_bundle.py`); `get_valid_serial_nos` in
+    `erpnext/stock/utils.py` throws when the count does not match. So a
+    Kg-stocked item takes **one serial per Kg**: 10 Nos weighing 12.5 Kg would
+    need 12.5 serials and the save fails with *"Total qty … is not equal to
+    Actual Qty"*, which never mentions serials. Two consequences:
+    - a serialised line needs a **whole `stock_qty`** even when the UOM permits
+      fractions — no `must_be_whole_number` flag expresses this, so
+      `validateSerials` carries a separate gate and reports it *before* the count
+      gate;
+    - the serial count is `stock_qty`, not `qty`.
+
+    Per-serial weight and price are **derived, never stored**: `Serial No`,
+    `Serial and Batch Bundle` and `Serial and Batch Entry` have no weight field,
+    and `incoming_rate` / `Serial No.purchase_rate` are `read_only`/`no_copy`.
+    With `serial_no_series` on the Item nothing has to be typed; batches work the
+    same via `create_new_batch` + `batch_number_series`. `get_item_uom_options`
+    returns all five flags, and the suite asserts that contract — the JS rules
+    are inert without them.
+
+20. **Partial receipt is expected, and one line carries exactly one factor.** A PO
+line arrives holding the FULL outstanding quantity, which reads as "you must
+receive all of it". Under-receipt is legal and ordinary — ERPNext's
+`status_updater` writes `received_qty` back against the ordered `qty`, with
+`overflow_type: "receipt"` governing only OVER-receipt — so the quantity field
+states what is outstanding rather than leaving the user to guess.
+
+Receiving 1 of 10 takes the ordered rate (1000 Kg). If that one sheet weighs
+1200, the factor becomes 1200 **for that line only**. Sheets of differing
+weights on one line collapse to an average, and that is not a correctness loss:
+`qty * factor` reproduces the weight the user typed either way.
+
+What a single factor *cannot* catch is a slip — the whole delivery's weight
+typed onto one sheet's line — which books silently and correctly for the wrong
+quantity. `conversionDriftSuspicious` warns at ≥2× (or ≤0.5×) the ordered rate.
+Use `>=`, not `>`: a clean doubling is the most likely slip and sits exactly on
+the boundary.
+
+**The purchase order's `conversion_factor` is a valid default — never discard
+it.** `make_purchase_receipt` already returns the PO line's factor, and
+`validate_with_previous_doc` never compares `conversion_factor`, so it is free
+to set and correct as ordered. The form built every picked row with a hardcoded
+`conversion_factor: 1` while *keeping* the PO's `stock_qty`, leaving the row
+self-contradictory — and since the server recomputes
+`stock_qty = qty * conversion_factor` (`buying_controller.py:517`), a delivery
+nobody could weigh booked 10 Kg instead of 10,000 Kg **with no error anywhere**.
+The escape from that was to make `measured_total` mandatory, which blocked any
+unweighed delivery outright. The correct answer is the opposite: book on the
+ordered rate, treat a weight as an override, and show which basis is live.
+
+- `conversion_source` is recorded on the row (`purchase_order` / `measured` /
+  `default`). A **magnitude test is not enough** — `1 Nos = 1 Kg` is a real rate
+  for a light item, so "is it 1?" cannot mean "is it missing?".
+- `validateLineRow` requires the weight **only** when no usable factor exists.
+  With a PO factor, a blank weight is legitimate.
+- `applyQuantity` exists because a quantity edit is its own path: without it,
+  10 → 12 Nos still posts the old 10 × 1000.
+- A PO factor of **0** must be rejected, not accepted as truthy —
+  `TEST-KG-NOS` carries `0.0` on its Nos row precisely because the real factor
+  is a measurement.
+
+**The Nos↔Kg (or Nos↔Ltr) conversion is shown, not just stored.** On a
+    weighed receipt the user counts pieces while the item is stocked by weight.
+    ERPNext relates them with `stock_qty = qty * conversion_factor`, and
+    `conversion_factor` is the one field `validate_with_previous_doc` never
+    compares — so it is ours to derive and the user must see it.
+    `conversionPreview()` renders "1 Nos = 2.54 Kg" as soon as the units differ,
+    before any weight is typed. Two traps it exists to prevent:
+    - **`Number.isFinite(Number(x))` does not detect a missing value.**
+      `Number(null)` is `0`, and `0` is finite, so that guard reported
+      `perUnit: 0` and rendered "1 Nos = 0 Kg". Test `x == null` first.
+    - **Never hardcode the stock unit.** The target is `info.stock_uom` and may
+      be Kg, Ltr or anything else; the suite asserts both.
+
+    The received UOM stays locked on a PO row — `uom` **is** in
+    `compare_fields` (`purchase_receipt.py:315`) — so a UOM selector there would
+    only offer a choice ERPNext rejects at save. The lock hint says so, and that
+    the fix is to raise the PO in the unit you want to count in.

@@ -49,6 +49,8 @@ export default function PurchaseReceiptPicker() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [drafts, setDrafts] = useState([]);
+  const [draftLoading, setDraftLoading] = useState(true);
 
   // Whether this site insists every receipt line carries a PO. When it does,
   // the "receive without a PO" path cannot save, so it is not offered at all
@@ -124,6 +126,24 @@ export default function PurchaseReceiptPicker() {
     }
   }, [debouncedSearch, page]);
 
+  const loadDrafts = useCallback(async () => {
+    setDraftLoading(true);
+    try {
+      const res = await get("resource/Purchase Receipt", {
+        fields: JSON.stringify(["name", "supplier", "supplier_name", "posting_date", "modified"]),
+        filters: JSON.stringify([["docstatus", "=", 0]]),
+        order_by: "modified desc",
+        limit_page_length: 10,
+      });
+      setDrafts(res.data || []);
+    } catch {
+      // The PO queue remains usable if this user cannot list existing receipts.
+      setDrafts([]);
+    } finally {
+      setDraftLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     // loadPoRequired only setStates after the awaited response.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -135,6 +155,12 @@ export default function PurchaseReceiptPicker() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    // The loader synchronizes with the server and updates state after its await.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadDrafts();
+  }, [loadDrafts]);
 
   const openForm = useCallback(
     (po) => navigate(`/store/purchase-receipt/new?po=${encodeURIComponent(po.name)}`),
@@ -210,6 +236,7 @@ export default function PurchaseReceiptPicker() {
   );
 
   return (
+    <div className="flex flex-col gap-4">
     <ListLayout
       contentMode="table"
       loading={loading}
@@ -261,5 +288,44 @@ export default function PurchaseReceiptPicker() {
         </div>
       ) : null}
     </ListLayout>
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+        <div>
+          <h2 className="text-sm font-semibold">{t("store.receipt.draftReceipts")}</h2>
+          <p className="text-xs text-muted-foreground">{t("store.receipt.draftReceiptsHint")}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadDrafts} disabled={draftLoading}>
+          {draftLoading ? t("common.loading") : t("common.refresh")}
+        </Button>
+      </div>
+      {drafts.length ? (
+        <ul className="divide-y divide-border/60">
+          {drafts.map((draft) => (
+            <li key={draft.name}>
+              <button
+                type="button"
+                onClick={() => navigate(`/store/purchase-receipt/${encodeURIComponent(draft.name)}`)}
+                className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left hover:bg-accent/50"
+              >
+                <span>
+                  <span className="block text-sm font-medium">{draft.name}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {draft.supplier_name || draft.supplier} · {draft.posting_date || "—"}
+                  </span>
+                </span>
+                <span className="text-xs font-medium text-primary">
+                  {t("store.receipt.resumeDraft")}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-4 py-4 text-sm text-muted-foreground">
+          {draftLoading ? t("common.loading") : t("store.receipt.noDraftReceipts")}
+        </p>
+      )}
+    </section>
+    </div>
   );
 }

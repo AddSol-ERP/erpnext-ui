@@ -25,6 +25,9 @@ export default function ReceiptLineDialog({
   info,
   uomError,
   rateEditable,
+  plateEnabled,
+  plateRow,
+  plateConfig,
   onItemChange,
 }) {
   const { t } = useTranslation();
@@ -50,6 +53,9 @@ export default function ReceiptLineDialog({
           info={info}
           uomError={uomError}
           rateEditable={rateEditable}
+          plateEnabled={plateEnabled}
+          plateRow={plateRow}
+          plateConfig={plateConfig}
           onItemChange={onItemChange}
           onSave={onSave}
         />

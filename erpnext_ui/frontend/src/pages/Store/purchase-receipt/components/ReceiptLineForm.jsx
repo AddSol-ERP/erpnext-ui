@@ -9,7 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { BadgeCheck, Hash } from "lucide-react";
 import {
   applyMeasuredTotal,
+  applyQuantity,
+  conversionBasis,
+  conversionDrift,
+  conversionDriftSuspicious,
   batchRule,
+  conversionPreview,
   computeFactor,
   needsMeasuredTotal,
   needsSerials,
@@ -56,6 +61,9 @@ export default function ReceiptLineForm({
   info,
   uomError,
   rateEditable,
+  plateEnabled = false,
+  plateRow = false,
+  plateConfig = {},
   onItemChange,
   onSave,
 }) {
@@ -78,13 +86,70 @@ export default function ReceiptLineForm({
   const serials = serialCount(row);
   const figures = perSerialFigures(row);
   const batch = batchRule(info);
+  const conversion = conversionPreview(row, info, receivedUom);
+  const basis = conversionBasis(row);
+  const drift = conversionDrift(row);
+  const isPlate = plateEnabled && plateRow;
+  const plateQty = Number(row?.qty);
+  const unitWeight = Number(
+    row?.custom_unit_weight_kg || row?.item_weight_per_unit || row?.weight_per_unit,
+  );
+  const estimatedWeight =
+    Number.isFinite(plateQty) && Number.isFinite(unitWeight) && unitWeight > 0
+      ? plateQty * unitWeight
+      : 0;
+  const supplierWeight = Number(row?.custom_supplier_weight_kg);
+  const variancePct =
+    estimatedWeight > 0 && Number.isFinite(supplierWeight) && supplierWeight > 0
+      ? Number((((supplierWeight - estimatedWeight) / estimatedWeight) * 100).toFixed(2))
+      : null;
+  const needsWeightDecision =
+    variancePct !== null &&
+    Math.abs(variancePct) > Number(plateConfig.weight_tolerance_pct || 0);
+  const acceptedWeight = !needsWeightDecision
+    ? supplierWeight > 0
+      ? supplierWeight
+      : null
+    : row?.custom_weight_decision === "Accept Supplier Weight"
+      ? supplierWeight
+      : row?.custom_weight_decision === "Accept Estimated Weight"
+        ? estimatedWeight
+        : row?.custom_weight_decision === "Accept Weighbridge Weight" &&
+            Number(row?.custom_weighbridge_weight_kg) > 0
+          ? Number(row.custom_weighbridge_weight_kg)
+          : null;
+
+  // The ordered rate, kept so clearing a measurement restores it instead of
+  // stranding the row at factor 1.
+  const fallback = useMemo(
+    () => ({
+      conversion_factor: row?.factor_from_po,
+      conversion_source: row?.factor_source_po,
+    }),
+    [row?.factor_from_po, row?.factor_source_po],
+  );
 
   if (!row) return null;
 
-  /** Patch a field, then re-derive factor and stock_qty together. */
+  /**
+   * Patch a field, then keep factor and stock_qty in agreement.
+   *
+   * A quantity edit is its own path: with no weight on the row, going through
+   * `applyMeasuredTotal` would leave stock_qty at the OLD qty x factor, so
+   * 10 -> 12 Nos still posted 10,000 Kg.
+   */
   const edit = (patch) => {
     const next = { ...row, ...patch };
-    onSave(wantsTotal ? applyMeasuredTotal(next, next.measured_total) : next);
+    if (isPlate && "qty" in patch) next.custom_weight_decision = "";
+    if ("qty" in patch && !(patch.measured_total > 0)) {
+      onSave(applyQuantity(next, next.qty, fallback));
+      return;
+    }
+    if ("measured_total" in patch || wantsTotal) {
+      onSave(applyMeasuredTotal(next, next.measured_total, fallback));
+      return;
+    }
+    onSave(next);
   };
 
   const uomOptions = (info?.uoms || []).map((u) => ({ value: u.uom, label: u.uom }));
@@ -138,6 +203,92 @@ export default function ReceiptLineForm({
         )}
       </FormField>
 
+      {/* THE CONVERSION, shown the moment the two units differ.
+          This is the calculation the user is actually doing -- pieces weighed
+          against kilograms -- and it used to exist only as a number in a derived
+          panel two fields down, which read as a number rather than as the
+          relationship they had just entered.
+
+          Shown before any weight is typed as well: the point is that one piece
+          is worth N kilograms, not that a total arrived. */}
+      {conversion ? (
+        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium uppercase tracking-wide text-muted-foreground">
+              {t("store.receipt.conversion", {
+                from: conversion.from,
+                to: conversion.to,
+              })}
+            </span>
+            {/* Which number the factor below came from. Without this the user
+                cannot tell an ordered rate from one they typed. */}
+            <span
+              className={
+                basis === "unresolved"
+                  ? "font-medium text-amber-600"
+                  : "text-muted-foreground"
+              }
+            >
+              {basis === "measured"
+                ? t("store.receipt.basisMeasured")
+                : basis === "purchase_order"
+                  ? t("store.receipt.basisPo")
+                  : t("store.receipt.basisUnresolved")}
+            </span>
+          </div>
+          {conversion.perUnit === null && basis === "purchase_order" ? (
+            <div className="flex justify-between tabular-nums">
+              <span className="text-muted-foreground">
+                {t("store.receipt.oneOf", { from: conversion.from })}
+              </span>
+              <span className="font-medium">
+                {t("store.receipt.equals", {
+                  factor: Number(Number(row?.conversion_factor).toFixed(6)),
+                  to: conversion.to,
+                })}
+              </span>
+            </div>
+          ) : null}
+          {conversion.perUnit !== null ? (
+            <div className="flex justify-between tabular-nums">
+              <span className="text-muted-foreground">
+                {t("store.receipt.oneOf", { from: conversion.from })}
+              </span>
+              <span className="font-medium">
+                {t("store.receipt.equals", {
+                  factor: Number(conversion.perUnit.toFixed(6)),
+                  to: conversion.to,
+                })}
+              </span>
+            </div>
+          ) : null}
+          {/* A large gap between the ordered rate and the measured one is
+              nearly always a slip -- the weight of the whole delivery typed
+              onto one sheet's line. The total is still arithmetically correct,
+              so nothing would warn us but this. */}
+          {conversionDriftSuspicious(row) && drift !== null ? (
+            <p className="mt-1 text-[11px] font-medium text-amber-600">
+              {t("store.receipt.driftWarning", {
+                factor: Number(drift.toFixed(2)),
+              })}
+            </p>
+          ) : null}
+          {conversion.thisQty !== null && conversion.thisTotal !== null ? (
+            <div className="mt-1 flex justify-between tabular-nums">
+              <span className="text-muted-foreground">
+                {t("store.receipt.thisDelivery")}
+              </span>
+              <span className="font-medium">
+                {t("store.receipt.equals", {
+                  factor: conversion.thisQty,
+                  to: conversion.thisTotal,
+                })}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* QUANTITY in the received UOM */}
       <FormField
         label={t("store.receipt.qtyIn", { uom: receivedUom })}
@@ -154,14 +305,40 @@ export default function ReceiptLineForm({
           value={row.qty ?? ""}
           onChange={(e) => edit({ qty: e.target.value })}
         />
+
+        {/* Partial receipt is allowed and common: the row opens holding the
+            FULL outstanding quantity, which reads as "you must receive all of
+            it". ERPNext writes back `received_qty` against the ordered `qty`, so
+            taking one sheet of ten simply leaves nine outstanding. Say so,
+            rather than leaving the user to guess whether they can reduce it. */}
+        {row.pending_qty !== undefined && row.pending_qty !== null && Number(row.pending_qty) > 0 ? (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {Number(row.qty) < Number(row.pending_qty)
+              ? t("store.receipt.receivingOf", {
+                  qty: row.qty,
+                  pending: row.pending_qty,
+                  uom: receivedUom,
+                })
+              : t("store.receipt.receivingAll", {
+                  pending: row.pending_qty,
+                  uom: receivedUom,
+                })}
+          </p>
+        ) : null}
       </FormField>
 
       {/* MEASURED TOTAL in the stock UOM */}
       {wantsTotal ? (
         <FormField
-          label={t("store.receipt.totalIn", { uom: info.stock_uom })}
-          hint={t("store.receipt.totalHint", { uom: info.stock_uom })}
-          required
+          label={t("store.receipt.totalInOptional", { uom: info.stock_uom })}
+          hint={
+            row?.factor_from_po
+              ? t("store.receipt.totalHintOptional", {
+                  uom: info.stock_uom,
+                  factor: Number(Number(row.factor_from_po).toFixed(6)),
+                })
+              : t("store.receipt.totalHint", { uom: info.stock_uom })
+          }
         >
           <div className="flex items-center gap-2">
             <Input
@@ -178,6 +355,131 @@ export default function ReceiptLineForm({
             </p>
           ) : null}
         </FormField>
+      ) : null}
+
+      {isPlate ? (
+        <section className="flex flex-col gap-3 rounded-md border border-border p-3">
+          <h4 className="text-sm font-semibold">{t("store.receipt.plateDetails")}</h4>
+          <FormField label={t("store.receipt.supplierWeight")} required>
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={row.custom_supplier_weight_kg ?? ""}
+              onChange={(e) =>
+                onSave({
+                  ...row,
+                  custom_supplier_weight_kg: e.target.value,
+                  custom_weight_decision: "",
+                })
+              }
+            />
+          </FormField>
+
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
+            <div className="flex justify-between gap-3">
+              <span>{t("store.receipt.estimatedWeight")}</span>
+              <span className="font-medium tabular-nums">
+                {estimatedWeight > 0 ? estimatedWeight.toFixed(3) : "—"} Kg
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between gap-3">
+              <span>{t("store.receipt.weightVariance")}</span>
+              <span className="font-medium tabular-nums">
+                {variancePct === null ? "—" : `${variancePct.toFixed(2)}%`}
+                {variancePct !== null
+                  ? ` · ${t("store.receipt.tolerance", {
+                      value: plateConfig.weight_tolerance_pct,
+                    })}`
+                  : ""}
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between gap-3">
+              <span>{t("store.receipt.acceptedWeight")}</span>
+              <span className="font-medium tabular-nums">
+                {acceptedWeight === null ? "—" : `${acceptedWeight.toFixed(3)} Kg`}
+              </span>
+            </div>
+            {acceptedWeight !== null && Number(row.custom_rate_per_kg) > 0 ? (
+              <div className="mt-1 flex justify-between gap-3 font-medium">
+                <span>{t("store.receipt.estimatedAmount")}</span>
+                <span className="tabular-nums">
+                  {Number((acceptedWeight * Number(row.custom_rate_per_kg)).toFixed(2))}
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          {needsWeightDecision ? (
+            <>
+              {plateConfig.can_decide_weight ? (
+                <>
+                  <FormField label={t("store.receipt.weightDecision")} required>
+                    <FormSelect
+                      value={row.custom_weight_decision || ""}
+                      placeholder={t("store.receipt.chooseWeightDecision")}
+                      options={[
+                        { value: "Accept Supplier Weight", label: t("store.receipt.acceptSupplierWeight") },
+                        { value: "Accept Estimated Weight", label: t("store.receipt.acceptEstimatedWeight") },
+                        { value: "Accept Weighbridge Weight", label: t("store.receipt.acceptWeighbridgeWeight") },
+                      ]}
+                      onChange={(value) =>
+                        onSave({ ...row, custom_weight_decision: value })
+                      }
+                    />
+                  </FormField>
+                  {row.custom_weight_decision === "Accept Weighbridge Weight" ? (
+                    <FormField label={t("store.receipt.weighbridgeWeight")} required>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={row.custom_weighbridge_weight_kg ?? ""}
+                        onChange={(e) =>
+                          onSave({
+                            ...row,
+                            custom_weighbridge_weight_kg: e.target.value,
+                          })
+                        }
+                      />
+                    </FormField>
+                  ) : null}
+                </>
+              ) : (
+                <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
+                  {t("store.receipt.weightApprovalRequired")}
+                </p>
+              )}
+            </>
+          ) : null}
+
+          <FormField label={t("store.receipt.ratePerKg")} required>
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={row.custom_rate_per_kg ?? ""}
+              disabled={isPoRow}
+              onChange={(e) =>
+                onSave({ ...row, custom_rate_per_kg: e.target.value })
+              }
+            />
+          </FormField>
+          <FormField label={t("store.receipt.heatNumber")} required>
+            <Input
+              value={row.custom_heat_number || ""}
+              onChange={(e) =>
+                onSave({ ...row, custom_heat_number: e.target.value })
+              }
+            />
+          </FormField>
+          <FormField label={t("store.receipt.mtcNumber")}>
+            <Input
+              value={row.custom_mtc_no || ""}
+              onChange={(e) => onSave({ ...row, custom_mtc_no: e.target.value })}
+            />
+          </FormField>
+        </section>
       ) : null}
 
       {/* Derived. Read-only by design -- this is the number, not an input. */}
@@ -205,7 +507,7 @@ export default function ReceiptLineForm({
       </div>
 
       {/* RATE */}
-      <FormField
+      {!isPlate ? <FormField
         label={t("store.receipt.rate")}
         hint={rateEditable ? undefined : t("store.receipt.rateFromPo")}
         required
@@ -217,7 +519,7 @@ export default function ReceiptLineForm({
           disabled={!rateEditable}
           onChange={(e) => edit({ rate: e.target.value })}
         />
-      </FormField>
+      </FormField> : null}
 
       {/* WAREHOUSE */}
       <FormField label={t("store.labels.targetWarehouse")} required>

@@ -56,6 +56,9 @@ export default function ReceiptItemWorkbench({
   info,
   uomError,
   rateEditable,
+  plateEnabled,
+  plateRow,
+  plateConfig,
   onItemChange,
   onSave,
 }) {
@@ -229,6 +232,9 @@ export default function ReceiptItemWorkbench({
             info={info}
             uomError={uomError}
             rateEditable={rateEditable}
+            plateEnabled={plateEnabled}
+            plateRow={plateRow}
+            plateConfig={plateConfig}
             onItemChange={onItemChange}
             onSave={onSave}
           />

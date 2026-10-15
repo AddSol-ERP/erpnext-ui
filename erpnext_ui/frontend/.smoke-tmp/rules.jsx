@@ -23,8 +23,14 @@ import {
 } from "../src/config/storePurposes.js";
 import {
   applyMeasuredTotal,
+  applyQuantity,
   batchRule,
+  conversionBasis,
+  conversionDrift,
+  conversionDriftSuspicious,
   computeFactor,
+  conversionPreview,
+  hasUsableFactor,
   needsMeasuredTotal,
   needsSerials,
   parseSerials,
@@ -456,8 +462,12 @@ ok("applyMeasuredTotal: stock_qty has no float noise from the multiplication",
 // A missing total must NOT fall back to factor 1 -- that would book the piece
 // count as stock and read as a successful save.
 const noTotal = applyMeasuredTotal({ ...WEIGHED }, "");
-ok("applyMeasuredTotal: missing total yields an empty factor, not 1",
-   noTotal.conversion_factor === "" && noTotal.stock_qty === "");
+// Superseded by the PO-fallback contract: a missing measurement now falls back
+// to the ordered rate, and only reports factor 1 -- as an explicit `default`
+// source -- when there is nothing to fall back to.
+ok("applyMeasuredTotal: a missing measurement never invents a silent factor",
+   noTotal.conversion_source === "default" && noTotal.conversion_factor === 1,
+   "the source flag is what makes the placeholder honest");
 
 // Same UOM -> factor 1, stock_qty == qty, and the total is cleared.
 const same = applyMeasuredTotal({ _rid: "r2", qty: 7, uom: "Nos", stock_uom: "Nos", measured_total: "99" }, "99");
@@ -1527,6 +1537,78 @@ const uomOptionsFn = apiSource.slice(
   apiSource.indexOf("def get_item_uom_options("),
   apiSource.indexOf("@frappe.whitelist", apiSource.indexOf("def get_item_uom_options(")),
 );
+// ---------------------------------------------------------------------------
+// The Nos <-> Kg (or Nos <-> Ltr) calculation.
+//
+// The user counts pieces and the item is stocked by weight. ERPNext relates the
+// two with `stock_qty = qty * conversion_factor`, and on a PO receipt the factor
+// is the one field it never compares against the purchase order -- so it is ours
+// to derive and the user should see it, not infer it from a number in a corner.
+// ---------------------------------------------------------------------------
+
+const KG_ITEM = {
+  stock_uom: "Kg",
+  uoms: [
+    { uom: "Nos", must_be_whole_number: 0 },
+    { uom: "Kg", must_be_whole_number: 0 },
+  ],
+};
+const LTR_ITEM = { ...KG_ITEM, stock_uom: "Ltr" };
+
+ok(
+  "conversion: Nos to Kg derives the factor from the measured weight",
+  (() => {
+    const c = conversionPreview({ qty: 10, measured_total: 25.4, uom: "Nos" }, KG_ITEM, "Nos");
+    return c && c.from === "Nos" && c.to === "Kg" && c.perUnit === 2.54;
+  })(),
+  "10 pieces weighing 25.4 Kg is 2.54 Kg each",
+);
+ok(
+  "conversion: Nos to Ltr works the same way (not hardcoded to Kg)",
+  (() => {
+    const c = conversionPreview({ qty: 10, measured_total: 4, uom: "Nos" }, LTR_ITEM, "Nos");
+    return c && c.to === "Ltr" && c.perUnit === 0.4;
+  })(),
+);
+ok(
+  "conversion: both units of the delivery are reported, not just the factor",
+  (() => {
+    const c = conversionPreview({ qty: 10, measured_total: 25.4, uom: "Nos" }, KG_ITEM, "Nos");
+    return c.thisQty === 10 && c.thisTotal === 25.4;
+  })(),
+);
+ok(
+  "conversion: no readout when the received UOM IS the stock UOM",
+  conversionPreview({ qty: 10, uom: "Kg" }, KG_ITEM, "Kg") === null,
+  "'1 Kg = 1 Kg' is noise",
+);
+ok(
+  "conversion: the factor is shown before a weight is typed",
+  (() => {
+    const c = conversionPreview({ qty: 10, uom: "Nos" }, KG_ITEM, "Nos");
+    return c !== null && c.perUnit === null && c.thisTotal === null;
+  })(),
+  "the relationship is the point; it should not wait for the numbers",
+);
+
+ok(
+  "conversion: the form shows the calculation, not just the stored factor",
+  /conversionPreview/.test(readSrc("../../src/pages/Store/purchase-receipt/components/ReceiptLineForm.jsx")) &&
+    /store\.receipt\.conversion/.test(
+      readSrc("../../src/pages/Store/purchase-receipt/components/ReceiptLineForm.jsx"),
+    ),
+);
+ok(
+  "conversion: the PO UOM stays locked, because ERPNext compares it",
+  /isPoRow \? \(\s*<div className="flex items-center gap-2">/.test(
+    readSrc("../../src/pages/Store/purchase-receipt/components/ReceiptLineForm.jsx"),
+  ) &&
+    /uomFromPo/.test(
+      readSrc("../../src/pages/Store/purchase-receipt/components/ReceiptLineForm.jsx"),
+    ),
+  "purchase_receipt.py:315 puts uom in compare_fields -- changing it fails the save",
+);
+
 ok(
   "serials: the endpoint reports the item's serial and batch configuration",
   // Anchor on the `"key":` form. A bare `"batch_number_series"` also appears in
@@ -1545,6 +1627,212 @@ ok(
   /validateSerials\(row, info\)/.test(receiptFormSrc) &&
     /validateBatch\(row, info\)/.test(receiptFormSrc),
   "without these the failure surfaces from ERPNext as a bundle total mismatch",
+);
+
+
+// ---------------------------------------------------------------------------
+// The purchase order's conversion factor is a valid default.
+//
+// The form built every picked row with a hardcoded `conversion_factor: 1` while
+// KEEPING the PO's `stock_qty` -- so the row contradicted itself. The server
+// recomputes `stock_qty = qty * conversion_factor` (buying_controller.py:517),
+// so a delivery nobody could weigh booked 10 Kg instead of 10,000 Kg, with no
+// error anywhere. `make_purchase_receipt` had handed us the real factor all
+// along and the form threw it away.
+//
+// To stop that without forcing a weighbridge, `validateLineRow` used to make
+// `measured_total` mandatory for ANY row whose UOM differs from stock UOM. The
+// fix is to book on the ordered rate and treat a weight as an override.
+// ---------------------------------------------------------------------------
+
+const PO_FALLBACK = { conversion_factor: 1000, conversion_source: "purchase_order" };
+const PO_ROW = {
+  uom: "Nos",
+  stock_uom: "Kg",
+  qty: 10,
+  measured_total: "",
+  conversion_factor: 1000,
+  conversion_source: "purchase_order",
+  stock_qty: 10000,
+};
+
+ok(
+  "conversion: the PO factor survives when no weight is entered",
+  applyMeasuredTotal(PO_ROW, "", PO_FALLBACK).conversion_factor === 1000 &&
+    applyMeasuredTotal(PO_ROW, "", PO_FALLBACK).stock_qty === 10000,
+  "the live bug: factor 1 with the PO's stock_qty books 10 Kg",
+);
+ok(
+  "conversion: a weight overrides the ordered rate",
+  applyMeasuredTotal(PO_ROW, 1200, PO_FALLBACK).conversion_factor === 120 &&
+    applyMeasuredTotal(PO_ROW, 1200, PO_FALLBACK).stock_qty === 1200,
+);
+ok(
+  "conversion: clearing a weight restores the ordered rate, not factor 1",
+  (() => {
+    const weighed = applyMeasuredTotal(PO_ROW, 1200, PO_FALLBACK);
+    const cleared = applyMeasuredTotal(weighed, "", PO_FALLBACK);
+    return cleared.conversion_factor === 1000 && cleared.stock_qty === 10000;
+  })(),
+  "stranding the row at 1 is the silent-under-receipt bug again",
+);
+ok(
+  "conversion: no fallback and no weight falls back to factor 1 AND says so",
+  (() => {
+    const r = applyMeasuredTotal(
+      { uom: "Nos", stock_uom: "Kg", qty: 10, measured_total: "" },
+      "",
+      null,
+    );
+    return r.conversion_factor === 1 && r.conversion_source === "default";
+  })(),
+);
+ok(
+  "conversion: a factor of 1 is not treated as missing",
+  hasUsableFactor({ conversion_source: "purchase_order", conversion_factor: 1 }) &&
+    !hasUsableFactor({ conversion_source: "default", conversion_factor: 1 }),
+  "1 Nos = 1 Kg is a real rate for a light item; magnitude proves nothing",
+);
+ok(
+  "conversion: quantity edits recompute stock_qty from the factor",
+  (() => {
+    const r = applyQuantity(PO_ROW, 12, PO_FALLBACK);
+    return r.stock_qty === 12000 && r.conversion_factor === 1000;
+  })(),
+  "otherwise 10 -> 12 Nos still posts the old 10,000 Kg",
+);
+ok(
+  "conversion: a quantity edit keeps a measured factor",
+  (() => {
+    const weighed = applyMeasuredTotal(PO_ROW, 1200, PO_FALLBACK);
+    const r = applyQuantity(weighed, 12, PO_FALLBACK);
+    return r.stock_qty === 1200;
+  })(),
+  "weight is the numerator; it does not scale with the piece count",
+);
+ok(
+  "conversion: the basis tells the UI which number it is showing",
+  conversionBasis({ conversion_source: "measured" }) === "measured" &&
+    conversionBasis({ conversion_source: "purchase_order" }) === "purchase_order" &&
+    conversionBasis({ conversion_source: "default" }) === "unresolved",
+);
+ok(
+  "conversion: an unweighed PO line passes validation",
+  validateLineRow(PO_ROW, KG_ITEM, (k) => k) === null,
+  "a delivery with no weighbridge must still be receivable",
+);
+ok(
+  "conversion: a line with no factor AND no weight is still blocked",
+  validateLineRow(
+    { uom: "Nos", stock_uom: "Kg", qty: 10, measured_total: "", conversion_source: "default" },
+    KG_ITEM,
+    (k) => k,
+  ) === "store.receipt.validation.totalRequired",
+  "posting factor 1 there would book the piece count as stock",
+);
+// Asserting `applyQuantity` works is not the same as asserting the form CALLS
+// it -- the wiring is where the stale stock_qty came from.
+const receiptLineFormSrc = readSrc(
+  "../../src/pages/Store/purchase-receipt/components/ReceiptLineForm.jsx",
+);
+ok(
+  "conversion: a quantity edit routes through applyQuantity",
+  /"qty" in patch/.test(lineFormSrc) &&
+    /applyQuantity\(next, next\.qty, fallback\)/.test(lineFormSrc),
+  "without it 10 -> 12 Nos still posts the old 10,000 Kg",
+);
+ok(
+  "conversion: the ordered rate is threaded in so clearing a weight restores it",
+  /factor_from_po/.test(lineFormSrc) && /factor_source_po/.test(lineFormSrc) &&
+    /factor_from_po/.test(receiptFormSrc),
+);
+
+ok(
+  "conversion: the form keeps the mapper's factor instead of hardcoding 1",
+  /conversion_factor: r\.conversion_factor \?\? ""/.test(receiptFormSrc) &&
+    // Scoped to pickLine: a blank direct-entry row legitimately has no factor
+    // and must not be read as "the PO rate is being dropped".
+    /conversion_factor: poFactor/.test(receiptFormSrc),
+  "the mapper already returns the PO rate",
+);
+ok(
+  "conversion: a zero or absent PO factor is not trusted",
+  /Number\.isFinite\(poFactor\) && poFactor > 0/.test(receiptFormSrc),
+  "TEST-KG-NOS carries 0.0 on its Nos row; a truthiness test would accept it",
+);
+
+
+// ---------------------------------------------------------------------------
+// Receiving part of an order, and a delivery that does not match its rate.
+//
+// The PO line arrives holding the FULL outstanding quantity (10 Nos), which
+// reads as "you must receive all of it". Partial receipt is legal and common --
+// ERPNext's `status_updater` writes `received_qty` back against the ordered
+// `qty`, with `overflow_type: "receipt"` governing only OVER-receipt -- so the
+// UI has to say so rather than leave the user guessing.
+//
+// One line carries exactly one factor, so sheets of differing weights collapse
+// to an average. That is not a correctness loss: `qty * factor` reproduces the
+// weight the user typed either way. What it cannot catch is a slip -- the whole
+// delivery's weight typed onto one sheet's line -- which would book silently and
+// correctly for the wrong quantity.
+// ---------------------------------------------------------------------------
+
+const ORDERED_10 = { ...PO_ROW, pending_qty: 10 };
+
+ok(
+  "partial: one sheet out of ten takes the ordered rate",
+  (() => {
+    const r = applyQuantity(ORDERED_10, 1, PO_FALLBACK);
+    return r.qty === 1 && r.conversion_factor === 1000 && r.stock_qty === 1000;
+  })(),
+  "under-receipt is legal; the factor comes from the order",
+);
+ok(
+  "partial: that one sheet weighing 1200 instead of 1000 overrides the rate",
+  (() => {
+    const r = applyMeasuredTotal(applyQuantity(ORDERED_10, 1, PO_FALLBACK), 1200, PO_FALLBACK);
+    return r.conversion_factor === 1200 && r.stock_qty === 1200;
+  })(),
+);
+ok(
+  "partial: mixed weights still total exactly right on one line",
+  applyMeasuredTotal({ ...PO_ROW, qty: 5 }, 5200, PO_FALLBACK).stock_qty === 5200,
+  "5 sheets totalling 5200 Kg must book 5200 Kg, however they were mixed",
+);
+ok(
+  "partial: a factor of 1 on the order is not confused with an absent one",
+  conversionDrift({ conversion_factor: 1, factor_from_po: 1 }) === 1,
+);
+ok(
+  "partial: drift is null without both numbers",
+  conversionDrift({ conversion_factor: 1000, factor_from_po: null }) === null &&
+    conversionDrift({ conversion_factor: null, factor_from_po: 1000 }) === null,
+);
+ok(
+  "partial: ordinary variation does not warn",
+  !conversionDriftSuspicious({ conversion_factor: 1200, factor_from_po: 1000 }) &&
+    !conversionDriftSuspicious({ conversion_factor: 1040, factor_from_po: 1000 }),
+  "a 4% spread across mixed sheets is normal, not an error",
+);
+ok(
+  "partial: a doubling DOES warn, on the boundary",
+  conversionDriftSuspicious({ conversion_factor: 2000, factor_from_po: 1000 }) &&
+    conversionDriftSuspicious({ conversion_factor: 400, factor_from_po: 1000 }),
+  "a whole delivery's weight on one line is the classic slip, and it lands exactly on 2x",
+);
+ok(
+  "partial: the UI states what is outstanding so reducing the qty is expected",
+  // Quote-anchored: a bare substring test also matches `receivingOfX`, which is
+  // how renaming the key to break this assertion went unnoticed once.
+  /store\.receipt\.receivingOf"/.test(receiptLineFormSrc) &&
+    /store\.receipt\.receivingAll"/.test(receiptLineFormSrc) &&
+    /row\.pending_qty/.test(receiptLineFormSrc),
+  "the row opens holding the full outstanding qty, which reads as mandatory",
+);
+ok(
+  "partial: the picked line carries the outstanding quantity through",
+  /pending_qty: line\.pending_qty/.test(receiptFormSrc),
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

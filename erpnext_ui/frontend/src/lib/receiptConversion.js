@@ -129,25 +129,131 @@ export function wholeNumberRules(info, receivedUom) {
  * an empty stock_qty so the caller can block the save with a real message
  * instead of posting a wrong number.
  */
-export function applyMeasuredTotal(row, total) {
-  if (!needsMeasuredTotal(row, row.uom)) {
-    const q = Number(row.qty);
+/**
+ * Where a row's conversion factor came from.
+ *
+ * A MAGNITUDE TEST IS NOT ENOUGH to decide whether the factor is trustworthy:
+ * `1 Nos = 1 Kg` is a legitimate rate for a light item, so "is it 1?" cannot
+ * mean "is it missing?". The source has to be recorded alongside the number.
+ *
+ * `purchase_order` is the case that matters. ERPNext's `make_purchase_receipt`
+ * already returns the PO line's factor, and `validate_with_previous_doc` never
+ * compares `conversion_factor` -- so it is free for us to set, and correct as
+ * ordered. It was being thrown away (the row was built with a hardcoded 1),
+ * which forced the measured weight to become mandatory and blocked any
+ * delivery that could not be weighed.
+ */
+export const CONVERSION_SOURCE = {
+  PURCHASE_ORDER: "purchase_order",
+  MEASURED: "measured",
+  DEFAULT: "default",
+};
+
+/** True when the row carries a factor we are willing to book. */
+export function hasUsableFactor(row) {
+  return (
+    row?.conversion_source === CONVERSION_SOURCE.PURCHASE_ORDER ||
+    row?.conversion_source === CONVERSION_SOURCE.MEASURED
+  );
+}
+
+/**
+ * Apply a conversion to a row, deriving stock_qty from the factor every time.
+ *
+ * `stock_qty = qty * conversion_factor` unconditionally, so the row can never
+ * hold a stock quantity that disagrees with its own factor -- the state the form
+ * used to ship, carrying the PO's 10,000 Kg alongside a factor of 1.
+ */
+export function applyMeasuredTotal(row, total, fallback = null) {
+  // Same UOM on both sides: there is no conversion to make, so a measurement is
+  // meaningless and is discarded. Kept as an explicit guard rather than relying
+  // on the caller not to ask -- the field is hidden, but a stale `measured_total`
+  // can still arrive from an edited row.
+  if (!needsMeasuredTotal(row, row?.uom)) {
+    const q = Number(row?.qty);
     return {
       ...row,
       measured_total: "",
       conversion_factor: 1,
+      conversion_source: CONVERSION_SOURCE.DEFAULT,
       stock_qty: Number.isFinite(q) ? q : "",
     };
   }
 
-  const factor = computeFactor(row.qty, total);
+  const qty = Number(row?.qty);
   const t = Number(total);
-  const hasTotal = total !== "" && total !== null && total !== undefined && Number.isFinite(t);
+  const hasTotal =
+    total !== "" && total !== null && total !== undefined && Number.isFinite(t) && t > 0;
 
-  if (!hasTotal || factor === null) {
-    return { ...row, measured_total: total ?? "", conversion_factor: "", stock_qty: "" };
+  if (hasTotal) {
+    const factor = computeFactor(row.qty, total);
+    if (factor !== null) {
+      return {
+        ...row,
+        measured_total: t,
+        conversion_factor: factor,
+        conversion_source: CONVERSION_SOURCE.MEASURED,
+        stock_qty: t,
+      };
+    }
   }
-  return { ...row, measured_total: t, conversion_factor: factor, stock_qty: t };
+
+  // No usable weight: fall back to whatever the source document supplied, so
+  // clearing a measurement restores the ordered rate rather than stranding the
+  // row at factor 1.
+  const fallbackFactor = Number(fallback?.conversion_factor);
+  if (Number.isFinite(fallbackFactor) && fallbackFactor > 0) {
+    return {
+      ...row,
+      measured_total: "",
+      conversion_factor: fallbackFactor,
+      conversion_source: fallback.conversion_source || CONVERSION_SOURCE.PURCHASE_ORDER,
+      stock_qty: Number.isFinite(qty) ? qty * fallbackFactor : "",
+    };
+  }
+
+  return {
+    ...row,
+    measured_total: "",
+    conversion_factor: 1,
+    conversion_source: CONVERSION_SOURCE.DEFAULT,
+    stock_qty: Number.isFinite(qty) ? qty : "",
+  };
+}
+
+/**
+ * Recompute stock_qty after a quantity edit that did NOT involve a weight.
+ *
+ * Without this, changing 10 -> 12 Nos on a PO-factored row leaves stock_qty at
+ * the old 10 x 1000 while qty says 12, and the row posts the old weight.
+ */
+export function applyQuantity(row, qty, fallback = null) {
+  const next = { ...row, qty };
+  const hasTotal =
+    row?.measured_total !== "" &&
+    row?.measured_total != null &&
+    Number.isFinite(Number(row.measured_total)) &&
+    Number(row.measured_total) > 0;
+
+  if (hasTotal) {
+    return applyMeasuredTotal(next, row.measured_total, fallback);
+  }
+  const factor = Number(row?.conversion_factor);
+  if (Number.isFinite(factor) && factor > 0) {
+    const n = Number(qty);
+    return { ...next, stock_qty: Number.isFinite(n) ? n * factor : "" };
+  }
+  const n = Number(qty);
+  return { ...next, stock_qty: Number.isFinite(n) ? n : "" };
+}
+
+/** Which basis the live factor on a row rests on. Drives the UI strip. */
+export function conversionBasis(row) {
+  if (row?.conversion_source === CONVERSION_SOURCE.MEASURED) return "measured";
+  if (row?.conversion_source === CONVERSION_SOURCE.PURCHASE_ORDER) {
+    return "purchase_order";
+  }
+  return "unresolved";
 }
 
 /**
@@ -166,13 +272,23 @@ export function validateLineRow(row, info, t) {
 
   if (needsMeasuredTotal(info, row.uom)) {
     if (row.measured_total === "" || row.measured_total === undefined || row.measured_total === null) {
-      // Required, not optional. Defaulting to a factor of 1 here would book the
-      // transaction quantity as stock and read as a successful save.
-      return t("store.receipt.validation.totalRequired", { uom: info.stock_uom });
-    }
-    const total = Number(row.measured_total);
-    if (!Number.isFinite(total) || total <= 0) {
-      return t("store.receipt.validation.totalInvalid", { uom: info.stock_uom });
+      // Required ONLY when the factor is unresolved.
+      //
+      // This used to be unconditional, which blocked any delivery that could not
+      // be weighed -- while the purchase order's own factor sat in the mapper's
+      // response being discarded. A PO factor is correct as ordered and ERPNext
+      // never compares `conversion_factor`, so it is a sound basis to book on.
+      // With nothing to fall back to, the weight is still mandatory: posting
+      // factor 1 here would book the transaction quantity as stock and read as a
+      // successful save.
+      if (!hasUsableFactor(row)) {
+        return t("store.receipt.validation.totalRequired", { uom: info.stock_uom });
+      }
+    } else {
+      const total = Number(row.measured_total);
+      if (!Number.isFinite(total) || total <= 0) {
+        return t("store.receipt.validation.totalInvalid", { uom: info.stock_uom });
+      }
     }
   }
 
@@ -318,4 +434,76 @@ export function validateBatch(row, info) {
   return row?.batch_no && String(row.batch_no).trim()
     ? null
     : "store.receipt.validation.batchRequired";
+}
+
+
+/**
+ * The Nos <-> Kg (or Nos <-> Ltr, or any pair) calculation, as display values.
+ *
+ * A weighed receipt is entered in the unit the goods are COUNTED in -- pieces --
+ * and stocked in the unit they are MEASURED in -- kilograms. ERPNext relates the
+ * two with `stock_qty = qty * conversion_factor`, and on a PO receipt the factor
+ * is the one field it never compares against the purchase order. So it is ours to
+ * derive, and the user should be able to see it rather than infer it from a
+ * number in a corner of the form.
+ *
+ * Returns null when the two units are the same, because there is no conversion
+ * to show and an "1 Nos = 1 Nos" line would be noise.
+ */
+export function conversionPreview(row, info, receivedUom) {
+  const from = receivedUom || row?.uom || "";
+  const to = info?.stock_uom || "";
+  if (!from || !to || from === to) return null;
+
+  // `computeFactor` returns null when either input is missing. Guarding with
+  // `Number.isFinite(Number(x))` is NOT enough -- Number(null) is 0, which is
+  // finite, so an unweighed line rendered "1 Nos = 0 Kg".
+  const factor = computeFactor(row?.qty, row?.measured_total);
+  const qtyRaw = row?.qty;
+  const totalRaw = row?.measured_total;
+  const qty = Number(qtyRaw);
+  const total = Number(totalRaw);
+
+  return {
+    from,
+    to,
+    // Per single piece: the factor, once there is a weight to divide by.
+    perUnit: factor === null || factor === undefined ? null : Number(factor),
+    // This delivery: only meaningful once both figures are in.
+    thisQty: qtyRaw === "" || qtyRaw == null || !Number.isFinite(qty) ? null : qty,
+    thisTotal:
+      totalRaw === "" || totalRaw == null || !Number.isFinite(total) ? null : total,
+    needsWeight: needsMeasuredTotal(info, from),
+  };
+}
+
+
+/**
+ * How far a measured factor has drifted from the ordered one, as a ratio.
+ *
+ * `null` when there is nothing to compare -- no measurement, or no ordered
+ * rate. A ratio of 1 means the delivery matched the order.
+ *
+ * This is a SANITY CHECK, not a rule. The total is always right: `qty * factor`
+ * reproduces the weight the user typed, however the sheets were mixed. A large
+ * drift almost always means a data-entry slip -- the weight of the whole
+ * delivery typed onto one sheet's line -- and it would book silently and
+ * correctly for the wrong quantity, which is the worst kind of wrong.
+ */
+export function conversionDrift(row) {
+  const measured = Number(row?.conversion_factor);
+  const ordered = Number(row?.factor_from_po);
+  if (!Number.isFinite(measured) || measured <= 0) return null;
+  if (!Number.isFinite(ordered) || ordered <= 0) return null;
+  return measured / ordered;
+}
+
+/** True when the drift is large enough to be worth a word. */
+export function conversionDriftSuspicious(row, threshold = 2) {
+  const ratio = conversionDrift(row);
+  if (ratio === null) return false;
+  // `>=`, not `>`: a clean doubling is the single most likely slip (the whole
+  // delivery's weight on one sheet's line) and it sits exactly ON the boundary,
+  // so a strict comparison let the most obvious case through.
+  return ratio >= threshold || ratio <= 1 / threshold;
 }

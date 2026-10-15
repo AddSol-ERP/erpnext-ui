@@ -384,7 +384,51 @@ const weighedDialog = plainText(
     />,
   ),
 );
-ok("dialog: weighed line offers the measured total", weighedDialog.includes("Total received (Kg)"));
+ok(
+  "dialog: weighed line offers the measured total, marked optional",
+  weighedDialog.includes("Total received (Kg, optional)"),
+);
+// A PO-factored row must SAY it is falling back, otherwise the user cannot tell
+// an ordered rate from one they typed -- and cannot tell why no weight is needed.
+const poBackedDialog = plainText(
+  renderNode(
+    <ReceiptLineDialog
+      show
+      onClose={() => {}}
+      rateEditable={false}
+      uomError={null}
+      onItemChange={() => {}}
+      onSave={() => {}}
+      row={{
+        _rid: "po",
+        item_code: "TEST-KG-NOS",
+        uom: "Nos",
+        stock_uom: "Kg",
+        qty: 10,
+        measured_total: "",
+        conversion_factor: 1000,
+        conversion_source: "purchase_order",
+        factor_from_po: 1000,
+        factor_source_po: "purchase_order",
+        stock_qty: 10000,
+        rate: 100,
+        warehouse: "Stores - NLEPL",
+        purchase_order_item: "poitem-1",
+      }}
+      info={KG_INFO}
+    />,
+  ),
+);
+ok(
+  "dialog: an unweighed PO line names the ordered rate it is using",
+  /from the purchase order/.test(poBackedDialog) &&
+    /Leave blank to use the purchase order rate of 1000/.test(poBackedDialog),
+);
+ok(
+  "dialog: no conversion-factor input anywhere, even with a PO factor",
+  !/conversion factor/i.test(poBackedDialog.replace("Conversion (Nos to Kg)", "")) ||
+    !poBackedDialog.includes("= 1000 Kg"),
+);
 ok("dialog: shows the derived per-each factor", weighedDialog.includes("= 2.54 Kg each"));
 ok("dialog: shows stock quantity in the stock UOM", /25\.4 Kg/.test(weighedDialog));
 ok("dialog: no conversion-factor input even when weighed", !/conversion factor/i.test(weighedDialog));

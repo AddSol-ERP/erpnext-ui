@@ -1565,6 +1565,98 @@ and the same pattern covers batches via `create_new_batch` +
 `batch_number_series`. `get_item_uom_options` now returns all five flags; the
 suite asserts the endpoint contract, because the JS rules are inert without them.
 
+### 9.8i The conversion was real but invisible
+
+Asked for a UOM selector on the Purchase Receipt, the right answer turned out to
+be that the calculation already existed and was simply not shown.
+
+A production receipt against `PUR-ORD-2026-00386` is written in **Nos** on a
+**Kg**-stocked item. `purchase_receipt.py:315` puts `uom` in `compare_fields`, so
+the received UOM is correctly locked — it must equal the PO line's. But
+`conversion_factor` is **not** compared, so the factor is free and already
+derived from the measured total. The gap was presentation: the factor sat in a
+derived panel two fields down and read as a number rather than as the
+relationship the user had just entered.
+
+`conversionPreview()` now renders `1 Nos = 2.54 Kg` above the quantity field,
+plus `10 Nos = 25.4 Kg` once both figures are in. It is unit-agnostic — the target
+comes from `info.stock_uom`, asserted against both Kg and Ltr.
+
+**A UOM selector would have been worse than nothing**: it would have offered a
+choice that ERPNext rejects at save with *"Incorrect value in row N: UOM must be
+equal to 'Kg'"*. The lock hint now explains that, and that the fix is to raise
+the PO in the unit you want to count in.
+
+Two real traps found while building it:
+
+- `Number.isFinite(Number(x))` does **not** detect a missing value — `Number(null)`
+  is `0`, which is finite. The first version of the helper used it and rendered
+  **"1 Nos = 0 Kg"** on every unweighed line. Caught by an assertion; the guard is
+  now `x == null` before any numeric coercion.
+- The stock unit must come from `info.stock_uom`. Hardcoding `Kg` works on the
+  one item we can see and silently misreports every litre-stocked item.
+
+### 9.8j The purchase order's conversion factor was thrown away
+
+Live `PUR-ORD-2026-00386`: `10 Nos → 10000 Kg`, `conversion_factor 1000`.
+`make_purchase_receipt` returned all of it. `pickLine` kept `stock_qty` and
+hardcoded `conversion_factor: 1`, so the row contradicted itself, and because
+`buying_controller.py:517` recomputes `stock_qty = qty * conversion_factor`, an
+unweighed delivery booked **10 Kg instead of 10,000 Kg — silently**.
+
+The escape was to make `measured_total` mandatory, which blocked any delivery
+without a weighbridge. That was trading one silent bug for a hard stop.
+
+The fix inverts it: the PO factor is a valid default (`conversion_factor` is
+never in `compare_fields`), and a weight becomes an override. `stock_qty` is
+derived from the factor on every edit rather than copied, and `conversionBasis`
+tells the user which number they are looking at.
+
+Three traps recorded:
+
+- **`conversion_source`, not a magnitude test.** `1 Nos = 1 Kg` is legitimate
+  for a light item, so "is the factor 1?" cannot mean "is it missing?".
+- **`applyQuantity` is a separate path.** `applyMeasuredTotal` needs a total, so
+  a bare quantity edit through it left `stock_qty` at the old value: 10 → 12 Nos
+  still posted 10,000 Kg.
+- **A PO factor of 0 must be rejected.** `TEST-KG-NOS` carries `0.0` on its Nos
+  row because the real factor is a measurement; a truthiness test would accept
+  it and derive a factor of 0.
+
+Also settled on this data: serials for a weighed item are unusable. `stock_uom =
+Kg` plus `has_serial_no = 1` means one serial per kilogram — 10,000 for that PO
+line. The decision is to set `has_serial_no = 0` on weighed bulk items, which is
+config only: `get_item_uom_options` already reports the flag and `needsSerials()`
+keys off it, so the serial UI disappears with no code change.
+
+### 9.8k Receiving part of an order, and deliveries that do not match their rate
+
+Asked what happens when one sheet of ten is received, and when that sheet weighs
+something other than the ordered rate.
+
+**Partial receipt is legal and common.** `purchase_receipt.py` `status_updater`
+writes `Purchase Order Item.received_qty` from `Purchase Receipt Item.received_qty`
+with `target_ref_field: "qty"`; `overflow_type: "receipt"` governs only
+OVER-receipt. Receiving 1 of 10 books 1000 Kg at the ordered rate and leaves 9
+outstanding. But the row opens holding the full outstanding quantity, which reads
+as mandatory — so the quantity field now states what is outstanding and says
+that reducing it keeps the rest open.
+
+**A per-line factor handles a differing sheet weight fine.** One sheet at 1200 Kg
+sets the factor to 1200 for that line alone. Sheets of different weights on one
+line collapse to an average, and that is not a correctness loss: `qty * factor`
+reproduces the weight the user typed regardless. What it loses is per-piece
+identity, which only matters when serials are on — and weighed bulk items have
+them off.
+
+**What a single factor cannot catch is a slip**: the whole delivery's weight
+typed onto one sheet's line. That books silently and *correctly* for the wrong
+quantity, which is the worst kind of wrong. `conversionDriftSuspicious` warns at
+≥2× or ≤0.5× the ordered rate.
+
+The boundary caught me: with `>` instead of `>=`, a clean doubling — the single
+most likely slip — sat exactly on the threshold and warned about nothing.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second
@@ -1703,7 +1795,7 @@ Running them dirties the committed `.smoke-tmp/out*/entry.mjs` artifacts —
 |---|---|
 | rules suite | **234 passed, 0 failed** |
 | request-form render | **all forms render** |
-| store + ESS + receipt dialogs + balance + return | **106 passed, 0 failed** |
+| store + ESS + receipt dialogs + balance + return | **108 passed, 0 failed** |
 | `npx eslint src` | **clean, 0 problems** |
 | `npm run build` | **✓ built** |
 | `ruff check erpnext_ui/api.py` | 1 error — `F841` at `:416`, **pre-existing** (reproduced against `HEAD`) |
