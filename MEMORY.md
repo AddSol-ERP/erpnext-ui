@@ -2266,3 +2266,39 @@ This is the same shape as the whitelist bug in a different place: a change to a
 **shared** component, where one consumer's test is enough to catch it because
 that consumer is exercised. Worth noting the contrast -- the whitelist gap
 survived because nothing called the endpoint, while this one did not.
+
+## 18. NL-specific Purchase Receipt workflow (2026-10-15)
+
+The Store Purchase Receipt flow now has an optional NL plate path while leaving
+the generic receipt path available. It calls
+`addsol_nl_custom.addsol_nl_custom.plates.api.get_plate_settings`; when that
+app or the feature flag is unavailable, the form stays generic. When enabled,
+it checks each selected item through `is_weight_managed_item` and fails closed
+on submit if eligibility could not be confirmed.
+
+Plate rows capture supplier weight and heat number, with optional MTC and
+weighbridge weight. Estimated/variance and accepted weight are shown; the
+approver-only decision is exposed according to `can_decide_weight` from the
+settings API. A PO-derived per-kg rate is displayed as sourced and locked in
+the receipt, while a non-PO receipt can enter or edit the rate. The server
+continues to validate the submitted values and permissions. Drafts can be
+saved with incomplete plate fields and completed later.
+
+Keep `ReceiptLineForm` shared by the workbench and edit dialog so computed
+weight, validation, and NL fields behave the same in both. Existing ERPNext
+child fields and PO mapper fields must survive loading and saving; strip only
+UI-only helper keys from payloads. The receipt landing page lists recent drafts
+so users can resume them.
+
+The feature is restricted to the Store UI and is driven by the NL app's setting
+and per-item API result. Do not enable these fields for the generic purchase
+form or treat frontend visibility as backend enforcement. The backend API also
+returns `can_decide_weight`; if role behavior changes, update the response and
+UI contract together.
+
+The frontend production build writes hashed files and a manifest into
+`erpnext_ui/public/erp_ui/`; rebuild after source changes. Targeted ESLint and
+build succeeded for this receipt implementation. At that time full lint still
+reported existing issues in `.smoke-tmp/rules.jsx` and
+`.smoke-tmp/storecheck.jsx`; avoid changing those unless the task is to fix
+their lint errors.
