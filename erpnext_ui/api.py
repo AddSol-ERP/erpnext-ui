@@ -29,6 +29,24 @@ SPA_REPORT_DOCTYPES = {
     "leave-balance": "Leave Allocation",
 }
 
+# Script Reports that live in ANOTHER app, keyed the same way as
+# SPA_REPORT_DOCTYPES: frontend/src/pages/Reports/index.jsx and
+# frontend/src/layout/AppShell.jsx reference these keys, and
+# frontend/src/App.jsx guards each route with them.
+#
+# The value is (report name, the app that must be installed for it to exist).
+# Both halves stay server-side on purpose. The frontend sends only the KEY, so
+# a caller who can edit the bundle cannot point it at an arbitrary report on
+# the site -- which is the same reasoning that keeps SPA_APPROVAL_DOCTYPES out
+# of JavaScript (AGENTS.md invariant 8).
+#
+# `addsol_nl_custom` is a customer-specific app. `frappe.get_installed_apps()`
+# is the check that keeps these reports invisible on every other site: no app,
+# no tile, no sidebar entry, and the route guard denies it.
+SPA_CUSTOM_REPORTS = {
+    "plate-stock-register": ("Plate Stock Register", "addsol_nl_custom"),
+}
+
 
 def _can_read(doctype):
     """Whether the session user holds doctype-level read permission.
@@ -41,6 +59,71 @@ def _can_read(doctype):
         return bool(frappe.has_permission(doctype, "read"))
     except Exception:
         return False
+
+
+def _custom_report_available(report_name, app):
+    """Whether a cross-app Script Report is installed AND this user may open it.
+
+    Three independent things have to line up, and all three fail closed:
+
+    1. The app is installed. `addsol_nl_custom` exists only on NL sites, and
+       "required_apps" in hooks.py is empty on purpose (the app must not be a
+       hard dependency for the other customers), so nothing else would notice.
+    2. The Report record exists. A site can have the app installed without the
+       fixture having been imported, and an absent report must read as "no
+       report", never as an error page.
+    3. The user is allowed to RUN it.
+
+    For (3) this delegates to Frappe's own gate instead of re-implementing it,
+    because the gate is genuinely three-part and re-implementing it would
+    silently drift:
+
+      - `Report.is_permitted()` reads the `roles` CHILD TABLE (not the legacy
+        `role` field) and intersects it with `frappe.get_roles()` via
+        `has_common`, honouring `get_custom_allowed_roles` too. An empty
+        roles table means everyone may run the report.
+      - `frappe.has_permission(doc.ref_doctype, "report")` is a SEPARATE check.
+        `Plate Stock Register` declares `ref_doctype: "Serial No"`, and
+        `Serial No` is permission-restricted in stock ERPNext -- so a user in
+        the report's `roles` list can still be refused here. That is Frappe's
+        behaviour on the desk too, and matching it is the point.
+      - `doc.disabled` removes the report entirely.
+
+    Returns True only when `get_report_doc()` would not raise.
+    """
+    if app not in frappe.get_installed_apps():
+        return False
+
+    if not frappe.db.exists("Report", report_name):
+        return False
+
+    try:
+        from frappe.desk.query_report import get_report_doc
+
+        get_report_doc(report_name)
+        return True
+    except Exception:
+        # Includes PermissionError, DoesNotExistError, and anything the
+        # permission machinery raises on an unusual doctype. Any of those means
+        # "do not offer this report".
+        return False
+
+
+def _resolve_custom_report(report_key):
+    """Map a frontend report key to its Report name, or None if unusable.
+
+    The key is the ONLY thing the client ever sends. Resolving it here is what
+    stops a caller from naming any report on the site.
+    """
+    entry = SPA_CUSTOM_REPORTS.get(report_key)
+    if not entry:
+        return None
+
+    report_name, app = entry
+    if not _custom_report_available(report_name, app):
+        return None
+
+    return report_name
 
 
 @frappe.whitelist(allow_guest=False)
@@ -66,11 +149,19 @@ def get_ui_access():
     Returns:
         dict: {"approvals": {doctype: bool}, "reports": {report_key: bool}}
     """
+    reports = {key: _can_read(dt) for key, dt in SPA_REPORT_DOCTYPES.items()}
+
+    # Custom Script Reports land in the SAME map on purpose. The frontend gates
+    # a report tile, sidebar entry and route guard off `canReadReport(key)` and
+    # nothing else, so merging here means "is the app installed, does the report
+    # exist, may this user run it" is answered in exactly one place and a
+    # non-NL site hides the report without a single line of conditional UI.
+    for key, (report_name, app) in SPA_CUSTOM_REPORTS.items():
+        reports[key] = _custom_report_available(report_name, app)
+
     return {
         "approvals": {dt: _can_read(dt) for dt in SPA_APPROVAL_DOCTYPES},
-        "reports": {
-            key: _can_read(dt) for key, dt in SPA_REPORT_DOCTYPES.items()
-        },
+        "reports": reports,
     }
 
 
@@ -2383,3 +2474,170 @@ def get_checkin_logs(employee=None, date=None, limit=100):
 			for r in rows
 		],
 	}
+
+
+# ============================================================
+# CROSS-APP SCRIPT REPORTS
+# ============================================================
+#
+# Why this exists rather than a hand-built page per report: these reports are
+# authored in another app and their COLUMN SET IS NOT KNOWN HERE. `Plate Stock
+# Register` appends a column at runtime (`execute()` adds a hidden "Offcuts"
+# column whenever `include_offcuts` is falsy), so a SPA table built from a
+# hardcoded field list would silently drop or misplace a column depending on a
+# filter the user toggled. The report's own `columns` list is the only truth.
+#
+# The same reasoning drives the filter bar: `Report.filters` is a `Report
+# Filter` CHILD TABLE (frappe/core/doctype/report/report.json), so the fieldname,
+# fieldtype, options and default of every filter are read off the Report record
+# at call time. A filter added in the other app shows up with no SPA change.
+
+
+def _sanitise_report_filters(raw, declared):
+    """Reduce caller-supplied filters to the ones the Report actually declares.
+
+    `get_report_result` hands the whole dict straight to `execute(filters)` as a
+    `frappe._dict`, so anything extra rides along into report code. Intersecting
+    with the declared child-table rows means the report only ever sees fieldnames
+    it published, and an unknown key cannot smuggle a value through.
+    """
+    if not isinstance(raw, dict):
+        return {}
+
+    clean = {}
+    for f in declared:
+        name = f.fieldname
+        if name not in raw:
+            continue
+        value = raw[name]
+        if f.fieldtype == "Check":
+            # Frappe's own report front-end sends "1"/"0"; a real Python bool is
+            # equally likely from a JSON client. Collapse both, because the
+            # report tests `filters.get("include_offcuts")` for TRUTHINESS --
+            # the string "0" is truthy and would silently invert the filter.
+            clean[name] = 1 if cint(value) else 0
+        elif value is not None and str(value).strip() != "":
+            clean[name] = value
+
+    return clean
+
+
+@frappe.whitelist(allow_guest=False)
+def get_custom_report_data(report_key, filters=None):
+    """Run a cross-app Script Report and return its columns, rows and filters.
+
+    `report_key` is a key of SPA_CUSTOM_REPORTS, never a report name: the
+    client cannot name a report, only select one this app already declared.
+
+    Permission model: `_resolve_custom_report` re-runs the full availability
+    probe on every call -- app installed, Report present, and `get_report_doc`
+    (role table + `ref_doctype` report permission + not disabled). That is
+    deliberate. The boolean cached in `get_ui_access` is VISIBILITY only
+    (AGENTS.md invariant 8); the boundary is this call. The probe is three
+    queries on a path that already loads a document and a report result, so
+    re-checking is cheaper than the trust it would cost.
+
+    A disallowed key raises `frappe.PermissionError` rather than returning an
+    empty result, because "no rows" and "not allowed" must not look alike.
+
+    Why not `frappe.desk.query_report.run()`:
+    it unpacks the report's return value as SIX slots --
+    `(columns, result, message, chart, report_summary, skip_total_row)`, from
+    `generate_report_result`. Script Reports still return the FIVE-tuple
+    `(columns, data, message, total_row, chart)`. The fourth element is the
+    report's own TOTAL ROW, and under `run()` it lands in `chart`. Calling it and
+    reading `result["chart"]` for totals would render the totals dict as a chart
+    and the total row would silently never appear. So this calls
+    `get_report_result()` and unpacks the 5-tuple directly.
+
+    Args:
+        report_key (str): Key from SPA_CUSTOM_REPORTS.
+        filters (dict | str): JSON-encoded object; intersected with the report's
+            declared `Report Filter` rows.
+
+    Returns:
+        dict: {
+            "columns": [{"fieldname","label","fieldtype","options","width"}],
+            "data": [dict, ...],
+            "total_row": dict | None,
+            "message": str | None,
+            "filters": [{"fieldname","label","fieldtype","options","default"}],
+        }
+    """
+    report_name = _resolve_custom_report(report_key)
+    if not report_name:
+        # Same error the desk gives when a user opens a report they may not run,
+        # so an absent app and a refused role are indistinguishable to a caller.
+        frappe.throw(
+            frappe._("You are not permitted to view this report."),
+            frappe.PermissionError,
+        )
+
+    from frappe.core.utils import ljust_list
+    from frappe.desk import query_report
+
+    # get_report_doc() is re-called by nothing above, but the probe only proved
+    # availability; load the document here so its `filters` child table is
+    # populated for _sanitise_report_filters.
+    report = query_report.get_report_doc(report_name)
+
+    declared = list(report.filters or [])
+    clean_filters = _sanitise_report_filters(filters, declared)
+
+    raw = query_report.get_report_result(report, clean_filters) or []
+
+    # Script Reports may return the 5-tuple, and nothing guarantees they do --
+    # ljust_list pads a short return rather than raising, so a report that
+    # returns only (columns, data) still works.
+    columns, data, message, total_row, _chart = ljust_list(raw, 5)
+
+    columns = [query_report.get_column_as_dict(col) for col in (columns or [])]
+    data = query_report.normalize_result(data or [], columns)
+
+    # Frappe applies row-level security to report rows in generate_report_result
+    # (`get_filtered_data`); going through get_report_result skips that step, so
+    # it is re-applied here. Without it a report could show rows the desk would
+    # have hidden for this user.
+    if data:
+        data = query_report.get_filtered_data(
+            report.ref_doctype, columns, data, frappe.session.user
+        )
+
+    if isinstance(total_row, list):
+        # A report may return its totals as a positional row, matching its own
+        # column order, which is Frappe's older convention.
+        total_row = query_report.normalize_result([total_row], columns)[0]
+
+    return {
+        "columns": [
+            {
+                "fieldname": col.get("fieldname"),
+                "label": col.get("label") or col.get("fieldname"),
+                "fieldtype": col.get("fieldtype") or "Data",
+                "options": col.get("options"),
+                "width": col.get("width"),
+                # `hidden` is how a report drops a column from display without
+                # dropping it from the row dict.
+                "hidden": cint(col.get("hidden")),
+            }
+            for col in columns
+        ],
+        "data": data,
+        "total_row": total_row,
+        "message": message,
+        # Filter metadata straight off the Report's child table. `options` is
+        # Small Text on Report Filter, so it carries either a Link's target
+        # doctype or a Select's option list -- the SPA tells them apart by
+        # fieldtype.
+        "filters": [
+            {
+                "fieldname": f.fieldname,
+                "label": f.label or f.fieldname,
+                "fieldtype": f.fieldtype,
+                "options": f.options or "",
+                "default": f.default if f.default is not None else "",
+                "mandatory": cint(f.mandatory),
+            }
+            for f in declared
+        ],
+    }

@@ -134,7 +134,15 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 | **`get_project_items(...)`** | `:829-1000` | Store: Project → BOM → items. See §3.7. |
 | **`get_indent_queue(...)`** | `:1003-1180` | Store: the storekeeper's worklist. See §3.7. |
 | `has_app_permission()` | `:76-80` | hook, returns `True` |
+| **`get_custom_report_data(report_key, filters=None)`** | `:2526` | Runs a Script Report that lives in ANOTHER app. Takes a **key**, never a report name. See §3.8. |
 | `boot_session(bootinfo)` | `:103-122` | hook |
+
+**17 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
+defaults to `allow_guest=True`.** That is deliberate for the read-only report
+endpoints but means they are reachable pre-login; `_get_scope()` collapses to
+"my own record only" for a Guest session, so no data leaks. (Counted by parsing
+`api.py`; the table below is a summary and is not exhaustive — see §15 for the
+Stock Balance group added later.)
 
 Note `api.py:1-2` now imports `flt`/`cint` from `frappe.utils`. **`frappe.flt` does not exist** — `frappe/__init__.py` re-exports only `get_traceback` from utils, so the explicit import is required.
 
@@ -504,6 +512,74 @@ filters on status and the form renders a "nothing outstanding" state.
 **Do not hand-roll it.** The `Stock Entry` `on_submit` hook
 (`hooks.py:339-341` → `update_completed_and_requested_qty`) then maintains
 `ordered_qty` and status.
+
+---
+
+### 3.8 Cross-app Script Reports (added 2026-10-16)
+
+`Plate Stock Register` lives in `addsol_nl_custom` and is now rendered inside the
+SPA's Reports module. `SPA_CUSTOM_REPORTS` (`api.py:33-48`) maps a key to
+`(report name, owning app)`, `get_custom_report_data(report_key, filters)`
+(`:2526`) runs it.
+
+**Auto-detection is entirely server-side and it is three independent gates**, not
+one (`_custom_report_available`, `api.py:64-110`):
+
+1. `frappe.get_installed_apps()` — `addsol_nl_custom` is NL-only and
+   `required_apps` is deliberately `[]`, so nothing else would notice a site
+   without it.
+2. `frappe.db.exists("Report", name)` — the app can be installed without the
+   fixture imported.
+3. `frappe.desk.query_report.get_report_doc(name)`.
+
+Gate 3 is **delegated, never re-implemented**, because it is three-part and
+re-implementing it would drift:
+
+- `Report.is_permitted()` reads the **`roles` child table** (not the legacy
+  `role` field) and intersects it with `frappe.get_roles()`. An empty roles
+  table means *everyone* may run the report.
+- `frappe.has_permission(doc.ref_doctype, "report")` is a **separate** check.
+  `Plate Stock Register` declares `ref_doctype: "Serial No"`, and `Serial No` is
+  permission-restricted in stock ERPNext. ⚠️ **So a user listed in the report's
+  `roles` can still be refused** — the 8 roles on the Report include
+  `Stock User`, who typically does *not* hold `Serial No` report permission. The
+  tile then silently does not appear for exactly the store staff who need it. If
+  this is seen on a live NL site, the fix belongs in `addsol_nl_custom` (widen
+  `Serial No` perms, or repoint `ref_doctype`), **never** in a client bypass.
+- `doc.disabled` removes the report.
+
+#### Two traps that fail silently
+
+**`query_report.run()` silently misfiles the total row.** `generate_report_result`
+(`query_report.py:112-156`) unpacks the report's return value as **six** slots —
+`(columns, result, message, chart, report_summary, skip_total_row)`. Script
+Reports still return the **five**-tuple
+`(columns, data, message, total_row, chart)`. The 4th element is the report's own
+TOTAL ROW, and under `run()` it lands in **`chart`**. Calling `run()` and reading
+`result["chart"]` for totals renders the totals dict as a chart and the total row
+**never appears**, with no error. `get_custom_report_data` therefore calls
+`get_report_result()` and unpacks the 5-tuple itself via
+`ljust_list(raw, 5)`. It also re-applies `get_filtered_data()` — `run()` does
+that row-level security pass and `get_report_result()` does not, so skipping it
+would show rows the desk hides.
+
+**The column set is not knowable in the SPA.** `execute()` appends a column at
+runtime — a `hidden` "Offcuts" column whenever `include_offcuts` is falsy — so a
+hardcoded field list drops or shifts a column depending on a filter the user
+toggled. The page renders whatever `columns` the report returns
+(`pages/Reports/custom-report/format.js:visibleColumns`). The same applies to the
+filter bar: `Report.filters` is a **`Report Filter` child table**, not JSON, so
+fieldname/fieldtype/options/default are read off the Report record per call.
+`Report Filter.default` is Small Text, so a Check's default arrives as the string
+`"0"` — which is **truthy in Python**, and the report tests
+`filters.get("include_offcuts")` for truthiness. `_sanitise_report_filters`
+collapses it to `1`/`0`, or the filter inverts silently.
+
+The client sends **only the key**. A report name reaching JavaScript would let
+anyone who can edit the bundle aim the endpoint at a different report; the
+rules suite asserts it does not (`comments are stripped first — a name in a
+comment is not a leak, and this repo documents rationale in comments by
+convention`).
 
 ---
 

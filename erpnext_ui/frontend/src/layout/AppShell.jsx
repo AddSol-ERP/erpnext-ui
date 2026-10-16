@@ -19,6 +19,7 @@ import {
   FileText,
   CalendarDays,
   Timer,
+  Ruler,
   Wallet,
   FileSignature,
   UserCog,
@@ -294,6 +295,15 @@ const NAV_SECTIONS = [
             to: "/reports/leave-balance",
             icon: FileText,
             reportKey: "leave-balance",
+          },
+          {
+            // Defined in addsol_nl_custom; the sidebar child is filtered out by
+            // the canReadReport check below when that app is absent.
+            key: "report-plate-stock-register",
+            labelKey: "nav.reportPlateStock",
+            to: "/reports/plate-stock-register",
+            icon: Ruler,
+            reportKey: "plate-stock-register",
           },
         ],
       },

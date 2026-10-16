@@ -2085,6 +2085,47 @@ body {
   html {
     @apply font-sans;
 	}
+
+	/* Cursor affordance for native controls.
+	   Tailwind v4's preflight ships NO cursor rule at all (v3 relied on the UA
+	   stylesheet's implicit behaviour, and every element here is restyled), so
+	   without this a raw <button> renders with the default arrow and gives no
+	   hint that it is actionable. Only `ui/button.jsx` set one, which is why
+	   hand-rolled controls scattered across the app had no pointer.
+	   This lives in @layer base so Tailwind utilities still win on cascade-LAYER
+	   order, not specificity — that is what keeps the deliberate overrides
+	   working: SidebarRail's cursor-w-resize (`ui/sidebar.jsx:290`),
+	   FormStepper's locked-step cursor-default (`FormStepper/index.jsx:54`) and
+	   AttendanceCalendar's un-drillable-day cursor-default
+	   (`Reports/attendance/AttendanceCalendar.jsx:193`).
+	   `:not(:disabled)` keeps a disabled control on the arrow / not-allowed
+	   rather than advertising it as clickable.
+	   The ARIA roles are here because Radix renders its menu and listbox items as
+	   <div role=...>, NOT as <button> — DropdownMenuItem is a role="menuitem"
+	   and SelectItem a role="option", so a button-only rule silently misses every
+	   item in every menu. This replaced shadcn's explicit `cursor-default` on
+	   those variants (`ui/dropdown-menu.jsx`, `ui/select.jsx`), which is what made
+	   Sign out and the language switcher show an arrow.
+	   The native checkbox/radio/select entries are here because a browser leaves
+	   those on the default arrow too, and they are unambiguously actionable —
+	   this covers the four raw <select> filters (PageToolbar.jsx:61,
+	   Pagination/index.jsx:116, LeaveBalance.jsx:341,359) and the child-table
+	   checkbox (ChildTable/FieldRenderer.jsx:34) without touching each call site.
+	   Native text inputs are deliberately absent: they are for typing, not
+	   pressing, and a pointer there would misrepresent them. */
+	button:not(:disabled),
+	input[type="checkbox"]:not(:disabled),
+	input[type="radio"]:not(:disabled),
+	select:not(:disabled),
+	[role="button"]:not([aria-disabled="true"]),
+	[role="menuitem"],
+	[role="menuitemcheckbox"],
+	[role="menuitemradio"],
+	[role="option"],
+	a[href],
+	label[for] {
+		cursor: pointer;
+	}
 }
 
 /* Print: content only — chrome is hidden via print:hidden on header/sidebar/toolbar */

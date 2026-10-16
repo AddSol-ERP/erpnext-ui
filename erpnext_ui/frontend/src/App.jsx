@@ -43,6 +43,10 @@ const OvertimeReportPage = lazy(
 const LeaveBalance = lazy(
   () => import("./pages/Reports/leave-balance/LeaveBalance")
 );
+// Reports authored in another app, rendered from their own metadata.
+const CustomReportPage = lazy(
+  () => import("./pages/Reports/custom-report/CustomReportPage")
+);
 
 // NEW ROLE HUBS
 import HRDashboard from "./pages/HR";
@@ -321,6 +325,21 @@ export default function App() {
               <RequireReportAccess reportKey="leave-balance">
                 <Suspense fallback={null}>
                   <LeaveBalance context="reports" />
+                </Suspense>
+              </RequireReportAccess>
+            }
+          />
+          {/* Cross-app Script Reports. `reportKey` is a key of
+              SPA_CUSTOM_REPORTS in erpnext_ui/api.py — the report name and the
+              app that must be installed for it stay server-side, so on a site
+              without that app this key resolves to false and the guard denies
+              the route even though the URL is typeable. */}
+          <Route
+            path="/reports/plate-stock-register"
+            element={
+              <RequireReportAccess reportKey="plate-stock-register">
+                <Suspense fallback={null}>
+                  <CustomReportPage reportKey="plate-stock-register" />
                 </Suspense>
               </RequireReportAccess>
             }

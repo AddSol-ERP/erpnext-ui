@@ -109,6 +109,14 @@
 		"charts": "المخططات",
 		"attendanceDistribution": "توزيع الحالة الشهري",
 		"dailyAttendance": "حضور الفريق اليومي",
-		"attendanceRate": "نسبة الحضور حسب الموظف"
+		"attendanceRate": "نسبة الحضور حسب الموظف",
+		"plateStockRegister": "سجل مخزون الألواح",
+		"plateStockRegisterDesc": "مخزون الألواح حسب الصنف والمستودع ورقم الفرن",
+		"applyFilters": "تطبيق عوامل التصفية",
+		"noRows": "لا توجد صفوف لعوامل التصفية هذه.",
+		"loadFailedTitle": "تعذر تحميل التقرير",
+		"loadFailedHint": "تعذر تشغيل التقرير. قد لا تملك الصلاحية، أو قد لا يكون مثبتًا على هذا الموقع.",
+		"noColumnsTitle": "لا توجد أعمدة للعرض",
+		"noColumnsHint": "لم يُرجع التقرير أي تعريفات للأعمدة."
 	}
 }

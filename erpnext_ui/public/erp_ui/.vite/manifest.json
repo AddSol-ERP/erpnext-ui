@@ -1,28 +1,36 @@
 {
-  "_ChartGrid.B3cktK_h.js": {
-    "file": "ChartGrid.B3cktK_h.js",
+  "_ChartGrid.SKu8a9jx.js": {
+    "file": "ChartGrid.SKu8a9jx.js",
     "name": "ChartGrid",
     "imports": [
-      "_button.CbyQzXeR.js"
+      "_button.DVjtKkfy.js",
+      "src/main.jsx"
     ]
   },
-  "_LineChart.DMh5byFZ.js": {
-    "file": "LineChart.DMh5byFZ.js",
+  "_LineChart.DoHvN5bh.js": {
+    "file": "LineChart.DoHvN5bh.js",
     "name": "LineChart",
     "imports": [
-      "_button.CbyQzXeR.js",
-      "_ChartGrid.B3cktK_h.js"
+      "_button.DVjtKkfy.js",
+      "_ChartGrid.SKu8a9jx.js"
     ]
   },
-  "_button.CbyQzXeR.js": {
-    "file": "button.CbyQzXeR.js",
+  "_button.DVjtKkfy.js": {
+    "file": "button.DVjtKkfy.js",
     "name": "button"
   },
-  "_calendar-x.Cqo07KUa.js": {
-    "file": "calendar-x.Cqo07KUa.js",
+  "_calendar-x.4Ppc8v29.js": {
+    "file": "calendar-x.4Ppc8v29.js",
     "name": "calendar-x",
     "imports": [
-      "_button.CbyQzXeR.js"
+      "_button.DVjtKkfy.js"
+    ]
+  },
+  "_select.Dl_QwkuS.js": {
+    "file": "select.Dl_QwkuS.js",
+    "name": "select",
+    "imports": [
+      "_button.DVjtKkfy.js"
     ]
   },
   "node_modules/@fontsource-variable/geist/files/geist-cyrillic-ext-wght-normal.woff2": {
@@ -78,22 +86,24 @@
     "src": "node_modules/@fontsource-variable/noto-sans-devanagari/files/noto-sans-devanagari-latin-wght-normal.woff2"
   },
   "src/main.jsx": {
-    "file": "main.DEU7PBex.js",
+    "file": "main.CQUmwV6k.js",
     "name": "main",
     "src": "src/main.jsx",
     "isEntry": true,
     "imports": [
-      "_button.CbyQzXeR.js",
-      "_calendar-x.Cqo07KUa.js"
+      "_button.DVjtKkfy.js",
+      "_calendar-x.4Ppc8v29.js",
+      "_select.Dl_QwkuS.js"
     ],
     "dynamicImports": [
       "src/pages/Quality/reports/index.jsx",
       "src/pages/Reports/attendance/AttendancePage.jsx",
       "src/pages/Reports/overtime/OvertimeReportPage.jsx",
-      "src/pages/Reports/leave-balance/LeaveBalance.jsx"
+      "src/pages/Reports/leave-balance/LeaveBalance.jsx",
+      "src/pages/Reports/custom-report/CustomReportPage.jsx"
     ],
     "css": [
-      "main.DY4u1Tg4.css"
+      "main.CFHdoraA.css"
     ],
     "assets": [
       "geist-cyrillic-ext-wght-normal.DjL33-gN.woff2",
@@ -112,51 +122,63 @@
     ]
   },
   "src/pages/Quality/reports/index.jsx": {
-    "file": "reports.CCqUv6je.js",
+    "file": "reports.BbKxiWVj.js",
     "name": "reports",
     "src": "src/pages/Quality/reports/index.jsx",
     "isDynamicEntry": true,
     "imports": [
-      "_button.CbyQzXeR.js",
+      "_button.DVjtKkfy.js",
+      "_select.Dl_QwkuS.js",
       "src/main.jsx",
-      "_ChartGrid.B3cktK_h.js",
-      "_LineChart.DMh5byFZ.js"
+      "_ChartGrid.SKu8a9jx.js",
+      "_LineChart.DoHvN5bh.js"
     ]
   },
   "src/pages/Reports/attendance/AttendancePage.jsx": {
-    "file": "AttendancePage.Cu1e_KQe.js",
+    "file": "AttendancePage.C-yiN55Y.js",
     "name": "AttendancePage",
     "src": "src/pages/Reports/attendance/AttendancePage.jsx",
     "isDynamicEntry": true,
     "imports": [
-      "_button.CbyQzXeR.js",
-      "_calendar-x.Cqo07KUa.js",
+      "_button.DVjtKkfy.js",
+      "_calendar-x.4Ppc8v29.js",
       "src/main.jsx",
-      "_ChartGrid.B3cktK_h.js"
+      "_ChartGrid.SKu8a9jx.js"
+    ]
+  },
+  "src/pages/Reports/custom-report/CustomReportPage.jsx": {
+    "file": "CustomReportPage.DlGjz6dR.js",
+    "name": "CustomReportPage",
+    "src": "src/pages/Reports/custom-report/CustomReportPage.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_button.DVjtKkfy.js",
+      "_select.Dl_QwkuS.js",
+      "src/main.jsx"
     ]
   },
   "src/pages/Reports/leave-balance/LeaveBalance.jsx": {
-    "file": "LeaveBalance.DuVGTgmf.js",
+    "file": "LeaveBalance.Do7djXlH.js",
     "name": "LeaveBalance",
     "src": "src/pages/Reports/leave-balance/LeaveBalance.jsx",
     "isDynamicEntry": true,
     "imports": [
-      "_button.CbyQzXeR.js",
-      "_calendar-x.Cqo07KUa.js",
+      "_button.DVjtKkfy.js",
+      "_calendar-x.4Ppc8v29.js",
       "src/main.jsx",
-      "_ChartGrid.B3cktK_h.js"
+      "_ChartGrid.SKu8a9jx.js"
     ]
   },
   "src/pages/Reports/overtime/OvertimeReportPage.jsx": {
-    "file": "OvertimeReportPage.Dk5fGL4c.js",
+    "file": "OvertimeReportPage.guSh4TG6.js",
     "name": "OvertimeReportPage",
     "src": "src/pages/Reports/overtime/OvertimeReportPage.jsx",
     "isDynamicEntry": true,
     "imports": [
-      "_button.CbyQzXeR.js",
+      "_button.DVjtKkfy.js",
       "src/main.jsx",
-      "_ChartGrid.B3cktK_h.js",
-      "_LineChart.DMh5byFZ.js"
+      "_ChartGrid.SKu8a9jx.js",
+      "_LineChart.DoHvN5bh.js"
     ]
   }
 }

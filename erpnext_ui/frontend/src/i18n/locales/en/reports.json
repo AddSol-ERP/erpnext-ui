@@ -109,6 +109,14 @@
 		"charts": "Charts",
 		"attendanceDistribution": "Monthly status distribution",
 		"dailyAttendance": "Daily team attendance",
-		"attendanceRate": "Attendance rate by employee"
+		"attendanceRate": "Attendance rate by employee",
+		"plateStockRegister": "Plate Stock Register",
+		"plateStockRegisterDesc": "Plate stock by item, warehouse & heat number",
+		"applyFilters": "Apply Filters",
+		"noRows": "No rows for these filters.",
+		"loadFailedTitle": "Could not load the report",
+		"loadFailedHint": "The report could not be run. You may not have permission, or it may not be installed on this site.",
+		"noColumnsTitle": "No columns to show",
+		"noColumnsHint": "The report returned no column definitions."
 	}
 }

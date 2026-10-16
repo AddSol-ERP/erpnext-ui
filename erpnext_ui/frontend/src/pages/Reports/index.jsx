@@ -16,6 +16,7 @@ import {
   CalendarX,
   Lock,
   PieChart,
+  Ruler,
 } from "lucide-react";
 
 export default function ReportDashboard() {
@@ -27,6 +28,11 @@ export default function ReportDashboard() {
   // resolved server-side in erpnext_ui.api.get_ui_access via
   // frappe.has_permission(doctype, "read"). The `key` here must match the keys
   // in SPA_REPORT_DOCTYPES on the Python side.
+  //
+  // Cross-app Script Reports use the same `canReadReport` call: their boolean
+  // comes from SPA_CUSTOM_REPORTS, which resolves to false when the app is not
+  // installed, the Report record is missing, or this user's role may not run it.
+  // So this tile disappears on a non-NL site with no conditional UI here at all.
   const { canReadReport, loading: rolesLoading } = useRole();
 
   useEffect(() => {
@@ -64,6 +70,15 @@ export default function ReportDashboard() {
       description: t("reports.leaveBalanceDesc"),
       icon: PieChart,
       route: "/reports/leave-balance",
+    },
+    {
+      // Defined in addsol_nl_custom. Hidden automatically on any site without
+      // that app — see SPA_CUSTOM_REPORTS.
+      key: "plate-stock-register",
+      title: t("reports.plateStockRegister"),
+      description: t("reports.plateStockRegisterDesc"),
+      icon: Ruler,
+      route: "/reports/plate-stock-register",
     },
   ];
 

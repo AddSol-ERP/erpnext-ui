@@ -44,6 +44,13 @@ import {
 } from "../src/lib/receiptConversion.js";
 import { DOCTYPE_CONFIG } from "../src/config/doctypes.js";
 import {
+  formatCell,
+  isNumericColumn,
+  parseSelectOptions,
+  seedDefault,
+  visibleColumns,
+} from "../src/pages/Reports/custom-report/format.js";
+import {
   directionOf,
   freeQty,
   isValuationAccurate,
@@ -1833,6 +1840,330 @@ ok(
 ok(
   "partial: the picked line carries the outstanding quantity through",
   /pending_qty: line\.pending_qty/.test(receiptFormSrc),
+);
+
+// ---------------------------------------------------------------------------
+// Cursor affordance — the one defect in this app that NOTHING can catch at
+// runtime. A missing `cursor-pointer` compiles, renders, passes both SSR suites
+// and throws no React error; the control simply shows the default arrow and the
+// user never learns it is clickable. It shipped that way for every hand-rolled
+// button in the Store module and in the shadcn primitives.
+//
+// The fix was one `@layer base` rule in index.css rather than ~60 per-call-site
+// classes, so the invariant to guard is the rule itself plus the primitives that
+// would otherwise contradict it.
+// ---------------------------------------------------------------------------
+
+const indexCssSrc = readSrc("../../src/index.css");
+
+// The rule must live INSIDE `@layer base`. Tailwind emits its utilities into
+// `@layer utilities`, which is declared after `base`, so layer order (not
+// specificity) keeps the deliberate overrides working. Move it out of the layer
+// and it would beat `cursor-default` on a locked form step and
+// `cursor-w-resize` on the sidebar rail -- verified in the built
+// public/erp_ui/*.css, where `@layer base` precedes `@layer utilities`.
+//
+// Containment is checked by brace-matching the enclosing block, NOT by slicing
+// from `@layer base {` to EOF: index.css has several base blocks and a
+// to-EOF slice happily "contains" a rule that was moved clean outside the
+// layer, which is exactly the break this has to catch.
+const cursorRuleAt = indexCssSrc.indexOf("button:not(:disabled)");
+let enclosingBase = null;
+{
+  const lastBase = indexCssSrc.lastIndexOf("@layer base {", cursorRuleAt);
+  if (lastBase !== -1) {
+    // depth starts at 1 because `lastBase + "@layer base {".length` lands one
+    // PAST the block's opening brace -- that brace is what makes the block open,
+    // so counting from 0 here closes on the first inner rule instead.
+    let depth = 1;
+    for (let i = lastBase + "@layer base {".length; i < indexCssSrc.length; i++) {
+      if (indexCssSrc[i] === "{") depth++;
+      else if (indexCssSrc[i] === "}" && --depth === 0) {
+        enclosingBase = indexCssSrc.slice(lastBase, i + 1);
+        break;
+      }
+    }
+  }
+}
+ok(
+  "the cursor rule lives in @layer base so Tailwind utilities still override it",
+  cursorRuleAt !== -1 && enclosingBase !== null && enclosingBase.includes("cursor: pointer"),
+  "button:not(:disabled) ... cursor: pointer must sit inside a @layer base block",
+);
+
+// Radix renders menu and listbox items as <div role=...>, NOT <button>. A
+// button-only rule misses every item in every menu, which is how Sign out and
+// the language switcher stayed on the arrow even after the base rule landed.
+ok(
+  "the cursor rule covers Radix's role-based menu/listbox items, not just <button>",
+  enclosingBase !== null &&
+    ['role="menuitem"', 'role="menuitemcheckbox"', 'role="menuitemradio"', 'role="option"'].every(
+      (r) => enclosingBase.includes(`[${r}]`),
+    ),
+  "every DropdownMenuItem (role=menuitem) and SelectItem (role=option) needs it",
+);
+
+// The controls that ARE explicitly non-actionable must keep saying so.
+// `disabled:` / `data-disabled:` only affect the cursor while actually disabled,
+// so a plain `cursor-pointer` on the primitive is the correct form.
+const CURSOR_POINTER_PRIMITIVES = [
+  ["../../src/components/ui/select.jsx", "SelectTrigger"],
+  ["../../src/components/ui/tabs.jsx", "TabsTrigger"],
+  ["../../src/components/ui/checkbox.jsx", "CheckboxPrimitive.Root"],
+  ["../../src/components/ui/switch.jsx", "SwitchPrimitive.Root"],
+];
+for (const [rel, label] of CURSOR_POINTER_PRIMITIVES) {
+  const src = readSrc(rel);
+  const at = src.indexOf(label);
+  // Take the ~700 chars from the primitive forward -- its className string is
+  // the last thing before `>` in the JSX, so it is always inside this window.
+  const region = at === -1 ? "" : src.slice(at, at + 700);
+  ok(
+    `${label} carries cursor-pointer`,
+    region.includes("cursor-pointer"),
+    `${rel}: no cursor-pointer near ${label}`,
+  );
+}
+
+// shadcn ships `cursor-default` on menu items (its native-menu convention).
+// That is the one place the arrow was EXPLICITLY requested rather than merely
+// missing, and it is what made every dropdown item look like static text.
+ok(
+  "dropdown-menu.jsx no longer requests cursor-default on any item",
+  !readSrc("../../src/components/ui/dropdown-menu.jsx").includes("cursor-default"),
+  "every DropdownMenuItem / CheckboxItem / RadioItem / SubTrigger is clickable",
+);
+
+// Select is the one file where a legitimate `cursor-default` REMAINS: the
+// up/down scroll buttons of the popup (select.jsx:146,165) are not actionable
+// and should not advertise otherwise. Assert SelectItem itself is clean and
+// that only those two survive -- zero-tolerance would be wrong, one would mean
+// an item regressed, more would mean new dead affordances.
+const selectSrc = readSrc("../../src/components/ui/select.jsx");
+const selectItemAt = selectSrc.indexOf("function SelectItem(");
+const selectDefaults = (selectSrc.match(/cursor-default/g) || []).length;
+ok(
+  "select.jsx's only remaining cursor-default is the non-interactive scroll buttons",
+  selectItemAt !== -1 &&
+    !selectSrc.slice(selectItemAt, selectItemAt + 900).includes("cursor-default") &&
+    selectDefaults === 2,
+  `SelectItem must be clean; found ${selectDefaults} cursor-default, expected exactly 2 (scroll up/down)`,
+);
+
+// ---------------------------------------------------------------------------
+// Report keys must exist server-side.
+//
+// `canReadReport(key)` reads `doctypeAccess.reports[key]`, which the server
+// populates from exactly two Python dicts: SPA_REPORT_DOCTYPES and
+// SPA_CUSTOM_REPORTS. A key added to the frontend but forgotten in api.py
+// resolves to `undefined` -> `false`, so the tile never renders, the sidebar
+// child never renders and the route guard shows "No report permissions" for
+// EVERY user -- with no error in any log and no failing request. The route
+// audit above cannot catch it either: the route itself is perfectly valid.
+//
+// This mirrors that audit's intent for the one failure mode it cannot see.
+// ---------------------------------------------------------------------------
+const customReportBlock =
+  apiSource.match(/SPA_CUSTOM_REPORTS\s*=\s*\{([\s\S]*?)\n\}/)?.[1] || "";
+
+const serverReportKeys = new Set();
+for (const m of apiSource.matchAll(/^SPA_(?:REPORT_DOCTYPES|CUSTOM_REPORTS)\s*=\s*\{([^}]*)\}/gms)) {
+  for (const key of m[1].matchAll(/["']([\w-]+)["']\s*:/g)) {
+    serverReportKeys.add(key[1]);
+  }
+}
+ok(
+  "the api.py guard actually parsed both report maps",
+  serverReportKeys.size >= 4,
+  `found ${serverReportKeys.size}: ${[...serverReportKeys].join(", ")}`,
+);
+
+const appShellSrc = readSrc("../../src/layout/AppShell.jsx");
+const reportKeyUses = [
+  ...appShellSrc.matchAll(/reportKey:\s*"([^"]+)"/g),
+  ...appRouteSrc.matchAll(/RequireReportAccess\s+reportKey="([^"]+)"/g),
+].map((m) => m[1]);
+
+ok(
+  "every reportKey used in the sidebar and route guards is declared in api.py",
+  reportKeyUses.length > 0 &&
+    reportKeyUses.every((k) => serverReportKeys.has(k)),
+  `undeclared: ${reportKeyUses.filter((k) => !serverReportKeys.has(k)).join(", ") || "none"} -- listed: ${reportKeyUses.join(", ")}`,
+);
+
+// The report NAME must never reach JavaScript. The client sends only the key,
+// and the server maps key -> name and re-checks permission on every call, so
+// editing the bundle alone cannot aim the endpoint at a different report.
+//
+// Note this is deliberately NOT "the app name must stay out of src/" — that is
+// unachievable and therefore not a real invariant: the Store receipt already
+// calls `addsol_nl_custom...` methods by path
+// (pages/Store/purchase-receipt/form/index.jsx), so the owning app is in the
+// shipped bundle regardless. What must not ship is the report name.
+//
+// Comments are stripped before the check, because a name in a comment is not a
+// leak: the minifier drops comments, so it never reaches the shipped bundle,
+// and this repo documents rationale in comments by convention (AGENTS.md
+// section 4). Matching raw source would punish exactly the comments the
+// standards ask for.
+const stripComments = (s) =>
+  s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+
+// "key": ("Report Name", "owning_app")
+const reportNames = [
+  ...customReportBlock.matchAll(
+    /["'][\w-]+["']\s*:\s*\(\s*["']([^"']+)["']\s*,\s*["'][^"']+["']\s*\)/g,
+  ),
+].map((m) => m[1]);
+
+const customReportSrc = readSrc("../../src/pages/Reports/custom-report/CustomReportPage.jsx");
+
+const srcFiles = [
+  appShellSrc,
+  appRouteSrc,
+  readSrc("../../src/pages/Reports/index.jsx"),
+  customReportSrc,
+].map(stripComments);
+const leaked = reportNames.filter((name) =>
+  srcFiles.some((s) => s.includes(name)),
+);
+ok(
+  "no custom Report NAME appears in the SPA -- the client only ever sends keys",
+  reportNames.length > 0 && leaked.length === 0,
+  leaked.length
+    ? `report name(s) leaked into src/: ${leaked.join(", ")}`
+    : `checked ${reportNames.length} report name(s): ${reportNames.join(", ")}`,
+);
+
+// The endpoint must take a KEY. If it ever gained a `report_name` parameter the
+// mapping above would be bypassable.
+ok(
+  "get_custom_report_data takes a report_key, never a report name",
+  /def get_custom_report_data\(\s*report_key\s*,/.test(apiSource) &&
+    !/def get_custom_report_data\([^)]*report_name/.test(apiSource),
+  "signature must be (report_key, filters) and resolve the name server-side",
+);
+
+// The report's own filter/column metadata is what the page renders from, so the
+// endpoint must return both. Losing `filters` renders no filter bar at all and
+// losing `columns` renders an empty table -- neither is an exception.
+ok(
+  "the custom report page renders from the server's filters + columns metadata",
+  /get_custom_report_data/.test(apiSource) &&
+    /payload\.filters/.test(customReportSrc) &&
+    /payload\.columns/.test(customReportSrc),
+  "endpoint must return filters and columns, page must consume both",
+);
+
+// ---------------------------------------------------------------------------
+// Cross-app report rendering. `Plate Stock Register` is a Script Report in
+// another app whose COLUMN SET IS NOT KNOWN HERE, so the page renders whatever
+// the server returns. That makes the cell formatter the only place a wrong
+// number can be shown to a storekeeper, and `renderToString` cannot help: the
+// page fetches in an effect, which never runs under SSR, so a render assertion
+// would pass on an empty page. Calling the real functions is what actually bites.
+// ---------------------------------------------------------------------------
+const FLOAT = { fieldname: "total_weight", fieldtype: "Float" };
+const CURRENCY = { fieldname: "stock_value", fieldtype: "Currency" };
+const INT = { fieldname: "plates", fieldtype: "Int" };
+const LINK = { fieldname: "item", fieldtype: "Link", options: "Item" };
+
+// A blank weight must read as blank. `Number(null)` is 0 and 0 IS finite, which
+// is exactly the guard that made conversionPreview() once render "1 Nos = 0 Kg".
+ok(
+  "formatCell: a missing value renders as an em dash, never as 0",
+  formatCell(null, FLOAT) === "\u2014" &&
+    formatCell(undefined, FLOAT) === "\u2014" &&
+    formatCell("", FLOAT) === "\u2014" &&
+    formatCell(null, LINK) === "\u2014",
+  `got null->${formatCell(null, FLOAT)}, ""->${formatCell("", FLOAT)} -- a blank plate weight must not read as a real zero`,
+);
+
+ok(
+  "formatCell: 0 stays 0, because a real zero weight IS meaningful",
+  formatCell(0, FLOAT) === "0" && formatCell(0, INT) === "0",
+  `got ${formatCell(0, FLOAT)}`,
+);
+
+ok(
+  "formatCell: a whole-number Float prints without a trailing .0",
+  formatCell(12, FLOAT) === "12" && formatCell(12.5, FLOAT) === "12.5",
+  `got 12 -> ${formatCell(12, FLOAT)}, 12.5 -> ${formatCell(12.5, FLOAT)}`,
+);
+
+ok(
+  "formatCell: Currency keeps two decimals, Float keeps three",
+  formatCell(1234.5, CURRENCY).endsWith(".50") &&
+    formatCell(1234.5, CURRENCY).startsWith("1,234") &&
+    formatCell(1.23456, FLOAT) === "1.235",
+  `currency -> ${formatCell(1234.5, CURRENCY)}, float -> ${formatCell(1.23456, FLOAT)}`,
+);
+
+ok(
+  "formatCell: a non-numeric string in a numeric column is shown verbatim",
+  formatCell("n/a", FLOAT) === "n/a",
+  `got ${formatCell("n/a", FLOAT)}`,
+);
+
+// A NUMERIC STRING in a numeric column must still be formatted. This is what
+// separates `Number.isFinite(Number(value))` from `Number.isFinite(value)`:
+// Number.isFinite does not coerce, so on the raw "1.23456" it is false and the
+// cell would print the un-rounded string. A SQL report can hand back a numeric
+// column as a string, and 1.23456 Kg vs 1.235 Kg is the difference the report
+// exists to make legible.
+ok(
+  "formatCell: a numeric STRING in a numeric column is formatted, not printed raw",
+  formatCell("1.23456", FLOAT) === "1.235" &&
+    formatCell("12", FLOAT) === "12",
+  `got "1.23456" -> ${formatCell("1.23456", FLOAT)} -- an unformatted SQL string means isFinite was applied to the raw value`,
+);
+
+ok(
+  "isNumericColumn covers exactly the fieldtypes that get tabular alignment",
+  isNumericColumn(FLOAT) &&
+    isNumericColumn(CURRENCY) &&
+    isNumericColumn(INT) &&
+    !isNumericColumn(LINK) &&
+    !isNumericColumn({ fieldtype: "Data" }),
+);
+
+// `Report Filter.default` is Small Text, so a Check's default arrives as the
+// STRING "0". The report tests `filters.get("include_offcuts")` for TRUTHINESS
+// and the string "0" is truthy in Python -- it would invert the filter.
+ok(
+  "seedDefault: a Check's string default normalises to an int",
+  seedDefault({ fieldtype: "Check", default: "1" }) === 1 &&
+    seedDefault({ fieldtype: "Check", default: "0" }) === 0 &&
+    seedDefault({ fieldtype: "Check", default: "" }) === undefined,
+  `got "1"->${seedDefault({ fieldtype: "Check", default: "1" })}, "0"->${seedDefault({ fieldtype: "Check", default: "0" })}`,
+);
+ok(
+  "seedDefault: a text default passes through, an empty one seeds nothing",
+  seedDefault({ fieldtype: "Data", default: "ALL" }) === "ALL" &&
+    seedDefault({ fieldtype: "Data", default: "" }) === undefined,
+);
+
+// `Report Filter.options` is Small Text written one option per line.
+ok(
+  "parseSelectOptions splits on newlines and drops blank lines",
+  JSON.stringify(parseSelectOptions("Draft\n\n  Submitted  \n")) ===
+    JSON.stringify([
+      { value: "Draft", label: "Draft" },
+      { value: "Submitted", label: "Submitted" },
+    ]),
+  `got ${JSON.stringify(parseSelectOptions("Draft\n\n  Submitted  \n"))}`,
+);
+
+// The Offcuts column is `hidden`, not absent: the row dict still carries it, so
+// rendering it would shift every later value one column to the left.
+ok(
+  "visibleColumns drops hidden columns while the row keeps the key",
+  visibleColumns([
+    { fieldname: "item" },
+    { fieldname: "excluded", hidden: 1 },
+    { fieldname: "total_weight" },
+  ]).map((c) => c.fieldname).join(",") === "item,total_weight",
+  "a hidden column must not occupy a visible cell",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

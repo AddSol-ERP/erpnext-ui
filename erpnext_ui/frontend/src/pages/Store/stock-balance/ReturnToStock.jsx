@@ -285,7 +285,7 @@ export default function ReturnToStock({ show, onClose, row, defaultCompany, onDo
               </FormField>
             </div>
             <div className="flex flex-wrap gap-3">
-              <label className="flex items-center gap-2 text-xs">
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={form.has_batch_no}
@@ -293,7 +293,7 @@ export default function ReturnToStock({ show, onClose, row, defaultCompany, onDo
                 />
                 {t("store.returnStock.trackBatch")}
               </label>
-              <label className="flex items-center gap-2 text-xs">
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={form.has_serial_no}
