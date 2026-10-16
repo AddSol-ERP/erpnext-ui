@@ -34170,9 +34170,7 @@ async function request(method, url, data = {}, canRetryCsrf = true) {
 	return json;
 }
 async function get(method, params = {}) {
-	const clean = {};
-	for (const [k, v] of Object.entries(params)) if (v !== null && v !== void 0) clean[k] = v;
-	const query = new URLSearchParams(clean).toString();
+	const query = new URLSearchParams(params).toString();
 	return request("GET", query ? `${method}?${query}` : method);
 }
 async function post(method, data = {}) {
@@ -36937,9 +36935,6 @@ var translation_default$2 = {
 		"name": "Name",
 		"status": "Status",
 		"date": "Date",
-		"time": "Time",
-		"type": "Type",
-		"device": "Device",
 		"amount": "Amount",
 		"total": "Total",
 		"optional": "Optional",
@@ -36998,17 +36993,14 @@ var translation_default$2 = {
 		"cancelConfirm": "Are you sure you want to cancel {name}?",
 		"cancelling": "Cancelling...",
 		"cancelledSuccess": "{name} cancelled successfully",
-		"cancelFailed": "Failed to cancel",
-		"add": "Add",
-		"done": "Done",
-		"remove": "Remove",
-		"none": "None"
+		"cancelFailed": "Failed to cancel"
 	},
 	nav: {
 		"approvals": "Approvals",
 		"production": "Production",
 		"quality": "Quality",
 		"store": "Store",
+		"requests": "Requests",
 		"reports": "Reports",
 		"hr": "Human Resources",
 		"sales": "Sales",
@@ -37031,18 +37023,15 @@ var translation_default$2 = {
 		"qualityReports": "Quality Reports",
 		"jobCards": "Job Cards",
 		"workOrders": "Work Orders",
-		"attendanceRequests": "Fix My Attendance",
-		"leaveApplications": "Apply for Leave",
-		"expenseClaims": "Claim an Expense",
-		"essProfile": "My Details",
-		"essAttendance": "My Attendance",
-		"essOvertime": "My Overtime",
-		"leaveBalance": "My Leave Balance",
+		"attendanceRequests": "Attendance Requests",
+		"leaveApplications": "Leave Applications",
+		"expenseClaims": "Expense Claims",
+		"essProfile": "My Profile",
+		"essAttendance": "Attendance Calendar",
+		"essOvertime": "Overtime Logs",
+		"leaveBalance": "Leave Balance",
 		"reportAttendance": "Attendance",
-		"reportOvertime": "Overtime",
-		"reportPlateStock": "Plate Stock Register",
-		"salarySlips": "My Payslips",
-		"tasks": "My Tasks"
+		"reportOvertime": "Overtime"
 	},
 	theme: {
 		"appearance": "Appearance",
@@ -37110,7 +37099,8 @@ var translation_default$2 = {
 		"openRequests": "Open Requests",
 		"pendingApprovals": "Pending Approvals",
 		"activeJobs": "Active Jobs",
-		"qcPending": "QC Pending"
+		"qcPending": "QC Pending",
+		"quickAccess": "Quick access to all modules"
 	},
 	userMenu: {
 		"profile": "Profile",
@@ -37151,9 +37141,6 @@ var translation_default$1 = {
 		"name": "नाम",
 		"status": "स्थिति",
 		"date": "तिथि",
-		"time": "समय",
-		"type": "प्रकार",
-		"device": "उपकरण",
 		"amount": "राशि",
 		"total": "कुल",
 		"optional": "वैकल्पिक",
@@ -37212,17 +37199,14 @@ var translation_default$1 = {
 		"cancelConfirm": "क्या आप वाकई {name} को रद्द करना चाहते हैं?",
 		"cancelling": "रद्द किया जा रहा है...",
 		"cancelledSuccess": "{name} सफलतापूर्वक रद्द कर दिया गया",
-		"cancelFailed": "रद्द करना विफल रहा",
-		"add": "जोड़ें",
-		"done": "हो गया",
-		"remove": "हटाएँ",
-		"none": "कोई नहीं"
+		"cancelFailed": "रद्द करना विफल रहा"
 	},
 	nav: {
 		"approvals": "अनुमोदन",
 		"production": "उत्पादन",
 		"quality": "गुणवत्ता",
 		"store": "स्टोर",
+		"requests": "अनुरोध",
 		"reports": "रिपोर्ट",
 		"hr": "मानव संसाधन",
 		"sales": "बिक्री",
@@ -37245,18 +37229,15 @@ var translation_default$1 = {
 		"qualityReports": "गुणवत्ता रिपोर्ट",
 		"jobCards": "जॉब कार्ड",
 		"workOrders": "वर्क ऑर्डर",
-		"attendanceRequests": "मेरी उपस्थिति में सुधार करें",
-		"leaveApplications": "अवकाश के लिए आवेदन करें",
-		"expenseClaims": "खर्च का दावा करें",
-		"essProfile": "मेरा प्रोफ़ाइल",
-		"essAttendance": "मेरी उपस्थिति",
-		"essOvertime": "मेरा ओवरटाइम",
-		"leaveBalance": "मेरा अवकाश शेष",
+		"attendanceRequests": "उपस्थिति अनुरोध",
+		"leaveApplications": "अवकाश आवेदन",
+		"expenseClaims": "व्यय दावे",
+		"essProfile": "मेरी प्रोफ़ाइल",
+		"essAttendance": "उपस्थिति कैलेंडर",
+		"essOvertime": "ओवरटाइम लॉग",
+		"leaveBalance": "अवकाश शेष",
 		"reportAttendance": "उपस्थिति",
-		"reportOvertime": "ओवरटाइम",
-		"reportPlateStock": "प्लेट स्टॉक रजिस्टर",
-		"salarySlips": "मेरी वेतन पर्चियाँ",
-		"tasks": "मेरे कार्य"
+		"reportOvertime": "ओवरटाइम"
 	},
 	theme: {
 		"appearance": "रूप-रंग",
@@ -37324,7 +37305,8 @@ var translation_default$1 = {
 		"openRequests": "खुले अनुरोध",
 		"pendingApprovals": "लंबित अनुमोदन",
 		"activeJobs": "सक्रिय जॉब",
-		"qcPending": "क्यूसी लंबित"
+		"qcPending": "क्यूसी लंबित",
+		"quickAccess": "सभी मॉड्यूल तक त्वरित पहुँच"
 	},
 	userMenu: {
 		"profile": "प्रोफ़ाइल",
@@ -37365,9 +37347,6 @@ var translation_default = {
 		"name": "الاسم",
 		"status": "الحالة",
 		"date": "التاريخ",
-		"time": "الوقت",
-		"type": "النوع",
-		"device": "الجهاز",
 		"amount": "المبلغ",
 		"total": "الإجمالي",
 		"optional": "اختياري",
@@ -37426,17 +37405,14 @@ var translation_default = {
 		"cancelConfirm": "هل أنت متأكد أنك تريد إلغاء {name}؟",
 		"cancelling": "جارٍ الإلغاء...",
 		"cancelledSuccess": "تم إلغاء {name} بنجاح",
-		"cancelFailed": "فشل الإلغاء",
-		"add": "إضافة",
-		"done": "تم",
-		"remove": "إزالة",
-		"none": "لا شيء"
+		"cancelFailed": "فشل الإلغاء"
 	},
 	nav: {
 		"approvals": "الموافقات",
 		"production": "الإنتاج",
 		"quality": "الجودة",
 		"store": "المستودع",
+		"requests": "الطلبات",
 		"reports": "التقارير",
 		"hr": "الموارد البشرية",
 		"sales": "المبيعات",
@@ -37459,18 +37435,15 @@ var translation_default = {
 		"qualityReports": "تقارير الجودة",
 		"jobCards": "بطاقات العمل",
 		"workOrders": "أوامر العمل",
-		"attendanceRequests": "تصحيح دوام الحضور",
-		"leaveApplications": "طلب إجازة",
-		"expenseClaims": "تقديم مطالبة مصروف",
+		"attendanceRequests": "طلبات الحضور",
+		"leaveApplications": "طلبات الإجازة",
+		"expenseClaims": "مطالبات المصروفات",
 		"essProfile": "ملفي الشخصي",
-		"essAttendance": "دوام حضوري",
-		"essOvertime": "ساعات العمل الإضافي",
-		"leaveBalance": "رصيد إجازتي",
+		"essAttendance": "تقويم الحضور",
+		"essOvertime": "سجلات العمل الإضافي",
+		"leaveBalance": "رصيد الإجازة",
 		"reportAttendance": "الحضور",
-		"reportOvertime": "العمل الإضافي",
-		"reportPlateStock": "سجل مخزون الألواح",
-		"salarySlips": "قواتير راتبي",
-		"tasks": "مهامي"
+		"reportOvertime": "العمل الإضافي"
 	},
 	theme: {
 		"appearance": "المظهر",
@@ -37538,7 +37511,8 @@ var translation_default = {
 		"openRequests": "الطلبات المفتوحة",
 		"pendingApprovals": "الموافقات المعلقة",
 		"activeJobs": "الوظائف النشطة",
-		"qcPending": "فحص الجودة معلق"
+		"qcPending": "فحص الجودة معلق",
+		"quickAccess": "وصول سريع إلى جميع الوحدات"
 	},
 	userMenu: {
 		"profile": "الملف الشخصي",
@@ -37630,6 +37604,8 @@ var approvals_default$2 = { approvals: {
 var ess_default$2 = {
 	requests: {
 		"header": {
+			"title": "Requests",
+			"subtitle": "Create and manage employee requests",
 			"attendanceListTitle": "Attendance Requests",
 			"attendanceListSubtitle": "Review and manage attendance corrections",
 			"attendanceEditTitle": "Attendance Request {{name}}",
@@ -37648,6 +37624,20 @@ var ess_default$2 = {
 			"expenseNewTitle": "New Expense Claim",
 			"expenseEditSubtitle": "Review and update expense details",
 			"expenseNewSubtitle": "Create and submit a new expense claim"
+		},
+		"tiles": {
+			"attendance": {
+				"title": "Attendance Request",
+				"description": "Fix attendance entries"
+			},
+			"leave": {
+				"title": "Leave Request",
+				"description": "Apply for leave"
+			},
+			"expense": {
+				"title": "Expense Request",
+				"description": "Submit expenses"
+			}
 		},
 		"status": {
 			"approved": "Approved",
@@ -37762,7 +37752,7 @@ var ess_default$2 = {
 	ess: {
 		"header": {
 			"title": "Employee Self Service",
-			"subtitle": "Everything about your work — leave, attendance, expenses and payslips",
+			"subtitle": "My profile, attendance, leave & salary",
 			"profileTitle": "My Profile",
 			"profileSubtitle": "View your employee information",
 			"attendanceTitle": "Attendance Calendar",
@@ -37779,40 +37769,40 @@ var ess_default$2 = {
 		},
 		"tiles": {
 			"profile": {
-				"title": "My Details",
-				"description": "Your name, photo and contact details"
+				"title": "My Profile",
+				"description": "View and manage your profile"
 			},
 			"leave": {
-				"title": "Apply for Leave",
-				"description": "Request time off and track your requests"
+				"title": "My Leave",
+				"description": "Apply for leave & view balance"
 			},
 			"leaveBalance": {
-				"title": "My Leave Balance",
-				"description": "How much leave you have left this year"
+				"title": "Leave Balance",
+				"description": "View my leave balance for the year"
 			},
-			"attendanceRequest": {
-				"title": "Fix My Attendance",
-				"description": "Report a missing or wrong punch"
+			"expenses": {
+				"title": "My Expenses",
+				"description": "Submit expense claims"
 			},
-			"attendance": {
-				"title": "My Attendance",
-				"description": "See when you came in and went out each day"
+			"attendanceRequests": {
+				"title": "Attendance Required",
+				"description": "Manage attendance requests"
+			},
+			"attendanceLogs": {
+				"title": "Attendance Logs",
+				"description": "Monthly calendar view with In/Out times"
 			},
 			"overtime": {
-				"title": "My Overtime",
-				"description": "Hours you worked beyond your schedule"
+				"title": "Overtime Logs",
+				"description": "View your overtime records"
 			},
-			"expenseClaim": {
-				"title": "Claim an Expense",
-				"description": "Reimburse money you spent for work"
-			},
-			"salarySlip": {
-				"title": "My Payslips",
-				"description": "Download your salary slips"
+			"salarySlips": {
+				"title": "My Salary Slips",
+				"description": "View payslips"
 			},
 			"tasks": {
 				"title": "My Tasks",
-				"description": "Work that has been assigned to you"
+				"description": "View assigned tasks"
 			}
 		},
 		"profile": {
@@ -37896,7 +37886,6 @@ var ess_default$2 = {
 			"nextMonth": "Next month",
 			"heroDesc": "Monthly attendance with in/out times and quick actions",
 			"checkinLogs": "Check-in Logs - {{date}}",
-			"checkinLogsShort": "Check-in logs",
 			"months": {
 				"january": "January",
 				"february": "February",
@@ -37956,7 +37945,276 @@ var ess_default$2 = {
 		}
 	}
 };
-var store_default$2 = { store: /* @__PURE__ */ JSON.parse("{\"hub\":{\"subtitle\":\"Raise a request, hand over material, or check what is in stock\"},\"purposes\":{\"indent\":{\"title\":\"Raise an Indent\",\"description\":\"Ask the store for material you need for a job\"},\"purchase\":{\"title\":\"Ask Purchase to Buy\",\"description\":\"Request something the store does not have\"},\"transfer\":{\"title\":\"Move Stock Between Stores\",\"description\":\"Shift material from one store to another\"},\"production\":{\"title\":\"For Production\",\"description\":\"Request material to manufacture against a bill of materials\"},\"customerProvided\":{\"title\":\"Customer's Material\",\"description\":\"Material supplied by a customer for our work\"}},\"purposeGroupRequester\":\"I need something\",\"purposeGroupStore\":\"I keep the stock\",\"purposeGroupLookup\":\"Lookups\",\"scopes\":{\"all\":\"All\",\"project\":\"Project indents\",\"general\":\"General indents\"},\"giveItems\":{\"title\":\"Give Items\",\"description\":\"Hand over material for indents raised by others\",\"empty\":\"No indents are waiting for material\",\"outstanding\":\"Still to give\",\"requested\":\"Requested\",\"issued\":\"Already given\",\"giveNow\":\"Give this\",\"giveAll\":\"Give everything outstanding\",\"partialHint\":\"Change a quantity to hand over part of an indent now and the rest later\",\"noWarehouse\":\"This request has no warehouse, so we cannot work out where the stock comes from\",\"nothingToGive\":\"Enter a quantity to hand over first.\",\"given\":\"Stock Entry {{name}} created and submitted.\"},\"getItems\":{\"title\":\"Get Items\",\"searchItem\":\"Search for an item by name or code\",\"selfHint\":\"Type a code and press Add. This is the quickest way when you know exactly what arrived.\",\"addItem\":\"Add item\",\"willAdd\":\"Will add {{count}} item(s):\",\"useThese\":\"Use these\",\"nothingToPick\":\"Nothing to pick from right now\",\"sources\":{\"indent\":{\"title\":\"From a pending indent\",\"description\":\"Material someone asked the store for\"},\"workOrder\":{\"title\":\"From a work order\",\"description\":\"Material a production job still needs\"},\"self\":{\"title\":\"I know the items\",\"description\":\"Add them one at a time\"}}},\"receipt\":{\"title\":\"Receive Material\",\"subtitle\":\"Receive what a supplier has delivered into the store\",\"description\":\"Receive what a supplier has delivered\",\"newTitle\":\"New Receipt\",\"supplier\":\"Supplier\",\"postingDate\":\"Date\",\"acceptedWarehouse\":\"Accepted Warehouse\",\"purchaseOrder\":\"Purchase Order\",\"receivedSoFar\":\"Received\",\"receive\":\"Receive\",\"noOrders\":\"No purchase orders are waiting to be received\",\"withoutOrder\":\"Receive without a Purchase Order\",\"withoutOrderHint\":\"Use this when material arrives without an order. Add the items yourself.\",\"draftReceipts\":\"Saved receipt drafts\",\"draftReceiptsHint\":\"Continue a receipt you saved but have not submitted.\",\"noDraftReceipts\":\"No saved receipt drafts.\",\"resumeDraft\":\"Continue\",\"lockedFromPo\":\"Item, project and unit come from the purchase order.\",\"nothingOutstanding\":\"Nothing is outstanding on {{po}}. Everything ordered has already been received.\",\"items\":\"Items\",\"noItems\":\"No items yet\",\"acceptedQty\":\"Accepted Qty\",\"rejectedQty\":\"Rejected Qty\",\"serialNumbers\":\"Serial numbers ({{count}} × {{uom}})\",\"serialAuto\":\"{{count}} serial numbers will be created automatically. Nothing to type.\",\"serialTyped\":\"One serial number per line, {{count}} in total.\",\"serialWillGenerate\":\"Created from the series {{series}}.\",\"serialPlaceholder\":\"One serial number per line ({{count}} lines)\",\"serialProgress\":\"{{entered}} of {{expected}} entered\",\"perSerialWeight\":\"Weight per serial\",\"perSerialValue\":\"Value per serial\",\"batchNo\":\"Batch\",\"batchAuto\":\"Created from the series {{series}}.\",\"batchWillGenerate\":\"A batch number will be created automatically.\",\"batchPlaceholder\":\"Batch number\",\"rate\":\"Rate\",\"plateDetails\":\"Plate receipt details\",\"supplierWeight\":\"Supplier weight (Kg)\",\"theoreticalWeightPerPlate\":\"Theoretical weight per plate (Kg)\",\"estimatedWeight\":\"Estimated weight (Kg)\",\"weightVariance\":\"Variance %\",\"tolerance\":\"limit {{value}}%\",\"acceptedWeight\":\"Accepted weight (Kg)\",\"weightPerPlate\":\"Weight per plate (Kg)\",\"standardRate\":\"Rate (INR)\",\"lineAmount\":\"Amount (INR)\",\"weightDecision\":\"Weight decision\",\"chooseWeightDecision\":\"Choose how to accept the weight\",\"acceptSupplierWeight\":\"Accept supplier weight\",\"acceptEstimatedWeight\":\"Accept estimated weight\",\"acceptWeighbridgeWeight\":\"Accept weighbridge weight\",\"weighbridgeWeight\":\"Weighbridge weight (Kg)\",\"weightApprovalRequired\":\"Weight is outside tolerance. An authorized approver must review this line before submission.\",\"ratePerKg\":\"Rate per Kg\",\"heatNumber\":\"Heat number\",\"mtcNumber\":\"MTC number (optional)\",\"rateDiffers\":\"Ordered at {{rate}}\",\"stockUom\":\"{{qty}} {{uom}}\",\"inStockUom\":\"In stock\",\"factor\":\"factor\",\"validation\":{\"totalRequired\":\"Enter the total {{uom}} you received\",\"totalInvalid\":\"Enter a valid total {{uom}}\",\"supplierRequired\":\"Choose a supplier\",\"dateRequired\":\"Enter a date\",\"dateFuture\":\"The date cannot be in the future\",\"addItem\":\"Add at least one item\",\"pickItem\":\"Pick an item on every row\",\"duplicatePoRow\":\"The same purchase order line appears twice\",\"rateRequired\":\"Enter a rate on every row\",\"plateSupplierWeightRequired\":\"Enter the supplier weight for every plate line\",\"plateHeatRequired\":\"Enter the heat number for every plate line\",\"plateRateRequired\":\"Enter a rate per Kg for every plate line\",\"plateDecisionRequired\":\"Choose a weight decision for every plate line outside tolerance\",\"plateApproverRequired\":\"An authorized weight approver must decide this line\",\"plateWeighbridgeRequired\":\"Enter the weighbridge weight for this decision\",\"plateLookupFailed\":\"Could not verify whether this item uses plate weight rules. Retry before submitting.\",\"warehouseRequired\":\"Choose a warehouse on every row\",\"serialNeedsQty\":\"Enter the total weight so the serial count can be worked out.\",\"serialNeedsPositiveQty\":\"Total weight must be more than zero to create serials.\",\"serialWholeStockQty\":\"A serialised item needs a whole total weight — one serial per {{uom}}, and a fraction of a {{uom}} cannot have its own serial. Round to the nearest whole {{uom}}.\",\"serialCountMismatch\":\"Enter {{expected}} serial numbers, one per line ({{entered}} so far).\",\"serialDuplicate\":\"A serial number is listed twice. Each must be unique.\",\"batchRequired\":\"This item is batched, so a batch number is required.\",\"wholeNumberUom\":\"{{uom}} must be a whole number\"},\"picker\":{\"pickFirst\":\"Pick a line to complete it\",\"title\":\"Add items to receive\",\"search\":\"Search by item name, code or warehouse\",\"count\":\"{{shown}} of {{total}} lines shown\",\"added\":\"Added\",\"noMatch\":\"No matching line\",\"itemSubtitle\":\"{{name}}\"},\"receivedUom\":\"Received in\",\"uomFromPo\":\"Must match the purchase order. Raise the order in the unit you want to count in.\",\"conversion\":\"Conversion ({{from}} to {{to}})\",\"oneOf\":\"1 {{from}}\",\"equals\":\"= {{factor}} {{to}}\",\"thisDelivery\":\"This delivery\",\"uomPickHint\":\"The unit you are counting in\",\"qtyIn\":\"Quantity ({{uom}})\",\"receivingOf\":\"Receiving {{qty}} of {{pending}} {{uom}} still outstanding — the rest stays open on the order.\",\"receivingAll\":\"Receiving the full {{pending}} {{uom}} outstanding. Reduce it to receive part.\",\"driftWarning\":\"That is {{factor}}x the rate this purchase order was raised at. Check the weight is for THIS line only, not the whole delivery.\",\"totalIn\":\"Total received ({{uom}})\",\"totalHint\":\"Weigh or measure the whole delivery, then we divide it\",\"basisMeasured\":\"from your measured weight\",\"basisPo\":\"from the purchase order\",\"basisUnresolved\":\"no conversion rate yet\",\"totalInOptional\":\"Total received ({{uom}}, optional)\",\"totalHintOptional\":\"Leave blank to use the purchase order rate of {{factor}} {{uom}}. Weigh it only if the delivery differs.\",\"stockQtyIn\":\"Stock quantity ({{uom}})\",\"perEach\":\"= {{factor}} {{uom}} each\",\"rateFromPo\":\"Fixed by the purchase order\",\"wholeNumberNote\":\"{{uom}} cannot have a fractional quantity\",\"progress\":\"{{picked}} of {{total}} received\",\"addedLines\":\"Items in this receipt\",\"noLinesYet\":\"Nothing added yet. Pick the items you are receiving.\",\"addFromPo\":\"Add items\",\"editLine\":\"Edit\",\"uomLookupFailed\":\"Could not load unit information\",\"deleteDraftTitle\":\"Delete receipt draft?\",\"submittedReceipts\":\"Submitted purchase receipts\",\"submittedReceiptsHint\":\"Open a submitted receipt to review its details.\",\"noSubmittedReceipts\":\"No submitted purchase receipts.\",\"viewReceipt\":\"View\",\"submittedReceiptReadOnly\":\"Submitted receipt {{name}} · read only.\",\"totalEstimatedWeight\":\"Total estimated weight (Kg)\",\"totalAcceptedWeight\":\"Total accepted weight (Kg)\",\"receiveQueueTab\":\"To Receive\",\"draftsTab\":\"Drafts\",\"submittedTab\":\"Submitted\"},\"projectItems\":{\"title\":\"Items for {{project}}\",\"chooseProject\":\"Choose a project\",\"chooseBom\":\"Choose an item\",\"noBom\":\"No bill of materials is linked to {{project}} yet. Link one from Bill of Materials in the Store module, or clear the project to pick items yourself.\",\"filledFromBom\":\"Filled {{added}} of {{total}} items from the bill of materials for {{project}}.\",\"allPresent\":\"Every item in the bill of materials for {{project}} is already on this indent.\",\"noBomShort\":\"No bill of materials linked\",\"required\":\"Required\",\"requestedQty\":\"Already asked for\",\"outstanding\":\"Still needed\",\"loadFailed\":\"Could not read the bill of materials for this project\",\"hint\":\"Set a project on a row to pick items from its bill of materials. Leave it empty to search all items yourself.\"},\"movements\":{\"title\":\"Stock Movements\",\"subtitle\":\"Every kind of stock movement, grouped by what you are doing\",\"groups\":{\"everyday\":\"Everyday store\",\"manufacturing\":\"Manufacturing\",\"correction\":\"Corrections & outsourcing\"},\"purposes\":{\"issue\":{\"title\":\"Issue Material\",\"description\":\"Hand stock out to a person, job or site\"},\"receipt\":{\"title\":\"Receive Material\",\"description\":\"Bring material into a store\"},\"transfer\":{\"title\":\"Move Between Stores\",\"description\":\"Shift stock from one store to another\"},\"transferForManufacture\":{\"title\":\"Send to Production\",\"description\":\"Move raw material into the work-in-progress store\"},\"consumption\":{\"title\":\"Use in Production\",\"description\":\"Record raw material used up in a job\"},\"manufacture\":{\"title\":\"Record Production\",\"description\":\"Take raw material in and book finished goods out\"},\"repack\":{\"title\":\"Repack\",\"description\":\"Change how an item is packed without changing its quantity\"},\"disassemble\":{\"title\":\"Disassemble\",\"description\":\"Break an assembly back into its parts\"},\"subcontractor\":{\"title\":\"Send to Subcontractor\",\"description\":\"Send material out for outside processing\"}}},\"labels\":{\"purpose\":\"Purpose\",\"requiredBy\":\"Required By\",\"conversionFactor\":\"Conversion Factor\",\"sourceWarehouse\":\"Source Warehouse\",\"targetWarehouse\":\"Target Warehouse\",\"item\":\"Item\",\"items\":\"Items\",\"project\":\"Project\",\"projectOptional\":\"Project (optional)\",\"workOrder\":\"Work Order\"},\"tiles\":{\"stockEntry\":{\"title\":\"Stock Entry\",\"description\":\"Material Issue, Receipt, Transfer\"},\"materialRequest\":{\"title\":\"Material Request\",\"description\":\"Request raw materials\"},\"delivery\":{\"title\":\"Delivery / Dispatch\",\"description\":\"Manage outgoing materials\"},\"stockBalance\":{\"title\":\"Stock Balance\",\"description\":\"View stock availability\"},\"itemMaster\":{\"title\":\"Item Master\",\"description\":\"Manage items & variants\"},\"warehouse\":{\"title\":\"Warehouse\",\"description\":\"Manage warehouses\"},\"stockReconciliation\":{\"title\":\"Stock Reconciliation\",\"description\":\"Reconcile stock quantities\"},\"bom\":{\"title\":\"Bill of Materials\",\"description\":\"Link a bill of materials to a project\"}},\"mr\":{\"title\":\"Material Requests\",\"subtitle\":\"Track and manage all material requests\",\"tiles\":{\"purchase\":{\"title\":\"Purchase Request\",\"description\":\"Request items for purchase\"},\"transfer\":{\"title\":\"Material Transfer\",\"description\":\"Move stock between warehouses\"},\"issue\":{\"title\":\"Material Issue\",\"description\":\"Issue material for usage\"},\"receipt\":{\"title\":\"Material Receipt\",\"description\":\"Receive materials\"},\"customerProvided\":{\"title\":\"Customer Provided\",\"description\":\"Customer supplied materials\"}},\"listTitle\":\"{{type}} Requests\",\"listSubtitle\":\"Track and manage requests\",\"empty\":\"No material requests found\",\"newTitle\":\"New Material Request\",\"subtitleSubmitted\":\"{{type}} • Submitted\",\"subtitleDraft\":\"{{type}} • Draft\",\"createSubtitle\":\"Create {{type}}\",\"form\":{\"project\":\"Project\",\"items\":\"Items\",\"select\":\"Select\"},\"unknownPurpose\":\"That request type is not available.\",\"allTitle\":\"All requests\"},\"status\":{\"draft\":\"Draft\",\"submitted\":\"Submitted\",\"cancelled\":\"Cancelled\",\"completed\":\"Completed\",\"toBill\":\"To Bill\",\"stopped\":\"Stopped\"},\"filters\":{\"customer\":\"Customer\",\"company\":\"Company\",\"item\":\"Item\",\"warehouse\":\"Warehouse\",\"fromDate\":\"From date\",\"toDate\":\"To date\"},\"types\":{\"purchase\":\"Purchase\",\"transfer\":\"Transfer\",\"materialIssue\":\"Material Issue\",\"materialReceipt\":\"Material Receipt\",\"customerProvided\":\"Customer Provided\"},\"form\":{\"type\":\"Type\",\"company\":\"Company\",\"customer\":\"Customer\",\"scheduleDate\":\"Schedule Date\",\"item\":\"Item\",\"qty\":\"Qty\",\"uom\":\"UOM\",\"stockUom\":\"Stock UOM\",\"conv\":\"Conv\",\"source\":\"Source\",\"warehouse\":\"Warehouse\",\"schedule\":\"Schedule\",\"postingDate\":\"Posting Date\",\"defaultWarehouse\":\"Default Warehouse\",\"driver\":\"Driver\",\"vehicleNo\":\"Vehicle No\",\"transporter\":\"Transporter\",\"lrNumber\":\"LR Number\",\"items\":\"Items\",\"getItems\":\"Get Items\",\"dispatch\":\"Dispatch\",\"basics\":\"Basic Information\",\"purpose\":\"Purpose\",\"requiredBy\":\"Required By\"},\"validation\":{\"typeRequired\":\"Type is required\",\"companyRequired\":\"Company required\",\"customerRequired\":\"Customer is required\",\"uomRequired\":\"UOM required\",\"invalidConversion\":\"Invalid conversion factor\",\"addAtLeastOneItem\":\"Add at least one item\",\"addItems\":\"Add items\",\"fillItemRows\":\"Fill item rows\",\"fillAllRows\":\"Fill all item rows\",\"qtyGtZero\":\"Qty must be > 0\",\"fromToWarehouseRequired\":\"From & To warehouse required\",\"sameWarehouse\":\"Source and target warehouse cannot be same\",\"warehouseRequired\":\"Warehouse required\"},\"dn\":{\"title\":\"Delivery Notes\",\"subtitle\":\"Dispatch & delivery tracking\",\"empty\":\"No delivery notes found\",\"editTitle\":\"Delivery {{name}}\",\"newTitle\":\"New Delivery\",\"formSubtitle\":\"Dispatch goods\"},\"balance\":{\"title\":\"Stock Balance\",\"subtitle\":\"Real-time inventory status\",\"empty\":\"No stock available\",\"value\":\"Value\",\"fromDate\":\"From date\",\"toDate\":\"To date\",\"opening\":\"Opening\",\"inQty\":\"In\",\"outQty\":\"Out\",\"closing\":\"Balance\",\"reserved\":\"Reserved\",\"free\":\"Free\",\"rate\":\"Rate\",\"projected\":\"Projected\",\"valuationAsOf\":\"Value is shown as of today\",\"performanceWarning\":\"Narrow this with an item or warehouse filter — the full list covers every ledger row ever written.\",\"trail\":\"Movement history\",\"noMovements\":\"No movements in this period\",\"showTrail\":\"Show where this stock came from\",\"incomingRate\":\"In rate\",\"outgoingRate\":\"Out rate\",\"runningBalance\":\"Balance after\",\"balanceQty\":\"Balance\",\"serial\":\"Serial\",\"batch\":\"Batch\",\"batchPermission\":\"Batch and serial details need permission on Serial and Batch Entry\",\"noBatchOnThisLine\":\"Not batch or serial tracked\",\"truncated\":\"More movements exist — narrow the dates to see the rest\"},\"source\":{\"loadItems\":\"Load Items\",\"load\":\"Load\",\"selectSourceType\":\"Select Source Type\",\"searchDocument\":\"Search document...\",\"selectTypeFirst\":\"Select type first\",\"noCustomer\":\"No customer\",\"salesOrder\":\"Sales Order\",\"pickList\":\"Pick List\",\"materialRequest\":\"Material Request\",\"purchaseReceipt\":\"Purchase Receipt\",\"bom\":\"Bill of Materials\",\"bomShort\":\"BOM\",\"purchaseInvoice\":\"Purchase Invoice\",\"itemMaster\":\"Item Master\",\"onlyQcPassed\":\"Only QC Passed Items\",\"qcDone\":\"QC Done\",\"sourceType\":\"Source Type\",\"selectDocument\":\"Select Document\"},\"entry\":{\"title\":\"Stock Entry\",\"subtitleDefault\":\"Fast inventory operations\",\"subtitleReceipt\":\"Incoming → {{warehouse}}\",\"subtitleIssue\":\"Outgoing ← {{warehouse}}\",\"subtitleTransfer\":\"{{from}} → {{to}}\",\"subtitleTransferMfg\":\"{{from}} → {{to}} (MFG)\",\"subtitleManufacture\":\"Manufacture @ {{warehouse}}\",\"subtitleRepack\":\"Repack @ {{warehouse}}\",\"subtitleConsume\":\"Consume ← {{warehouse}}\",\"selectWarehouse\":\"Select warehouse\",\"from\":\"From\",\"to\":\"To\",\"actions\":{\"getItems\":\"Get Items\",\"clear\":\"Clear\"},\"basicConfig\":\"Basic Configuration\",\"collapse\":\"Collapse\",\"expand\":\"Expand\",\"entryDate\":\"Entry Date\",\"entryTime\":\"Entry Time\",\"items\":\"Items\",\"get\":\"Get\",\"entryType\":\"Entry Type\",\"selectEntryType\":\"Select Entry Type\",\"fromWarehouse\":\"From Warehouse\",\"toWarehouse\":\"To Warehouse\",\"selectFromWarehouse\":\"Select From Warehouse\",\"selectToWarehouse\":\"Select To Warehouse\",\"scanPlaceholder\":\"Scan or enter item\",\"totalQty\":\"Total Qty\",\"submitEntry\":\"Submit Entry\",\"modes\":{\"incoming\":\"Incoming\",\"outgoing\":\"Outgoing\",\"transfer\":\"Transfer\",\"adjustment\":\"Adjustment\"},\"createdToast\":\"Stock Entry created: {{name}}\",\"failedToast\":\"Stock Entry failed\"},\"entryTypes\":{\"materialIssue\":\"Material Issue\",\"materialReceipt\":\"Material Receipt\",\"materialTransfer\":\"Material Transfer\",\"manufacture\":\"Manufacture\",\"repack\":\"Repack\",\"disassemble\":\"Disassemble\",\"sendToSubcontractor\":\"Send to Subcontractor\",\"materialTransferForMfg\":\"Material Transfer for Manufacture\",\"materialConsumptionForMfg\":\"Material Consumption for Manufacture\"},\"item\":{\"outOfStock\":\"Out of stock\",\"exceedsStock\":\"Exceeds stock\",\"lowStock\":\"Low stock\",\"available\":\"Available\",\"willBeRemoved\":\"Will be removed\",\"willAdjust\":\"Will adjust to {{qty}}\",\"emptyList\":\"No items added\",\"itemName\":\"Item {{code}}\",\"increase\":\"Increase quantity\",\"decrease\":\"Decrease quantity\",\"remove\":\"Remove item\"},\"fix\":{\"title\":\"Stock Issue\",\"outOfStock\":\"{{count}} items are out of stock.\",\"more\":\"+ {{n}} more...\",\"removeItems\":\"Remove Items\",\"adjustQty\":\"Adjust Qty\"},\"submitModal\":{\"title\":\"Confirm Stock Entry\",\"project\":\"Project\",\"workOrder\":\"Work Order\",\"searchProject\":\"Search Project\",\"searchWorkOrder\":\"Search Work Order\"},\"demo\":{\"title\":\"Universal Form\",\"subtitle\":\"All field types demo\",\"sections\":{\"basic\":\"Basic Fields\",\"text\":\"Text Fields\",\"dateTime\":\"Date & Time\",\"selection\":\"Selection\",\"attachments\":\"Attachments\"},\"age\":\"Age\",\"salary\":\"Salary\",\"description\":\"Description\",\"datetime\":\"Datetime\",\"time\":\"Time\",\"pending\":\"Pending\",\"closed\":\"Closed\",\"department\":\"Department (Link)\",\"searchDepartment\":\"Search department...\",\"active\":\"Active\",\"uploadFile\":\"Upload File\",\"chooseFile\":\"Choose File\",\"noFileSelected\":\"No file selected\",\"itemCode\":\"Item Code\",\"rate\":\"Rate\"},\"returnStock\":{\"title\":\"Return material to stock\",\"action\":\"Return this material to stock\",\"explainer\":\"Material left over from a job goes back into Stores as one Stock Entry. Nothing is saved until you confirm.\",\"whichItem\":\"What is coming back?\",\"useSameItem\":\"Use this item\",\"useSameItemHint\":\"Goes back under its own code\",\"createNewItem\":\"Create a new item\",\"createNewItemHint\":\"The leftover is a different specification\",\"itemName\":\"Item name\",\"itemGroup\":\"Item group\",\"trackBatch\":\"Track batches\",\"trackSerial\":\"Track serial numbers\",\"fromWarehouse\":\"From (where it is now)\",\"toWarehouse\":\"To (where it goes back)\",\"qty\":\"How much ({{uom}})\",\"batchNumber\":\"Batch number\",\"serialNumbers\":\"Serial numbers\",\"serialNumbersHint\":\"One per line, or separated by commas\",\"serialPlaceholder\":\"SN001\\nSN002\",\"autoBatch\":\"A new batch number will be generated automatically for this item.\",\"remarks\":\"Note (optional)\",\"makesEntry\":\"Creates a Stock Entry: {{from}} to {{to}}\",\"confirm\":\"Return to stock\",\"done\":\"{{item}} is back in stock ({{qty}}).\",\"autoSerial\":\"Serial numbers will be generated automatically for this item.\"}}") };
+var store_default$2 = { store: {
+	"hub": { "subtitle": "Inventory, material requests & stock flow" },
+	"tiles": {
+		"stockEntry": {
+			"title": "Stock Entry",
+			"description": "Material Issue, Receipt, Transfer"
+		},
+		"materialRequest": {
+			"title": "Material Request",
+			"description": "Request raw materials"
+		},
+		"delivery": {
+			"title": "Delivery / Dispatch",
+			"description": "Manage outgoing materials"
+		},
+		"stockBalance": {
+			"title": "Stock Balance",
+			"description": "View stock availability"
+		},
+		"itemMaster": {
+			"title": "Item Master",
+			"description": "Manage items & variants"
+		},
+		"warehouse": {
+			"title": "Warehouse",
+			"description": "Manage warehouses"
+		},
+		"stockReconciliation": {
+			"title": "Stock Reconciliation",
+			"description": "Reconcile stock quantities"
+		}
+	},
+	"mr": {
+		"title": "Material Requests",
+		"subtitle": "Track and manage all material requests",
+		"tiles": {
+			"purchase": {
+				"title": "Purchase Request",
+				"description": "Request items for purchase"
+			},
+			"transfer": {
+				"title": "Material Transfer",
+				"description": "Move stock between warehouses"
+			},
+			"issue": {
+				"title": "Material Issue",
+				"description": "Issue material for usage"
+			},
+			"receipt": {
+				"title": "Material Receipt",
+				"description": "Receive materials"
+			},
+			"customerProvided": {
+				"title": "Customer Provided",
+				"description": "Customer supplied materials"
+			}
+		},
+		"listTitle": "{{type}} Requests",
+		"listSubtitle": "Track and manage requests",
+		"empty": "No material requests found",
+		"newTitle": "New Material Request",
+		"subtitleSubmitted": "{{type}} • Submitted",
+		"subtitleDraft": "{{type}} • Draft",
+		"createSubtitle": "Create {{type}}",
+		"form": {
+			"items": "Items",
+			"select": "Select"
+		}
+	},
+	"status": {
+		"draft": "Draft",
+		"submitted": "Submitted",
+		"cancelled": "Cancelled",
+		"completed": "Completed",
+		"toBill": "To Bill",
+		"stopped": "Stopped"
+	},
+	"filters": {
+		"customer": "Customer",
+		"company": "Company",
+		"item": "Item",
+		"warehouse": "Warehouse"
+	},
+	"types": {
+		"purchase": "Purchase",
+		"transfer": "Transfer",
+		"materialIssue": "Material Issue",
+		"materialReceipt": "Material Receipt",
+		"customerProvided": "Customer Provided"
+	},
+	"form": {
+		"type": "Type",
+		"company": "Company",
+		"customer": "Customer",
+		"scheduleDate": "Schedule Date",
+		"item": "Item",
+		"qty": "Qty",
+		"uom": "UOM",
+		"stockUom": "Stock UOM",
+		"conv": "Conv",
+		"source": "Source",
+		"warehouse": "Warehouse",
+		"schedule": "Schedule",
+		"postingDate": "Posting Date",
+		"defaultWarehouse": "Default Warehouse",
+		"driver": "Driver",
+		"vehicleNo": "Vehicle No",
+		"transporter": "Transporter",
+		"lrNumber": "LR Number",
+		"items": "Items",
+		"getItems": "Get Items",
+		"dispatch": "Dispatch",
+		"basics": "Basic Information"
+	},
+	"validation": {
+		"typeRequired": "Type is required",
+		"companyRequired": "Company required",
+		"customerRequired": "Customer is required",
+		"uomRequired": "UOM required",
+		"invalidConversion": "Invalid conversion factor",
+		"addAtLeastOneItem": "Add at least one item",
+		"addItems": "Add items",
+		"fillItemRows": "Fill item rows",
+		"fillAllRows": "Fill all item rows",
+		"qtyGtZero": "Qty must be > 0",
+		"fromToWarehouseRequired": "From & To warehouse required",
+		"sameWarehouse": "Source and target warehouse cannot be same",
+		"warehouseRequired": "Warehouse required"
+	},
+	"dn": {
+		"title": "Delivery Notes",
+		"subtitle": "Dispatch & delivery tracking",
+		"empty": "No delivery notes found",
+		"editTitle": "Delivery {{name}}",
+		"newTitle": "New Delivery",
+		"formSubtitle": "Dispatch goods"
+	},
+	"balance": {
+		"title": "Stock Balance",
+		"subtitle": "Real-time inventory status",
+		"empty": "No stock available",
+		"value": "Value"
+	},
+	"source": {
+		"loadItems": "Load Items",
+		"load": "Load",
+		"selectSourceType": "Select Source Type",
+		"searchDocument": "Search document...",
+		"selectTypeFirst": "Select type first",
+		"noCustomer": "No customer",
+		"salesOrder": "Sales Order",
+		"pickList": "Pick List",
+		"materialRequest": "Material Request",
+		"purchaseReceipt": "Purchase Receipt",
+		"bom": "Bill of Materials",
+		"bomShort": "BOM",
+		"purchaseInvoice": "Purchase Invoice",
+		"itemMaster": "Item Master",
+		"onlyQcPassed": "Only QC Passed Items",
+		"qcDone": "QC Done",
+		"sourceType": "Source Type",
+		"selectDocument": "Select Document"
+	},
+	"entry": {
+		"title": "Stock Entry",
+		"subtitleDefault": "Fast inventory operations",
+		"subtitleReceipt": "Incoming → {{warehouse}}",
+		"subtitleIssue": "Outgoing ← {{warehouse}}",
+		"subtitleTransfer": "{{from}} → {{to}}",
+		"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+		"subtitleManufacture": "Manufacture @ {{warehouse}}",
+		"subtitleRepack": "Repack @ {{warehouse}}",
+		"subtitleConsume": "Consume ← {{warehouse}}",
+		"selectWarehouse": "Select warehouse",
+		"from": "From",
+		"to": "To",
+		"actions": {
+			"getItems": "Get Items",
+			"clear": "Clear"
+		},
+		"basicConfig": "Basic Configuration",
+		"collapse": "Collapse",
+		"expand": "Expand",
+		"entryDate": "Entry Date",
+		"entryTime": "Entry Time",
+		"items": "Items",
+		"get": "Get",
+		"entryType": "Entry Type",
+		"selectEntryType": "Select Entry Type",
+		"fromWarehouse": "From Warehouse",
+		"toWarehouse": "To Warehouse",
+		"selectFromWarehouse": "Select From Warehouse",
+		"selectToWarehouse": "Select To Warehouse",
+		"scanPlaceholder": "Scan or enter item",
+		"totalQty": "Total Qty",
+		"submitEntry": "Submit Entry",
+		"modes": {
+			"incoming": "Incoming",
+			"outgoing": "Outgoing",
+			"transfer": "Transfer",
+			"adjustment": "Adjustment"
+		},
+		"createdToast": "Stock Entry created: {{name}}",
+		"failedToast": "Stock Entry failed"
+	},
+	"entryTypes": {
+		"materialIssue": "Material Issue",
+		"materialReceipt": "Material Receipt",
+		"materialTransfer": "Material Transfer",
+		"manufacture": "Manufacture",
+		"repack": "Repack",
+		"disassemble": "Disassemble",
+		"sendToSubcontractor": "Send to Subcontractor",
+		"materialTransferForMfg": "Material Transfer for Manufacture",
+		"materialConsumptionForMfg": "Material Consumption for Manufacture"
+	},
+	"item": {
+		"outOfStock": "Out of stock",
+		"exceedsStock": "Exceeds stock",
+		"lowStock": "Low stock",
+		"available": "Available",
+		"willBeRemoved": "Will be removed",
+		"willAdjust": "Will adjust to {{qty}}",
+		"emptyList": "No items added",
+		"itemName": "Item {{code}}",
+		"increase": "Increase quantity",
+		"decrease": "Decrease quantity",
+		"remove": "Remove item"
+	},
+	"fix": {
+		"title": "Stock Issue",
+		"outOfStock": "{{count}} items are out of stock.",
+		"more": "+ {{n}} more...",
+		"removeItems": "Remove Items",
+		"adjustQty": "Adjust Qty"
+	},
+	"submitModal": {
+		"title": "Confirm Stock Entry",
+		"project": "Project",
+		"workOrder": "Work Order",
+		"searchProject": "Search Project",
+		"searchWorkOrder": "Search Work Order"
+	},
+	"demo": {
+		"title": "Universal Form",
+		"subtitle": "All field types demo",
+		"sections": {
+			"basic": "Basic Fields",
+			"text": "Text Fields",
+			"dateTime": "Date & Time",
+			"selection": "Selection",
+			"attachments": "Attachments"
+		},
+		"age": "Age",
+		"salary": "Salary",
+		"description": "Description",
+		"datetime": "Datetime",
+		"time": "Time",
+		"pending": "Pending",
+		"closed": "Closed",
+		"department": "Department (Link)",
+		"searchDepartment": "Search department...",
+		"active": "Active",
+		"uploadFile": "Upload File",
+		"chooseFile": "Choose File",
+		"noFileSelected": "No file selected",
+		"itemCode": "Item Code",
+		"rate": "Rate"
+	}
+} };
 var ops_default$2 = {
 	production: {
 		"subtitle": "Work orders, job cards & manufacturing",
@@ -38382,7 +38640,6 @@ var reports_default$2 = { reports: {
 	"checkin": "Check-in",
 	"checkout": "Check-out",
 	"noCheckinLogs": "No check-in logs found",
-	"checkinLogsError": "Could not load check-in logs.",
 	"overtimeTitle": "Overtime Report",
 	"totalLogs": "Total Logs",
 	"totalOtHours": "Total OT Hours",
@@ -38447,23 +38704,7 @@ var reports_default$2 = { reports: {
 	"charts": "Charts",
 	"attendanceDistribution": "Monthly status distribution",
 	"dailyAttendance": "Daily team attendance",
-	"attendanceRate": "Attendance rate by employee",
-	"plateStockRegister": "Plate Stock Register",
-	"plateStockRegisterDesc": "Plate stock by item, warehouse & heat number",
-	"applyFilters": "Apply Filters",
-	"noRows": "No rows for these filters.",
-	"loadFailedTitle": "Could not load the report",
-	"loadFailedHint": "The report could not be run. You may not have permission, or it may not be installed on this site.",
-	"noColumnsTitle": "No columns to show",
-	"noColumnsHint": "The report returned no column definitions.",
-	"expandAll": "Expand all",
-	"collapseAll": "Collapse all",
-	"mixed": "Mixed",
-	"batchCount_one": "{{count}} batch",
-	"batchCount_other": "{{count}} batches",
-	"warehouseCount_one": "{{count}} warehouse",
-	"warehouseCount_other": "{{count}} warehouses",
-	"moreFilters": "More filters"
+	"attendanceRate": "Attendance rate by employee"
 } };
 var approvals_default$1 = { approvals: {
 	"subtitle": "अनुरोधों की समीक्षा करें और स्वीकृत करें",
@@ -38549,6 +38790,8 @@ var approvals_default$1 = { approvals: {
 var ess_default$1 = {
 	requests: {
 		"header": {
+			"title": "अनुरोध",
+			"subtitle": "कर्मचारी अनुरोध बनाएँ और प्रबंधित करें",
 			"attendanceListTitle": "उपस्थिति अनुरोध",
 			"attendanceListSubtitle": "उपस्थिति सुधार समीक्षा और प्रबंधित करें",
 			"attendanceEditTitle": "उपस्थिति अनुरोध {{name}}",
@@ -38567,6 +38810,20 @@ var ess_default$1 = {
 			"expenseNewTitle": "नया व्यय दावा",
 			"expenseEditSubtitle": "व्यय विवरण समीक्षा करें और अपडेट करें",
 			"expenseNewSubtitle": "नया व्यय दावा बनाएँ और सबमिट करें"
+		},
+		"tiles": {
+			"attendance": {
+				"title": "उपस्थिति अनुरोध",
+				"description": "उपस्थिति प्रविष्टियाँ सुधारें"
+			},
+			"leave": {
+				"title": "अवकाश अनुरोध",
+				"description": "अवकाश के लिए आवेदन करें"
+			},
+			"expense": {
+				"title": "व्यय अनुरोध",
+				"description": "व्यय जमा करें"
+			}
 		},
 		"status": {
 			"approved": "स्वीकृत",
@@ -38681,7 +38938,7 @@ var ess_default$1 = {
 	ess: {
 		"header": {
 			"title": "कर्मचारी स्व-सेवा",
-			"subtitle": "आपके कार्य की सब कुछ — अवकाश, उपस्थिति, खर्च और वेतन पर्चियाँ",
+			"subtitle": "मेरी प्रोफ़ाइल, उपस्थिति, अवकाश और वेतन",
 			"profileTitle": "मेरी प्रोफ़ाइल",
 			"profileSubtitle": "अपनी कर्मचारी जानकारी देखें",
 			"attendanceTitle": "उपस्थिति कैलेंडर",
@@ -38698,40 +38955,40 @@ var ess_default$1 = {
 		},
 		"tiles": {
 			"profile": {
-				"title": "मेरा प्रोफ़ाइल",
-				"description": "आपका नाम, फ़ोटो और संपर्क विवरण"
+				"title": "मेरी प्रोफ़ाइल",
+				"description": "अपनी प्रोफ़ाइल देखें और प्रबंधित करें"
 			},
 			"leave": {
-				"title": "अवकाश के लिए आवेदन करें",
-				"description": "छुट्टी का अनुरोध करें और अपने अनुरोध देखें"
+				"title": "मेरा अवकाश",
+				"description": "अवकाश के लिए आवेदन करें और शेष देखें"
 			},
 			"leaveBalance": {
-				"title": "मेरा अवकाश शेष",
-				"description": "इस साल आपके पास कितनी छुट्टी बची है"
+				"title": "अवकाश शेष",
+				"description": "इस वर्ष का मेरा अवकाश शेष देखें"
 			},
-			"attendanceRequest": {
-				"title": "मेरी उपस्थिति में सुधार करें",
-				"description": "ग़ायब या ग़लत पंच की सूचना दें"
+			"expenses": {
+				"title": "मेरे व्यय",
+				"description": "व्यय दावे जमा करें"
 			},
-			"attendance": {
-				"title": "मेरी उपस्थिति",
-				"description": "देखें कि आप कब आए और कब गए"
+			"attendanceRequests": {
+				"title": "उपस्थिति आवश्यक",
+				"description": "उपस्थिति अनुरोध प्रबंधित करें"
+			},
+			"attendanceLogs": {
+				"title": "उपस्थिति लॉग",
+				"description": "इन/आउट समय के साथ मासिक कैलेंडर दृश्य"
 			},
 			"overtime": {
-				"title": "मेरा ओवरटाइम",
-				"description": "निर्धारित समय से अधिक काम के घंटे"
+				"title": "ओवरटाइम लॉग",
+				"description": "अपने ओवरटाइम रिकॉर्ड देखें"
 			},
-			"expenseClaim": {
-				"title": "खर्च का दावा करें",
-				"description": "काम के लिए खर्च किए पैसे की वापसी"
-			},
-			"salarySlip": {
+			"salarySlips": {
 				"title": "मेरी वेतन पर्चियाँ",
-				"description": "अपनी सैलरी स्लिप डाउनलोड करें"
+				"description": "वेतन पर्चियाँ देखें"
 			},
 			"tasks": {
 				"title": "मेरे कार्य",
-				"description": "आपको सौंपा गया काम"
+				"description": "सौंपे गए कार्य देखें"
 			}
 		},
 		"profile": {
@@ -38815,7 +39072,6 @@ var ess_default$1 = {
 			"nextMonth": "अगला माह",
 			"heroDesc": "इन/आउट समय और त्वरित कार्यों के साथ मासिक उपस्थिति",
 			"checkinLogs": "चेक-इन लॉग - {{date}}",
-			"checkinLogsShort": "चेक-इन लॉग",
 			"months": {
 				"january": "जनवरी",
 				"february": "फ़रवरी",
@@ -38875,7 +39131,7 @@ var ess_default$1 = {
 		}
 	}
 };
-var store_default$1 = { store: /* @__PURE__ */ JSON.parse("{\"hub\":{\"subtitle\":\"अनुरोध दर्ज करें, सामान दें, या स्टॉक देखें\"},\"purposes\":{\"indent\":{\"title\":\"इंडेंट दर्ज करें\",\"description\":\"किसी काम के लिए स्टोर से सामान मांगें\"},\"purchase\":{\"title\":\"खरीद से मंगवाएं\",\"description\":\"जो सामान स्टोर में नहीं है, उसके लिए अनुरोध करें\"},\"transfer\":{\"title\":\"स्टोर के बीच सामान भेजें\",\"description\":\"एक स्टोर से दूसरे स्टोर में सामान ले जाएं\"},\"production\":{\"title\":\"उत्पादन के लिए\",\"description\":\"बिल ऑफ मटेरियल के आधार पर सामान मांगें\"},\"customerProvided\":{\"title\":\"ग्राहक का सामान\",\"description\":\"हमारे काम के लिए ग्राहक द्वारा दिया गया सामान\"}},\"purposeGroupRequester\":\"मुझे कुछ चाहिए\",\"purposeGroupStore\":\"मेरे पास स्टोर है\",\"purposeGroupLookup\":\"सूची देखें\",\"scopes\":{\"all\":\"सभी\",\"project\":\"प्रोजेक्ट इंडेंट\",\"general\":\"सामान्य इंडेंट\"},\"giveItems\":{\"title\":\"सामान दें\",\"description\":\"दूसरों के इंडेंट के लिए सामान दें\",\"empty\":\"सामान देने के लिए कोई इंडेंट नहीं है\",\"outstanding\":\"देना बाकी\",\"requested\":\"मांगा गया\",\"issued\":\"पहले दिया जा चुका\",\"giveNow\":\"यह दें\",\"giveAll\":\"बाकी सब एक साथ दें\",\"partialHint\":\"मात्रा बदलकर इंडेंट का कुछ हिस्सा अभी और बाकी बाद में दे सकते हैं\",\"noWarehouse\":\"इस अनुरोध में वेयरहाउस नहीं है, इसलिए सामान कहाँ से आएगा यह तय नहीं हो सका\",\"nothingToGive\":\"पहले देने के लिए मात्रा भरें।\",\"given\":\"स्टॉक एंट्री {{name}} बनाई और सबमिट की गई।\"},\"getItems\":{\"title\":\"सामान लें\",\"searchItem\":\"सामान का नाम या कोड खोजें\",\"selfHint\":\"कोड लिखकर Add दबाएं। जब आपको ठीक-ठीक पता हो तो यह सबसे तेज़ तरीका है।\",\"addItem\":\"सामान जोड़ें\",\"willAdd\":\"{{count}} सामान जोड़े जाएंगे:\",\"useThese\":\"इन्हें लें\",\"nothingToPick\":\"अभी लेने के लिए कुछ नहीं है\",\"sources\":{\"indent\":{\"title\":\"बकाया इंडेंट से\",\"description\":\"जिस सामान की मांग स्टोर के पास लंबित है\"},\"workOrder\":{\"title\":\"वर्क ऑर्डर से\",\"description\":\"जो सामान उत्पादन काम को अभी चाहिए\"},\"self\":{\"title\":\"मुझे सामान पता है\",\"description\":\"एक-एक करके जोड़ें\"}}},\"receipt\":{\"title\":\"सामान प्राप्त करें\",\"subtitle\":\"आपूर्तिकर्ता द्वारा भेजा गया सामान स्टोर में दर्ज करें\",\"description\":\"आपूर्तिकर्ता द्वारा भेजा गया सामान प्राप्त करें\",\"newTitle\":\"नई रसीद\",\"supplier\":\"आपूर्तिकर्ता\",\"postingDate\":\"दिनांक\",\"acceptedWarehouse\":\"स्वीकृत वेयरहाउस\",\"purchaseOrder\":\"खरीद ऑर्डर\",\"receivedSoFar\":\"प्राप्त\",\"receive\":\"प्राप्त करें\",\"noOrders\":\"प्राप्त करने के लिए कोई खरीद ऑर्डर शेष नहीं है\",\"withoutOrder\":\"बिना खरीद ऑर्डर के सामान प्राप्त करें\",\"withoutOrderHint\":\"जब सामान बिना ऑर्डर के आए तो इसका उपयोग करें और सामान स्वयं जोड़ें।\",\"draftReceipts\":\"सहेजे गए प्राप्ति ड्राफ्ट\",\"draftReceiptsHint\":\"सहेजी गई लेकिन जमा न की गई प्राप्ति जारी रखें।\",\"noDraftReceipts\":\"कोई सहेजा हुआ प्राप्ति ड्राफ्ट नहीं है।\",\"resumeDraft\":\"जारी रखें\",\"lockedFromPo\":\"आइटम, प्रोजेक्ट और इकाई खरीद आदेश से ली जाती है।\",\"nothingOutstanding\":\"{{po}} पर कुछ शेष नहीं है। जो मंगाया गया था वह सब प्राप्त हो चुका है।\",\"items\":\"सामान\",\"noItems\":\"अभी कोई सामान नहीं\",\"acceptedQty\":\"स्वीकृत मात्रा\",\"rejectedQty\":\"अस्वीकृत मात्रा\",\"serialNumbers\":\"सीरियल नंबर ({{count}} × {{uom}})\",\"serialAuto\":\"{{count}} सीरियल नंबर स्वतः बन जाएँगे। कुछ नहीं भरना है।\",\"serialTyped\":\"प्रति पंक्ति एक सीरियल नंबर, कुल {{count}}।\",\"serialWillGenerate\":\"श्रृंखला {{series}} से बनाया जाएगा।\",\"serialPlaceholder\":\"प्रति पंक्ति एक सीरियल नंबर ({{count}} पंक्तियाँ)\",\"serialProgress\":\"{{expected}} में से {{entered}} दर्ज\",\"perSerialWeight\":\"प्रति सीरियल वज़न\",\"perSerialValue\":\"प्रति सीरियल मूल्य\",\"batchNo\":\"बैच\",\"batchAuto\":\"श्रृंखला {{series}} से बनाया जाएगा।\",\"batchWillGenerate\":\"बैच नंबर स्वतः बन जाएगा।\",\"batchPlaceholder\":\"बैच नंबर\",\"rate\":\"दर\",\"plateDetails\":\"प्लेट प्राप्ति विवरण\",\"supplierWeight\":\"आपूर्तिकर्ता का वजन (Kg)\",\"theoreticalWeightPerPlate\":\"प्रति प्लेट सैद्धांतिक वजन (Kg)\",\"estimatedWeight\":\"अनुमानित वजन (Kg)\",\"weightVariance\":\"अंतर %\",\"tolerance\":\"सीमा {{value}}%\",\"acceptedWeight\":\"स्वीकृत वजन (Kg)\",\"weightPerPlate\":\"प्रति प्लेट वजन (Kg)\",\"standardRate\":\"दर (INR)\",\"lineAmount\":\"राशि (INR)\",\"weightDecision\":\"वजन का निर्णय\",\"chooseWeightDecision\":\"वजन स्वीकार करने का तरीका चुनें\",\"acceptSupplierWeight\":\"आपूर्तिकर्ता का वजन स्वीकार करें\",\"acceptEstimatedWeight\":\"अनुमानित वजन स्वीकार करें\",\"acceptWeighbridgeWeight\":\"वेब्रिज का वजन स्वीकार करें\",\"weighbridgeWeight\":\"वेब्रिज का वजन (Kg)\",\"weightApprovalRequired\":\"वजन निर्धारित सीमा से बाहर है। जमा करने से पहले अधिकृत अनुमोदक की समीक्षा आवश्यक है।\",\"ratePerKg\":\"प्रति Kg दर\",\"heatNumber\":\"हीट नंबर\",\"mtcNumber\":\"MTC नंबर (वैकल्पिक)\",\"rateDiffers\":\"आदेशित दर {{rate}} थी\",\"stockUom\":\"{{qty}} {{uom}}\",\"inStockUom\":\"स्टॉक में\",\"factor\":\"गुणक\",\"validation\":{\"totalRequired\":\"प्राप्त कुल {{uom}} दर्ज करें\",\"totalInvalid\":\"मान्य कुल {{uom}} दर्ज करें\",\"supplierRequired\":\"आपूर्तिकर्ता चुनें\",\"dateRequired\":\"दिनांक भरें\",\"dateFuture\":\"दिनांक भविष्य की नहीं हो सकती\",\"addItem\":\"कम से कम एक सामान जोड़ें\",\"pickItem\":\"हर पंक्ति में सामान चुनें\",\"duplicatePoRow\":\"एक ही खरीद ऑर्डर पंक्ति दो बार आई है\",\"rateRequired\":\"हर पंक्ति में दर भरें\",\"plateSupplierWeightRequired\":\"हर प्लेट पंक्ति के लिए आपूर्तिकर्ता का वजन दर्ज करें\",\"plateHeatRequired\":\"हर प्लेट पंक्ति के लिए हीट नंबर दर्ज करें\",\"plateRateRequired\":\"हर प्लेट पंक्ति के लिए प्रति Kg दर दर्ज करें\",\"plateDecisionRequired\":\"सीमा से बाहर हर प्लेट पंक्ति के लिए वजन निर्णय चुनें\",\"plateApproverRequired\":\"इस पंक्ति का निर्णय अधिकृत अनुमोदक को करना होगा\",\"plateWeighbridgeRequired\":\"इस निर्णय के लिए वेब्रिज का वजन दर्ज करें\",\"plateLookupFailed\":\"यह जाँचा नहीं जा सका कि इस आइटम पर प्लेट वजन नियम लागू हैं या नहीं। जमा करने से पहले पुनः प्रयास करें।\",\"warehouseRequired\":\"हर पंक्ति में वेयरहाउस चुनें\",\"serialNeedsQty\":\"सीरियल संख्या की गणना करने के लिए कुल वज़न दर्ज करें।\",\"serialNeedsPositiveQty\":\"सीरियल बनाने के लिए कुल वज़न शून्य से अधिक होना चाहिए।\",\"serialWholeStockQty\":\"सीरियल वाली वस्तु के लिए कुल वज़न पूर्ण होना चाहिए — प्रति {{uom}} एक सीरियल, और {{uom}} का भिन्नांक अपना सीरियल नहीं रख सकता। निकटतम पूर्ण {{uom}} तो लगाएँ।\",\"serialCountMismatch\":\"{{expected}} सीरियल नंबर दर्ज करें, प्रति पंक्ति एक ({{entered}} अभी तक)।\",\"serialDuplicate\":\"एक सीरियल नंबर दो बार लिखा गया है। हर एक अलग होना चाहिए।\",\"batchRequired\":\"यह वस्तु बैच वाली है, इसलिए बैच नंबर आवश्यक है।\",\"wholeNumberUom\":\"{{uom}} पूर्ण संख्या होनी चाहिए\"},\"picker\":{\"pickFirst\":\"पूरा करने के लिए एक पंक्ति चुनें\",\"title\":\"प्राप्त करने के लिए सामान जोड़ें\",\"search\":\"सामान के नाम, कोड या गोदाम से खोजें\",\"count\":\"{{total}} में से {{shown}} पंक्तियाँ दिखाई गईं\",\"added\":\"जोड़ा गया\",\"noMatch\":\"कोई मेल खाती पंक्ति नहीं\",\"itemSubtitle\":\"{{name}}\"},\"receivedUom\":\"किस इकाई में प्राप्त\",\"uomFromPo\":\"खरीद आदेश से मेल खाना चाहिए। जिस इकाई में गिनना है उसी में आदेश बनाएँ।\",\"conversion\":\"रूपांतरण ({{from}} से {{to}})\",\"oneOf\":\"1 {{from}}\",\"equals\":\"= {{factor}} {{to}}\",\"thisDelivery\":\"यह डिलीवरी\",\"uomPickHint\":\"जिस इकाई में आप गिन रहे हैं\",\"qtyIn\":\"मात्रा ({{uom}})\",\"receivingOf\":\"{{pending}} {{uom}} में से {{qty}} प्राप्त कर रहे हैं — शेष आदेश पर खुला रहेगा।\",\"receivingAll\":\"पूरी {{pending}} {{uom}} प्राप्त कर रहे हैं। आंशिक लेने के लिए घटाएँ।\",\"driftWarning\":\"यह खरीद आदेश की दर से {{factor}} गुना है। जाँचें कि वज़न केवल इस पंक्ति का है, पूरी डिलीवरी का नहीं।\",\"totalIn\":\"कुल प्राप्त ({{uom}})\",\"totalHint\":\"पूरी खेप तौलें या मापें, हम उसे बाँट देंगे\",\"basisMeasured\":\"आपके तौले गए वज़न से\",\"basisPo\":\"खरीद आदेश से\",\"basisUnresolved\":\"अभी कोई रूपांतरण दर नहीं\",\"totalInOptional\":\"कुल प्राप्त ({{uom}}, वैकल्पिक)\",\"totalHintOptional\":\"खाली छोड़ने पर खरीद आदेश की दर {{factor}} {{uom}} उपयोग होगी। केवल तभी भरें जब डिलीवरी अलग हो।\",\"stockQtyIn\":\"स्टॉक मात्रा ({{uom}})\",\"perEach\":\"= प्रत्येक {{factor}} {{uom}}\",\"rateFromPo\":\"खरीद आदेश से तय\",\"wholeNumberNote\":\"{{uom}} में भिन्न मात्रा नहीं हो सकती\",\"progress\":\"{{total}} में से {{picked}} प्राप्त\",\"addedLines\":\"इस रसीद के सामान\",\"noLinesYet\":\"अभी कुछ नहीं जोड़ा। जो सामान प्राप्त कर रहे हैं वह चुनें।\",\"addFromPo\":\"सामान जोड़ें\",\"editLine\":\"संपादित करें\",\"uomLookupFailed\":\"इकाई की जानकारी लोड नहीं हो सकी\",\"deleteDraftTitle\":\"प्राप्ति ड्राफ्ट हटाएँ?\",\"submittedReceipts\":\"जमा की गई खरीद रसीदें\",\"submittedReceiptsHint\":\"विवरण देखने के लिए जमा की गई रसीद खोलें।\",\"noSubmittedReceipts\":\"कोई जमा की गई खरीद रसीद नहीं है।\",\"viewReceipt\":\"देखें\",\"submittedReceiptReadOnly\":\"जमा की गई रसीद {{name}} · केवल पढ़ने के लिए।\",\"totalEstimatedWeight\":\"कुल अनुमानित वज़न (Kg)\",\"totalAcceptedWeight\":\"कुल स्वीकृत वज़न (Kg)\",\"receiveQueueTab\":\"प्राप्ति के लिए\",\"draftsTab\":\"ड्राफ्ट\",\"submittedTab\":\"जमा\"},\"projectItems\":{\"title\":\"{{project}} के सामान\",\"chooseProject\":\"प्रोजेक्ट चुनें\",\"chooseBom\":\"सामान चुनें\",\"noBom\":\"{{project}} से अभी कोई बिल ऑफ मटेरियल नहीं जुड़ा है। स्टोर मॉड्यूल के 'बिल ऑफ मटेरियल' से जोड़ें, या प्रोजेक्ट हटाकर खुद सामान चुनें।\",\"filledFromBom\":\"{{project}} की सामग्री सूची से {{total}} में से {{added}} वस्तुएँ भरी गईं।\",\"allPresent\":\"{{project}} की सामग्री सूची की सभी वस्तुएँ इस मांग में पहले से हैं।\",\"noBomShort\":\"कोई बिल ऑफ मटेरियल नहीं\",\"required\":\"चाहिए\",\"requestedQty\":\"पहले मांगा गया\",\"outstanding\":\"अब भी चाहिए\",\"loadFailed\":\"इस प्रोजेक्ट का बिल ऑफ मटेरियल पढ़ा नहीं जा सका\",\"hint\":\"किसी पंक्ति में प्रोजेक्ट भरें तो उसके बिल ऑफ मटेरियल से सामान चुन सकते हैं। खाली छोड़ें तो सभी सामान खुद खोज सकते हैं।\"},\"movements\":{\"title\":\"स्टॉक गतिविधि\",\"subtitle\":\"हर प्रकार की स्टॉक गतिविधि, आपके काम के अनुसार समूहीकृत\",\"groups\":{\"everyday\":\"रोज़मर्रा का स्टोर\",\"manufacturing\":\"उत्पादन\",\"correction\":\"सुधार और आउटसोर्सिंग\"},\"purposes\":{\"issue\":{\"title\":\"सामान जारी करें\",\"description\":\"किसी व्यक्ति, काम या साइट को स्टॉक दें\"},\"receipt\":{\"title\":\"सामान प्राप्त करें\",\"description\":\"स्टोर में सामान लाएं\"},\"transfer\":{\"title\":\"स्टोर के बीच ले जाएं\",\"description\":\"एक स्टोर से दूसरे स्टोर में स्टॉक ले जाएं\"},\"transferForManufacture\":{\"title\":\"उत्पादन में भेजें\",\"description\":\"कच्चा माल वर्क-इन-प्रोग्रेस स्टोर में ले जाएं\"},\"consumption\":{\"title\":\"उत्पादन में उपयोग\",\"description\":\"किसी काम में खपा कच्चा माल दर्ज करें\"},\"manufacture\":{\"title\":\"उत्पादन दर्ज करें\",\"description\":\"कच्चा माल लें और तैयार माल निकालें\"},\"repack\":{\"title\":\"पैक बदलें\",\"description\":\"मात्रा बदले बिना पैकिंग बदलें\"},\"disassemble\":{\"title\":\"अलग करें\",\"description\":\"असेंबली को उसके हिस्सों में तोड़ें\"},\"subcontractor\":{\"title\":\"सबकॉन्ट्रैक्टर को भेजें\",\"description\":\"बाहर प्रोसेसिंग के लिए सामान भेजें\"}}},\"labels\":{\"purpose\":\"उद्देश्य\",\"requiredBy\":\"कब तक चाहिए\",\"conversionFactor\":\"रूपांतरण कारक\",\"sourceWarehouse\":\"स्रोत वेयरहाउस\",\"targetWarehouse\":\"लक्ष्य वेयरहाउस\",\"item\":\"सामान\",\"items\":\"सामान\",\"project\":\"प्रोजेक्ट\",\"projectOptional\":\"प्रोजेक्ट (वैकल्पिक)\",\"workOrder\":\"वर्क ऑर्डर\"},\"tiles\":{\"stockEntry\":{\"title\":\"स्टॉक एंट्री\",\"description\":\"मटेरियल इश्यू, रसीद, ट्रांसफर\"},\"materialRequest\":{\"title\":\"मटेरियल रिक्वेस्ट\",\"description\":\"कच्चा माल अनुरोध करें\"},\"delivery\":{\"title\":\"डिलीवरी / डिस्पैच\",\"description\":\"बाहर जाने वाली सामग्री प्रबंधित करें\"},\"stockBalance\":{\"title\":\"स्टॉक बैलेंस\",\"description\":\"स्टॉक उपलब्धता देखें\"},\"itemMaster\":{\"title\":\"आइटम मास्टर\",\"description\":\"आइटम और वेरिएंट प्रबंधित करें\"},\"warehouse\":{\"title\":\"वेयरहाउस\",\"description\":\"गोदाम प्रबंधित करें\"},\"stockReconciliation\":{\"title\":\"स्टॉक मिलान\",\"description\":\"स्टॉक मात्रा का मिलान करें\"},\"bom\":{\"title\":\"बिल ऑफ मटेरियल\",\"description\":\"बिल ऑफ मटेरियल को प्रोजेक्ट से जोड़ें\"}},\"mr\":{\"title\":\"मटेरियल रिक्वेस्ट\",\"subtitle\":\"सभी मटेरियल रिक्वेस्ट ट्रैक और प्रबंधित करें\",\"tiles\":{\"purchase\":{\"title\":\"खरीद अनुरोध\",\"description\":\"खरीद हेतु आइटम अनुरोध करें\"},\"transfer\":{\"title\":\"मटेरियल ट्रांसफर\",\"description\":\"गोदामों के बीच स्टॉक स्थानांतरित करें\"},\"issue\":{\"title\":\"मटेरियल इश्यू\",\"description\":\"उपयोग हेतु सामग्री जारी करें\"},\"receipt\":{\"title\":\"मटेरियल रसीद\",\"description\":\"सामग्री प्राप्त करें\"},\"customerProvided\":{\"title\":\"ग्राहक द्वारा उपलब्ध\",\"description\":\"ग्राहक द्वारा उपलब्ध सामग्री\"}},\"listTitle\":\"{{type}} अनुरोध\",\"listSubtitle\":\"अनुरोध ट्रैक और प्रबंधित करें\",\"empty\":\"कोई मटेरियल रिक्वेस्ट नहीं मिली\",\"newTitle\":\"नई मटेरियल रिक्वेस्ट\",\"subtitleSubmitted\":\"{{type}} • सबमिट किया गया\",\"subtitleDraft\":\"{{type}} • ड्राफ्ट\",\"createSubtitle\":\"{{type}} बनाएं\",\"form\":{\"project\":\"परियोजना\",\"items\":\"आइटम\",\"select\":\"चुनें\"},\"unknownPurpose\":\"यह अनुरोध प्रकार उपलब्ध नहीं है।\",\"allTitle\":\"सभी अनुरोध\"},\"status\":{\"draft\":\"ड्राफ्ट\",\"submitted\":\"सबमिट किया गया\",\"cancelled\":\"रद्द\",\"completed\":\"पूर्ण\",\"toBill\":\"बिल हेतु\",\"stopped\":\"रोका गया\"},\"filters\":{\"customer\":\"ग्राहक\",\"company\":\"कंपनी\",\"item\":\"आइटम\",\"warehouse\":\"गोदाम\",\"fromDate\":\"शुरुआत की तारीख\",\"toDate\":\"समाप्ति तारीख\"},\"types\":{\"purchase\":\"खरीद\",\"transfer\":\"ट्रांसफर\",\"materialIssue\":\"मटेरियल इश्यू\",\"materialReceipt\":\"मटेरियल रसीद\",\"customerProvided\":\"ग्राहक द्वारा उपलब्ध\"},\"form\":{\"type\":\"प्रकार\",\"company\":\"कंपनी\",\"customer\":\"ग्राहक\",\"scheduleDate\":\"निर्धारित तिथि\",\"item\":\"आइटम\",\"qty\":\"मात्रा\",\"uom\":\"यूओएम\",\"stockUom\":\"स्टॉक यूओएम\",\"conv\":\"रूपांतरण\",\"source\":\"स्रोत\",\"warehouse\":\"गोदाम\",\"schedule\":\"निर्धारित तिथि\",\"postingDate\":\"पोस्टिंग तिथि\",\"defaultWarehouse\":\"डिफ़ॉल्ट गोदाम\",\"driver\":\"ड्राइवर\",\"vehicleNo\":\"वाहन संख्या\",\"transporter\":\"ट्रांसपोर्टर\",\"lrNumber\":\"एलआर संख्या\",\"items\":\"आइटम\",\"getItems\":\"आइटम प्राप्त करें\",\"dispatch\":\"डिस्पैच\",\"basics\":\"मूल जानकारी\",\"purpose\":\"उद्देश्य\",\"requiredBy\":\"कब तक चाहिए\"},\"validation\":{\"typeRequired\":\"प्रकार आवश्यक है\",\"companyRequired\":\"कंपनी आवश्यक है\",\"customerRequired\":\"ग्राहक आवश्यक है\",\"uomRequired\":\"यूओएम आवश्यक है\",\"invalidConversion\":\"अमान्य रूपांतरण कारक\",\"addAtLeastOneItem\":\"कम से कम एक आइटम जोड़ें\",\"addItems\":\"आइटम जोड़ें\",\"fillItemRows\":\"आइटम पंक्तियाँ भरें\",\"fillAllRows\":\"सभी आइटम पंक्तियाँ भरें\",\"qtyGtZero\":\"मात्रा 0 से अधिक होनी चाहिए\",\"fromToWarehouseRequired\":\"स्रोत और गंतव्य गोदाम आवश्यक हैं\",\"sameWarehouse\":\"स्रोत और लक्ष्य गोदाम एक नहीं हो सकते\",\"warehouseRequired\":\"गोदाम आवश्यक है\"},\"dn\":{\"title\":\"डिलीवरी नोट्स\",\"subtitle\":\"डिस्पैच और डिलीवरी ट्रैकिंग\",\"empty\":\"कोई डिलीवरी नोट नहीं मिला\",\"editTitle\":\"डिलीवरी {{name}}\",\"newTitle\":\"नई डिलीवरी\",\"formSubtitle\":\"सामग्री भेजें\"},\"balance\":{\"title\":\"स्टॉक बैलेंस\",\"subtitle\":\"रीयल-टाइम इन्वेंटरी स्थिति\",\"empty\":\"कोई स्टॉक उपलब्ध नहीं\",\"value\":\"मूल्य\",\"fromDate\":\"शुरुआत की तारीख\",\"toDate\":\"समाप्ति तारीख\",\"opening\":\"शुरुआती\",\"inQty\":\"आया\",\"outQty\":\"गया\",\"closing\":\"शेष\",\"reserved\":\"आरक्षित\",\"free\":\"उपलब्ध\",\"rate\":\"दर\",\"projected\":\"अनुमानित\",\"valuationAsOf\":\"मूल्य आज के अनुसार दिखाया गया है\",\"performanceWarning\":\"किसी आइटम या गोदाम से इसे सीमित करें — पूरी सूची में हर लेजर पंक्ति शामिल होती है।\",\"trail\":\"गतिविधि इतिहास\",\"noMovements\":\"इस अवधि में कोई गतिविधि नहीं\",\"showTrail\":\"यह स्टॉक कहाँ से आया, देखें\",\"incomingRate\":\"आने की दर\",\"outgoingRate\":\"जाने की दर\",\"runningBalance\":\"इसके बाद शेष\",\"balanceQty\":\"शेष\",\"serial\":\"सीरियल\",\"batch\":\"बैच\",\"batchPermission\":\"बैच और सीरियल विवरण के लिए Serial and Batch Entry की अनुमति चाहिए\",\"noBatchOnThisLine\":\"बैच या सीरियल ट्रैक नहीं है\",\"truncated\":\"और गतिविधियाँ हैं — सीमित करने के लिए तारीखें बदलें\"},\"source\":{\"loadItems\":\"आइटम लोड करें\",\"load\":\"लोड करें\",\"selectSourceType\":\"स्रोत प्रकार चुनें\",\"searchDocument\":\"दस्तावेज़ खोजें...\",\"selectTypeFirst\":\"पहले प्रकार चुनें\",\"noCustomer\":\"कोई ग्राहक नहीं\",\"salesOrder\":\"सेल्स ऑर्डर\",\"pickList\":\"पिक लिस्ट\",\"materialRequest\":\"मटेरियल रिक्वेस्ट\",\"purchaseReceipt\":\"परचेज रसीद\",\"bom\":\"बिल ऑफ मटेरियल्स\",\"bomShort\":\"बीओएम\",\"purchaseInvoice\":\"परचेज इनवॉइस\",\"itemMaster\":\"आइटम मास्टर\",\"onlyQcPassed\":\"केवल क्यूसी पास आइटम\",\"qcDone\":\"क्यूसी पूर्ण\",\"sourceType\":\"स्रोत प्रकार\",\"selectDocument\":\"दस्तावेज़ चुनें\"},\"entry\":{\"title\":\"स्टॉक एंट्री\",\"subtitleDefault\":\"त्वरित इन्वेंटरी संचालन\",\"subtitleReceipt\":\"आगमन → {{warehouse}}\",\"subtitleIssue\":\"जावक ← {{warehouse}}\",\"subtitleTransfer\":\"{{from}} → {{to}}\",\"subtitleTransferMfg\":\"{{from}} → {{to}} (MFG)\",\"subtitleManufacture\":\"निर्माण @ {{warehouse}}\",\"subtitleRepack\":\"रीपैक @ {{warehouse}}\",\"subtitleConsume\":\"उपभोग ← {{warehouse}}\",\"selectWarehouse\":\"गोदाम चुनें\",\"from\":\"स्रोत\",\"to\":\"गंतव्य\",\"actions\":{\"getItems\":\"आइटम प्राप्त करें\",\"clear\":\"साफ़ करें\"},\"basicConfig\":\"मूल कॉन्फ़िगरेशन\",\"collapse\":\"संकुचित करें\",\"expand\":\"विस्तारित करें\",\"entryDate\":\"एंट्री तिथि\",\"entryTime\":\"एंट्री समय\",\"items\":\"आइटम\",\"get\":\"प्राप्त करें\",\"entryType\":\"एंट्री प्रकार\",\"selectEntryType\":\"एंट्री प्रकार चुनें\",\"fromWarehouse\":\"स्रोत गोदाम\",\"toWarehouse\":\"गंतव्य गोदाम\",\"selectFromWarehouse\":\"स्रोत गोदाम चुनें\",\"selectToWarehouse\":\"गंतव्य गोदाम चुनें\",\"scanPlaceholder\":\"आइटम स्कैन करें या दर्ज करें\",\"totalQty\":\"कुल मात्रा\",\"submitEntry\":\"एंट्री सबमिट करें\",\"modes\":{\"incoming\":\"आगमन\",\"outgoing\":\"जावक\",\"transfer\":\"ट्रांसफर\",\"adjustment\":\"समायोजन\"},\"createdToast\":\"स्टॉक एंट्री बनाई गई: {{name}}\",\"failedToast\":\"स्टॉक एंट्री विफल रही\"},\"entryTypes\":{\"materialIssue\":\"मटेरियल इश्यू\",\"materialReceipt\":\"मटेरियल रसीद\",\"materialTransfer\":\"मटेरियल ट्रांसफर\",\"manufacture\":\"निर्माण\",\"repack\":\"रीपैक\",\"disassemble\":\"विघटन\",\"sendToSubcontractor\":\"सबकॉन्ट्रैक्टर को भेजें\",\"materialTransferForMfg\":\"निर्माण हेतु मटेरियल ट्रांसफर\",\"materialConsumptionForMfg\":\"निर्माण हेतु मटेरियल खपत\"},\"item\":{\"outOfStock\":\"स्टॉक समाप्त\",\"exceedsStock\":\"स्टॉक से अधिक\",\"lowStock\":\"कम स्टॉक\",\"available\":\"उपलब्ध\",\"willBeRemoved\":\"हटा दिया जाएगा\",\"willAdjust\":\"{{qty}} पर समायोजित होगा\",\"emptyList\":\"कोई आइटम नहीं जोड़ा गया\",\"itemName\":\"आइटम {{code}}\",\"increase\":\"मात्रा बढ़ाएँ\",\"decrease\":\"मात्रा घटाएँ\",\"remove\":\"आइटम हटाएँ\"},\"fix\":{\"title\":\"स्टॉक समस्या\",\"outOfStock\":\"{{count}} आइटम स्टॉक से बाहर हैं।\",\"more\":\"+ {{n}} और...\",\"removeItems\":\"आइटम हटाएँ\",\"adjustQty\":\"मात्रा समायोजित करें\"},\"submitModal\":{\"title\":\"स्टॉक एंट्री की पुष्टि करें\",\"project\":\"प्रोजेक्ट\",\"workOrder\":\"वर्क ऑर्डर\",\"searchProject\":\"प्रोजेक्ट खोजें\",\"searchWorkOrder\":\"वर्क ऑर्डर खोजें\"},\"demo\":{\"title\":\"सार्वभौमिक फ़ॉर्म\",\"subtitle\":\"सभी फ़ील्ड प्रकारों का डेमो\",\"sections\":{\"basic\":\"मूल फ़ील्ड\",\"text\":\"टेक्स्ट फ़ील्ड\",\"dateTime\":\"दिनांक और समय\",\"selection\":\"चयन\",\"attachments\":\"अनुलग्नक\"},\"age\":\"आयु\",\"salary\":\"वेतन\",\"description\":\"विवरण\",\"datetime\":\"दिनांक-समय\",\"time\":\"समय\",\"pending\":\"लंबित\",\"closed\":\"बंद\",\"department\":\"विभाग (लिंक)\",\"searchDepartment\":\"विभाग खोजें...\",\"active\":\"सक्रिय\",\"uploadFile\":\"फ़ाइल अपलोड करें\",\"chooseFile\":\"फ़ाइल चुनें\",\"noFileSelected\":\"कोई फ़ाइल नहीं चुनी गई\",\"itemCode\":\"आइटम कोड\",\"rate\":\"दर\"},\"returnStock\":{\"title\":\"सामान स्टॉक में वापस लाएँ\",\"action\":\"इस सामान को स्टॉक में वापस लाएँ\",\"explainer\":\"काम से बचा सामान एक ही स्टॉक एंट्री के ज़रिए स्टोर में वापस जाता है। आपके पुष्टि करने तक कुछ भी सेव नहीं होता।\",\"whichItem\":\"क्या वापस आ रहा है?\",\"useSameItem\":\"यही आइटम इस्तेमाल करें\",\"useSameItemHint\":\"अपने ही कोड में वापस जाएगा\",\"createNewItem\":\"नया आइटम बनाएँ\",\"createNewItemHint\":\"बचा हुआ सामान अलग स्पेसिफिकेशन का है\",\"itemName\":\"आइटम का नाम\",\"itemGroup\":\"आइटम समूह\",\"trackBatch\":\"बैच ट्रैक करें\",\"trackSerial\":\"सीरियल नंबर ट्रैक करें\",\"fromWarehouse\":\"कहाँ से (अभी कहाँ है)\",\"toWarehouse\":\"कहाँ पर (वापस कहाँ)\",\"qty\":\"कितना ({{uom}})\",\"batchNumber\":\"बैच नंबर\",\"serialNumbers\":\"सीरियल नंबर\",\"serialNumbersHint\":\"हर पंक्ति में एक, या अल्पविराम से अलग\",\"serialPlaceholder\":\"SN001\\nSN002\",\"autoBatch\":\"इस आइटम के लिए नया बैच नंबर अपने आप बनेगा।\",\"remarks\":\"टिप्पणी (वैकल्पिक)\",\"makesEntry\":\"स्टॉक एंट्री बनाएगा: {{from}} से {{to}}\",\"confirm\":\"स्टॉक में वापस लाएँ\",\"done\":\"{{item}} स्टॉक में वापस आ गया ({{qty}})।\",\"autoSerial\":\"इस आइटम के लिए सीरियल नंबर अपने आप बनेंगे।\"}}") };
+var store_default$1 = { store: /* @__PURE__ */ JSON.parse("{\"hub\":{\"subtitle\":\"इन्वेंटरी, मटेरियल रिक्वेस्ट और स्टॉक प्रवाह\"},\"tiles\":{\"stockEntry\":{\"title\":\"स्टॉक एंट्री\",\"description\":\"मटेरियल इश्यू, रसीद, ट्रांसफर\"},\"materialRequest\":{\"title\":\"मटेरियल रिक्वेस्ट\",\"description\":\"कच्चा माल अनुरोध करें\"},\"delivery\":{\"title\":\"डिलीवरी / डिस्पैच\",\"description\":\"बाहर जाने वाली सामग्री प्रबंधित करें\"},\"stockBalance\":{\"title\":\"स्टॉक बैलेंस\",\"description\":\"स्टॉक उपलब्धता देखें\"},\"itemMaster\":{\"title\":\"आइटम मास्टर\",\"description\":\"आइटम और वेरिएंट प्रबंधित करें\"},\"warehouse\":{\"title\":\"वेयरहाउस\",\"description\":\"गोदाम प्रबंधित करें\"},\"stockReconciliation\":{\"title\":\"स्टॉक मिलान\",\"description\":\"स्टॉक मात्रा का मिलान करें\"}},\"mr\":{\"title\":\"मटेरियल रिक्वेस्ट\",\"subtitle\":\"सभी मटेरियल रिक्वेस्ट ट्रैक और प्रबंधित करें\",\"tiles\":{\"purchase\":{\"title\":\"खरीद अनुरोध\",\"description\":\"खरीद हेतु आइटम अनुरोध करें\"},\"transfer\":{\"title\":\"मटेरियल ट्रांसफर\",\"description\":\"गोदामों के बीच स्टॉक स्थानांतरित करें\"},\"issue\":{\"title\":\"मटेरियल इश्यू\",\"description\":\"उपयोग हेतु सामग्री जारी करें\"},\"receipt\":{\"title\":\"मटेरियल रसीद\",\"description\":\"सामग्री प्राप्त करें\"},\"customerProvided\":{\"title\":\"ग्राहक द्वारा उपलब्ध\",\"description\":\"ग्राहक द्वारा उपलब्ध सामग्री\"}},\"listTitle\":\"{{type}} अनुरोध\",\"listSubtitle\":\"अनुरोध ट्रैक और प्रबंधित करें\",\"empty\":\"कोई मटेरियल रिक्वेस्ट नहीं मिली\",\"newTitle\":\"नई मटेरियल रिक्वेस्ट\",\"subtitleSubmitted\":\"{{type}} • सबमिट किया गया\",\"subtitleDraft\":\"{{type}} • ड्राफ्ट\",\"createSubtitle\":\"{{type}} बनाएं\",\"form\":{\"items\":\"आइटम\",\"select\":\"चुनें\"}},\"status\":{\"draft\":\"ड्राफ्ट\",\"submitted\":\"सबमिट किया गया\",\"cancelled\":\"रद्द\",\"completed\":\"पूर्ण\",\"toBill\":\"बिल हेतु\",\"stopped\":\"रोका गया\"},\"filters\":{\"customer\":\"ग्राहक\",\"company\":\"कंपनी\",\"item\":\"आइटम\",\"warehouse\":\"गोदाम\"},\"types\":{\"purchase\":\"खरीद\",\"transfer\":\"ट्रांसफर\",\"materialIssue\":\"मटेरियल इश्यू\",\"materialReceipt\":\"मटेरियल रसीद\",\"customerProvided\":\"ग्राहक द्वारा उपलब्ध\"},\"form\":{\"type\":\"प्रकार\",\"company\":\"कंपनी\",\"customer\":\"ग्राहक\",\"scheduleDate\":\"निर्धारित तिथि\",\"item\":\"आइटम\",\"qty\":\"मात्रा\",\"uom\":\"यूओएम\",\"stockUom\":\"स्टॉक यूओएम\",\"conv\":\"रूपांतरण\",\"source\":\"स्रोत\",\"warehouse\":\"गोदाम\",\"schedule\":\"निर्धारित तिथि\",\"postingDate\":\"पोस्टिंग तिथि\",\"defaultWarehouse\":\"डिफ़ॉल्ट गोदाम\",\"driver\":\"ड्राइवर\",\"vehicleNo\":\"वाहन संख्या\",\"transporter\":\"ट्रांसपोर्टर\",\"lrNumber\":\"एलआर संख्या\",\"items\":\"आइटम\",\"getItems\":\"आइटम प्राप्त करें\",\"dispatch\":\"डिस्पैच\",\"basics\":\"मूल जानकारी\"},\"validation\":{\"typeRequired\":\"प्रकार आवश्यक है\",\"companyRequired\":\"कंपनी आवश्यक है\",\"customerRequired\":\"ग्राहक आवश्यक है\",\"uomRequired\":\"यूओएम आवश्यक है\",\"invalidConversion\":\"अमान्य रूपांतरण कारक\",\"addAtLeastOneItem\":\"कम से कम एक आइटम जोड़ें\",\"addItems\":\"आइटम जोड़ें\",\"fillItemRows\":\"आइटम पंक्तियाँ भरें\",\"fillAllRows\":\"सभी आइटम पंक्तियाँ भरें\",\"qtyGtZero\":\"मात्रा 0 से अधिक होनी चाहिए\",\"fromToWarehouseRequired\":\"स्रोत और गंतव्य गोदाम आवश्यक हैं\",\"sameWarehouse\":\"स्रोत और लक्ष्य गोदाम एक नहीं हो सकते\",\"warehouseRequired\":\"गोदाम आवश्यक है\"},\"dn\":{\"title\":\"डिलीवरी नोट्स\",\"subtitle\":\"डिस्पैच और डिलीवरी ट्रैकिंग\",\"empty\":\"कोई डिलीवरी नोट नहीं मिला\",\"editTitle\":\"डिलीवरी {{name}}\",\"newTitle\":\"नई डिलीवरी\",\"formSubtitle\":\"सामग्री भेजें\"},\"balance\":{\"title\":\"स्टॉक बैलेंस\",\"subtitle\":\"रीयल-टाइम इन्वेंटरी स्थिति\",\"empty\":\"कोई स्टॉक उपलब्ध नहीं\",\"value\":\"मूल्य\"},\"source\":{\"loadItems\":\"आइटम लोड करें\",\"load\":\"लोड करें\",\"selectSourceType\":\"स्रोत प्रकार चुनें\",\"searchDocument\":\"दस्तावेज़ खोजें...\",\"selectTypeFirst\":\"पहले प्रकार चुनें\",\"noCustomer\":\"कोई ग्राहक नहीं\",\"salesOrder\":\"सेल्स ऑर्डर\",\"pickList\":\"पिक लिस्ट\",\"materialRequest\":\"मटेरियल रिक्वेस्ट\",\"purchaseReceipt\":\"परचेज रसीद\",\"bom\":\"बिल ऑफ मटेरियल्स\",\"bomShort\":\"बीओएम\",\"purchaseInvoice\":\"परचेज इनवॉइस\",\"itemMaster\":\"आइटम मास्टर\",\"onlyQcPassed\":\"केवल क्यूसी पास आइटम\",\"qcDone\":\"क्यूसी पूर्ण\",\"sourceType\":\"स्रोत प्रकार\",\"selectDocument\":\"दस्तावेज़ चुनें\"},\"entry\":{\"title\":\"स्टॉक एंट्री\",\"subtitleDefault\":\"त्वरित इन्वेंटरी संचालन\",\"subtitleReceipt\":\"आगमन → {{warehouse}}\",\"subtitleIssue\":\"जावक ← {{warehouse}}\",\"subtitleTransfer\":\"{{from}} → {{to}}\",\"subtitleTransferMfg\":\"{{from}} → {{to}} (MFG)\",\"subtitleManufacture\":\"निर्माण @ {{warehouse}}\",\"subtitleRepack\":\"रीपैक @ {{warehouse}}\",\"subtitleConsume\":\"उपभोग ← {{warehouse}}\",\"selectWarehouse\":\"गोदाम चुनें\",\"from\":\"स्रोत\",\"to\":\"गंतव्य\",\"actions\":{\"getItems\":\"आइटम प्राप्त करें\",\"clear\":\"साफ़ करें\"},\"basicConfig\":\"मूल कॉन्फ़िगरेशन\",\"collapse\":\"संकुचित करें\",\"expand\":\"विस्तारित करें\",\"entryDate\":\"एंट्री तिथि\",\"entryTime\":\"एंट्री समय\",\"items\":\"आइटम\",\"get\":\"प्राप्त करें\",\"entryType\":\"एंट्री प्रकार\",\"selectEntryType\":\"एंट्री प्रकार चुनें\",\"fromWarehouse\":\"स्रोत गोदाम\",\"toWarehouse\":\"गंतव्य गोदाम\",\"selectFromWarehouse\":\"स्रोत गोदाम चुनें\",\"selectToWarehouse\":\"गंतव्य गोदाम चुनें\",\"scanPlaceholder\":\"आइटम स्कैन करें या दर्ज करें\",\"totalQty\":\"कुल मात्रा\",\"submitEntry\":\"एंट्री सबमिट करें\",\"modes\":{\"incoming\":\"आगमन\",\"outgoing\":\"जावक\",\"transfer\":\"ट्रांसफर\",\"adjustment\":\"समायोजन\"},\"createdToast\":\"स्टॉक एंट्री बनाई गई: {{name}}\",\"failedToast\":\"स्टॉक एंट्री विफल रही\"},\"entryTypes\":{\"materialIssue\":\"मटेरियल इश्यू\",\"materialReceipt\":\"मटेरियल रसीद\",\"materialTransfer\":\"मटेरियल ट्रांसफर\",\"manufacture\":\"निर्माण\",\"repack\":\"रीपैक\",\"disassemble\":\"विघटन\",\"sendToSubcontractor\":\"सबकॉन्ट्रैक्टर को भेजें\",\"materialTransferForMfg\":\"निर्माण हेतु मटेरियल ट्रांसफर\",\"materialConsumptionForMfg\":\"निर्माण हेतु मटेरियल खपत\"},\"item\":{\"outOfStock\":\"स्टॉक समाप्त\",\"exceedsStock\":\"स्टॉक से अधिक\",\"lowStock\":\"कम स्टॉक\",\"available\":\"उपलब्ध\",\"willBeRemoved\":\"हटा दिया जाएगा\",\"willAdjust\":\"{{qty}} पर समायोजित होगा\",\"emptyList\":\"कोई आइटम नहीं जोड़ा गया\",\"itemName\":\"आइटम {{code}}\",\"increase\":\"मात्रा बढ़ाएँ\",\"decrease\":\"मात्रा घटाएँ\",\"remove\":\"आइटम हटाएँ\"},\"fix\":{\"title\":\"स्टॉक समस्या\",\"outOfStock\":\"{{count}} आइटम स्टॉक से बाहर हैं।\",\"more\":\"+ {{n}} और...\",\"removeItems\":\"आइटम हटाएँ\",\"adjustQty\":\"मात्रा समायोजित करें\"},\"submitModal\":{\"title\":\"स्टॉक एंट्री की पुष्टि करें\",\"project\":\"प्रोजेक्ट\",\"workOrder\":\"वर्क ऑर्डर\",\"searchProject\":\"प्रोजेक्ट खोजें\",\"searchWorkOrder\":\"वर्क ऑर्डर खोजें\"},\"demo\":{\"title\":\"सार्वभौमिक फ़ॉर्म\",\"subtitle\":\"सभी फ़ील्ड प्रकारों का डेमो\",\"sections\":{\"basic\":\"मूल फ़ील्ड\",\"text\":\"टेक्स्ट फ़ील्ड\",\"dateTime\":\"दिनांक और समय\",\"selection\":\"चयन\",\"attachments\":\"अनुलग्नक\"},\"age\":\"आयु\",\"salary\":\"वेतन\",\"description\":\"विवरण\",\"datetime\":\"दिनांक-समय\",\"time\":\"समय\",\"pending\":\"लंबित\",\"closed\":\"बंद\",\"department\":\"विभाग (लिंक)\",\"searchDepartment\":\"विभाग खोजें...\",\"active\":\"सक्रिय\",\"uploadFile\":\"फ़ाइल अपलोड करें\",\"chooseFile\":\"फ़ाइल चुनें\",\"noFileSelected\":\"कोई फ़ाइल नहीं चुनी गई\",\"itemCode\":\"आइटम कोड\",\"rate\":\"दर\"}}") };
 var ops_default$1 = {
 	production: {
 		"subtitle": "कार्य आदेश, जॉब कार्ड और निर्माण",
@@ -39301,7 +39557,6 @@ var reports_default$1 = { reports: {
 	"checkin": "चेक-इन",
 	"checkout": "चेक-आउट",
 	"noCheckinLogs": "कोई चेक-इन लॉग नहीं मिला",
-	"checkinLogsError": "चेक-इन लॉग लोड नहीं हो सके।",
 	"overtimeTitle": "ओवरटाइम रिपोर्ट",
 	"totalLogs": "कुल लॉग",
 	"totalOtHours": "कुल ओटी घंटे",
@@ -39366,23 +39621,7 @@ var reports_default$1 = { reports: {
 	"charts": "चार्ट",
 	"attendanceDistribution": "मासिक स्थिति वितरण",
 	"dailyAttendance": "दैनिक टीम उपस्थिति",
-	"attendanceRate": "कर्मचारी के अनुसार उपस्थिति दर",
-	"plateStockRegister": "प्लेट स्टॉक रजिस्टर",
-	"plateStockRegisterDesc": "आइटम, वेयरहाउस और हीट नंबर के अनुसार प्लेट स्टॉक",
-	"applyFilters": "फ़िल्टर लागू करें",
-	"noRows": "इन फ़िल्टरों के लिए कोई पंक्ति नहीं।",
-	"loadFailedTitle": "रिपोर्ट लोड नहीं हो सकी",
-	"loadFailedHint": "रिपोर्ट नहीं चल सकी। आपके पास अनुमति नहीं हो सकती, या यह इस साइट पर इंस्टॉल नहीं है।",
-	"noColumnsTitle": "दिखाने के लिए कोई कॉलम नहीं",
-	"noColumnsHint": "रिपोर्ट ने कोई कॉलम परिभाषा नहीं लौटाई।",
-	"expandAll": "सभी विस्तार करें",
-	"collapseAll": "सभी संकुचित करें",
-	"mixed": "मिश्रित",
-	"batchCount_one": "{{count}} बैच",
-	"batchCount_other": "{{count}} बैच",
-	"warehouseCount_one": "{{count}} वेयरहाउस",
-	"warehouseCount_other": "{{count}} वेयरहाउस",
-	"moreFilters": "और फ़िल्टर"
+	"attendanceRate": "कर्मचारी के अनुसार उपस्थिति दर"
 } };
 var approvals_default = { approvals: {
 	"subtitle": "مراجعة الطلبات والموافقة عليها",
@@ -39468,6 +39707,8 @@ var approvals_default = { approvals: {
 var ess_default = {
 	requests: {
 		"header": {
+			"title": "الطلبات",
+			"subtitle": "إنشاء وإدارة طلبات الموظفين",
 			"attendanceListTitle": "طلبات الحضور",
 			"attendanceListSubtitle": "مراجعة وإدارة تصحيحات الحضور",
 			"attendanceEditTitle": "طلب حضور {{name}}",
@@ -39486,6 +39727,20 @@ var ess_default = {
 			"expenseNewTitle": "مطالبة مصروفات جديدة",
 			"expenseEditSubtitle": "مراجعة وتحديث تفاصيل المصروفات",
 			"expenseNewSubtitle": "إنشاء وإرسال مطالبة مصروفات جديدة"
+		},
+		"tiles": {
+			"attendance": {
+				"title": "طلب حضور",
+				"description": "إصلاح قيود الحضور"
+			},
+			"leave": {
+				"title": "طلب إجازة",
+				"description": "التقدم بطلب للحصول على إجازة"
+			},
+			"expense": {
+				"title": "طلب مصروفات",
+				"description": "تقديم المصروفات"
+			}
 		},
 		"status": {
 			"approved": "موافق عليه",
@@ -39600,7 +39855,7 @@ var ess_default = {
 	ess: {
 		"header": {
 			"title": "خدمة الموظف الذاتية",
-			"subtitle": "كل ما يخص عملك — الإجازات والحضور والمصروفات وقواتير الراتب",
+			"subtitle": "ملفي الشخصي والحضور والإجازة والراتب",
 			"profileTitle": "ملفي الشخصي",
 			"profileSubtitle": "عرض معلوماتك كموظف",
 			"attendanceTitle": "تقويم الحضور",
@@ -39618,39 +39873,39 @@ var ess_default = {
 		"tiles": {
 			"profile": {
 				"title": "ملفي الشخصي",
-				"description": "اسمك وصورتك وبيانات التواصل"
+				"description": "عرض وإدارة ملفك الشخصي"
 			},
 			"leave": {
-				"title": "طلب إجازة",
-				"description": "اطلب إجازة وتابع طلباتك"
+				"title": "إجازتي",
+				"description": "التقدم بطلب إجازة وعرض الرصيد"
 			},
 			"leaveBalance": {
-				"title": "رصيد إجازتي",
-				"description": "كم يوم إجازة متبقٍ لك هذا العام"
+				"title": "رصيد الإجازة",
+				"description": "عرض رصيد إجازتي لهذا العام"
 			},
-			"attendanceRequest": {
-				"title": "تصحيح دوام الحضور",
-				"description": "أبلغ عن بصمة تسجيل غائبة أو خاطئة"
+			"expenses": {
+				"title": "مصروفاتي",
+				"description": "تقديم مطالبات مصروفات"
 			},
-			"attendance": {
-				"title": "دوام حضوري",
-				"description": "تابع وقت دخولك وخروجك كل يوم"
+			"attendanceRequests": {
+				"title": "الحضور مطلوب",
+				"description": "إدارة طلبات الحضور"
+			},
+			"attendanceLogs": {
+				"title": "سجلات الحضور",
+				"description": "عرض تقويم شهري بأوقات الدخول والخروج"
 			},
 			"overtime": {
-				"title": "ساعات العمل الإضافي",
-				"description": "الساعات التي عملتها خارج جدولك"
+				"title": "سجلات العمل الإضافي",
+				"description": "عرض سجلات عملك الإضافي"
 			},
-			"expenseClaim": {
-				"title": "تقديم مطالبة مصروف",
-				"description": "استرداد مصروفات أنفقتها للعمل"
-			},
-			"salarySlip": {
-				"title": "قواتير راتبي",
-				"description": "حمّل كشوف راتبك"
+			"salarySlips": {
+				"title": "قسائم راتبي",
+				"description": "عرض قسائم الراتب"
 			},
 			"tasks": {
 				"title": "مهامي",
-				"description": "الأعمال المسندة إليك"
+				"description": "عرض المهام المُسندة"
 			}
 		},
 		"profile": {
@@ -39734,7 +39989,6 @@ var ess_default = {
 			"nextMonth": "الشهر التالي",
 			"heroDesc": "الحضور الشهري مع أوقات الدخول والخروج وإجراءات سريعة",
 			"checkinLogs": "سجلات تسجيل الدخول - {{date}}",
-			"checkinLogsShort": "سجلات تسجيل الدخول",
 			"months": {
 				"january": "يناير",
 				"february": "فبراير",
@@ -39794,7 +40048,276 @@ var ess_default = {
 		}
 	}
 };
-var store_default = { store: /* @__PURE__ */ JSON.parse("{\"hub\":{\"subtitle\":\"قدّم طلباً، أو سلّم مواد، أو تحقّق من المخزون\"},\"purposes\":{\"indent\":{\"title\":\"رفع طلب عدة (إندنت)\",\"description\":\"اطلب من المخزن المواد التي تحتاجها لتنفيذ عمل\"},\"purchase\":{\"title\":\"اطلب الشراء\",\"description\":\"اطلب مادة غير متوفرة في المخزن\"},\"transfer\":{\"title\":\"نقل المواد بين المخازن\",\"description\":\"انقل المواد من مخزن إلى آخر\"},\"production\":{\"title\":\"للإنتاج\",\"description\":\"اطلب مواد للتصنيع استناداً إلى قائمة المواد\"},\"customerProvided\":{\"title\":\"مواد العميل\",\"description\":\"مواد يوفرها العميل لتنفيذ أعمالنا\"}},\"purposeGroupRequester\":\"أحتاج إلى شيء\",\"purposeGroupStore\":\"أنا مسؤول عن المخزن\",\"purposeGroupLookup\":\"الاستعلامات\",\"scopes\":{\"all\":\"الكل\",\"project\":\"طلبات المشاريع\",\"general\":\"طلبات عامة\"},\"giveItems\":{\"title\":\"تسليم المواد\",\"description\":\"سلّم المواد للطلبات المرفوعة من الآخرين\",\"empty\":\"لا توجد طلبات في انتظار التسليم\",\"outstanding\":\"المتبقي للتسليم\",\"requested\":\"المطلوب\",\"issued\":\"تم تسليمه\",\"giveNow\":\"سلّم هذه\",\"giveAll\":\"سلّم كل المتبقي\",\"partialHint\":\"عدّل الكمية لتسليم جزء الآن والباقي لاحقاً\",\"noWarehouse\":\"لا يوجد مستودع في هذا الطلب، لذلك تعذّر تحديد مصدر المواد\",\"nothingToGive\":\"أدخل الكمية المراد تسليمها أولاً.\",\"given\":\"تم إنشاء قيد المخزون {{name}} وتقديمه.\"},\"getItems\":{\"title\":\"جلب الأصناف\",\"searchItem\":\"ابحث عن صنف بالاسم أو الرمز\",\"selfHint\":\"اكتب الرمز ثم اضغط «إضافة». هذه أسرع طريقة عندما تعرف الصنف بالتحديد.\",\"addItem\":\"إضافة صنف\",\"willAdd\":\"سيتم إضافة {{count}} صنف:\",\"useThese\":\"استخدام هذه\",\"nothingToPick\":\"لا يوجد شيء متاح الآن\",\"sources\":{\"indent\":{\"title\":\"من طلب معلق\",\"description\":\"مواد طلبها شخص من المخزن\"},\"workOrder\":{\"title\":\"من أمر تصنيع\",\"description\":\"مواد لا يزال عمل الإنتاج يحتاجها\"},\"self\":{\"title\":\"أعرف الأصناف\",\"description\":\"أضفها واحداً تلو الآخر\"}}},\"receipt\":{\"title\":\"استلام المواد\",\"subtitle\":\"أدخل المواد التي سلّمها المورد إلى المخزن\",\"description\":\"استلام ما سلّمه المورد\",\"newTitle\":\"إيصال جديد\",\"supplier\":\"المورد\",\"postingDate\":\"التاريخ\",\"acceptedWarehouse\":\"المستودع المستلَم\",\"purchaseOrder\":\"أمر الشراء\",\"receivedSoFar\":\"المستلَم\",\"receive\":\"استلام\",\"noOrders\":\"لا توجد أوامر شراء في انتظار الاستلام\",\"withoutOrder\":\"استلام بدون أمر شراء\",\"withoutOrderHint\":\"استخدمه عندما تصل المواد دون أمر. أضف الأصناف بنفسك.\",\"draftReceipts\":\"مسودات الاستلام المحفوظة\",\"draftReceiptsHint\":\"تابع إيصالاً حفظته ولم ترسله بعد.\",\"noDraftReceipts\":\"لا توجد مسودات استلام محفوظة.\",\"resumeDraft\":\"متابعة\",\"lockedFromPo\":\"الصنف والمشروع والوحدة مأخوذة من أمر الشراء.\",\"nothingOutstanding\":\"لا يوجد شيء متبقٍ في {{po}}. تم استلام كل ما تم طلبه.\",\"items\":\"الأصناف\",\"noItems\":\"لا توجد أصناف بعد\",\"acceptedQty\":\"الكمية المقبولة\",\"rejectedQty\":\"الكمية المرفوضة\",\"serialNumbers\":\"الأرقام التسلسلية ({{count}} × {{uom}})\",\"serialAuto\":\"سيتم إنشاء {{count}} من الأرقام التسلسلية تلقائيًا. لا حاجة للكتابة.\",\"serialTyped\":\"رقم تسلسلي واحد لكل سطر، بإجمالي {{count}}.\",\"serialWillGenerate\":\"سيتم إنشاؤه من السلسلة {{series}}.\",\"serialPlaceholder\":\"رقم تسلسلي واحد لكل سطر ({{count}} أسطر)\",\"serialProgress\":\"تم إدخال {{entered}} من {{expected}}\",\"perSerialWeight\":\"الوزن لكل رقم تسلسلي\",\"perSerialValue\":\"القيمة لكل رقم تسلسلي\",\"batchNo\":\"الدفعة\",\"batchAuto\":\"سيتم إنشاؤه من السلسلة {{series}}.\",\"batchWillGenerate\":\"سيتم إنشاء رقم الدفعة تلقائيًا.\",\"batchPlaceholder\":\"رقم الدفعة\",\"rate\":\"السعر\",\"plateDetails\":\"تفاصيل استلام الألواح\",\"supplierWeight\":\"وزن المورد (Kg)\",\"theoreticalWeightPerPlate\":\"الوزن النظري لكل لوح (Kg)\",\"estimatedWeight\":\"الوزن التقديري (Kg)\",\"weightVariance\":\"التفاوت %\",\"tolerance\":\"الحد {{value}}%\",\"acceptedWeight\":\"الوزن المقبول (Kg)\",\"weightPerPlate\":\"الوزن لكل لوح (Kg)\",\"standardRate\":\"السعر (INR)\",\"lineAmount\":\"المبلغ (INR)\",\"weightDecision\":\"قرار الوزن\",\"chooseWeightDecision\":\"اختر كيفية قبول الوزن\",\"acceptSupplierWeight\":\"قبول وزن المورد\",\"acceptEstimatedWeight\":\"قبول الوزن التقديري\",\"acceptWeighbridgeWeight\":\"قبول وزن الميزان\",\"weighbridgeWeight\":\"وزن الميزان (Kg)\",\"weightApprovalRequired\":\"الوزن خارج الحد المسموح. يجب أن يراجعه معتمد قبل الإرسال.\",\"ratePerKg\":\"السعر لكل Kg\",\"heatNumber\":\"رقم الصهرة\",\"mtcNumber\":\"رقم MTC (اختياري)\",\"rateDiffers\":\"تم الطلب بسعر {{rate}}\",\"stockUom\":\"{{qty}} {{uom}}\",\"inStockUom\":\"في المخزون\",\"factor\":\"معامل\",\"validation\":{\"totalRequired\":\"أدخل إجمالي {{uom}} الذي استلمته\",\"totalInvalid\":\"أدخل إجمالي {{uom}} صالح\",\"supplierRequired\":\"اختر مورداً\",\"dateRequired\":\"أدخل تاريخاً\",\"dateFuture\":\"لا يمكن أن يكون التاريخ في المستقبل\",\"addItem\":\"أضف صنفاً واحداً على الأقل\",\"pickItem\":\"اختر صنفاً في كل صف\",\"duplicatePoRow\":\"يظهر سطر أمر الشراء نفسه مرتين\",\"rateRequired\":\"أدخل سعراً في كل صف\",\"plateSupplierWeightRequired\":\"أدخل وزن المورد لكل صف ألواح\",\"plateHeatRequired\":\"أدخل رقم الصهرة لكل صف ألواح\",\"plateRateRequired\":\"أدخل السعر لكل Kg لكل صف ألواح\",\"plateDecisionRequired\":\"اختر قرار الوزن لكل صف ألواح خارج الحد\",\"plateApproverRequired\":\"يجب أن يقرر معتمد مخول بشأن هذا الصف\",\"plateWeighbridgeRequired\":\"أدخل وزن الميزان لهذا القرار\",\"plateLookupFailed\":\"تعذر التحقق من تطبيق قواعد وزن الألواح على هذا الصنف. أعد المحاولة قبل الإرسال.\",\"warehouseRequired\":\"اختر مستودعاً في كل صف\",\"serialNeedsQty\":\"أدخل الوزن الإجمالي لحساب عدد الأرقام التسلسلية.\",\"serialNeedsPositiveQty\":\"يجب أن يكون الوزن الإجمالي أكبر من صفر لإنشاء أرقام تسلسلية.\",\"serialWholeStockQty\":\"العنصر المُرقّم يحتاج وزنًا إجماليًا صحيحًا — رقم تسلسلي لكل {{uom}}، ولا يمكن لكسر {{uom}} أن يحمل رقمه. قرّب إلى أقرب {{uom}} صحيح.\",\"serialCountMismatch\":\"أدخل {{expected}} رقمًا تسلسليًا، واحد لكل سطر ({{entered}} حتى الآن).\",\"serialDuplicate\":\"تم إدخال رقم تسلسلي مرتين. يجب أن يكون كل رقم فريدًا.\",\"batchRequired\":\"هذا العنصر مُرقّم بالدفعات، لذا رقم الدفعة مطلوب.\",\"wholeNumberUom\":\"{{uom}} يجب أن يكون عدداً صحيحاً\"},\"picker\":{\"pickFirst\":\"اختر بندًا لإكماله\",\"title\":\"إضافة أصناف للاستلام\",\"search\":\"ابحث بالاسم أو الرمز أو المستودع\",\"count\":\"عرض {{shown}} من {{total}} سطر\",\"added\":\"تمت الإضافة\",\"noMatch\":\"لا يوجد سطر مطابق\",\"itemSubtitle\":\"{{name}}\"},\"receivedUom\":\"الاستلام بوحدة\",\"uomFromPo\":\"يجب أن يطابق أمر الشراء. أنشئ الأمر في الوحدة التي تريد العد بها.\",\"conversion\":\"التحويل ({{from}} إلى {{to}})\",\"oneOf\":\"1 {{from}}\",\"equals\":\"= {{factor}} {{to}}\",\"thisDelivery\":\"هذا التسليم\",\"uomPickHint\":\"الوحدة التي تعدّ بها\",\"qtyIn\":\"الكمية ({{uom}})\",\"receivingOf\":\"استلام {{qty}} من {{pending}} {{uom}} المتبقية — يبقى الباقي مفتوحاً على الطلب.\",\"receivingAll\":\"استلام كامل {{pending}} {{uom}} المتبقية. قلّلها للاستلام الجزئي.\",\"driftWarning\":\"هذا {{factor}} ضعف معدل أمر الشراء. تحقق أن الوزن لهذا السطر فقط وليس了整个 التسليم.\",\"totalIn\":\"إجمالي المستلم ({{uom}})\",\"totalHint\":\"وزن الكمية كاملة أو قسها ثم نقسمها\",\"basisMeasured\":\"من الوزن الذي قِسته\",\"basisPo\":\"من أمر الشراء\",\"basisUnresolved\":\"لا يوجد معدل تحويل بعد\",\"totalInOptional\":\"المستلم إجمالاً ({{uom}}، اختياري)\",\"totalHintOptional\":\"اتركه فارغاً لاستخدام معدل أمر الشراء {{factor}} {{uom}}. أدخله فقط إذا اختلف التسليم.\",\"stockQtyIn\":\"كمية المخزون ({{uom}})\",\"perEach\":\"= {{factor}} {{uom}} لكل قطعة\",\"rateFromPo\":\"محددة من أمر الشراء\",\"wholeNumberNote\":\"لا يمكن أن تكون {{uom}} كسرية\",\"progress\":\"تم استلام {{picked}} من {{total}}\",\"addedLines\":\"أصناف هذه الإيصال\",\"noLinesYet\":\"لم تتم إضافة شيء بعد. اختر الأصناف التي تستلمها.\",\"addFromPo\":\"إضافة أصناف\",\"editLine\":\"تعديل\",\"uomLookupFailed\":\"تعذّر تحميل معلومات الوحدة\",\"deleteDraftTitle\":\"حذف مسودة الإيصال؟\",\"submittedReceipts\":\"إيصالات الشراء المقدمة\",\"submittedReceiptsHint\":\"افتح إيصالًا مقدمًا لمراجعة تفاصيله.\",\"noSubmittedReceipts\":\"لا توجد إيصالات شراء مقدمة.\",\"viewReceipt\":\"عرض\",\"submittedReceiptReadOnly\":\"الإيصال {{name}} مقدم · للقراءة فقط.\",\"totalEstimatedWeight\":\"إجمالي الوزن التقديري (Kg)\",\"totalAcceptedWeight\":\"إجمالي الوزن المقبول (Kg)\",\"receiveQueueTab\":\"بانتظار الاستلام\",\"draftsTab\":\"مسودات\",\"submittedTab\":\"مقدمة\"},\"projectItems\":{\"title\":\"مواد المشروع {{project}}\",\"chooseProject\":\"اختر مشروعاً\",\"chooseBom\":\"اختر صنفاً\",\"noBom\":\"لا توجد قائمة مواد مرتبطة بالمشروع {{project}} بعد. اربط واحدة من «قائمة المواد» في وحدة المخزن، أو امسح المشروع لاختيار المواد بنفسك.\",\"filledFromBom\":\"تم تعبئة {{added}} من {{total}} عنصرًا من قائمة المواد الخاصة بـ {{project}}.\",\"allPresent\":\"كل عناصر قائمة المواد الخاصة بـ {{project}} موجودة بالفعل في هذا الطلب.\",\"noBomShort\":\"لا توجد قائمة مواد مرتبطة\",\"required\":\"المطلوب\",\"requestedQty\":\"تم طلبه سابقاً\",\"outstanding\":\"ما زال مطلوباً\",\"loadFailed\":\"تعذّرت قراءة قائمة المواد لهذا المشروع\",\"hint\":\"أدخل مشروعاً في أحد الصفوف لاختيار المواد من قائمته. اتركه فارغاً للبحث عن أي مادة.\"},\"movements\":{\"title\":\"حركات المخزون\",\"subtitle\":\"كل أنواع حركات المخزون، مجمّعة حسب ما تقوم به\",\"groups\":{\"everyday\":\"المخزن اليومي\",\"manufacturing\":\"التصنيع\",\"correction\":\"التصحيحات والتعاقد الخارجي\"},\"purposes\":{\"issue\":{\"title\":\"صرف مواد\",\"description\":\"صرف مخزون لشخص أو عمل أو موقع\"},\"receipt\":{\"title\":\"استلام مواد\",\"description\":\"إدخال مواد إلى المخزن\"},\"transfer\":{\"title\":\"النقل بين المخازن\",\"description\":\"انقل المخزون من مخزن إلى آخر\"},\"transferForManufacture\":{\"title\":\"إلى الإنتاج\",\"description\":\"انقل المواد الخام إلى مخزن الإنتاج الجاري\"},\"consumption\":{\"title\":\"الاستهلاك في الإنتاج\",\"description\":\"تسجيل المواد الخام المستهلكة في العمل\"},\"manufacture\":{\"title\":\"تسجيل الإنتاج\",\"description\":\"استلام مواد خام وتسجيل تامّع المنتج المنجز\"},\"repack\":{\"title\":\"إعادة التعبئة\",\"description\":\"تغيير التعبئة دون تغيير الكمية\"},\"disassemble\":{\"title\":\"تفكيك\",\"description\":\"تفكيك تجميعة إلى مكوناتها\"},\"subcontractor\":{\"title\":\"إرسال إلى مقاول باطن\",\"description\":\"إرسال مواد للمعالجة الخارجية\"}}},\"labels\":{\"purpose\":\"الغرض\",\"requiredBy\":\"المطلوب بحلول\",\"conversionFactor\":\"معامل التحويل\",\"sourceWarehouse\":\"مستودع المصدر\",\"targetWarehouse\":\"المستودع الهدف\",\"item\":\"الصنف\",\"items\":\"الأصناف\",\"project\":\"المشروع\",\"projectOptional\":\"المشروع (اختياري)\",\"workOrder\":\"أمر التصنيع\"},\"tiles\":{\"stockEntry\":{\"title\":\"قيد المخزون\",\"description\":\"صرف واستلام وتحويل المواد\"},\"materialRequest\":{\"title\":\"طلب مواد\",\"description\":\"طلب المواد الخام\"},\"delivery\":{\"title\":\"التسليم / الشحن\",\"description\":\"إدارة المواد الصادر\"},\"stockBalance\":{\"title\":\"رصيد المخزون\",\"description\":\"عرض توفر المخزون\"},\"itemMaster\":{\"title\":\"بطاقة الأصناف\",\"description\":\"إدارة الأصناف والمتغيرات\"},\"warehouse\":{\"title\":\"المستودع\",\"description\":\"إدارة المستودعات\"},\"stockReconciliation\":{\"title\":\"تسوية المخزون\",\"description\":\"تسوية كميات المخزون\"},\"bom\":{\"title\":\"قائمة المواد\",\"description\":\"اربط قائمة مواد بمشروع\"}},\"mr\":{\"title\":\"طلبات المواد\",\"subtitle\":\"تتبع وإدارة جميع طلبات المواد\",\"tiles\":{\"purchase\":{\"title\":\"طلب شراء\",\"description\":\"طلب أصناف للشراء\"},\"transfer\":{\"title\":\"تحويل مواد\",\"description\":\"نقل المخزون بين المستودعات\"},\"issue\":{\"title\":\"صرف مواد\",\"description\":\"صرف المواد للاستخدام\"},\"receipt\":{\"title\":\"استلام مواد\",\"description\":\"استلام المواد\"},\"customerProvided\":{\"title\":\"مقدم من العميل\",\"description\":\"مواد يوفرها العميل\"}},\"listTitle\":\"طلبات {{type}}\",\"listSubtitle\":\"تتبع وإدارة الطلبات\",\"empty\":\"لم يتم العثور على طلبات مواد\",\"newTitle\":\"طلب مواد جديد\",\"subtitleSubmitted\":\"{{type}} • مُرسل\",\"subtitleDraft\":\"{{type}} • مسودة\",\"createSubtitle\":\"إنشاء {{type}}\",\"form\":{\"project\":\"المشروع\",\"items\":\"الأصناف\",\"select\":\"اختيار\"},\"unknownPurpose\":\"نوع الطلب هذا غير متاح.\",\"allTitle\":\"جميع الطلبات\"},\"status\":{\"draft\":\"مسودة\",\"submitted\":\"مُرسل\",\"cancelled\":\"ملغى\",\"completed\":\"مكتمل\",\"toBill\":\"لفوترة\",\"stopped\":\"متوقف\"},\"filters\":{\"customer\":\"العميل\",\"company\":\"الشركة\",\"item\":\"الصنف\",\"warehouse\":\"المستودع\",\"fromDate\":\"من تاريخ\",\"toDate\":\"إلى تاريخ\"},\"types\":{\"purchase\":\"شراء\",\"transfer\":\"تحويل\",\"materialIssue\":\"صرف مواد\",\"materialReceipt\":\"استلام مواد\",\"customerProvided\":\"مقدم من العميل\"},\"form\":{\"type\":\"النوع\",\"company\":\"الشركة\",\"customer\":\"العميل\",\"scheduleDate\":\"تاريخ الجدولة\",\"item\":\"الصنف\",\"qty\":\"الكمية\",\"uom\":\"وحدة القياس\",\"stockUom\":\"وحدة قياس المخزون\",\"conv\":\"معامل التحويل\",\"source\":\"المصدر\",\"warehouse\":\"المستودع\",\"schedule\":\"الجدولة\",\"postingDate\":\"تاريخ الترحيل\",\"defaultWarehouse\":\"المستودع الافتراضي\",\"driver\":\"السائق\",\"vehicleNo\":\"رقم المركبة\",\"transporter\":\"ناقل البضائع\",\"lrNumber\":\"رقم إذن الشحن\",\"items\":\"الأصناف\",\"getItems\":\"جلب الأصناف\",\"dispatch\":\"الشحن\",\"basics\":\"المعلومات الأساسية\",\"purpose\":\"الغرض\",\"requiredBy\":\"المطلوب بحلول\"},\"validation\":{\"typeRequired\":\"النوع مطلوب\",\"companyRequired\":\"الشركة مطلوبة\",\"customerRequired\":\"العميل مطلوب\",\"uomRequired\":\"وحدة القياس مطلوبة\",\"invalidConversion\":\"معامل تحويل غير صالح\",\"addAtLeastOneItem\":\"أضف صنفاً واحداً على الأقل\",\"addItems\":\"أضف الأصناف\",\"fillItemRows\":\"املأ صفوف الأصناف\",\"fillAllRows\":\"املأ جميع صفوف الأصناف\",\"qtyGtZero\":\"يجب أن تكون الكمية أكبر من 0\",\"fromToWarehouseRequired\":\"مستودعا المصدر والوجهة مطلوبان\",\"sameWarehouse\":\"لا يمكن أن يكون مستودع المصدر والهدف نفسهما\",\"warehouseRequired\":\"المستودع مطلوب\"},\"dn\":{\"title\":\"أذونات التسليم\",\"subtitle\":\"الشحن وتتبع التسليم\",\"empty\":\"لم يتم العثور على أذونات تسليم\",\"editTitle\":\"تسليم {{name}}\",\"newTitle\":\"تسليم جديد\",\"formSubtitle\":\"شحن البضائع\"},\"balance\":{\"title\":\"رصيد المخزون\",\"subtitle\":\"حالة المخزون اللحظية\",\"empty\":\"لا يوجد مخزون متاح\",\"value\":\"القيمة\",\"fromDate\":\"من تاريخ\",\"toDate\":\"إلى تاريخ\",\"opening\":\"الرصيد الافتتاحي\",\"inQty\":\"وارد\",\"outQty\":\"منصرف\",\"closing\":\"الرصيد\",\"reserved\":\"محجوز\",\"free\":\"متاح\",\"rate\":\"السعر\",\"projected\":\"متوقع\",\"valuationAsOf\":\"القيمة معروضة حسب اليوم\",\"performanceWarning\":\"ضيّق النتائج بصنف أو مستودع — القائمة الكاملة تشمل كل سجلات الحركات.\",\"trail\":\"سجل الحركات\",\"noMovements\":\"لا حركات في هذه الفترة\",\"showTrail\":\"اعرض مصدر هذه المخزون\",\"incomingRate\":\"سعر الوارد\",\"outgoingRate\":\"سعر المنصرف\",\"runningBalance\":\"الرصيد بعد\",\"balanceQty\":\"الرصيد\",\"serial\":\"الرقم التسلسلي\",\"batch\":\"الدفعة\",\"batchPermission\":\"تفاصيل الدفعة والرقم التسلسلي تتطلب صلاحية على Serial and Batch Entry\",\"noBatchOnThisLine\":\"غير متتبع بالدفعة أو الرقم التسلسلي\",\"truncated\":\"توجد حركات أخرى — قيّد التواريخ لرؤية الباقي\"},\"source\":{\"loadItems\":\"تحميل الأصناف\",\"load\":\"تحميل\",\"selectSourceType\":\"اختر نوع المصدر\",\"searchDocument\":\"بحث في المستند...\",\"selectTypeFirst\":\"اختر النوع أولاً\",\"noCustomer\":\"لا يوجد عميل\",\"salesOrder\":\"أمر بيع\",\"pickList\":\"قائمة الالتقاط\",\"materialRequest\":\"طلب مواد\",\"purchaseReceipt\":\"إيصال شراء\",\"bom\":\"قائمة الخامات\",\"bomShort\":\"BOM\",\"purchaseInvoice\":\"فاتورة شراء\",\"itemMaster\":\"بطاقة الأصناف\",\"onlyQcPassed\":\"الأصناف المطابقة للفحص فقط\",\"qcDone\":\"تم الفحص\",\"sourceType\":\"نوع المصدر\",\"selectDocument\":\"اختر المستند\"},\"entry\":{\"title\":\"قيد المخزون\",\"subtitleDefault\":\"عمليات مخزون سريعة\",\"subtitleReceipt\":\"وارد → {{warehouse}}\",\"subtitleIssue\":\"صادر ← {{warehouse}}\",\"subtitleTransfer\":\"{{from}} → {{to}}\",\"subtitleTransferMfg\":\"{{from}} → {{to}} (MFG)\",\"subtitleManufacture\":\"تصنيع @ {{warehouse}}\",\"subtitleRepack\":\"إعادة تعبئة @ {{warehouse}}\",\"subtitleConsume\":\"استهلاك ← {{warehouse}}\",\"selectWarehouse\":\"اختر مستودعاً\",\"from\":\"من\",\"to\":\"إلى\",\"actions\":{\"getItems\":\"جلب الأصناف\",\"clear\":\"مسح\"},\"basicConfig\":\"الإعدادات الأساسية\",\"collapse\":\"طي\",\"expand\":\"توسيع\",\"entryDate\":\"تاريخ القيد\",\"entryTime\":\"وقت القيد\",\"items\":\"الأصناف\",\"get\":\"جلب\",\"entryType\":\"نوع القيد\",\"selectEntryType\":\"اختر نوع القيد\",\"fromWarehouse\":\"مستودع المصدر\",\"toWarehouse\":\"مستودع الوجهة\",\"selectFromWarehouse\":\"اختر مستودع المصدر\",\"selectToWarehouse\":\"اختر مستودع الوجهة\",\"scanPlaceholder\":\"امسح الصنف أو أدخله\",\"totalQty\":\"إجمالي الكمية\",\"submitEntry\":\"إرسال القيد\",\"modes\":{\"incoming\":\"وارد\",\"outgoing\":\"صادر\",\"transfer\":\"تحويل\",\"adjustment\":\"تسوية\"},\"createdToast\":\"تم إنشاء قيد المخزون: {{name}}\",\"failedToast\":\"فشل قيد المخزون\"},\"entryTypes\":{\"materialIssue\":\"صرف مواد\",\"materialReceipt\":\"استلام مواد\",\"materialTransfer\":\"تحويل مواد\",\"manufacture\":\"تصنيع\",\"repack\":\"إعادة تعبئة\",\"disassemble\":\"تفكيك\",\"sendToSubcontractor\":\"إرسال للمقاول من الباطن\",\"materialTransferForMfg\":\"تحويل مواد للتصنيع\",\"materialConsumptionForMfg\":\"استهلاك مواد للتصنيع\"},\"item\":{\"outOfStock\":\"نفد المخزون\",\"exceedsStock\":\"يتجاوز المخزون\",\"lowStock\":\"مخزون منخفض\",\"available\":\"متاح\",\"willBeRemoved\":\"سيتم حذفه\",\"willAdjust\":\"سيُعدّل إلى {{qty}}\",\"emptyList\":\"لم تتم إضافة أصناف\",\"itemName\":\"صنف {{code}}\",\"increase\":\"زيادة الكمية\",\"decrease\":\"تقليل الكمية\",\"remove\":\"إزالة الصنف\"},\"fix\":{\"title\":\"مشكلة مخزون\",\"outOfStock\":\"{{count}} أصناف نفدت من المخزون.\",\"more\":\"+ {{n}} أخرى...\",\"removeItems\":\"إزالة الأصناف\",\"adjustQty\":\"تعديل الكمية\"},\"submitModal\":{\"title\":\"تأكيد قيد المخزون\",\"project\":\"المشروع\",\"workOrder\":\"أمر العمل\",\"searchProject\":\"بحث عن مشروع\",\"searchWorkOrder\":\"بحث عن أمر عمل\"},\"demo\":{\"title\":\"نموذج شامل\",\"subtitle\":\"عرض لجميع أنواع الحقول\",\"sections\":{\"basic\":\"حقول أساسية\",\"text\":\"حقول نصية\",\"dateTime\":\"التاريخ والوقت\",\"selection\":\"التحديد\",\"attachments\":\"المرفقات\"},\"age\":\"العمر\",\"salary\":\"الراتب\",\"description\":\"الوصف\",\"datetime\":\"التاريخ والوقت\",\"time\":\"الوقت\",\"pending\":\"قيد الانتظار\",\"closed\":\"مغلق\",\"department\":\"القسم (رابط)\",\"searchDepartment\":\"بحث عن قسم...\",\"active\":\"نشط\",\"uploadFile\":\"رفع ملف\",\"chooseFile\":\"اختيار ملف\",\"noFileSelected\":\"لم يتم اختيار ملف\",\"itemCode\":\"رمز الصنف\",\"rate\":\"السعر\"},\"returnStock\":{\"title\":\"إرجاع المواد إلى المخزون\",\"action\":\"إرجاع هذه المواد إلى المخزون\",\"explainer\":\"تعود المواد المتبقية من مهمة إلى المخزن عبر إدخال مخزون واحد. لا يتم الحفظ حتى تؤكد.\",\"whichItem\":\"ما المواد العائدة؟\",\"useSameItem\":\"استخدام هذا الصنف\",\"useSameItemHint\":\"يعود إلى رمزه الأصلي\",\"createNewItem\":\"إنشاء صنف جديد\",\"createNewItemHint\":\"المتبقي بمواصفة مختلفة\",\"itemName\":\"اسم الصنف\",\"itemGroup\":\"مجموعة الصنف\",\"trackBatch\":\"تتبّع الدفعات\",\"trackSerial\":\"تتبّع الأرقام التسلسلية\",\"fromWarehouse\":\"من (أين هو الآن)\",\"toWarehouse\":\"إلى (أين يعود)\",\"qty\":\"الكمية ({{uom}})\",\"batchNumber\":\"رقم الدفعة\",\"serialNumbers\":\"الأرقام التسلسلية\",\"serialNumbersHint\":\"رقم في كل سطر، أو مفصول بفواصل\",\"serialPlaceholder\":\"SN001\\nSN002\",\"autoBatch\":\"سيتم إنشاء رقم دفعة جديد تلقائياً لهذا الصنف.\",\"remarks\":\"ملاحظة (اختياري)\",\"makesEntry\":\"ينشئ إدخال مخزون: {{from}} إلى {{to}}\",\"confirm\":\"إرجاع إلى المخزون\",\"done\":\"عاد {{item}} إلى المخزون ({{qty}}).\",\"autoSerial\":\"سيتم إنشاء الأرقام التسلسلية تلقائياً لهذا الصنف.\"}}") };
+var store_default = { store: {
+	"hub": { "subtitle": "المخزون وطلبات المواد وحركة المخزون" },
+	"tiles": {
+		"stockEntry": {
+			"title": "قيد المخزون",
+			"description": "صرف واستلام وتحويل المواد"
+		},
+		"materialRequest": {
+			"title": "طلب مواد",
+			"description": "طلب المواد الخام"
+		},
+		"delivery": {
+			"title": "التسليم / الشحن",
+			"description": "إدارة المواد الصادر"
+		},
+		"stockBalance": {
+			"title": "رصيد المخزون",
+			"description": "عرض توفر المخزون"
+		},
+		"itemMaster": {
+			"title": "بطاقة الأصناف",
+			"description": "إدارة الأصناف والمتغيرات"
+		},
+		"warehouse": {
+			"title": "المستودع",
+			"description": "إدارة المستودعات"
+		},
+		"stockReconciliation": {
+			"title": "تسوية المخزون",
+			"description": "تسوية كميات المخزون"
+		}
+	},
+	"mr": {
+		"title": "طلبات المواد",
+		"subtitle": "تتبع وإدارة جميع طلبات المواد",
+		"tiles": {
+			"purchase": {
+				"title": "طلب شراء",
+				"description": "طلب أصناف للشراء"
+			},
+			"transfer": {
+				"title": "تحويل مواد",
+				"description": "نقل المخزون بين المستودعات"
+			},
+			"issue": {
+				"title": "صرف مواد",
+				"description": "صرف المواد للاستخدام"
+			},
+			"receipt": {
+				"title": "استلام مواد",
+				"description": "استلام المواد"
+			},
+			"customerProvided": {
+				"title": "مقدم من العميل",
+				"description": "مواد يوفرها العميل"
+			}
+		},
+		"listTitle": "طلبات {{type}}",
+		"listSubtitle": "تتبع وإدارة الطلبات",
+		"empty": "لم يتم العثور على طلبات مواد",
+		"newTitle": "طلب مواد جديد",
+		"subtitleSubmitted": "{{type}} • مُرسل",
+		"subtitleDraft": "{{type}} • مسودة",
+		"createSubtitle": "إنشاء {{type}}",
+		"form": {
+			"items": "الأصناف",
+			"select": "اختيار"
+		}
+	},
+	"status": {
+		"draft": "مسودة",
+		"submitted": "مُرسل",
+		"cancelled": "ملغى",
+		"completed": "مكتمل",
+		"toBill": "لفوترة",
+		"stopped": "متوقف"
+	},
+	"filters": {
+		"customer": "العميل",
+		"company": "الشركة",
+		"item": "الصنف",
+		"warehouse": "المستودع"
+	},
+	"types": {
+		"purchase": "شراء",
+		"transfer": "تحويل",
+		"materialIssue": "صرف مواد",
+		"materialReceipt": "استلام مواد",
+		"customerProvided": "مقدم من العميل"
+	},
+	"form": {
+		"type": "النوع",
+		"company": "الشركة",
+		"customer": "العميل",
+		"scheduleDate": "تاريخ الجدولة",
+		"item": "الصنف",
+		"qty": "الكمية",
+		"uom": "وحدة القياس",
+		"stockUom": "وحدة قياس المخزون",
+		"conv": "معامل التحويل",
+		"source": "المصدر",
+		"warehouse": "المستودع",
+		"schedule": "الجدولة",
+		"postingDate": "تاريخ الترحيل",
+		"defaultWarehouse": "المستودع الافتراضي",
+		"driver": "السائق",
+		"vehicleNo": "رقم المركبة",
+		"transporter": "ناقل البضائع",
+		"lrNumber": "رقم إذن الشحن",
+		"items": "الأصناف",
+		"getItems": "جلب الأصناف",
+		"dispatch": "الشحن",
+		"basics": "المعلومات الأساسية"
+	},
+	"validation": {
+		"typeRequired": "النوع مطلوب",
+		"companyRequired": "الشركة مطلوبة",
+		"customerRequired": "العميل مطلوب",
+		"uomRequired": "وحدة القياس مطلوبة",
+		"invalidConversion": "معامل تحويل غير صالح",
+		"addAtLeastOneItem": "أضف صنفاً واحداً على الأقل",
+		"addItems": "أضف الأصناف",
+		"fillItemRows": "املأ صفوف الأصناف",
+		"fillAllRows": "املأ جميع صفوف الأصناف",
+		"qtyGtZero": "يجب أن تكون الكمية أكبر من 0",
+		"fromToWarehouseRequired": "مستودعا المصدر والوجهة مطلوبان",
+		"sameWarehouse": "لا يمكن أن يكون مستودع المصدر والهدف نفسهما",
+		"warehouseRequired": "المستودع مطلوب"
+	},
+	"dn": {
+		"title": "أذونات التسليم",
+		"subtitle": "الشحن وتتبع التسليم",
+		"empty": "لم يتم العثور على أذونات تسليم",
+		"editTitle": "تسليم {{name}}",
+		"newTitle": "تسليم جديد",
+		"formSubtitle": "شحن البضائع"
+	},
+	"balance": {
+		"title": "رصيد المخزون",
+		"subtitle": "حالة المخزون اللحظية",
+		"empty": "لا يوجد مخزون متاح",
+		"value": "القيمة"
+	},
+	"source": {
+		"loadItems": "تحميل الأصناف",
+		"load": "تحميل",
+		"selectSourceType": "اختر نوع المصدر",
+		"searchDocument": "بحث في المستند...",
+		"selectTypeFirst": "اختر النوع أولاً",
+		"noCustomer": "لا يوجد عميل",
+		"salesOrder": "أمر بيع",
+		"pickList": "قائمة الالتقاط",
+		"materialRequest": "طلب مواد",
+		"purchaseReceipt": "إيصال شراء",
+		"bom": "قائمة الخامات",
+		"bomShort": "BOM",
+		"purchaseInvoice": "فاتورة شراء",
+		"itemMaster": "بطاقة الأصناف",
+		"onlyQcPassed": "الأصناف المطابقة للفحص فقط",
+		"qcDone": "تم الفحص",
+		"sourceType": "نوع المصدر",
+		"selectDocument": "اختر المستند"
+	},
+	"entry": {
+		"title": "قيد المخزون",
+		"subtitleDefault": "عمليات مخزون سريعة",
+		"subtitleReceipt": "وارد → {{warehouse}}",
+		"subtitleIssue": "صادر ← {{warehouse}}",
+		"subtitleTransfer": "{{from}} → {{to}}",
+		"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+		"subtitleManufacture": "تصنيع @ {{warehouse}}",
+		"subtitleRepack": "إعادة تعبئة @ {{warehouse}}",
+		"subtitleConsume": "استهلاك ← {{warehouse}}",
+		"selectWarehouse": "اختر مستودعاً",
+		"from": "من",
+		"to": "إلى",
+		"actions": {
+			"getItems": "جلب الأصناف",
+			"clear": "مسح"
+		},
+		"basicConfig": "الإعدادات الأساسية",
+		"collapse": "طي",
+		"expand": "توسيع",
+		"entryDate": "تاريخ القيد",
+		"entryTime": "وقت القيد",
+		"items": "الأصناف",
+		"get": "جلب",
+		"entryType": "نوع القيد",
+		"selectEntryType": "اختر نوع القيد",
+		"fromWarehouse": "مستودع المصدر",
+		"toWarehouse": "مستودع الوجهة",
+		"selectFromWarehouse": "اختر مستودع المصدر",
+		"selectToWarehouse": "اختر مستودع الوجهة",
+		"scanPlaceholder": "امسح الصنف أو أدخله",
+		"totalQty": "إجمالي الكمية",
+		"submitEntry": "إرسال القيد",
+		"modes": {
+			"incoming": "وارد",
+			"outgoing": "صادر",
+			"transfer": "تحويل",
+			"adjustment": "تسوية"
+		},
+		"createdToast": "تم إنشاء قيد المخزون: {{name}}",
+		"failedToast": "فشل قيد المخزون"
+	},
+	"entryTypes": {
+		"materialIssue": "صرف مواد",
+		"materialReceipt": "استلام مواد",
+		"materialTransfer": "تحويل مواد",
+		"manufacture": "تصنيع",
+		"repack": "إعادة تعبئة",
+		"disassemble": "تفكيك",
+		"sendToSubcontractor": "إرسال للمقاول من الباطن",
+		"materialTransferForMfg": "تحويل مواد للتصنيع",
+		"materialConsumptionForMfg": "استهلاك مواد للتصنيع"
+	},
+	"item": {
+		"outOfStock": "نفد المخزون",
+		"exceedsStock": "يتجاوز المخزون",
+		"lowStock": "مخزون منخفض",
+		"available": "متاح",
+		"willBeRemoved": "سيتم حذفه",
+		"willAdjust": "سيُعدّل إلى {{qty}}",
+		"emptyList": "لم تتم إضافة أصناف",
+		"itemName": "صنف {{code}}",
+		"increase": "زيادة الكمية",
+		"decrease": "تقليل الكمية",
+		"remove": "إزالة الصنف"
+	},
+	"fix": {
+		"title": "مشكلة مخزون",
+		"outOfStock": "{{count}} أصناف نفدت من المخزون.",
+		"more": "+ {{n}} أخرى...",
+		"removeItems": "إزالة الأصناف",
+		"adjustQty": "تعديل الكمية"
+	},
+	"submitModal": {
+		"title": "تأكيد قيد المخزون",
+		"project": "المشروع",
+		"workOrder": "أمر العمل",
+		"searchProject": "بحث عن مشروع",
+		"searchWorkOrder": "بحث عن أمر عمل"
+	},
+	"demo": {
+		"title": "نموذج شامل",
+		"subtitle": "عرض لجميع أنواع الحقول",
+		"sections": {
+			"basic": "حقول أساسية",
+			"text": "حقول نصية",
+			"dateTime": "التاريخ والوقت",
+			"selection": "التحديد",
+			"attachments": "المرفقات"
+		},
+		"age": "العمر",
+		"salary": "الراتب",
+		"description": "الوصف",
+		"datetime": "التاريخ والوقت",
+		"time": "الوقت",
+		"pending": "قيد الانتظار",
+		"closed": "مغلق",
+		"department": "القسم (رابط)",
+		"searchDepartment": "بحث عن قسم...",
+		"active": "نشط",
+		"uploadFile": "رفع ملف",
+		"chooseFile": "اختيار ملف",
+		"noFileSelected": "لم يتم اختيار ملف",
+		"itemCode": "رمز الصنف",
+		"rate": "السعر"
+	}
+} };
 var ops_default = {
 	production: {
 		"subtitle": "أوامر العمل وبطاقات المهام والتصنيع",
@@ -40220,7 +40743,6 @@ var reports_default = { reports: {
 	"checkin": "تسجيل الدخول",
 	"checkout": "تسجيل الخروج",
 	"noCheckinLogs": "لا توجد سجلات تسجيل دخول",
-	"checkinLogsError": "تعذر تحميل سجلات تسجيل الدخول.",
 	"overtimeTitle": "تقرير العمل الإضافي",
 	"totalLogs": "إجمالي السجلات",
 	"totalOtHours": "إجمالي ساعات العمل الإضافي",
@@ -40285,29 +40807,7 @@ var reports_default = { reports: {
 	"charts": "المخططات",
 	"attendanceDistribution": "توزيع الحالة الشهري",
 	"dailyAttendance": "حضور الفريق اليومي",
-	"attendanceRate": "نسبة الحضور حسب الموظف",
-	"plateStockRegister": "سجل مخزون الألواح",
-	"plateStockRegisterDesc": "مخزون الألواح حسب الصنف والمستودع ورقم الفرن",
-	"applyFilters": "تطبيق عوامل التصفية",
-	"noRows": "لا توجد صفوف لعوامل التصفية هذه.",
-	"loadFailedTitle": "تعذر تحميل التقرير",
-	"loadFailedHint": "تعذر تشغيل التقرير. قد لا تملك الصلاحية، أو قد لا يكون مثبتًا على هذا الموقع.",
-	"noColumnsTitle": "لا توجد أعمدة للعرض",
-	"noColumnsHint": "لم يُرجع التقرير أي تعريفات للأعمدة.",
-	"expandAll": "توسيع الكل",
-	"collapseAll": "طيّ الكل",
-	"mixed": "مختلط",
-	"batchCount_one": "دفعة واحدة",
-	"batchCount_two": "دفعتان",
-	"batchCount_few": "{{count}} دفعات",
-	"batchCount_many": "{{count}} دفعة",
-	"batchCount_other": "{{count}} دفعة",
-	"warehouseCount_one": "مستودع واحد",
-	"warehouseCount_two": "مستودعان",
-	"warehouseCount_few": "{{count}} مستودعات",
-	"warehouseCount_many": "{{count}} مستودعًا",
-	"warehouseCount_other": "{{count}} مستودع",
-	"moreFilters": "المزيد من عوامل التصفية"
+	"attendanceRate": "نسبة الحضور حسب الموظف"
 } };
 //#endregion
 //#region src/i18n/index.js
@@ -48540,7 +49040,7 @@ function SelectTrigger({ className, size = "default", children, ...props }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(SelectTrigger$1, {
 		"data-slot": "select-trigger",
 		"data-size": size,
-		className: cn("flex w-fit cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pe-2 ps-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4", className),
+		className: cn("flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pe-2 ps-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4", className),
 		...props,
 		children: [children, /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SelectIcon, {
 			asChild: true,
@@ -48570,7 +49070,7 @@ function SelectContent({ className, children, position = "item-aligned", align =
 function SelectItem({ className, children, ...props }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(SelectItem$1, {
 		"data-slot": "select-item",
-		className: cn("relative flex w-full items-center gap-1.5 rounded-md py-1 pe-8 ps-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2", className),
+		className: cn("relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pe-8 ps-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2", className),
 		...props,
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 			className: "pointer-events-none absolute end-2 flex size-4 items-center justify-center",
@@ -49087,7 +49587,7 @@ function Textarea({ className, ...props }) {
 	});
 }
 //#endregion
-//#region src/pages/ESS/requests/leave/LeaveApplicationForm.jsx
+//#region src/pages/requests/leave/LeaveApplicationForm.jsx
 function LeaveApplicationForm() {
 	const { name } = (0, import_dist.useParams)();
 	const [searchParams] = (0, import_dist.useSearchParams)();
@@ -49278,7 +49778,7 @@ function LeaveApplicationForm() {
 				});
 				setDirty(false);
 				toast.success(t("requests.leave.updatedSuccess"));
-				navigate("/ess/leave");
+				navigate("/requests/leave");
 			} else {
 				const res = await saveDocument({
 					doctype: "Leave Application",
@@ -49286,7 +49786,7 @@ function LeaveApplicationForm() {
 				});
 				setDirty(false);
 				toast.success(t("requests.leave.createdSuccess"));
-				navigate(`/ess/leave/${res?.data?.name}`);
+				navigate(`/requests/leave/${res?.data?.name}`);
 			}
 		} catch (e) {
 			const serverFields = e?.fieldMessages || {};
@@ -49387,7 +49887,7 @@ function LeaveApplicationForm() {
 				action
 			});
 			toast.success(t("common.submittedSuccess", { name: label }));
-			navigate("/ess/leave");
+			navigate("/requests/leave");
 		} catch (e) {
 			const message = e?.message || t("common.submitFailed");
 			toast.error(message);
@@ -49467,7 +49967,7 @@ function LeaveApplicationForm() {
 				name
 			});
 			toast.success(t("common.deletedSuccess", { name: t("requests.leave.doctypeName") }));
-			navigate("/ess/leave");
+			navigate("/requests/leave");
 		} catch (e) {
 			toast.error(e?.message || t("common.deleteFailed"));
 			setError(e?.message || t("common.deleteFailed"));
@@ -49488,12 +49988,12 @@ function LeaveApplicationForm() {
 					path: "/"
 				},
 				{
-					label: t("nav.ess"),
-					path: "/ess"
+					label: t("nav.requests"),
+					path: "/requests"
 				},
 				{
 					label: t("requests.header.leaveListTitle"),
-					path: "/ess/leave"
+					path: "/requests/leave"
 				},
 				{ label: isEdit ? name : t("common.new") }
 			],
@@ -49535,7 +50035,7 @@ function LeaveApplicationForm() {
 					label: t("common.back"),
 					variant: "btn-outline-primary",
 					disabled: loading || submitting,
-					onClick: () => navigate("/ess/leave")
+					onClick: () => navigate("/requests/leave")
 				},
 				showCancel && {
 					label: cancelling ? t("common.cancelling") : t("common.cancel"),
@@ -49863,7 +50363,7 @@ function DocStatusField({ label, status, className }) {
 	});
 }
 //#endregion
-//#region src/pages/ESS/requests/attendance/AttendanceRequestForm.jsx
+//#region src/pages/requests/attendance/AttendanceRequestForm.jsx
 var DATE_LOCALES = {
 	en: "en-IN",
 	hi: "hi-IN",
@@ -50042,8 +50542,8 @@ function AttendanceRequestForm() {
 				doc: current
 			});
 			setDirty(false);
-			if (isEdit) navigate("/ess/attendance-request");
-			else navigate(`/ess/attendance-request/${res?.data?.name}`);
+			if (isEdit) navigate("/requests/attendance");
+			else navigate(`/requests/attendance/${res?.data?.name}`);
 		} catch (e) {
 			const serverFields = e?.fieldMessages || {};
 			if (Object.keys(serverFields).length) setFieldErrors((prev) => ({
@@ -50101,7 +50601,7 @@ function AttendanceRequestForm() {
 				name
 			});
 			toast.success(t("common.deletedSuccess", { name: t("requests.attendance.doctypeName") }));
-			navigate("/ess/attendance-request");
+			navigate("/requests/attendance");
 		} catch (e) {
 			toast.error(e?.message || t("common.deleteFailed"));
 			setError(e?.message || t("common.deleteFailed"));
@@ -50171,7 +50671,7 @@ function AttendanceRequestForm() {
 				doc: docRef.current
 			}))?.data?.name;
 			if (hasWorkflow) {
-				navigate(`/ess/attendance-request/${docName}`);
+				navigate(`/requests/attendance/${docName}`);
 				return;
 			}
 			await submitDocument({
@@ -50180,7 +50680,7 @@ function AttendanceRequestForm() {
 				action
 			});
 			toast.success(t("common.submittedSuccess", { name: label }));
-			navigate("/ess/attendance-request");
+			navigate("/requests/attendance");
 		} catch (e) {
 			const message = e?.message || t("common.submitFailed");
 			toast.error(message);
@@ -50200,12 +50700,12 @@ function AttendanceRequestForm() {
 					path: "/"
 				},
 				{
-					label: t("nav.ess"),
-					path: "/ess"
+					label: t("nav.requests"),
+					path: "/requests"
 				},
 				{
 					label: t("requests.header.attendanceListTitle"),
-					path: "/ess/attendance-request"
+					path: "/requests/attendance"
 				},
 				{ label: isEdit ? name : t("common.new") }
 			],
@@ -50235,7 +50735,7 @@ function AttendanceRequestForm() {
 					label: t("common.back"),
 					variant: "btn-outline-primary",
 					disabled: loading || submitting,
-					onClick: () => navigate("/ess/attendance-request")
+					onClick: () => navigate("/requests/attendance")
 				},
 				showCancel && {
 					label: cancelling ? t("common.cancelling") : t("common.cancel"),
@@ -50524,21 +51024,7 @@ function AttendanceRequestForm() {
 	});
 }
 //#endregion
-//#region src/utils/localDateTime.js
-/**
-* Local date/time strings for posting date and time inputs.
-*
-* These deliberately do NOT use `toISOString()`. That returns UTC, so a store in
-* IST (UTC+5:30) entering an entry between midnight and 05:30 local would get
-* *yesterday's* date. A posting date is what the person saw on their own
-* calendar, so it has to be built from local parts.
-*/
-/** Today, as `YYYY-MM-DD`, in the browser's local timezone. */
-function localDateISO(date = /* @__PURE__ */ new Date()) {
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-//#endregion
-//#region src/pages/ESS/requests/expense/ExpenseClaimForm.jsx
+//#region src/pages/requests/expense/ExpenseClaimForm.jsx
 function ExpenseClaimForm() {
 	const { name } = (0, import_dist.useParams)();
 	const navigate = (0, import_dist.useNavigate)();
@@ -50630,7 +51116,7 @@ function ExpenseClaimForm() {
 		setScope(resolved);
 		if (!isEdit) {
 			const patch = applyEmployeeScope({}, resolved, {
-				posting_date: localDateISO(),
+				posting_date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
 				company: resolved.myCompany
 			});
 			setDoc((prev) => ({
@@ -50722,8 +51208,8 @@ function ExpenseClaimForm() {
 				doc: current
 			});
 			setDirty(false);
-			if (isEdit) navigate("/ess/expense-claim");
-			else navigate(`/ess/expense-claim/${res?.data?.name}`);
+			if (isEdit) navigate("/requests/expense");
+			else navigate(`/requests/expense/${res?.data?.name}`);
 		} catch (e) {
 			const serverFields = e?.fieldMessages || {};
 			if (Object.keys(serverFields).length) setFieldErrors((prev) => ({
@@ -50798,7 +51284,7 @@ function ExpenseClaimForm() {
 				doc: docRef.current
 			}))?.data?.name;
 			if (hasWorkflow) {
-				navigate(`/ess/expense-claim/${docName}`);
+				navigate(`/requests/expense/${docName}`);
 				return;
 			}
 			await submitDocument({
@@ -50807,7 +51293,7 @@ function ExpenseClaimForm() {
 				action
 			});
 			toast.success(t("common.submittedSuccess", { name: label }));
-			navigate("/ess/expense-claim");
+			navigate("/requests/expense");
 		} catch (e) {
 			const message = e?.message || t("common.submitFailed");
 			toast.error(message);
@@ -50835,7 +51321,7 @@ function ExpenseClaimForm() {
 				name
 			});
 			toast.success(t("common.cancelledSuccess", { name }));
-			navigate("/ess/expense-claim");
+			navigate("/requests/expense");
 		} catch (e) {
 			const message = e?.message || t("common.cancelFailed");
 			toast.error(message);
@@ -50856,12 +51342,12 @@ function ExpenseClaimForm() {
 					path: "/"
 				},
 				{
-					label: t("nav.ess"),
-					path: "/ess"
+					label: t("nav.requests"),
+					path: "/requests"
 				},
 				{
 					label: t("requests.header.expenseListTitle"),
-					path: "/ess/expense-claim"
+					path: "/requests/expense"
 				},
 				{ label: isEdit ? name : t("common.new") }
 			],
@@ -50891,7 +51377,7 @@ function ExpenseClaimForm() {
 					label: t("common.back"),
 					variant: "btn-outline-primary",
 					disabled: loading || submitting,
-					onClick: () => navigate("/ess/expense-claim")
+					onClick: () => navigate("/requests/expense")
 				},
 				showCancel && {
 					label: cancelling ? t("common.cancelling") : t("common.cancel"),
@@ -51144,37 +51630,6 @@ function ExpenseClaimForm() {
 			})
 		]
 	});
-}
-//#endregion
-//#region src/lib/deskUrl.js
-/**
-* ERPNext desk URLs.
-*
-* The SPA is mounted inside the desk at `/assets/erpnext_ui/erp_ui/`, so
-* `/app/<doctype>/<name>` is a same-origin path and a drill-out is a real
-* navigation rather than a cross-origin jump.
-*
-* This slug rule was duplicated in three places (GenericList twice,
-* GenericForm, tileNav) before it lived here. It has to stay consistent: a
-* link built with one spelling and matched with another is a 404 that only
-* shows up after a click.
-*/
-/**
-* `Purchase Receipt` -> `purchase-receipt`, `Item` -> `item`.
-* @param {string} doctype
-* @returns {string}
-*/
-function doctypeSlug(doctype) {
-	return String(doctype || "").trim().toLowerCase().replace(/\s+/g, "-");
-}
-/** URL of an existing document in ERPNext desk. */
-function deskDocUrl(doctype, name) {
-	return `/app/${doctypeSlug(doctype)}/${name}`;
-}
-/** URL of the "new" form for a doctype. */
-function deskNewUrl(doctype) {
-	const slug = doctypeSlug(doctype);
-	return `/app/${slug}/new-${slug}`;
 }
 //#endregion
 //#region src/components/ChildTable/FieldRenderer.jsx
@@ -51482,7 +51937,7 @@ function TabsList({ className, variant = "default", ...props }) {
 function TabsTrigger({ className, ...props }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trigger, {
 		"data-slot": "tabs-trigger",
-		className: cn("relative inline-flex h-[calc(100%-1px)] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pe-1 has-data-[icon=inline-start]:ps-1 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4", "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent", "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground", "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-end-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100", className),
+		className: cn("relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pe-1 has-data-[icon=inline-start]:ps-1 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4", "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent", "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground", "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-end-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100", className),
 		...props
 	});
 }
@@ -52206,25 +52661,6 @@ var DOCTYPE_CONFIG = {
 		},
 		searchFields: ["warehouse_name"]
 	},
-	BOM: {
-		list: {
-			titleField: "item_name",
-			subtitleField: "name",
-			metaField: "modified",
-			statusField: "docstatus"
-		},
-		searchFields: [
-			"name",
-			"item_name",
-			"project"
-		],
-		baseFilters: [[
-			"is_active",
-			"=",
-			1
-		]],
-		form: { layout: "tabs" }
-	},
 	"Stock Reconciliation": {
 		list: {
 			titleField: "name",
@@ -52604,7 +53040,9 @@ function GenericFormPage() {
 	};
 	(0, import_react.useEffect)(() => {
 		if (getDoctypeConfig(decodedDoctype).nativeForm) {
-			window.open(isNew ? deskNewUrl(decodedDoctype) : deskDocUrl(decodedDoctype, decodedName), "_blank");
+			const doctypeUrl = decodedDoctype.toLowerCase().replace(/\s+/g, "-");
+			const url = isNew ? `/app/${doctypeUrl}/new-${doctypeUrl}` : `/app/${doctypeUrl}/${decodedName}`;
+			window.open(url, "_blank");
 			navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
 		}
 	}, []);
