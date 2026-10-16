@@ -2050,22 +2050,36 @@ ok(
   "signature must be (report_key, filters) and resolve the name server-side",
 );
 
-// The visibility probe answers with its OWN per-gate checks (it must, so
-// explain_custom_report_access can name the failing gate), while the run is
-// authorised by Frappe's get_report_doc. That split is safe only because the run
-// is the boundary. If the probe ever starts USING get_report_doc directly, or
-// the endpoint stops calling it, one of the two halves of that safety is gone.
+// Visibility must mirror the DESK's report LIST, which is a plain
+// frappe.client.get_list over the Report doctype (frappe/desk/reportview.py:45)
+// and consults neither is_permitted() nor the ref_doctype report permission.
+// Gating the tile on `has_permission(ref_doctype, "report")` made the SPA
+// STRICTER than the desk -- the report was listed there and invisible here,
+// which reads as "the report is missing". It must stay a reported gate, never a
+// listing gate.
 const probeBody =
   apiSource.match(/def _custom_report_availability\(([\s\S]*?)\ndef /)?.[1] || "";
+const availableBody =
+  apiSource.match(/def _custom_report_available\(([\s\S]*?)\ndef /)?.[1] || "";
 ok(
-  "the visibility probe checks all three gates, not just the role table",
+  "the availability probe still reports is_permitted, disabled and ref_doctype",
   probeBody.includes("is_permitted()") &&
-    probeBody.includes('frappe.has_permission(report.ref_doctype, "report"') &&
-    probeBody.includes("report.disabled"),
-  "a probe that only checks roles would offer the tile to users get_report_doc then refuses",
+    probeBody.includes("report.disabled") &&
+    probeBody.includes('frappe.has_permission(report.ref_doctype, "report"'),
+  "the per-gate breakdown is the diagnostic; all three must be measured",
+);
+ok(
+  "the tile is NOT gated on ref_doctype report permission, matching the desk list",
+  !availableBody.includes("ref_doctype_permitted") &&
+    availableBody.includes("role_permitted") &&
+    availableBody.includes("app_installed") &&
+    availableBody.includes("not_disabled"),
+  "gating the TILE on ref_doctype makes the SPA stricter than the desk",
 );
 
-// The run must remain Frappe-authorised.
+// The run must remain Frappe-authorised -- that is the real boundary, and it is
+// what turns "listed but un-runnable" into a clear error instead of a tile that
+// silently does not exist.
 ok(
   "the run itself is authorised by get_report_doc, not by the visibility probe",
   /report = query_report\.get_report_doc\(report_name\)/.test(apiSource),

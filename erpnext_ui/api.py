@@ -108,37 +108,45 @@ def _custom_report_availability(report_name, app):
         out["reason"] = "report_disabled"
     elif not out["role_permitted"]:
         out["reason"] = "role_not_permitted"
-    elif not out["ref_doctype_permitted"]:
-        out["reason"] = "ref_doctype_not_permitted"
+
+    # Reported, but deliberately NOT part of `reason`. This is the RUN gate that
+    # `get_report_doc` enforces, not the LIST gate the desk uses, so it must not
+    # hide the tile -- see `_custom_report_available`. Reported here because it is
+    # the single most likely reason a listed report then fails to run, and
+    # knowing it in advance turns a mystery into a one-line permission fix.
+    out["run_blocked_by"] = (
+        "" if out["ref_doctype_permitted"] else "ref_doctype_not_permitted"
+    )
 
     return out
 
 
 def _custom_report_available(report_name, app):
-    """Whether a cross-app Script Report is installed AND this user may open it.
+    """Whether a cross-app Script Report should be OFFERED to this user.
 
-    Three independent things have to line up, and all three fail closed:
+    This is VISIBILITY, not the boundary. It answers "should this tile exist?",
+    which the ERPNext desk answers by listing whatever the user can read on the
+    Report doctype -- `frappe/desk/reportview.py:45` is a plain
+    `frappe.client.get_list`, and it consults NEITHER `Report.is_permitted()`
+    NOR the `ref_doctype` report permission.
 
-    1. The app is installed. `addsol_nl_custom` exists only on NL sites, and
-       "required_apps" in hooks.py is empty on purpose (the app must not be a
-       hard dependency for the other customers), so nothing else would notice.
-    2. The Report record exists. A site can have the app installed without the
-       fixture having been imported, and an absent report must read as "no
-       report", never as an error page.
-    3. The user is allowed to RUN it.
+    An earlier version of this function also required
+    `has_permission(ref_doctype, "report")`, mirroring `get_report_doc`. That made
+    the SPA STRICTER than the desk: `Plate Stock Register` declares
+    `ref_doctype: "Serial No"`, and stock ERPNext grants that doctype read
+    permission but usually not the `report` permtype, so the report was listed in
+    the desk and silently absent from the SPA. It looked like the report was
+    missing, when in fact it was merely un-runnable by that user.
 
-    For (3) this mirrors Frappe's own gate rather than delegating to
-    `get_report_doc`, because it needs the individual verdicts to report which
-    gate failed. The authoritative implementation is `get_report_doc`:
+    Dropping the check costs nothing in safety: `get_custom_report_data` still
+    authorises the run through `get_report_doc`, so a user who genuinely may not
+    read the `ref_doctype` gets a clear PermissionError when they click, instead
+    of a tile that does not exist. That is strictly the better failure mode --
+    per AGENTS.md invariant 8, client gating is visibility/UX and the server is
+    the boundary.
 
-      - `Report.is_permitted()` (see above),
-      - `frappe.has_permission(doc.ref_doctype, "report")`,
-      - and `doc.disabled`.
-
-    Any error resolving a gate counts as "no access", so a backend hiccup can
-    never widen what the SPA offers. See `_custom_report_availability` for the
-    per-gate breakdown and `explain_custom_report_access` for the endpoint that
-    surfaces it.
+    Every gate here still fails closed: app installed, Report present, the user in
+    the report's own `roles` child table, and the report not disabled.
     """
     try:
         detail = _custom_report_availability(report_name, app)
@@ -147,11 +155,11 @@ def _custom_report_available(report_name, app):
         # raises on an unusual doctype. Any of those means "do not offer this".
         return False
 
-    return not (
-        detail["reason"]
-        or not detail["role_permitted"]
-        or not detail["ref_doctype_permitted"]
-        or not detail["not_disabled"]
+    return bool(
+        detail["app_installed"]
+        and detail["report_exists"]
+        and detail["role_permitted"]
+        and detail["not_disabled"]
     )
 
 
@@ -191,6 +199,7 @@ def explain_custom_report_access(report_key):
             "ref_doctype_permitted": False,
             "not_disabled": False,
             "reason": f"error: {type(e).__name__}",
+            "run_blocked_by": "",
         }
 
     report_roles = []

@@ -522,31 +522,44 @@ SPA's Reports module. `SPA_CUSTOM_REPORTS` (`api.py:33-48`) maps a key to
 `(report name, owning app)`, `get_custom_report_data(report_key, filters)`
 (`:2526`) runs it.
 
-**Auto-detection is entirely server-side and it is three independent gates**, not
-one (`_custom_report_available`, `api.py:64-110`):
+**Auto-detection is entirely server-side, and it splits VISIBILITY from the
+BOUNDARY.** Those two are different gates and conflating them shipped a bug.
+
+*Visibility* — should the tile, sidebar entry and route guard exist?
+(`_custom_report_available`) — four fail-closed checks:
 
 1. `frappe.get_installed_apps()` — `addsol_nl_custom` is NL-only and
    `required_apps` is deliberately `[]`, so nothing else would notice a site
    without it.
 2. `frappe.db.exists("Report", name)` — the app can be installed without the
    fixture imported.
-3. `frappe.desk.query_report.get_report_doc(name)`.
+3. `Report.is_permitted()` — reads the **`roles` child table** (not the legacy
+   `role` field) and intersects it with `frappe.get_roles()` via `has_common`.
+   An empty roles table means *everyone* may see it.
+4. not `doc.disabled`.
 
-Gate 3 is **delegated, never re-implemented**, because it is three-part and
-re-implementing it would drift:
+*The boundary* — may this user actually RUN it? `get_custom_report_data`
+authorises through `frappe.desk.query_report.get_report_doc(report_name)`,
+which adds a **fifth** check the visibility path deliberately does not:
+`frappe.has_permission(doc.ref_doctype, "report")`.
 
-- `Report.is_permitted()` reads the **`roles` child table** (not the legacy
-  `role` field) and intersects it with `frappe.get_roles()`. An empty roles
-  table means *everyone* may run the report.
-- `frappe.has_permission(doc.ref_doctype, "report")` is a **separate** check.
-  `Plate Stock Register` declares `ref_doctype: "Serial No"`, and `Serial No` is
-  permission-restricted in stock ERPNext. ⚠️ **So a user listed in the report's
-  `roles` can still be refused** — the 8 roles on the Report include
-  `Stock User`, who typically does *not* hold `Serial No` report permission. The
-  tile then silently does not appear for exactly the store staff who need it. If
-  this is seen on a live NL site, the fix belongs in `addsol_nl_custom` (widen
-  `Serial No` perms, or repoint `ref_doctype`), **never** in a client bypass.
-- `doc.disabled` removes the report.
+⚠️ **Do not put that fifth check in the visibility gate.** It is a trap. The
+ERPNext desk's report LIST is a plain `frappe.client.get_list` over the Report
+doctype (`frappe/desk/reportview.py:45`) and consults **neither**
+`is_permitted()` nor the `ref_doctype` report permission — only
+`get_report_doc`, at run time, enforces the fifth check. Gating the tile on it
+made the SPA **stricter than the desk**: `Plate Stock Register` declares
+`ref_doctype: "Serial No"`, and stock ERPNext grants that doctype read
+permission but usually not the `report` permtype, so the report was listed in
+the desk and silently absent from the SPA. Users with every role still could
+not see it, because "all roles" says nothing about a *doctype permtype*.
+
+Cost of leaving it out: none. A user who may see the tile but not run the
+report gets a clear PermissionError on click, instead of a tile that does not
+exist. Per AGENTS.md invariant 8, client gating is visibility/UX and the server
+is the boundary. `_custom_report_availability` still MEASURES the fifth gate and
+reports it as `run_blocked_by`, so the failure is diagnosable rather than
+mysterious.
 
 #### Two traps that fail silently
 
