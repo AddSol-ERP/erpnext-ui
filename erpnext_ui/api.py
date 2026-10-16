@@ -64,59 +64,96 @@ def _can_read(doctype):
 def _custom_report_availability(report_name, app):
     """Per-gate breakdown of whether a cross-app Script Report is usable.
 
-    Returns a dict of booleans plus a `reason` naming the FIRST gate that
-    failed. Every gate fails closed. The split exists so that "the report does
-    not appear" is diagnosable: a single `False` cannot distinguish "this app is
-    not installed here" from "your role may not run it", and those need
-    completely different fixes in completely different repos.
+    Every gate is evaluated INDEPENDENTLY and records its own failure. That is
+    not defensive decoration -- it is the fix for a bug that shipped here.
+
+    The first version evaluated all four gates in one straight-line block under a
+    single `except Exception` in the CALLER. On the NL site `frappe.has_permission`
+    raised a `TypeError` (the deployed Frappe's signature differs from the v15.121
+    checkout this was written against), and that collapsed the whole result to
+    `app_installed: false, report_exists: false, reason: "error: TypeError"` --
+    on a site where the app was demonstrably installed and the Report record
+    demonstrably present. The diagnostic actively lied about the two facts it was
+    supposed to establish, and the one call that mattered was swallowed by a
+    handler written to swallow errors.
+
+    So: each gate gets its own try/except, failures land in `errors` keyed by
+    gate name, and `role_permitted` is TRI-STATE (True / False / None when the
+    probe itself broke) so a broken probe is distinguishable from a real refusal.
+
+    `reason` names the first VISIBILITY gate that failed; `run_blocked_by` names
+    the run-time gate, which is reported but never hides the tile.
     """
     out = {
-        "app_installed": app in frappe.get_installed_apps(),
+        "app_installed": False,
         "report_exists": False,
-        "role_permitted": False,
+        # Tri-state on purpose. None means "the probe errored", which is NOT the
+        # same as "you may not see this" -- see _custom_report_available.
+        "role_permitted": None,
         "ref_doctype_permitted": False,
         "not_disabled": False,
         "reason": "",
+        "run_blocked_by": "",
+        "errors": {},
     }
 
+    def gate(name, fn):
+        """Evaluate one gate. Never raises; records its own error instead."""
+        try:
+            return fn()
+        except Exception as e:
+            out["errors"][name] = f"{type(e).__name__}: {e}"
+            return None
+
+    out["app_installed"] = gate(
+        "app_installed", lambda: app in frappe.get_installed_apps()
+    )
     if not out["app_installed"]:
         out["reason"] = "app_not_installed"
         return out
 
-    out["report_exists"] = bool(frappe.db.exists("Report", report_name))
+    out["report_exists"] = gate(
+        "report_exists", lambda: bool(frappe.db.exists("Report", report_name))
+    )
     if not out["report_exists"]:
         out["reason"] = "report_not_found"
         return out
 
-    report = frappe.get_doc("Report", report_name)
-    out["not_disabled"] = not report.disabled
+    report = {"doc": None}
+
+    def load_report():
+        report["doc"] = frappe.get_doc("Report", report_name)
+        return True
+
+    if not gate("load_report", load_report):
+        out["reason"] = "load_failed"
+        return out
+
+    doc = report["doc"]
+    out["not_disabled"] = gate("not_disabled", lambda: not doc.disabled)
 
     # `is_permitted()` reads the `roles` CHILD TABLE (not the legacy `role`
     # field) and intersects it with frappe.get_roles(); an empty roles table
-    # means everyone may run the report.
-    out["role_permitted"] = bool(report.is_permitted())
+    # means everyone may run the report. It returns None for "not permitted", so
+    # bool() here is deliberate.
+    out["role_permitted"] = gate("role_permitted", lambda: bool(doc.is_permitted()))
 
-    # A SEPARATE check from the roles table. `Plate Stock Register` declares
-    # ref_doctype "Serial No", and Serial No is permission-restricted in stock
-    # ERPNext -- so a user listed in the report's own roles can still be refused
-    # here. This is also Frappe's behaviour on the desk.
-    out["ref_doctype_permitted"] = bool(
-        frappe.has_permission(report.ref_doctype, "report", raise_exception=False)
+    # A SEPARATE check from the roles table, and the RUN gate rather than the
+    # LIST gate -- reported, never used to hide the tile. See _custom_report_available.
+    out["ref_doctype_permitted"] = gate(
+        "ref_doctype_permitted",
+        lambda: bool(
+            frappe.has_permission(doc.ref_doctype, "report", raise_exception=False)
+        ),
     )
 
     if not out["not_disabled"]:
         out["reason"] = "report_disabled"
-    elif not out["role_permitted"]:
+    elif out["role_permitted"] is False:
         out["reason"] = "role_not_permitted"
 
-    # Reported, but deliberately NOT part of `reason`. This is the RUN gate that
-    # `get_report_doc` enforces, not the LIST gate the desk uses, so it must not
-    # hide the tile -- see `_custom_report_available`. Reported here because it is
-    # the single most likely reason a listed report then fails to run, and
-    # knowing it in advance turns a mystery into a one-line permission fix.
-    out["run_blocked_by"] = (
-        "" if out["ref_doctype_permitted"] else "ref_doctype_not_permitted"
-    )
+    if out["ref_doctype_permitted"] is not True:
+        out["run_blocked_by"] = "ref_doctype_not_permitted"
 
     return out
 
@@ -151,16 +188,26 @@ def _custom_report_available(report_name, app):
     try:
         detail = _custom_report_availability(report_name, app)
     except Exception:
-        # Includes DoesNotExistError and anything the permission machinery
-        # raises on an unusual doctype. Any of those means "do not offer this".
+        # The probe itself blew up outside any per-gate handler. That is a bug on
+        # our side, not a verdict about the user, and it is NOT covered by the
+        # tri-state role gate below because there is no detail to reason about.
+        # Hide the report (fail closed on a genuinely unknown state) and let the
+        # diagnostic surface the traceback -- `explain_custom_report_access`
+        # reports `errors` and logs it.
         return False
 
-    return bool(
-        detail["app_installed"]
-        and detail["report_exists"]
-        and detail["role_permitted"]
-        and detail["not_disabled"]
-    )
+    # Hard requirements. These are facts about the SITE, not about the user, and
+    # an error in any of them means we could not establish them at all.
+    if not (detail["app_installed"] and detail["report_exists"] and detail["not_disabled"]):
+        return False
+
+    # The role gate is a PROBE, and it is tri-state. An explicit False is a real
+    # refusal and hides the tile. None means the probe ERRORED -- and hiding a
+    # report because our own call broke is precisely the failure that made this
+    # undiagnosable in the first place. get_report_doc still authorises the run,
+    # so offering the tile is safe: the worst case is a user with no right clicks
+    # it and gets a PermissionError, instead of the report silently not existing.
+    return detail["role_permitted"] is not False
 
 
 @frappe.whitelist(allow_guest=False)
@@ -192,15 +239,37 @@ def explain_custom_report_access(report_key):
     try:
         gates = _custom_report_availability(report_name, app)
     except Exception as e:
+        # A diagnostic that swallows its own errors is worse than no diagnostic.
+        # This branch reported `app_installed: false` and `report_exists: false`
+        # on a site where the app WAS installed and the Report record DID exist,
+        # which sent the investigation after the wrong cause entirely. It now
+        # keeps the real gate results it can still establish, names the exception,
+        # and logs it so it lands in Error Log where it is actually visible.
+        frappe.log_error(
+            title=f"explain_custom_report_access: probe failed for {report_name}",
+            message=frappe.get_traceback(),
+        )
         gates = {
-            "app_installed": False,
-            "report_exists": False,
-            "role_permitted": False,
+            "app_installed": app in frappe.get_installed_apps(),
+            "report_exists": bool(frappe.db.exists("Report", report_name)),
+            "role_permitted": None,
             "ref_doctype_permitted": False,
             "not_disabled": False,
-            "reason": f"error: {type(e).__name__}",
+            "reason": "probe_failed",
             "run_blocked_by": "",
+            "errors": {
+                "probe": f"{type(e).__name__}: {e}",
+            },
         }
+
+    # Per-gate errors are surfaced, never swallowed. Anything that broke a probe
+    # is also logged, so a Frappe/ERPNext version mismatch shows up in Error Log
+    # rather than as a tile that quietly fails to appear.
+    for gate_name, message in (gates.get("errors") or {}).items():
+        frappe.log_error(
+            title=f"report availability gate failed: {report_name} ({gate_name})",
+            message=message,
+        )
 
     report_roles = []
     ref_doctype = None

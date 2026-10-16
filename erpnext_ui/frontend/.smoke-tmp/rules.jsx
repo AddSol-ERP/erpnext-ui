@@ -2061,12 +2061,51 @@ const probeBody =
   apiSource.match(/def _custom_report_availability\(([\s\S]*?)\ndef /)?.[1] || "";
 const availableBody =
   apiSource.match(/def _custom_report_available\(([\s\S]*?)\ndef /)?.[1] || "";
+const explainBody =
+  apiSource.match(/def explain_custom_report_access\(([\s\S]*?)\ndef /)?.[1] || "";
 ok(
   "the availability probe still reports is_permitted, disabled and ref_doctype",
   probeBody.includes("is_permitted()") &&
-    probeBody.includes("report.disabled") &&
-    probeBody.includes('frappe.has_permission(report.ref_doctype, "report"'),
+    probeBody.includes(".disabled") &&
+    probeBody.includes('frappe.has_permission(doc.ref_doctype, "report"'),
   "the per-gate breakdown is the diagnostic; all three must be measured",
+);
+
+// Each gate must be wrapped independently. One `except Exception` around the
+// whole probe collapsed every result to false when a single call raised -- on the
+// NL site `has_permission` raised a TypeError and the diagnostic then reported
+// `app_installed: false` for a site where the app was demonstrably installed,
+// which sent the investigation after the wrong cause entirely.
+ok(
+  "each availability gate is evaluated in its own handler, with errors recorded",
+  /def gate\(name, fn\)/.test(probeBody) &&
+    probeBody.includes('out["errors"][name]') &&
+    probeBody.includes("except Exception as e:"),
+  "one broken gate must not zero out the other four",
+);
+
+// The role gate is a PROBE and therefore tri-state. Collapsing an errored probe
+// into "not permitted" hides a report because of our own bug, which is the exact
+// failure this design exists to prevent. get_report_doc still authorises the run,
+// so offering the tile is the safe failure mode.
+ok(
+  "an ERRORED role probe does not hide the report, but a real refusal does",
+  /role_permitted": None/.test(probeBody) &&
+    availableBody.includes('detail["role_permitted"] is not False') &&
+    /if not \(detail\["app_installed"\] and detail\["report_exists"\] and detail\["not_disabled"\]\)/.test(
+      availableBody,
+    ),
+  "app/report/disabled are hard requirements; the role probe distinguishes refused from broken",
+);
+
+// A diagnostic that swallows its own errors is worse than no diagnostic: it
+// reported the two facts it existed to establish as false.
+ok(
+  "the diagnostic surfaces per-gate errors and logs them to Error Log",
+  explainBody.includes("frappe.log_error(") &&
+    explainBody.includes('gates.get("errors")') &&
+    explainBody.includes("frappe.get_traceback()"),
+  "a broken probe must be visible in Error Log, not silently collapsed",
 );
 ok(
   "the tile is NOT gated on ref_doctype report permission, matching the desk list",
@@ -2087,8 +2126,6 @@ ok(
 );
 
 // A diagnostic endpoint must never be able to become a data leak.
-const explainBody =
-  apiSource.match(/def explain_custom_report_access\(([\s\S]*?)\ndef /)?.[1] || "";
 ok(
   "explain_custom_report_access returns booleans and role names only, no report data",
   explainBody.includes('"gates": gates') &&
