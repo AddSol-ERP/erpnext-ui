@@ -2035,13 +2035,48 @@ ok(
     : `checked ${reportNames.length} report name(s): ${reportNames.join(", ")}`,
 );
 
-// The endpoint must take a KEY. If it ever gained a `report_name` parameter the
+// get_custom_report_data takes a KEY. If it ever gained a `report_name` parameter the
 // mapping above would be bypassable.
 ok(
   "get_custom_report_data takes a report_key, never a report name",
   /def get_custom_report_data\(\s*report_key\s*,/.test(apiSource) &&
     !/def get_custom_report_data\([^)]*report_name/.test(apiSource),
   "signature must be (report_key, filters) and resolve the name server-side",
+);
+
+// The visibility probe answers with its OWN per-gate checks (it must, so
+// explain_custom_report_access can name the failing gate), while the run is
+// authorised by Frappe's get_report_doc. That split is safe only because the run
+// is the boundary. If the probe ever starts USING get_report_doc directly, or
+// the endpoint stops calling it, one of the two halves of that safety is gone.
+const probeBody =
+  apiSource.match(/def _custom_report_availability\(([\s\S]*?)\ndef /)?.[1] || "";
+ok(
+  "the visibility probe checks all three gates, not just the role table",
+  probeBody.includes("is_permitted()") &&
+    probeBody.includes('frappe.has_permission(report.ref_doctype, "report"') &&
+    probeBody.includes("report.disabled"),
+  "a probe that only checks roles would offer the tile to users get_report_doc then refuses",
+);
+
+// The run must remain Frappe-authorised.
+ok(
+  "the run itself is authorised by get_report_doc, not by the visibility probe",
+  /report = query_report\.get_report_doc\(report_name\)/.test(apiSource),
+  "get_custom_report_data must re-authorise via Frappe; the probe is UX only",
+);
+
+// A diagnostic endpoint must never be able to become a data leak.
+const explainBody =
+  apiSource.match(/def explain_custom_report_access\(([\s\S]*?)\ndef /)?.[1] || "";
+ok(
+  "explain_custom_report_access returns booleans and role names only, no report data",
+  explainBody.includes('"gates": gates') &&
+    !/get_report_result|\.execute\(|get_custom_report_data\(/.test(explainBody) &&
+    /frappe\.throw\(frappe\._\("Unknown report key\."\), frappe\.PermissionError\)/.test(
+      explainBody,
+    ),
+  "a diagnostic that runs the report would hand a blocked user the data",
 );
 
 // The report's own filter/column metadata is what the page renders from, so the

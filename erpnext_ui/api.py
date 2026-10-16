@@ -61,6 +61,59 @@ def _can_read(doctype):
         return False
 
 
+def _custom_report_availability(report_name, app):
+    """Per-gate breakdown of whether a cross-app Script Report is usable.
+
+    Returns a dict of booleans plus a `reason` naming the FIRST gate that
+    failed. Every gate fails closed. The split exists so that "the report does
+    not appear" is diagnosable: a single `False` cannot distinguish "this app is
+    not installed here" from "your role may not run it", and those need
+    completely different fixes in completely different repos.
+    """
+    out = {
+        "app_installed": app in frappe.get_installed_apps(),
+        "report_exists": False,
+        "role_permitted": False,
+        "ref_doctype_permitted": False,
+        "not_disabled": False,
+        "reason": "",
+    }
+
+    if not out["app_installed"]:
+        out["reason"] = "app_not_installed"
+        return out
+
+    out["report_exists"] = bool(frappe.db.exists("Report", report_name))
+    if not out["report_exists"]:
+        out["reason"] = "report_not_found"
+        return out
+
+    report = frappe.get_doc("Report", report_name)
+    out["not_disabled"] = not report.disabled
+
+    # `is_permitted()` reads the `roles` CHILD TABLE (not the legacy `role`
+    # field) and intersects it with frappe.get_roles(); an empty roles table
+    # means everyone may run the report.
+    out["role_permitted"] = bool(report.is_permitted())
+
+    # A SEPARATE check from the roles table. `Plate Stock Register` declares
+    # ref_doctype "Serial No", and Serial No is permission-restricted in stock
+    # ERPNext -- so a user listed in the report's own roles can still be refused
+    # here. This is also Frappe's behaviour on the desk.
+    out["ref_doctype_permitted"] = bool(
+        frappe.has_permission(report.ref_doctype, "report", raise_exception=False)
+    )
+
+    if not out["not_disabled"]:
+        out["reason"] = "report_disabled"
+    elif not out["role_permitted"]:
+        out["reason"] = "role_not_permitted"
+    elif not out["ref_doctype_permitted"]:
+        out["reason"] = "ref_doctype_not_permitted"
+
+    return out
+
+
 def _custom_report_available(report_name, app):
     """Whether a cross-app Script Report is installed AND this user may open it.
 
@@ -74,39 +127,102 @@ def _custom_report_available(report_name, app):
        report", never as an error page.
     3. The user is allowed to RUN it.
 
-    For (3) this delegates to Frappe's own gate instead of re-implementing it,
-    because the gate is genuinely three-part and re-implementing it would
-    silently drift:
+    For (3) this mirrors Frappe's own gate rather than delegating to
+    `get_report_doc`, because it needs the individual verdicts to report which
+    gate failed. The authoritative implementation is `get_report_doc`:
 
-      - `Report.is_permitted()` reads the `roles` CHILD TABLE (not the legacy
-        `role` field) and intersects it with `frappe.get_roles()` via
-        `has_common`, honouring `get_custom_allowed_roles` too. An empty
-        roles table means everyone may run the report.
-      - `frappe.has_permission(doc.ref_doctype, "report")` is a SEPARATE check.
-        `Plate Stock Register` declares `ref_doctype: "Serial No"`, and
-        `Serial No` is permission-restricted in stock ERPNext -- so a user in
-        the report's `roles` list can still be refused here. That is Frappe's
-        behaviour on the desk too, and matching it is the point.
-      - `doc.disabled` removes the report entirely.
+      - `Report.is_permitted()` (see above),
+      - `frappe.has_permission(doc.ref_doctype, "report")`,
+      - and `doc.disabled`.
 
-    Returns True only when `get_report_doc()` would not raise.
+    Any error resolving a gate counts as "no access", so a backend hiccup can
+    never widen what the SPA offers. See `_custom_report_availability` for the
+    per-gate breakdown and `explain_custom_report_access` for the endpoint that
+    surfaces it.
     """
-    if app not in frappe.get_installed_apps():
+    try:
+        detail = _custom_report_availability(report_name, app)
+    except Exception:
+        # Includes DoesNotExistError and anything the permission machinery
+        # raises on an unusual doctype. Any of those means "do not offer this".
         return False
 
-    if not frappe.db.exists("Report", report_name):
-        return False
+    return not (
+        detail["reason"]
+        or not detail["role_permitted"]
+        or not detail["ref_doctype_permitted"]
+        or not detail["not_disabled"]
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def explain_custom_report_access(report_key):
+    """Explain why a cross-app report is or is not offered to this user.
+
+    Diagnostic only -- it returns NO report data, no row counts and no employee
+    or stock figures. It returns booleans and role names, which the caller
+    could already read off their own profile.
+
+    This exists because the failure is otherwise invisible. A report the user
+    may not open does not error: `get_ui_access()` simply omits a `true`, so the
+    tile never renders, the sidebar entry never renders and the route guard
+    shows "No report permissions" -- with no failed request and nothing in the
+    logs. The three candidate causes (app missing / role refused / Serial No
+    report permission absent) need three different fixes in two different
+    repos, so guessing at the UI is the wrong way to diagnose it.
+
+    Returns:
+        dict: {"report_key", "report_name", "available", "reason", "gates",
+               "report_roles", "user_roles", "ref_doctype", "matches_role"}
+    """
+    entry = SPA_CUSTOM_REPORTS.get(report_key)
+    if not entry:
+        frappe.throw(frappe._("Unknown report key."), frappe.PermissionError)
+
+    report_name, app = entry
 
     try:
-        from frappe.desk.query_report import get_report_doc
+        gates = _custom_report_availability(report_name, app)
+    except Exception as e:
+        gates = {
+            "app_installed": False,
+            "report_exists": False,
+            "role_permitted": False,
+            "ref_doctype_permitted": False,
+            "not_disabled": False,
+            "reason": f"error: {type(e).__name__}",
+        }
 
-        get_report_doc(report_name)
-        return True
-    except Exception:
-        # Includes PermissionError, DoesNotExistError, and anything the
-        # permission machinery raises on an unusual doctype. Any of those means
-        # "do not offer this report".
-        return False
+    report_roles = []
+    ref_doctype = None
+    if gates.get("report_exists"):
+        rows = frappe.get_all(
+            "Has Role", filters={"parent": report_name}, fields=["role"], pluck="role"
+        )
+        report_roles = sorted(rows)
+        ref_doctype = frappe.db.get_value("Report", report_name, "ref_doctype")
+
+    user_roles = sorted(frappe.get_roles())
+
+    return {
+        "report_key": report_key,
+        "report_name": report_name,
+        "required_app": app,
+        "installed_apps_contains_app": app in frappe.get_installed_apps(),
+        "available": _custom_report_available(report_name, app),
+        "gates": gates,
+        # Role names only -- never data. `matches_role` is the single most useful
+        # field here: the report lists 8 roles including Stock User, and it is
+        # tempting to conclude from that alone that a Stock User can run it.
+        "report_roles": report_roles,
+        "matches_role": bool(set(report_roles) & set(user_roles)),
+        "user_roles": user_roles,
+        "ref_doctype": ref_doctype,
+        "ref_doctype_has_report_permission": bool(
+            ref_doctype
+            and frappe.has_permission(ref_doctype, "report", raise_exception=False)
+        ),
+    }
 
 
 def _resolve_custom_report(report_key):
@@ -2576,9 +2692,14 @@ def get_custom_report_data(report_key, filters=None):
     from frappe.core.utils import ljust_list
     from frappe.desk import query_report
 
-    # get_report_doc() is re-called by nothing above, but the probe only proved
-    # availability; load the document here so its `filters` child table is
-    # populated for _sanitise_report_filters.
+    # THIS IS THE BOUNDARY, not the probe. `_custom_report_available` decided
+    # visibility with its own per-gate checks (it has to, so
+    # `explain_custom_report_access` can name the failing gate), but the run is
+    # authorised by Frappe's own `get_report_doc` -- role table, ref_doctype
+    # report permission and the disabled flag, in one authoritative place. If the
+    # two ever disagree, this one wins and the call is refused.
+    #
+    # It is also what populates `report.filters` for _sanitise_report_filters.
     report = query_report.get_report_doc(report_name)
 
     declared = list(report.filters or [])
