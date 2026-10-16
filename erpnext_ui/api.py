@@ -2616,7 +2616,23 @@ def _sanitise_report_filters(raw, declared):
     `frappe._dict`, so anything extra rides along into report code. Intersecting
     with the declared child-table rows means the report only ever sees fieldnames
     it published, and an unknown key cannot smuggle a value through.
+
+    `raw` arrives as a JSON STRING, not a dict. Frappe does NOT decode JSON
+    parameters -- `frappe.parse_val` only coerces dates, so every whitelisted
+    parameter lands in `frappe.form_dict` exactly as it was sent in the query
+    string. An earlier version of this function began with
+    `if not isinstance(raw, dict): return {}`, which therefore matched every
+    real request, discarded the whole filter set, and returned UNFILTERED data
+    with no error anywhere: the report ran, just with none of the filters
+    applied, which reads as "the filter doesn't work".
     """
+    if isinstance(raw, str):
+        # `frappe.parse_json` raises on malformed JSON rather than returning {}.
+        try:
+            raw = frappe.parse_json(raw)
+        except (TypeError, ValueError):
+            return {}
+
     if not isinstance(raw, dict):
         return {}
 

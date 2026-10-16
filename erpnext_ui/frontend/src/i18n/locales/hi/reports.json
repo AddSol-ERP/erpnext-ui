@@ -117,6 +117,14 @@
 		"loadFailedTitle": "रिपोर्ट लोड नहीं हो सकी",
 		"loadFailedHint": "रिपोर्ट नहीं चल सकी। आपके पास अनुमति नहीं हो सकती, या यह इस साइट पर इंस्टॉल नहीं है।",
 		"noColumnsTitle": "दिखाने के लिए कोई कॉलम नहीं",
-		"noColumnsHint": "रिपोर्ट ने कोई कॉलम परिभाषा नहीं लौटाई।"
+		"noColumnsHint": "रिपोर्ट ने कोई कॉलम परिभाषा नहीं लौटाई।",
+		"expandAll": "सभी विस्तार करें",
+		"collapseAll": "सभी संकुचित करें",
+		"mixed": "मिश्रित",
+		"batchCount_one": "{{count}} बैच",
+		"batchCount_other": "{{count}} बैच",
+		"warehouseCount_one": "{{count}} वेयरहाउस",
+		"warehouseCount_other": "{{count}} वेयरहाउस",
+		"moreFilters": "और फ़िल्टर"
 	}
 }

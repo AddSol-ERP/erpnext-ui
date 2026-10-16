@@ -117,6 +117,20 @@
 		"loadFailedTitle": "تعذر تحميل التقرير",
 		"loadFailedHint": "تعذر تشغيل التقرير. قد لا تملك الصلاحية، أو قد لا يكون مثبتًا على هذا الموقع.",
 		"noColumnsTitle": "لا توجد أعمدة للعرض",
-		"noColumnsHint": "لم يُرجع التقرير أي تعريفات للأعمدة."
+		"noColumnsHint": "لم يُرجع التقرير أي تعريفات للأعمدة.",
+		"expandAll": "توسيع الكل",
+		"collapseAll": "طيّ الكل",
+		"mixed": "مختلط",
+		"batchCount_one": "دفعة واحدة",
+		"batchCount_two": "دفعتان",
+		"batchCount_few": "{{count}} دفعات",
+		"batchCount_many": "{{count}} دفعة",
+		"batchCount_other": "{{count}} دفعة",
+		"warehouseCount_one": "مستودع واحد",
+		"warehouseCount_two": "مستودعان",
+		"warehouseCount_few": "{{count}} مستودعات",
+		"warehouseCount_many": "{{count}} مستودعًا",
+		"warehouseCount_other": "{{count}} مستودع",
+		"moreFilters": "المزيد من عوامل التصفية"
 	}
 }

@@ -117,6 +117,14 @@
 		"loadFailedTitle": "Could not load the report",
 		"loadFailedHint": "The report could not be run. You may not have permission, or it may not be installed on this site.",
 		"noColumnsTitle": "No columns to show",
-		"noColumnsHint": "The report returned no column definitions."
+		"noColumnsHint": "The report returned no column definitions.",
+		"expandAll": "Expand all",
+		"collapseAll": "Collapse all",
+		"mixed": "Mixed",
+		"batchCount_one": "{{count}} batch",
+		"batchCount_other": "{{count}} batches",
+		"warehouseCount_one": "{{count}} warehouse",
+		"warehouseCount_other": "{{count}} warehouses",
+		"moreFilters": "More filters"
 	}
 }

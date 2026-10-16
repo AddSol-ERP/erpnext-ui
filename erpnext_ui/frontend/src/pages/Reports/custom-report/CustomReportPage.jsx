@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { get } from "../../../services/api";
 import { useHeader } from "../../../context/HeaderContext";
 import DashboardShell from "../../../components/dashboard/DashboardShell";
-import FormSelect from "../../../components/FormSelect";
-import LinkField from "../../../components/LinkField";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -24,13 +21,14 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { cn } from "cn";
+import FilterBar from "./FilterBar";
 import {
   formatCell,
   isNumericColumn,
-  parseSelectOptions,
   seedDefault,
   visibleColumns as visibleColumnsOf,
 } from "./format";
+import { groupRows, isBlankCell } from "./group";
 
 /**
  * A report defined in another app, rendered from the report's own metadata.
@@ -53,78 +51,50 @@ import {
  */
 
 /**
- * Per-report page chrome only — title, icon. The report name and its app stay
- * server-side: a caller who can edit this bundle must not be able to point the
- * key at a different report.
+ * Per-report page chrome plus its grouping contract. The report name and its app
+ * stay server-side: a caller who can edit this bundle must not be able to point
+ * the key at a different report.
+ *
+ * `groupBy`/`sum`/`ratio`/`constant`/`mixed` declare how the report's own
+ * columns behave once its flat rows are grouped. The report returns one row per
+ * (item, warehouse, batch) and sorts by that same triple, so grouping by `item`
+ * needs no client-side sort -- and grouping children by `warehouse, batch` means
+ * heat number (which is read off the Batch record, so it is 1:1 with a batch)
+ * lands on the child row where it belongs.
  */
 const REPORT_PAGES = {
   "plate-stock-register": {
     titleKey: "reports.plateStockRegister",
     subtitleKey: "reports.plateStockRegisterDesc",
+    // Filters shown inline; everything else folds into the FilterBar popover.
+    // Item, warehouse and grade are what a storekeeper reaches for to answer
+    // "how much of this plate do we hold, and where" -- batch, heat number and
+    // thickness are traceability lookups. Declared here rather than hardcoded in
+    // the bar so the bar stays generic.
+    primaryFilters: ["item", "warehouse", "grade"],
+    grouping: {
+      groupBy: ["item"],
+      childKey: ["warehouse", "batch"],
+      sum: ["plates", "total_weight", "stock_value"],
+      // Recomputed on the parent as numerator/denominator -- never added. See
+      // group.js for why summing a per-batch average is silently wrong.
+      ratio: {
+        weight_per_plate: ["total_weight", "plates"],
+        value_per_kg: ["stock_value", "total_weight"],
+      },
+      // Item-master attributes: identical on every child, so shown once.
+      constant: ["thickness", "length", "width"],
+      // `grade` is `batch.custom_grade or item.item_group`, so it can disagree
+      // between two batches of the same item. Shown when unanimous, "Mixed"
+      // when not -- never the first child's value.
+      mixed: ["grade"],
+      countFields: [
+        { field: "batch", labelKey: "reports.batchCount" },
+        { field: "warehouse", labelKey: "reports.warehouseCount" },
+      ],
+    },
   },
 };
-
-function FilterControl({ filter, value, onChange }) {
-  switch (filter.fieldtype) {
-    case "Link":
-      // LinkField fires onChange only on COMMIT (pick / clear / exact blur
-      // match), never per keystroke — which matters here because each change
-      // re-runs the report.
-      return (
-        <LinkField
-          doctype={filter.options}
-          value={value || ""}
-          onChange={onChange}
-          placeholder={filter.label}
-        />
-      );
-
-    case "Check":
-      return (
-        <label className="flex h-8 cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="size-4 accent-[var(--brand-primary)]"
-            checked={value === 1 || value === "1"}
-            onChange={(e) => onChange(e.target.checked ? 1 : 0)}
-          />
-          {filter.label}
-        </label>
-      );
-
-    case "Select":
-      return (
-        <FormSelect
-          value={value || ""}
-          onChange={onChange}
-          options={parseSelectOptions(filter.options)}
-          placeholder={filter.label}
-        />
-      );
-
-    case "Date":
-      return (
-        <Input
-          type="date"
-          className="h-8"
-          value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
-
-    default:
-      // Data / Float / Int / Currency / anything Frappe adds later.
-      return (
-        <Input
-          className="h-8"
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onChange(e.currentTarget.value)}
-          aria-label={filter.label}
-        />
-      );
-  }
-}
 
 export default function CustomReportPage({ reportKey }) {
   const { t } = useTranslation();
@@ -139,6 +109,13 @@ export default function CustomReportPage({ reportKey }) {
   const [declaredFilters, setDeclaredFilters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Expanded parent rows, as item codes. A Set rather than a single key because
+  // a storekeeper comparing two items needs both open at once.
+  const [expanded, setExpanded] = useState(() => new Set());
+
+  const grouping = page.grouping || null;
+  const primaryFilters = page.primaryFilters || [];
 
   const fetchReport = useCallback(
     async (activeFilters) => {
@@ -221,6 +198,31 @@ export default function CustomReportPage({ reportKey }) {
     [columns],
   );
 
+  const groups = useMemo(() => groupRows(data, grouping), [data, grouping]);
+
+  const toggleGroup = useCallback((key) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const allExpanded = groups.length > 0 && groups.every((g) => expanded.has(g.key));
+
+  const toggleAll = useCallback(() => {
+    setExpanded(allExpanded ? new Set() : new Set(groups.map((g) => g.key)));
+  }, [allExpanded, groups]);
+
+  // A single-child group has nothing to expand, so it gets no toggle and no
+  // indentation -- otherwise every item with one batch would carry a dead
+  // chevron implying there was more to see.
+  const isExpandable = useCallback(
+    (group) => grouping && (grouping.groupBy || []).length > 0 && group.children.length > 1,
+    [grouping],
+  );
+
   const updateFilter = useCallback((fieldname, value) => {
     setFilters((prev) => ({ ...prev, [fieldname]: value }));
   }, []);
@@ -241,41 +243,19 @@ export default function CustomReportPage({ reportKey }) {
 
   return (
     <DashboardShell>
-      {/* FILTER BAR — rendered from the report's declared Report Filter rows */}
+      {/* FILTER BAR — metadata-driven, so a filter added in the owning app
+          appears with no change here. Only the frequently used ones sit inline;
+          the rest fold into a popover that counts what is set inside it. */}
       {declaredFilters.length ? (
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {declaredFilters.map((f) => (
-              <div key={f.fieldname} className="min-w-0">
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  {f.label}
-                </label>
-                <FilterControl
-                  filter={f}
-                  value={filters[f.fieldname]}
-                  onChange={(v) => updateFilter(f.fieldname, v)}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <Button size="sm" onClick={applyFilters} disabled={loading}>
-              {loading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : null}
-              {t("reports.applyFilters")}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={resetFilters}
-              disabled={loading}
-            >
-              <RotateCcw className="size-4" />
-              {t("reports.clearFilters")}
-            </Button>
-          </div>
-        </div>
+        <FilterBar
+          declared={declaredFilters}
+          values={filters}
+          onChange={updateFilter}
+          primary={primaryFilters}
+          loading={loading}
+          onApply={applyFilters}
+          onReset={resetFilters}
+        />
       ) : null}
 
       {error ? (
@@ -297,7 +277,30 @@ export default function CustomReportPage({ reportKey }) {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="space-y-2">
+          {/* Group controls sit with the TABLE, not in the filter bar: they act
+              on rows, not on the query. Hidden when nothing is grouped or there
+              is only one group, so an ungrouped report carries no dead control. */}
+          {groups.length > 1 ? (
+            <div className="flex items-center justify-end">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={toggleAll}
+                disabled={loading}
+              >
+                <ChevronRight
+                  className={cn(
+                    "size-4 transition-transform",
+                    allExpanded && "rotate-90",
+                  )}
+                />
+                {allExpanded ? t("reports.collapseAll") : t("reports.expandAll")}
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
@@ -322,24 +325,163 @@ export default function CustomReportPage({ reportKey }) {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : (
-                data.map((row, i) => (
-                  <TableRow key={row.name || i}>
-                    {visibleColumns.map((col) => (
-                      <TableCell
-                        key={col.fieldname}
-                        className={cn(
-                          isNumericColumn(col)
-                            ? "text-end tabular-nums"
-                            : col.fieldtype === "Link" && "text-primary",
-                        )}
-                      >
-                        {formatCell(row[col.fieldname], col)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              )}
+              ) : groups.map((group) => {
+                const open = expanded.has(group.key);
+                const expandable = isExpandable(group);
+                return (
+                  <Fragment key={group.key}>
+                    {/* PARENT — one per group. aria-expanded feeds the
+                        `has-aria-expanded:bg-muted/50` rule already in
+                        ui/table.jsx, so the open row is visibly distinct. */}
+                    <TableRow
+                      aria-expanded={expandable ? open : undefined}
+                      className={cn(
+                        "bg-muted/30 hover:bg-muted/50",
+                        expandable && "cursor-pointer",
+                      )}
+                      onClick={expandable ? () => toggleGroup(group.key) : undefined}
+                    >
+                      {visibleColumns.map((col) => {
+                        const isGroupLabel =
+                          (grouping?.groupBy || []).includes(col.fieldname);
+                        const mixedHere = group.mixedFlags?.[col.fieldname];
+
+                        if (isGroupLabel) {
+                          return (
+                            <TableCell key={col.fieldname}>
+                              <div className="flex items-start gap-1.5">
+                                {/* A real <button>, not just a clickable row:
+                                    store-balance puts onClick on the <tr> alone,
+                                    which no keyboard user can reach. It coexists
+                                    with the row's own onClick via
+                                    stopPropagation so a click on it does not
+                                    toggle twice. */}
+                                {expandable ? (
+                                  <button
+                                    type="button"
+                                    aria-expanded={open}
+                                    aria-label={`${group.label}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleGroup(group.key);
+                                    }}
+                                    className="-ms-1 mt-0.5 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                                  >
+                                    <ChevronRight
+                                      className={cn(
+                                        "size-4 transition-transform",
+                                        open && "rotate-90",
+                                      )}
+                                    />
+                                  </button>
+                                ) : (
+                                  <span className="w-1 shrink-0" />
+                                )}
+
+                                <div className="min-w-0">
+                                  <div className="truncate font-semibold">
+                                    {group.label || formatCell(
+                                      group.aggregate[col.fieldname],
+                                      col,
+                                    )}
+                                  </div>
+                                  {/* Distinct batch / warehouse counts, so an
+                                      item holding 24 plates across 3 batches
+                                      reads differently from one holding 3. */}
+                                  {expandable &&
+                                  (grouping?.countFields || []).length ? (
+                                    <div className="truncate text-xs text-muted-foreground">
+                                      {(grouping.countFields || [])
+                                        .map(({ field, labelKey }) =>
+                                          t(labelKey, {
+                                            count: group.counts[field] ?? 0,
+                                          }),
+                                        )
+                                        .join(" • ")}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </TableCell>
+                          );
+                        }
+
+                        if (mixedHere) {
+                          return (
+                            <TableCell
+                              key={col.fieldname}
+                              className="italic text-muted-foreground"
+                            >
+                              {t("reports.mixed")}
+                            </TableCell>
+                          );
+                        }
+
+                        if (isBlankCell(col.fieldname, "parent", grouping)) {
+                          return (
+                            <TableCell key={col.fieldname}>
+                              <span className="text-muted-foreground/40">—</span>
+                            </TableCell>
+                          );
+                        }
+
+                        return (
+                          <TableCell
+                            key={col.fieldname}
+                            className={cn(
+                              isNumericColumn(col)
+                                ? "text-end font-medium tabular-nums"
+                                : col.fieldtype === "Link" && "text-primary",
+                            )}
+                          >
+                            {formatCell(group.aggregate[col.fieldname], col)}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+
+                    {/* CHILDREN — one per (warehouse, batch) in the report's own
+                        order. `warehouse`/`batch` are deliberately repeated even
+                        though isBlankCell blanks the item columns: the
+                        describing columns are the reason to expand. */}
+                    {open
+                      ? group.children.map((child) => (
+                          <TableRow
+                            key={child.key}
+                            className="border-b border-border/40 bg-background hover:bg-accent/40"
+                          >
+                            {visibleColumns.map((col) => {
+                              if (
+                                isBlankCell(col.fieldname, "child", grouping)
+                              ) {
+                                return (
+                                  <TableCell
+                                    key={col.fieldname}
+                                    className="ps-8 text-muted-foreground/40"
+                                  >
+                                    <span aria-hidden="true">·</span>
+                                  </TableCell>
+                                );
+                              }
+                              return (
+                                <TableCell
+                                  key={col.fieldname}
+                                  className={cn(
+                                    isNumericColumn(col)
+                                      ? "text-end tabular-nums text-muted-foreground"
+                                      : col.fieldtype === "Link" && "text-primary",
+                                  )}
+                                >
+                                  {formatCell(child.row[col.fieldname], col)}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))
+                      : null}
+                  </Fragment>
+                );
+              })}
             </TableBody>
 
             {/* The total row is the report's OWN fourth return value. It is NOT
@@ -361,6 +503,7 @@ export default function CustomReportPage({ reportKey }) {
               </TableFooter>
             ) : null}
           </Table>
+          </div>
         </div>
       )}
     </DashboardShell>

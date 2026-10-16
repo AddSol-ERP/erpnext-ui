@@ -51,6 +51,12 @@ import {
   visibleColumns,
 } from "../src/pages/Reports/custom-report/format.js";
 import {
+  groupRows,
+  isBlankCell,
+  distinctCount,
+  DEFAULT_GROUP_CONFIG,
+} from "../src/pages/Reports/custom-report/group.js";
+import {
   directionOf,
   freeQty,
   isValuationAccurate,
@@ -2079,6 +2085,60 @@ ok(
   "a diagnostic that runs the report would hand a blocked user the data",
 );
 
+// `filters` must be decoded from its JSON string. Frappe does NOT json-decode
+// whitelisted parameters -- `frappe.parse_val` only coerces dates -- so this
+// arrives as the exact string the SPA put in the query string.
+//
+// This shipped broken: the function began `if not isinstance(raw, dict): return
+// {}`, which matched every real request, so the report silently ran UNFILTERED.
+// No request failed and nothing was logged; the only symptom was "the filter
+// doesn't work". The harness cannot execute Python, so this asserts the shape
+// that must be present -- but the comment in api.py records why.
+const sanitiseBody =
+  apiSource.match(/def _sanitise_report_filters\(([\s\S]*?)\ndef /)?.[1] || "";
+ok(
+  "report filters are decoded from the JSON string Frappe actually delivers",
+  /if isinstance\(raw, str\)/.test(sanitiseBody) &&
+    /frappe\.parse_json\(raw\)/.test(sanitiseBody) &&
+    /except \(TypeError, ValueError\)/.test(sanitiseBody),
+  "parse_json raises on malformed JSON, so the decode must be guarded",
+);
+
+// A Check's default arrives as Small Text ("0"), which is truthy in Python.
+ok(
+  "report filters normalise a Check's value with cint, not truthiness",
+  /fieldtype == "Check"[\s\S]{0,400}?cint\(value\)/.test(sanitiseBody),
+  'the string "0" is truthy, so filters.get("include_offcuts") would invert',
+);
+
+// The count keys use i18next plural categories. Asserted because a bare
+// `{{count}} batches` renders "1 batches", and Arabic needs its dual/few/many
+// forms -- `item(s)` cannot express them at all.
+const reportLocales = ["en", "hi", "ar"].map((l) =>
+  JSON.parse(
+    readSrc(`../../src/i18n/locales/${l}/reports.json`),
+  ).reports,
+);
+ok(
+  "the batch/warehouse count keys ship plural forms in all three languages",
+  reportLocales.every(
+    (r) =>
+      typeof r.batchCount_one === "string" &&
+      typeof r.batchCount_other === "string" &&
+      typeof r.warehouseCount_one === "string" &&
+      typeof r.warehouseCount_other === "string" &&
+      r.batchCount === undefined,
+  ),
+  "a bare {{count}} batches renders '1 batches'; Arabic also needs two/few/many",
+);
+ok(
+  "Arabic ships every Intl plural category, since item(s) cannot express them",
+  ["one", "two", "few", "many", "other"].every(
+    (c) => typeof reportLocales[2][`warehouseCount_${c}`] === "string",
+  ),
+  "Arabic: zero/one/two/few(3-10)/many(11-99)/other",
+);
+
 // The report's own filter/column metadata is what the page renders from, so the
 // endpoint must return both. Losing `filters` renders no filter bar at all and
 // losing `columns` renders an empty table -- neither is an exception.
@@ -2199,6 +2259,179 @@ ok(
     { fieldname: "total_weight" },
   ]).map((c) => c.fieldname).join(",") === "item,total_weight",
   "a hidden column must not occupy a visible cell",
+);
+
+// ---------------------------------------------------------------------------
+// Grouped rows. The report returns one row per (item, warehouse, batch) already
+// sorted by that triple; grouping by `item` is what turns 15 undifferentiated
+// rows for one plate item into one summary with its batches underneath.
+//
+// The aggregation is where a wrong number reaches a storekeeper, so these assert
+// on the REAL functions rather than on source shape.
+// ---------------------------------------------------------------------------
+const G = {
+  groupBy: ["item"],
+  childKey: ["warehouse", "batch"],
+  sum: ["plates", "total_weight", "stock_value"],
+  ratio: {
+    weight_per_plate: ["total_weight", "plates"],
+    value_per_kg: ["stock_value", "total_weight"],
+  },
+  constant: ["thickness", "length", "width"],
+  mixed: ["grade"],
+  countFields: [
+    { field: "batch", labelKey: "x" },
+    { field: "warehouse", labelKey: "y" },
+  ],
+};
+
+// CORE-00042: three batches across two warehouses, deliberately chosen so that
+// summing the ratios gives a DIFFERENT (and plausible) wrong answer.
+const ROWS = [
+  { item: "CORE-00042", warehouse: "Stores-FG", batch: "B-31", heat_number: "HT-7741",
+    grade: "IS 2062", thickness: "10mm", plates: 12, weight_per_plate: 767.5,
+    total_weight: 9210, stock_value: 736800, value_per_kg: 80 },
+  { item: "CORE-00042", warehouse: "Stores-FG", batch: "B-32", heat_number: "HT-7741",
+    grade: "IS 2062", thickness: "10mm", plates: 8, weight_per_plate: 765,
+    total_weight: 6120, stock_value: 489600, value_per_kg: 80 },
+  { item: "CORE-00042", warehouse: "Stores-WIP", batch: "B-44", heat_number: "HT-7812",
+    grade: "IS 2062", thickness: "10mm", plates: 4, weight_per_plate: 772.5,
+    total_weight: 3090, stock_value: 247200, value_per_kg: 80 },
+  { item: "CORE-00043", warehouse: "Stores-FG", batch: "B-51", heat_number: "HT-7802",
+    grade: "IS 304", thickness: "6mm", plates: 6, weight_per_plate: 480,
+    total_weight: 2880, stock_value: 518400, value_per_kg: 180 },
+];
+
+const grouped = groupRows(ROWS, G);
+const g42 = grouped[0];
+const g43 = grouped[1];
+
+ok(
+  "groupRows: one group per item, children in the report's arrival order",
+  grouped.length === 2 &&
+    g42.label === "CORE-00042" &&
+    g43.label === "CORE-00043" &&
+    g42.children.length === 3 &&
+    g42.children[0].row.batch === "B-31" &&
+    g42.children[2].row.batch === "B-44",
+  "the report already sorts by (item, warehouse, batch); grouping must not re-sort",
+);
+
+ok(
+  "groupRows: summed columns are actually summed",
+  g42.aggregate.plates === 24 &&
+    g42.aggregate.total_weight === 18420 &&
+    g42.aggregate.stock_value === 1473600,
+  `got plates=${g42.aggregate.plates} weight=${g42.aggregate.total_weight} value=${g42.aggregate.stock_value}`,
+);
+
+// THE key assertion. Sum of the three children is 2305, which is close enough to
+// the true 767.5 to pass a careless eyeball -- that is exactly why it has to be
+// asserted rather than reviewed.
+ok(
+  "groupRows: weight_per_plate is RECOMPUTED, not the sum of the children",
+  Math.abs(g42.aggregate.weight_per_plate - 18420 / 24) < 1e-9 &&
+    g42.aggregate.weight_per_plate !== 767.5 + 765 + 772.5,
+  `got ${g42.aggregate.weight_per_plate}, expected ${18420 / 24}; summing would give 2305`,
+);
+
+ok(
+  "groupRows: value_per_kg is RECOMPUTED, not the sum of the children",
+  Math.abs(g42.aggregate.value_per_kg - 1473600 / 18420) < 1e-9 &&
+    g42.aggregate.value_per_kg !== 240,
+  `got ${g42.aggregate.value_per_kg}, expected ${1473600 / 18420}; summing would give 240`,
+);
+
+ok(
+  "groupRows: a constant Item attribute is carried to the parent",
+  g42.aggregate.thickness === "10mm",
+  `got ${g42.aggregate.thickness}`,
+);
+
+ok(
+  "groupRows: a unanimous mixed column takes the shared value",
+  g42.aggregate.grade === "IS 2062" && g42.mixedFlags.grade === false,
+  `got ${g42.aggregate.grade}`,
+);
+
+// `grade` is `batch.custom_grade or item.item_group`, so two batches of ONE item
+// can genuinely disagree. Taking the first child's value would silently claim
+// the whole item is that grade.
+const mixedRows = [
+  { ...ROWS[0], grade: "IS 2062" },
+  { ...ROWS[1], grade: "IS 630" },
+];
+const mixedGroup = groupRows(mixedRows, G)[0];
+ok(
+  "groupRows: a mixed column is flagged, NOT taken from the first child",
+  mixedGroup.mixedFlags.grade === true && mixedGroup.aggregate.grade === undefined,
+  `first child's grade leaked through as ${mixedGroup.aggregate.grade}`,
+);
+
+// formatCell renders null as an em dash. NaN would print the literal text "NaN"
+// and Infinity would print a glyph -- in a WEIGHT column.
+ok(
+  "groupRows: a zero denominator yields null, never NaN or Infinity",
+  groupRows([{ item: "X", plates: 0, total_weight: 0, stock_value: 0 }], G)[0]
+    .aggregate.weight_per_plate === null &&
+    groupRows([{ item: "X", plates: 5, total_weight: 0, stock_value: 0 }], G)[0]
+      .aggregate.value_per_kg === null &&
+    formatCell(
+      groupRows([{ item: "X", plates: 0, total_weight: 0, stock_value: 0 }], G)[0]
+        .aggregate.weight_per_plate,
+      FLOAT,
+    ) === "\u2014",
+  "a divide-by-zero must render as an em dash, not NaN",
+);
+
+ok(
+  "groupRows: distinct counts drive the parent's batch/warehouse subtitle",
+  g42.counts.batch === 3 && g42.counts.warehouse === 2 && g43.counts.batch === 1,
+  `got batches=${g42.counts.batch} warehouses=${g42.counts.warehouse}`,
+);
+
+ok(
+  "distinctCount ignores blank values so empties are not counted as a batch",
+  distinctCount([{ batch: "B-1" }, { batch: "" }, { batch: null }, { batch: "B-1" }], "batch") === 1,
+  "a batch with no value must not inflate the subtitle",
+);
+
+// Float addition is not associative: the report sums sequentially in data order
+// while the parent sums via per-group partial sums, so agreement is only to
+// floating-point epsilon, never exact. Asserting exact equality here would be
+// asserting a coincidence.
+const sumParents = grouped.reduce((a, g) => a + g.aggregate.total_weight, 0);
+const sumFlat = ROWS.reduce((a, r) => a + r.total_weight, 0);
+ok(
+  "groupRows: parent aggregates agree with the flat sum within epsilon",
+  Math.abs(sumParents - sumFlat) < 1e-9,
+  `parents=${sumParents} flat=${sumFlat} -- partial sums are not associative, so never assert equality`,
+);
+
+ok(
+  "isBlankCell: per-batch describing columns are blank on the parent only",
+  isBlankCell("warehouse", "parent", G) === true &&
+    isBlankCell("batch", "parent", G) === true &&
+    isBlankCell("heat_number", "parent", G) === true &&
+    isBlankCell("warehouse", "child", G) === false &&
+    isBlankCell("plates", "parent", G) === false &&
+    isBlankCell("weight_per_plate", "parent", G) === false,
+);
+
+ok(
+  "isBlankCell: group and constant columns are blank on children to avoid repeating",
+  isBlankCell("item", "child", G) === true &&
+    isBlankCell("thickness", "child", G) === true &&
+    isBlankCell("item", "parent", G) === false,
+  "every child repeats its parent's item code and thickness otherwise",
+);
+
+// An ungrouped report must still render through the same path rather than crash.
+ok(
+  "groupRows: no groupBy declared yields a single group, not an exception",
+  groupRows(ROWS, DEFAULT_GROUP_CONFIG).length === 1 &&
+    groupRows([], DEFAULT_GROUP_CONFIG).length === 0,
+  "the second NL report may not be grouped at all",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);
