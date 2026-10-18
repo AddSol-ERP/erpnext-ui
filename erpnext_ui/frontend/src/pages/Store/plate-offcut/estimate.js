@@ -98,6 +98,29 @@ export function piecesForRow(estimates, rid) {
 }
 
 /**
+ * The server's own reason for refusing an estimate, or "" if it had none.
+ *
+ * A plate can be perfectly Active and still not cuttable: `get_source_details`
+ * throws when the serial carries no weight ("It was received before weights were
+ * recorded"), and `estimate_offcut_weights` calls it before doing anything else.
+ * That is a fact about the plate, not a crash, and Frappe already phrases it in
+ * the user's language -- so it is worth repeating rather than swallowing.
+ *
+ * A TRANSPORT failure has no `exc` and status 0, and gets no text: per the
+ * "probe failure blocks nothing" rule, a network blip must not leave a message
+ * implying the plate is unusable.
+ *
+ * @param {any} err
+ * @returns {string} a message to show quietly, or ""
+ */
+export function serverReason(err) {
+  const exc = typeof err?.exc === "string" ? err.exc : "";
+  if (!exc) return "";
+  if (/NetworkError|AbortError|Failed to fetch|Load failed/i.test(exc)) return "";
+  return err?.message || "";
+}
+
+/**
  * Ask the server what the current rows weigh.
  *
  * @param {string} sourceSerialNo

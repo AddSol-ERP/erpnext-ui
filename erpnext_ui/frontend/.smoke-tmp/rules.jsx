@@ -56,6 +56,7 @@ import {
   expandRows,
   pieceTotal,
   plateGeometry,
+  serverReason,
 } from "../src/pages/Store/plate-offcut/estimate.js";
 import {
   stripChildRow,
@@ -2955,6 +2956,51 @@ ok(
     (f) => offcutRequested.includes(f),
   ),
   "an unfetched field silently falls back to the empty placeholder forever",
+);
+
+// A plate can be Active and still uncuttable: get_source_details throws when the
+// serial carries no weight, and estimate_offcut_weights calls it first.
+ok(
+  "a business refusal is repeated in the server's own words",
+  serverReason({ exc: "frappe.exceptions.ValidationError", message: "Serial No PL-000008 has no weight on it." }) ===
+    "Serial No PL-000008 has no weight on it.",
+  "Frappe already phrases this in the user's language; swallowing it leaves the totals blank for no stated reason",
+);
+// A transport failure has no `exc` and status 0. Per the "probe failure blocks
+// nothing" rule it must leave NO message, or a network blip would read as
+// "this plate is unusable".
+ok(
+  "a transport failure stays silent -- it says nothing about the plate",
+  serverReason({ status: 0, message: "Failed to fetch" }) === "" &&
+    serverReason({ exc: "NetworkError", message: "Failed to fetch" }) === "" &&
+    serverReason({ exc: "AbortError", message: "aborted" }) === "" &&
+    serverReason(undefined) === "" &&
+    serverReason(null) === "",
+);
+// The regression this guards: routing the refusal into the page-level banner
+// makes a perfectly normal plate look like a broken save.
+const estimateBlock =
+  offcutFormSrc.match(/fetchEstimate\(serialNo, currentRows\)[\s\S]{0,900}?ESTIMATE_DEBOUNCE_MS/)?.[0] || "";
+ok(
+  "an estimate refusal never reaches the page-level error banner",
+  /setPlateNotice\(/.test(estimateBlock) &&
+    !/setError\(/.test(estimateBlock) &&
+    !/fieldErrors/.test(estimateBlock),
+  "the red banner means 'your save failed'; this is a fact about the plate, not a malfunction",
+);
+// FormField renders `hint` muted and drops it whenever `error` is set, and
+// `error` also sets aria-invalid. Both would be wrong: nothing the operator
+// typed is invalid, and the message must survive the real "pick a plate" error.
+ok(
+  "the plate notice renders as a hint, never as a field error",
+  /hint=\{plateNotice \|\| t\("store\.plateOffcut\.sourceSerialHint"\)\}/.test(offcutFormSrc) &&
+    !/error=\{plateNotice\}/.test(offcutFormSrc),
+  "error sets aria-invalid and suppresses the hint; the operator typed nothing wrong",
+);
+ok(
+  "choosing a different plate clears the previous plate's notice",
+  /setEstimate\(null\);\s*setPlateNotice\(""\);/.test(offcutFormSrc),
+  "otherwise PL-000008's 'no weight' reason follows the operator to the next plate",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

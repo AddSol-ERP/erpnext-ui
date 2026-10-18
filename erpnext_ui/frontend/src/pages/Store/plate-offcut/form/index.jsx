@@ -40,6 +40,7 @@ import {
   fetchEstimate,
   pieceTotal,
   plateGeometry,
+  serverReason,
 } from "../estimate";
 
 const DOCTYPE = "Plate Offcut";
@@ -68,6 +69,10 @@ export default function PlateOffcutForm() {
   const isEdit = Boolean(name);
 
   const [estimate, setEstimate] = useState(null);
+  // Why the last estimate is missing, in the server's words. Separate from
+  // `error` (the page-level red banner) because "this plate cannot be cut" is
+  // not a malfunction and must not be dressed as one.
+  const [plateNotice, setPlateNotice] = useState("");
   const [highlight, setHighlight] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
@@ -168,13 +173,20 @@ export default function PlateOffcutForm() {
         fetchEstimate(serialNo, currentRows)
           .then((payload) => {
             if (seq !== estimateSeq.current) return;
+            setPlateNotice("");
             setEstimate({ ...payload, geometry: plateGeometry(payload) });
           })
-          .catch(() => {
+          .catch((e) => {
             if (seq !== estimateSeq.current) return;
-            // The server already said why. Drop the stale numbers rather than
-            // leave last time's weights standing next to new dimensions.
+            // Drop the stale numbers rather than leave last time's weights
+            // standing next to new dimensions.
             setEstimate(null);
+            // And say WHY, quietly. "Serial No PL-000008 has no weight on it"
+            // is a fact about the plate, not a failure of this screen, so it
+            // belongs under the plate field -- not in the red banner, which
+            // reads as "your save broke" and would be the wrong story. A
+            // transport failure yields "" and stays silent.
+            setPlateNotice(serverReason(e));
           });
       }, ESTIMATE_DEBOUNCE_MS);
     },
@@ -205,6 +217,7 @@ export default function PlateOffcutForm() {
       setDirty(true);
       // Choosing a plate invalidates every number from the previous one.
       setEstimate(null);
+      setPlateNotice("");
       if (serial) requestEstimate(serial, rows);
     },
     [rows, requestEstimate],
@@ -379,7 +392,11 @@ export default function PlateOffcutForm() {
           required
           name="source_serial_no"
           error={fieldErrors.source_serial_no}
-          hint={t("store.plateOffcut.sourceSerialHint")}
+          // `hint` and not `error`: FormField drops the hint whenever an error
+          // is set, and marks aria-invalid -- both wrong here, since nothing is
+          // invalid about what the operator typed. The plain hint also survives
+          // a real "pick a plate" validation error being shown above it.
+          hint={plateNotice || t("store.plateOffcut.sourceSerialHint")}
         >
           <LinkField
             doctype="Serial No"
