@@ -2632,7 +2632,14 @@ ok(
 // ---------------------------------------------------------------------------
 const offcutDir = "../../src/pages/Store/plate-offcut/";
 const offcutFormSrc = readSrc(`${offcutDir}form/index.jsx`);
-const offcutListSrc = readSrc(`${offcutDir}index.jsx`);
+const offcutHubSrc = readSrc(`${offcutDir}index.jsx`);
+const hub = stripComments(offcutHubSrc);
+// The document list moved into its own tab when the module became tabbed, and it
+// carries the hand-written FIELDS array with it.
+const offcutListSrc = readSrc(`${offcutDir}cutting-jobs.jsx`);
+const offcutAvailableSrc = readSrc(`${offcutDir}available-plates.jsx`);
+const offcutStockSrc = readSrc(`${offcutDir}offcut-stock.jsx`);
+const offcutApiSrc = readSrc(`${offcutDir}api.js`);
 const offcutCanvasSrc = readSrc(`${offcutDir}PlateCanvas.jsx`);
 const linkFieldSrc = readSrc("../../src/components/LinkField/index.jsx");
 
@@ -3002,6 +3009,144 @@ ok(
   /setEstimate\(null\);\s*setPlateNotice\(""\);/.test(offcutFormSrc),
   "otherwise PL-000008's 'no weight' reason follows the operator to the next plate",
 );
+
+// ---------------------------------------------------------------------------
+// The tabbed module. A panel that sets the header stomps the hub's own.
+// ---------------------------------------------------------------------------
+// `setHeader` is app-wide state, not scoped to a route: a panel calling it on
+// mount would replace the hub's title, subtitle and New action with its own,
+// and the tabs would vanish the moment a panel loaded.
+ok(
+  "only the hub sets the header -- no tab panel touches it",
+  /setHeader\(/.test(offcutHubSrc) &&
+    !/setHeader\(|useHeader/.test(offcutAvailableSrc) &&
+    !/setHeader\(|useHeader/.test(offcutStockSrc) &&
+    !/setHeader\(|useHeader/.test(offcutListSrc),
+  "a panel calling setHeader would replace the hub's header and hide the tabs",
+);
+// Each panel fetches on mount, so keeping the inactive ones mounted would fire
+// all three requests on every visit.
+// Exactly one panel is rendered, chosen from the tab. All three are imported, so
+// the test is that only the SELECTED one is ever instantiated.
+ok(
+  "only the active tab's panel is mounted",
+  /const Panel =[\s\S]{0,120}?AvailablePlates[\s\S]{0,120}?OffcutStock[\s\S]{0,120}?CuttingJobs/.test(hub) &&
+    /<Panel tabs=\{tabsNode\} \/>/.test(hub) &&
+    !/<AvailablePlates/.test(hub) && !/<OffcutStock/.test(hub) && !/<CuttingJobs/.test(hub),
+  "three mounted panels means three requests on every visit to the module",
+);
+
+// Neither feed can be a `resource/<doctype>` list: a plate's weight is on Serial
+// No, its heat on Batch and its size on Item, and an offcut's size is on a child
+// table -- which get_filter resolves against the PARENT meta and cross-joins.
+ok(
+  "both tab feeds go through the owning app, not a doctype list",
+  // Comments stripped: the note above these wrappers quotes
+  // `resource/<doctype>` as the thing being avoided.
+  /method\/\$\{AVAILABLE_PLATES_METHOD\}/.test(stripComments(offcutApiSrc)) &&
+    /method\/\$\{OFFCUT_STOCK_METHOD\}/.test(stripComments(offcutApiSrc)) &&
+    !/resource\//.test(stripComments(offcutApiSrc)),
+  "a plate needs a three-table join; a child-table filter from the browser cross-joins",
+);
+// A plate the server would refuse is not a link.
+ok(
+  "an uncuttable plate cannot be opened",
+  /if \(!row\.can_cut\) return;/.test(offcutAvailableSrc) &&
+    /can_cut/.test(offcutAvailableSrc),
+  "sending the operator into a form that cannot save is a dead end",
+);
+// The prefill is the whole point of the first tab.
+ok(
+  "clicking a plate opens the cut form with that plate already chosen",
+  /\/store\/plate-offcut\/new\?serial=\$\{encodeURIComponent\(row\.serial\)\}/.test(
+    offcutAvailableSrc,
+  ) && /useSearchParams/.test(offcutFormSrc) && /searchParams\.get\("serial"\)/.test(offcutFormSrc),
+  "without it the plate is chosen twice: once in the list, again in the form",
+);
+// A raw window.location read would miss a client-side navigation.
+ok(
+  "the prefill reads the router's query string, never window.location",
+  // offcutCode is the comment-stripped form source: the note explaining this
+  // rule names `window.location` as the thing it avoids.
+  !/window\.location/.test(offcutCode),
+  "the router owns the query string; a raw read misses a client-side navigation",
+);
+// An open detail panel naming a piece that is no longer listed reads as a bug.
+ok(
+  "the offcut detail panel closes when its row leaves the page",
+  /setSelected\(\(prev\) => \(prev && res\.pieces\.some/.test(offcutStockSrc),
+  "filtering or paging away would otherwise leave a panel describing an absent row",
+);
+
+// ---------------------------------------------------------------------------
+// House-standard list toolbar and tab chrome. Drift here is invisible.
+// ---------------------------------------------------------------------------
+// The module was written with a raw `<input type="search">` + Button, which was
+// then the ONLY such pattern in the entire codebase -- three occurrences, all in
+// these files. ActionBar is the shared toolbar: it debounces at 400ms, shows the
+// result count, and renders the header's page actions, none of which the raw
+// input could do.
+const offcutPanelSrcs = [offcutAvailableSrc, offcutStockSrc, offcutListSrc];
+ok(
+  "every tab panel uses the shared ActionBar, not a hand-rolled search box",
+  offcutPanelSrcs.every(
+    (src) => /from "\.\.\/\.\.\/\.\.\/components\/ActionBar"/.test(src),
+  ) && offcutPanelSrcs.every((src) => !/type="search"/.test(src)),
+  "ActionBar debounces, shows the result count and hosts the header actions; a raw input does none of that",
+);
+ok(
+  "no panel keeps the search/applied split that ActionBar makes redundant",
+  offcutPanelSrcs.every((src) => !/\bapplied\b/.test(src)) &&
+    offcutPanelSrcs.every((src) => !/onKeyDown/.test(src)),
+  "ActionBar emits the live value on a debounce, so Enter-to-apply and its Search button were two ways to do one thing",
+);
+// `onSearch` is where the page reset lives, since ActionBar no longer needs a
+// Search button to carry it.
+ok(
+  "searching resets to page one in every panel",
+  offcutPanelSrcs.every((src) => /onSearch=\{\(value\) => \{[\s\S]{0,120}?setPage\(1\)/.test(src)),
+  "otherwise page 4 of a previous search is simply out of range and the list reads as empty",
+);
+// The strip must match material-request's scope pills. It was a shadcn line tab
+// first, matching GenericForm -- but that is a FORM control; this is a list-page
+// control, and the app's convention there is PageToolbar's status pills. A line
+// tab here reads as a different control from the status filters beside it.
+const mrListSrc = readSrc("../../src/pages/Store/material-request/list/index.jsx");
+const pillBtnOf = (src) =>
+  (src.match(/rounded-full px-3 py-1 text-xs font-medium transition-colors/) || [""])[0];
+const pillWrapOf = (src) =>
+  (src.match(/flex min-w-0 flex-wrap items-center gap-1\.5 pb-2/) || [""])[0];
+ok(
+  "the tab strip matches material-request's scope pills",
+  pillBtnOf(hub) !== "" && pillBtnOf(hub) === pillBtnOf(mrListSrc) &&
+    pillWrapOf(hub) !== "" && pillWrapOf(hub) === pillWrapOf(mrListSrc),
+  `got "${pillBtnOf(hub)}" -- a different treatment reads as a different control from the status filters elsewhere`,
+);
+ok(
+  "the active pill uses the app's active treatment, not an ad-hoc one",
+  /bg-primary\/15 text-primary ring-1 ring-primary\/40/.test(hub) &&
+    /text-chrome-muted hover:bg-muted hover:text-chrome-foreground/.test(hub),
+  "these are the two states PageToolbar and material-request both paint",
+);
+// ListLayout draws `tabs` as a strip inside its own card, so the hub must hand
+// it DOWN rather than wrap the panels -- a hub-level card plus a panel-level
+// card is two nested elevated cards, and dropping the prop loses the strip.
+ok(
+  "the strip is handed down to the mounted panel, not wrapped around it",
+  offcutPanelSrcs.every((src) => /\(\{ tabs \}\)/.test(src)) &&
+    offcutPanelSrcs.every((src) => /tabs=\{tabs\}/.test(src)) &&
+    !/<ListLayout[^>]*>\s*<AvailablePlates/.test(hub),
+  "two nested cards is the failure this avoids",
+);
+// A tab is chosen by URL, so it must be validated: an unrecognised value must
+// fall back rather than render a panel that does not exist.
+ok(
+  "the tab is URL-backed AND validated against the known set",
+  /useSearchParams/.test(hub) && /TABS\.includes\(raw\)/.test(hub) &&
+    /\{ replace: true \}/.test(hub),
+  "replace:true keeps the back button for leaving the module, not for tab clicks",
+);
+
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

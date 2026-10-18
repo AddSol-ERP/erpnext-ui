@@ -1,672 +1,693 @@
 {
-	"store": {
-		"hub": {
-			"subtitle": "قدّم طلباً، أو سلّم مواد، أو تحقّق من المخزون"
-		},
-		"purposes": {
-			"indent": {
-				"title": "رفع طلب عدة (إندنت)",
-				"description": "اطلب من المخزن المواد التي تحتاجها لتنفيذ عمل"
-			},
-			"purchase": {
-				"title": "اطلب الشراء",
-				"description": "اطلب مادة غير متوفرة في المخزن"
-			},
-			"transfer": {
-				"title": "نقل المواد بين المخازن",
-				"description": "انقل المواد من مخزن إلى آخر"
-			},
-			"production": {
-				"title": "للإنتاج",
-				"description": "اطلب مواد للتصنيع استناداً إلى قائمة المواد"
-			},
-			"customerProvided": {
-				"title": "مواد العميل",
-				"description": "مواد يوفرها العميل لتنفيذ أعمالنا"
-			}
-		},
-		"purposeGroupRequester": "أحتاج إلى شيء",
-		"purposeGroupStore": "أنا مسؤول عن المخزن",
-		"purposeGroupLookup": "الاستعلامات",
-		"scopes": {
-			"all": "الكل",
-			"project": "طلبات المشاريع",
-			"general": "طلبات عامة"
-		},
-		"giveItems": {
-			"title": "تسليم المواد",
-			"description": "سلّم المواد للطلبات المرفوعة من الآخرين",
-			"empty": "لا توجد طلبات في انتظار التسليم",
-			"outstanding": "المتبقي للتسليم",
-			"requested": "المطلوب",
-			"issued": "تم تسليمه",
-			"giveNow": "سلّم هذه",
-			"giveAll": "سلّم كل المتبقي",
-			"partialHint": "عدّل الكمية لتسليم جزء الآن والباقي لاحقاً",
-			"noWarehouse": "لا يوجد مستودع في هذا الطلب، لذلك تعذّر تحديد مصدر المواد",
-			"nothingToGive": "أدخل الكمية المراد تسليمها أولاً.",
-			"given": "تم إنشاء قيد المخزون {{name}} وتقديمه."
-		},
-		"getItems": {
-			"title": "جلب الأصناف",
-			"searchItem": "ابحث عن صنف بالاسم أو الرمز",
-			"selfHint": "اكتب الرمز ثم اضغط «إضافة». هذه أسرع طريقة عندما تعرف الصنف بالتحديد.",
-			"addItem": "إضافة صنف",
-			"willAdd": "سيتم إضافة {{count}} صنف:",
-			"useThese": "استخدام هذه",
-			"nothingToPick": "لا يوجد شيء متاح الآن",
-			"sources": {
-				"indent": {
-					"title": "من طلب معلق",
-					"description": "مواد طلبها شخص من المخزن"
-				},
-				"workOrder": {
-					"title": "من أمر تصنيع",
-					"description": "مواد لا يزال عمل الإنتاج يحتاجها"
-				},
-				"self": {
-					"title": "أعرف الأصناف",
-					"description": "أضفها واحداً تلو الآخر"
-				}
-			}
-		},
-		"receipt": {
-			"title": "استلام المواد",
-			"subtitle": "أدخل المواد التي سلّمها المورد إلى المخزن",
-			"description": "استلام ما سلّمه المورد",
-			"newTitle": "إيصال جديد",
-			"supplier": "المورد",
-			"postingDate": "التاريخ",
-			"acceptedWarehouse": "المستودع المستلَم",
-			"purchaseOrder": "أمر الشراء",
-			"receivedSoFar": "المستلَم",
-			"receive": "استلام",
-			"noOrders": "لا توجد أوامر شراء في انتظار الاستلام",
-			"withoutOrder": "استلام بدون أمر شراء",
-			"withoutOrderHint": "استخدمه عندما تصل المواد دون أمر. أضف الأصناف بنفسك.",
-			"draftReceipts": "مسودات الاستلام المحفوظة",
-			"draftReceiptsHint": "تابع إيصالاً حفظته ولم ترسله بعد.",
-			"noDraftReceipts": "لا توجد مسودات استلام محفوظة.",
-			"resumeDraft": "متابعة",
-			"lockedFromPo": "الصنف والمشروع والوحدة مأخوذة من أمر الشراء.",
-			"nothingOutstanding": "لا يوجد شيء متبقٍ في {{po}}. تم استلام كل ما تم طلبه.",
-			"items": "الأصناف",
-			"noItems": "لا توجد أصناف بعد",
-			"acceptedQty": "الكمية المقبولة",
-			"rejectedQty": "الكمية المرفوضة",
-			"serialNumbers": "الأرقام التسلسلية ({{count}} × {{uom}})",
-			"serialAuto": "سيتم إنشاء {{count}} من الأرقام التسلسلية تلقائيًا. لا حاجة للكتابة.",
-			"serialTyped": "رقم تسلسلي واحد لكل سطر، بإجمالي {{count}}.",
-			"serialWillGenerate": "سيتم إنشاؤه من السلسلة {{series}}.",
-			"serialPlaceholder": "رقم تسلسلي واحد لكل سطر ({{count}} أسطر)",
-			"serialProgress": "تم إدخال {{entered}} من {{expected}}",
-			"perSerialWeight": "الوزن لكل رقم تسلسلي",
-			"perSerialValue": "القيمة لكل رقم تسلسلي",
-			"batchNo": "الدفعة",
-			"batchAuto": "سيتم إنشاؤه من السلسلة {{series}}.",
-			"batchWillGenerate": "سيتم إنشاء رقم الدفعة تلقائيًا.",
-			"batchPlaceholder": "رقم الدفعة",
-			"rate": "السعر",
-			"plateDetails": "تفاصيل استلام الألواح",
-			"supplierWeight": "وزن المورد (Kg)",
-			"theoreticalWeightPerPlate": "الوزن النظري لكل لوح (Kg)",
-			"estimatedWeight": "الوزن التقديري (Kg)",
-			"weightVariance": "التفاوت %",
-			"tolerance": "الحد {{value}}%",
-			"acceptedWeight": "الوزن المقبول (Kg)",
-			"weightPerPlate": "الوزن لكل لوح (Kg)",
-			"standardRate": "السعر (INR)",
-			"lineAmount": "المبلغ (INR)",
-			"weightDecision": "قرار الوزن",
-			"chooseWeightDecision": "اختر كيفية قبول الوزن",
-			"acceptSupplierWeight": "قبول وزن المورد",
-			"acceptEstimatedWeight": "قبول الوزن التقديري",
-			"acceptWeighbridgeWeight": "قبول وزن الميزان",
-			"weighbridgeWeight": "وزن الميزان (Kg)",
-			"weightApprovalRequired": "الوزن خارج الحد المسموح. يجب أن يراجعه معتمد قبل الإرسال.",
-			"ratePerKg": "السعر لكل Kg",
-			"heatNumber": "رقم الصهرة",
-			"mtcNumber": "رقم MTC (اختياري)",
-			"rateDiffers": "تم الطلب بسعر {{rate}}",
-			"stockUom": "{{qty}} {{uom}}",
-			"inStockUom": "في المخزون",
-			"factor": "معامل",
-			"validation": {
-				"totalRequired": "أدخل إجمالي {{uom}} الذي استلمته",
-				"totalInvalid": "أدخل إجمالي {{uom}} صالح",
-				"supplierRequired": "اختر مورداً",
-				"dateRequired": "أدخل تاريخاً",
-				"dateFuture": "لا يمكن أن يكون التاريخ في المستقبل",
-				"addItem": "أضف صنفاً واحداً على الأقل",
-				"pickItem": "اختر صنفاً في كل صف",
-				"duplicatePoRow": "يظهر سطر أمر الشراء نفسه مرتين",
-				"rateRequired": "أدخل سعراً في كل صف",
-				"plateSupplierWeightRequired": "أدخل وزن المورد لكل صف ألواح",
-				"plateHeatRequired": "أدخل رقم الصهرة لكل صف ألواح",
-				"plateRateRequired": "أدخل السعر لكل Kg لكل صف ألواح",
-				"plateDecisionRequired": "اختر قرار الوزن لكل صف ألواح خارج الحد",
-				"plateApproverRequired": "يجب أن يقرر معتمد مخول بشأن هذا الصف",
-				"plateWeighbridgeRequired": "أدخل وزن الميزان لهذا القرار",
-				"plateLookupFailed": "تعذر التحقق من تطبيق قواعد وزن الألواح على هذا الصنف. أعد المحاولة قبل الإرسال.",
-				"warehouseRequired": "اختر مستودعاً في كل صف",
-				"serialNeedsQty": "أدخل الوزن الإجمالي لحساب عدد الأرقام التسلسلية.",
-				"serialNeedsPositiveQty": "يجب أن يكون الوزن الإجمالي أكبر من صفر لإنشاء أرقام تسلسلية.",
-				"serialWholeStockQty": "العنصر المُرقّم يحتاج وزنًا إجماليًا صحيحًا — رقم تسلسلي لكل {{uom}}، ولا يمكن لكسر {{uom}} أن يحمل رقمه. قرّب إلى أقرب {{uom}} صحيح.",
-				"serialCountMismatch": "أدخل {{expected}} رقمًا تسلسليًا، واحد لكل سطر ({{entered}} حتى الآن).",
-				"serialDuplicate": "تم إدخال رقم تسلسلي مرتين. يجب أن يكون كل رقم فريدًا.",
-				"batchRequired": "هذا العنصر مُرقّم بالدفعات، لذا رقم الدفعة مطلوب.",
-				"wholeNumberUom": "{{uom}} يجب أن يكون عدداً صحيحاً"
-			},
-			"picker": {
-				"pickFirst": "اختر بندًا لإكماله",
-				"title": "إضافة أصناف للاستلام",
-				"search": "ابحث بالاسم أو الرمز أو المستودع",
-				"count": "عرض {{shown}} من {{total}} سطر",
-				"added": "تمت الإضافة",
-				"noMatch": "لا يوجد سطر مطابق",
-				"itemSubtitle": "{{name}}"
-			},
-			"receivedUom": "الاستلام بوحدة",
-			"uomFromPo": "يجب أن يطابق أمر الشراء. أنشئ الأمر في الوحدة التي تريد العد بها.",
-			"conversion": "التحويل ({{from}} إلى {{to}})",
-			"oneOf": "1 {{from}}",
-			"equals": "= {{factor}} {{to}}",
-			"thisDelivery": "هذا التسليم",
-			"uomPickHint": "الوحدة التي تعدّ بها",
-			"qtyIn": "الكمية ({{uom}})",
-			"receivingOf": "استلام {{qty}} من {{pending}} {{uom}} المتبقية — يبقى الباقي مفتوحاً على الطلب.",
-			"receivingAll": "استلام كامل {{pending}} {{uom}} المتبقية. قلّلها للاستلام الجزئي.",
-			"driftWarning": "هذا {{factor}} ضعف معدل أمر الشراء. تحقق أن الوزن لهذا السطر فقط وليس了整个 التسليم.",
-			"totalIn": "إجمالي المستلم ({{uom}})",
-			"totalHint": "وزن الكمية كاملة أو قسها ثم نقسمها",
-			"basisMeasured": "من الوزن الذي قِسته",
-			"basisPo": "من أمر الشراء",
-			"basisUnresolved": "لا يوجد معدل تحويل بعد",
-			"totalInOptional": "المستلم إجمالاً ({{uom}}، اختياري)",
-			"totalHintOptional": "اتركه فارغاً لاستخدام معدل أمر الشراء {{factor}} {{uom}}. أدخله فقط إذا اختلف التسليم.",
-			"stockQtyIn": "كمية المخزون ({{uom}})",
-			"perEach": "= {{factor}} {{uom}} لكل قطعة",
-			"rateFromPo": "محددة من أمر الشراء",
-			"wholeNumberNote": "لا يمكن أن تكون {{uom}} كسرية",
-			"progress": "تم استلام {{picked}} من {{total}}",
-			"addedLines": "أصناف هذه الإيصال",
-			"noLinesYet": "لم تتم إضافة شيء بعد. اختر الأصناف التي تستلمها.",
-			"addFromPo": "إضافة أصناف",
-			"editLine": "تعديل",
-			"uomLookupFailed": "تعذّر تحميل معلومات الوحدة",
-			"deleteDraftTitle": "حذف مسودة الإيصال؟",
-			"submittedReceipts": "إيصالات الشراء المقدمة",
-			"submittedReceiptsHint": "افتح إيصالًا مقدمًا لمراجعة تفاصيله.",
-			"noSubmittedReceipts": "لا توجد إيصالات شراء مقدمة.",
-			"viewReceipt": "عرض",
-			"submittedReceiptReadOnly": "الإيصال {{name}} مقدم · للقراءة فقط.",
-			"totalEstimatedWeight": "إجمالي الوزن التقديري (Kg)",
-			"totalAcceptedWeight": "إجمالي الوزن المقبول (Kg)",
-			"receiveQueueTab": "بانتظار الاستلام",
-			"draftsTab": "مسودات",
-			"submittedTab": "مقدمة"
-		},
-		"projectItems": {
-			"title": "مواد المشروع {{project}}",
-			"chooseProject": "اختر مشروعاً",
-			"chooseBom": "اختر صنفاً",
-			"noBom": "لا توجد قائمة مواد مرتبطة بالمشروع {{project}} بعد. اربط واحدة من «قائمة المواد» في وحدة المخزن، أو امسح المشروع لاختيار المواد بنفسك.",
-			"filledFromBom": "تم تعبئة {{added}} من {{total}} عنصرًا من قائمة المواد الخاصة بـ {{project}}.",
-			"allPresent": "كل عناصر قائمة المواد الخاصة بـ {{project}} موجودة بالفعل في هذا الطلب.",
-			"noBomShort": "لا توجد قائمة مواد مرتبطة",
-			"required": "المطلوب",
-			"requestedQty": "تم طلبه سابقاً",
-			"outstanding": "ما زال مطلوباً",
-			"loadFailed": "تعذّرت قراءة قائمة المواد لهذا المشروع",
-			"hint": "أدخل مشروعاً في أحد الصفوف لاختيار المواد من قائمته. اتركه فارغاً للبحث عن أي مادة."
-		},
-		"movements": {
-			"title": "حركات المخزون",
-			"subtitle": "كل أنواع حركات المخزون، مجمّعة حسب ما تقوم به",
-			"groups": {
-				"everyday": "المخزن اليومي",
-				"manufacturing": "التصنيع",
-				"correction": "التصحيحات والتعاقد الخارجي"
-			},
-			"purposes": {
-				"issue": {
-					"title": "صرف مواد",
-					"description": "صرف مخزون لشخص أو عمل أو موقع"
-				},
-				"receipt": {
-					"title": "استلام مواد",
-					"description": "إدخال مواد إلى المخزن"
-				},
-				"transfer": {
-					"title": "النقل بين المخازن",
-					"description": "انقل المخزون من مخزن إلى آخر"
-				},
-				"transferForManufacture": {
-					"title": "إلى الإنتاج",
-					"description": "انقل المواد الخام إلى مخزن الإنتاج الجاري"
-				},
-				"consumption": {
-					"title": "الاستهلاك في الإنتاج",
-					"description": "تسجيل المواد الخام المستهلكة في العمل"
-				},
-				"manufacture": {
-					"title": "تسجيل الإنتاج",
-					"description": "استلام مواد خام وتسجيل تامّع المنتج المنجز"
-				},
-				"repack": {
-					"title": "إعادة التعبئة",
-					"description": "تغيير التعبئة دون تغيير الكمية"
-				},
-				"disassemble": {
-					"title": "تفكيك",
-					"description": "تفكيك تجميعة إلى مكوناتها"
-				},
-				"subcontractor": {
-					"title": "إرسال إلى مقاول باطن",
-					"description": "إرسال مواد للمعالجة الخارجية"
-				}
-			}
-		},
-		"labels": {
-			"purpose": "الغرض",
-			"requiredBy": "المطلوب بحلول",
-			"conversionFactor": "معامل التحويل",
-			"sourceWarehouse": "مستودع المصدر",
-			"targetWarehouse": "المستودع الهدف",
-			"item": "الصنف",
-			"items": "الأصناف",
-			"project": "المشروع",
-			"projectOptional": "المشروع (اختياري)",
-			"workOrder": "أمر التصنيع"
-		},
-		"tiles": {
-			"stockEntry": {
-				"title": "قيد المخزون",
-				"description": "صرف واستلام وتحويل المواد"
-			},
-			"materialRequest": {
-				"title": "طلب مواد",
-				"description": "طلب المواد الخام"
-			},
-			"delivery": {
-				"title": "التسليم / الشحن",
-				"description": "إدارة المواد الصادر"
-			},
-			"stockBalance": {
-				"title": "رصيد المخزون",
-				"description": "عرض توفر المخزون"
-			},
-			"itemMaster": {
-				"title": "بطاقة الأصناف",
-				"description": "إدارة الأصناف والمتغيرات"
-			},
-			"warehouse": {
-				"title": "المستودع",
-				"description": "إدارة المستودعات"
-			},
-			"stockReconciliation": {
-				"title": "تسوية المخزون",
-				"description": "تسوية كميات المخزون"
-			},
-			"bom": {
-				"title": "قائمة المواد",
-				"description": "اربط قائمة مواد بمشروع"
-			},
-			"plateOffcut": {
-				"title": "قطع الألواح",
-				"description": "قطع لوح إلى أجزاء؛ يُرحّل قيد مخزون إعادة تعبئة"
-			}
-		},
-		"mr": {
-			"title": "طلبات المواد",
-			"subtitle": "تتبع وإدارة جميع طلبات المواد",
-			"tiles": {
-				"purchase": {
-					"title": "طلب شراء",
-					"description": "طلب أصناف للشراء"
-				},
-				"transfer": {
-					"title": "تحويل مواد",
-					"description": "نقل المخزون بين المستودعات"
-				},
-				"issue": {
-					"title": "صرف مواد",
-					"description": "صرف المواد للاستخدام"
-				},
-				"receipt": {
-					"title": "استلام مواد",
-					"description": "استلام المواد"
-				},
-				"customerProvided": {
-					"title": "مقدم من العميل",
-					"description": "مواد يوفرها العميل"
-				}
-			},
-			"listTitle": "طلبات {{type}}",
-			"listSubtitle": "تتبع وإدارة الطلبات",
-			"empty": "لم يتم العثور على طلبات مواد",
-			"newTitle": "طلب مواد جديد",
-			"subtitleSubmitted": "{{type}} • مُرسل",
-			"subtitleDraft": "{{type}} • مسودة",
-			"createSubtitle": "إنشاء {{type}}",
-			"form": {
-				"project": "المشروع",
-				"items": "الأصناف",
-				"select": "اختيار"
-			},
-			"unknownPurpose": "نوع الطلب هذا غير متاح.",
-			"allTitle": "جميع الطلبات"
-		},
-		"status": {
-			"draft": "مسودة",
-			"submitted": "مُرسل",
-			"cancelled": "ملغى",
-			"completed": "مكتمل",
-			"toBill": "لفوترة",
-			"stopped": "متوقف"
-		},
-		"filters": {
-			"customer": "العميل",
-			"company": "الشركة",
-			"item": "الصنف",
-			"warehouse": "المستودع",
-			"fromDate": "من تاريخ",
-			"toDate": "إلى تاريخ"
-		},
-		"types": {
-			"purchase": "شراء",
-			"transfer": "تحويل",
-			"materialIssue": "صرف مواد",
-			"materialReceipt": "استلام مواد",
-			"customerProvided": "مقدم من العميل"
-		},
-		"form": {
-			"type": "النوع",
-			"company": "الشركة",
-			"customer": "العميل",
-			"scheduleDate": "تاريخ الجدولة",
-			"item": "الصنف",
-			"qty": "الكمية",
-			"uom": "وحدة القياس",
-			"stockUom": "وحدة قياس المخزون",
-			"conv": "معامل التحويل",
-			"source": "المصدر",
-			"warehouse": "المستودع",
-			"schedule": "الجدولة",
-			"postingDate": "تاريخ الترحيل",
-			"defaultWarehouse": "المستودع الافتراضي",
-			"driver": "السائق",
-			"vehicleNo": "رقم المركبة",
-			"transporter": "ناقل البضائع",
-			"lrNumber": "رقم إذن الشحن",
-			"items": "الأصناف",
-			"getItems": "جلب الأصناف",
-			"dispatch": "الشحن",
-			"basics": "المعلومات الأساسية",
-			"purpose": "الغرض",
-			"requiredBy": "المطلوب بحلول"
-		},
-		"validation": {
-			"typeRequired": "النوع مطلوب",
-			"companyRequired": "الشركة مطلوبة",
-			"customerRequired": "العميل مطلوب",
-			"uomRequired": "وحدة القياس مطلوبة",
-			"invalidConversion": "معامل تحويل غير صالح",
-			"addAtLeastOneItem": "أضف صنفاً واحداً على الأقل",
-			"addItems": "أضف الأصناف",
-			"fillItemRows": "املأ صفوف الأصناف",
-			"fillAllRows": "املأ جميع صفوف الأصناف",
-			"qtyGtZero": "يجب أن تكون الكمية أكبر من 0",
-			"fromToWarehouseRequired": "مستودعا المصدر والوجهة مطلوبان",
-			"sameWarehouse": "لا يمكن أن يكون مستودع المصدر والهدف نفسهما",
-			"warehouseRequired": "المستودع مطلوب"
-		},
-		"dn": {
-			"title": "أذونات التسليم",
-			"subtitle": "الشحن وتتبع التسليم",
-			"empty": "لم يتم العثور على أذونات تسليم",
-			"editTitle": "تسليم {{name}}",
-			"newTitle": "تسليم جديد",
-			"formSubtitle": "شحن البضائع"
-		},
-		"balance": {
-			"title": "رصيد المخزون",
-			"subtitle": "حالة المخزون اللحظية",
-			"empty": "لا يوجد مخزون متاح",
-			"value": "القيمة",
-			"fromDate": "من تاريخ",
-			"toDate": "إلى تاريخ",
-			"opening": "الرصيد الافتتاحي",
-			"inQty": "وارد",
-			"outQty": "منصرف",
-			"closing": "الرصيد",
-			"reserved": "محجوز",
-			"free": "متاح",
-			"rate": "السعر",
-			"projected": "متوقع",
-			"valuationAsOf": "القيمة معروضة حسب اليوم",
-			"performanceWarning": "ضيّق النتائج بصنف أو مستودع — القائمة الكاملة تشمل كل سجلات الحركات.",
-			"trail": "سجل الحركات",
-			"noMovements": "لا حركات في هذه الفترة",
-			"showTrail": "اعرض مصدر هذه المخزون",
-			"incomingRate": "سعر الوارد",
-			"outgoingRate": "سعر المنصرف",
-			"runningBalance": "الرصيد بعد",
-			"balanceQty": "الرصيد",
-			"serial": "الرقم التسلسلي",
-			"batch": "الدفعة",
-			"batchPermission": "تفاصيل الدفعة والرقم التسلسلي تتطلب صلاحية على Serial and Batch Entry",
-			"noBatchOnThisLine": "غير متتبع بالدفعة أو الرقم التسلسلي",
-			"truncated": "توجد حركات أخرى — قيّد التواريخ لرؤية الباقي"
-		},
-		"source": {
-			"loadItems": "تحميل الأصناف",
-			"load": "تحميل",
-			"selectSourceType": "اختر نوع المصدر",
-			"searchDocument": "بحث في المستند...",
-			"selectTypeFirst": "اختر النوع أولاً",
-			"noCustomer": "لا يوجد عميل",
-			"salesOrder": "أمر بيع",
-			"pickList": "قائمة الالتقاط",
-			"materialRequest": "طلب مواد",
-			"purchaseReceipt": "إيصال شراء",
-			"bom": "قائمة الخامات",
-			"bomShort": "BOM",
-			"purchaseInvoice": "فاتورة شراء",
-			"itemMaster": "بطاقة الأصناف",
-			"onlyQcPassed": "الأصناف المطابقة للفحص فقط",
-			"qcDone": "تم الفحص",
-			"sourceType": "نوع المصدر",
-			"selectDocument": "اختر المستند"
-		},
-		"entry": {
-			"title": "قيد المخزون",
-			"subtitleDefault": "عمليات مخزون سريعة",
-			"subtitleReceipt": "وارد → {{warehouse}}",
-			"subtitleIssue": "صادر ← {{warehouse}}",
-			"subtitleTransfer": "{{from}} → {{to}}",
-			"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
-			"subtitleManufacture": "تصنيع @ {{warehouse}}",
-			"subtitleRepack": "إعادة تعبئة @ {{warehouse}}",
-			"subtitleConsume": "استهلاك ← {{warehouse}}",
-			"selectWarehouse": "اختر مستودعاً",
-			"from": "من",
-			"to": "إلى",
-			"actions": {
-				"getItems": "جلب الأصناف",
-				"clear": "مسح"
-			},
-			"basicConfig": "الإعدادات الأساسية",
-			"collapse": "طي",
-			"expand": "توسيع",
-			"entryDate": "تاريخ القيد",
-			"entryTime": "وقت القيد",
-			"items": "الأصناف",
-			"get": "جلب",
-			"entryType": "نوع القيد",
-			"selectEntryType": "اختر نوع القيد",
-			"fromWarehouse": "مستودع المصدر",
-			"toWarehouse": "مستودع الوجهة",
-			"selectFromWarehouse": "اختر مستودع المصدر",
-			"selectToWarehouse": "اختر مستودع الوجهة",
-			"scanPlaceholder": "امسح الصنف أو أدخله",
-			"totalQty": "إجمالي الكمية",
-			"submitEntry": "إرسال القيد",
-			"modes": {
-				"incoming": "وارد",
-				"outgoing": "صادر",
-				"transfer": "تحويل",
-				"adjustment": "تسوية"
-			},
-			"createdToast": "تم إنشاء قيد المخزون: {{name}}",
-			"failedToast": "فشل قيد المخزون"
-		},
-		"entryTypes": {
-			"materialIssue": "صرف مواد",
-			"materialReceipt": "استلام مواد",
-			"materialTransfer": "تحويل مواد",
-			"manufacture": "تصنيع",
-			"repack": "إعادة تعبئة",
-			"disassemble": "تفكيك",
-			"sendToSubcontractor": "إرسال للمقاول من الباطن",
-			"materialTransferForMfg": "تحويل مواد للتصنيع",
-			"materialConsumptionForMfg": "استهلاك مواد للتصنيع"
-		},
-		"item": {
-			"outOfStock": "نفد المخزون",
-			"exceedsStock": "يتجاوز المخزون",
-			"lowStock": "مخزون منخفض",
-			"available": "متاح",
-			"willBeRemoved": "سيتم حذفه",
-			"willAdjust": "سيُعدّل إلى {{qty}}",
-			"emptyList": "لم تتم إضافة أصناف",
-			"itemName": "صنف {{code}}",
-			"increase": "زيادة الكمية",
-			"decrease": "تقليل الكمية",
-			"remove": "إزالة الصنف"
-		},
-		"fix": {
-			"title": "مشكلة مخزون",
-			"outOfStock": "{{count}} أصناف نفدت من المخزون.",
-			"more": "+ {{n}} أخرى...",
-			"removeItems": "إزالة الأصناف",
-			"adjustQty": "تعديل الكمية"
-		},
-		"submitModal": {
-			"title": "تأكيد قيد المخزون",
-			"project": "المشروع",
-			"workOrder": "أمر العمل",
-			"searchProject": "بحث عن مشروع",
-			"searchWorkOrder": "بحث عن أمر عمل"
-		},
-		"demo": {
-			"title": "نموذج شامل",
-			"subtitle": "عرض لجميع أنواع الحقول",
-			"sections": {
-				"basic": "حقول أساسية",
-				"text": "حقول نصية",
-				"dateTime": "التاريخ والوقت",
-				"selection": "التحديد",
-				"attachments": "المرفقات"
-			},
-			"age": "العمر",
-			"salary": "الراتب",
-			"description": "الوصف",
-			"datetime": "التاريخ والوقت",
-			"time": "الوقت",
-			"pending": "قيد الانتظار",
-			"closed": "مغلق",
-			"department": "القسم (رابط)",
-			"searchDepartment": "بحث عن قسم...",
-			"active": "نشط",
-			"uploadFile": "رفع ملف",
-			"chooseFile": "اختيار ملف",
-			"noFileSelected": "لم يتم اختيار ملف",
-			"itemCode": "رمز الصنف",
-			"rate": "السعر"
-		},
-		"returnStock": {
-			"title": "إرجاع المواد إلى المخزون",
-			"action": "إرجاع هذه المواد إلى المخزون",
-			"explainer": "تعود المواد المتبقية من مهمة إلى المخزن عبر إدخال مخزون واحد. لا يتم الحفظ حتى تؤكد.",
-			"whichItem": "ما المواد العائدة؟",
-			"useSameItem": "استخدام هذا الصنف",
-			"useSameItemHint": "يعود إلى رمزه الأصلي",
-			"createNewItem": "إنشاء صنف جديد",
-			"createNewItemHint": "المتبقي بمواصفة مختلفة",
-			"itemName": "اسم الصنف",
-			"itemGroup": "مجموعة الصنف",
-			"trackBatch": "تتبّع الدفعات",
-			"trackSerial": "تتبّع الأرقام التسلسلية",
-			"fromWarehouse": "من (أين هو الآن)",
-			"toWarehouse": "إلى (أين يعود)",
-			"qty": "الكمية ({{uom}})",
-			"batchNumber": "رقم الدفعة",
-			"serialNumbers": "الأرقام التسلسلية",
-			"serialNumbersHint": "رقم في كل سطر، أو مفصول بفواصل",
-			"serialPlaceholder": "SN001\nSN002",
-			"autoBatch": "سيتم إنشاء رقم دفعة جديد تلقائياً لهذا الصنف.",
-			"remarks": "ملاحظة (اختياري)",
-			"makesEntry": "ينشئ إدخال مخزون: {{from}} إلى {{to}}",
-			"confirm": "إرجاع إلى المخزون",
-			"done": "عاد {{item}} إلى المخزون ({{qty}}).",
-			"autoSerial": "سيتم إنشاء الأرقام التسلسلية تلقائياً لهذا الصنف."
-		},
-		"plateOffcut": {
-			"title": "قطع الألواح",
-			"listSubtitle": "قطع اللوح إلى أجزاء؛ ينشئ كل جزء قيد مخزون إعادة تعبئة",
-			"subtitle": "اختر اللوح وأدخل أبعاد القطع، وتُحتسب الأوزان تلقائيًا",
-			"newTitle": "قطعة لوح جديدة",
-			"number": "رقم القطعة",
-			"searchPlaceholder": "ابحث برقم القطعة…",
-			"emptyTitle": "لا توجد قطع ألواح بعد",
-			"emptyDescription": "اقطع لوحًا إلى أجزاء لتظهر هنا.",
-			"sourceSerial": "اللوح (الرقم التسلسلي)",
-			"sourceSerialHint": "يمكن قطع الألواح النشطة الموجودة في مستودع فقط",
-			"sourceItem": "الصنف المصدر",
-			"batch": "الدفعة المصدر",
-			"heatNumber": "رقم الفرن",
-			"warehouse": "المستودع",
-			"plateSize": "مقاس اللوح",
-			"plateWeight": "وزن اللوح",
-			"offcutsTitle": "الأجزاء",
-			"noOffcutsYet": "أضف جزءًا واحدًا على الأقل. تحويل اللوح بالكامل إلى خردة ليس عملية قطع.",
-			"length": "الطول (مم)",
-			"width": "العرض (مم)",
-			"pieces": "العدد",
-			"pieces_one": "قطعة واحدة",
-			"pieces_two": "قطعتان",
-			"pieces_few": "{{count}} قطع",
-			"pieces_many": "{{count}} قطعة",
-			"pieces_other": "{{count}} قطعة",
-			"weightEach": "كجم / قطعة",
-			"rowWeight": "وزن الصف",
-			"rowValue": "قيمة الصف",
-			"totalPieces": "إجمالي القطع",
-			"totalOffcutWeight": "وزن القطع",
-			"totalOffcutValue": "قيمة القطع",
-			"scrap": "الخردة",
-			"canvasTitle": "تخطيط اللوح",
-			"canvasIndicative": "تخطيط توضيحي — ليس خطة قطع",
-			"canvasNoGeometry": "اختر لوحًا لعرض تخطيط القطع.",
-			"canvasSummary_one": "{{plate}} · قطعة واحدة",
-			"canvasSummary_two": "{{plate}} · قطعتان",
-			"canvasSummary_few": "{{plate}} · {{pieces}} قطع",
-			"canvasSummary_many": "{{plate}} · {{pieces}} قطعة",
-			"canvasSummary_other": "{{plate}} · {{pieces}} قطعة",
-			"canvasOverflow_one": "قطعة واحدة لا تتسع",
-			"canvasOverflow_two": "قطعتان لا تتسعان",
-			"canvasOverflow_few": "{{count}} قطع لا تتسع",
-			"canvasOverflow_many": "{{count}} قطعة لا تتسع",
-			"canvasOverflow_other": "{{count}} قطعة لا تتسع",
-			"overBy": "مجموع الأجزاء يتجاوز وزن اللوح بمقدار {{kg}} كجم. لا يمكن الحفظ حتى تتسع.",
-			"errNoSerial": "اختر اللوح الذي تقطعه.",
-			"errNoOffcuts": "أضف جزءًا واحدًا على الأقل.",
-			"errRowSize": "يحتاج الصف {{row}} إلى طول وعرض معًا.",
-			"submittedReadOnly": "{{name}} مُرسل ولا يمكن تعديله.",
-			"backToList": "العودة إلى القائمة",
-			"submitTitle": "إرسال هذه القطعة؟",
-			"submitMessage": "الإرسال يُنشئ أصناف القطع والدفعات والأرقام التسلسلية، ويرحّل قيد مخزون إعادة تعبئة. سيؤدي ذلك إلى تغيير المخزون."
-		}
-	}
+  "store": {
+    "hub": {
+      "subtitle": "قدّم طلباً، أو سلّم مواد، أو تحقّق من المخزون"
+    },
+    "purposes": {
+      "indent": {
+        "title": "رفع طلب عدة (إندنت)",
+        "description": "اطلب من المخزن المواد التي تحتاجها لتنفيذ عمل"
+      },
+      "purchase": {
+        "title": "اطلب الشراء",
+        "description": "اطلب مادة غير متوفرة في المخزن"
+      },
+      "transfer": {
+        "title": "نقل المواد بين المخازن",
+        "description": "انقل المواد من مخزن إلى آخر"
+      },
+      "production": {
+        "title": "للإنتاج",
+        "description": "اطلب مواد للتصنيع استناداً إلى قائمة المواد"
+      },
+      "customerProvided": {
+        "title": "مواد العميل",
+        "description": "مواد يوفرها العميل لتنفيذ أعمالنا"
+      }
+    },
+    "purposeGroupRequester": "أحتاج إلى شيء",
+    "purposeGroupStore": "أنا مسؤول عن المخزن",
+    "purposeGroupLookup": "الاستعلامات",
+    "scopes": {
+      "all": "الكل",
+      "project": "طلبات المشاريع",
+      "general": "طلبات عامة"
+    },
+    "giveItems": {
+      "title": "تسليم المواد",
+      "description": "سلّم المواد للطلبات المرفوعة من الآخرين",
+      "empty": "لا توجد طلبات في انتظار التسليم",
+      "outstanding": "المتبقي للتسليم",
+      "requested": "المطلوب",
+      "issued": "تم تسليمه",
+      "giveNow": "سلّم هذه",
+      "giveAll": "سلّم كل المتبقي",
+      "partialHint": "عدّل الكمية لتسليم جزء الآن والباقي لاحقاً",
+      "noWarehouse": "لا يوجد مستودع في هذا الطلب، لذلك تعذّر تحديد مصدر المواد",
+      "nothingToGive": "أدخل الكمية المراد تسليمها أولاً.",
+      "given": "تم إنشاء قيد المخزون {{name}} وتقديمه."
+    },
+    "getItems": {
+      "title": "جلب الأصناف",
+      "searchItem": "ابحث عن صنف بالاسم أو الرمز",
+      "selfHint": "اكتب الرمز ثم اضغط «إضافة». هذه أسرع طريقة عندما تعرف الصنف بالتحديد.",
+      "addItem": "إضافة صنف",
+      "willAdd": "سيتم إضافة {{count}} صنف:",
+      "useThese": "استخدام هذه",
+      "nothingToPick": "لا يوجد شيء متاح الآن",
+      "sources": {
+        "indent": {
+          "title": "من طلب معلق",
+          "description": "مواد طلبها شخص من المخزن"
+        },
+        "workOrder": {
+          "title": "من أمر تصنيع",
+          "description": "مواد لا يزال عمل الإنتاج يحتاجها"
+        },
+        "self": {
+          "title": "أعرف الأصناف",
+          "description": "أضفها واحداً تلو الآخر"
+        }
+      }
+    },
+    "receipt": {
+      "title": "استلام المواد",
+      "subtitle": "أدخل المواد التي سلّمها المورد إلى المخزن",
+      "description": "استلام ما سلّمه المورد",
+      "newTitle": "إيصال جديد",
+      "supplier": "المورد",
+      "postingDate": "التاريخ",
+      "acceptedWarehouse": "المستودع المستلَم",
+      "purchaseOrder": "أمر الشراء",
+      "receivedSoFar": "المستلَم",
+      "receive": "استلام",
+      "noOrders": "لا توجد أوامر شراء في انتظار الاستلام",
+      "withoutOrder": "استلام بدون أمر شراء",
+      "withoutOrderHint": "استخدمه عندما تصل المواد دون أمر. أضف الأصناف بنفسك.",
+      "draftReceipts": "مسودات الاستلام المحفوظة",
+      "draftReceiptsHint": "تابع إيصالاً حفظته ولم ترسله بعد.",
+      "noDraftReceipts": "لا توجد مسودات استلام محفوظة.",
+      "resumeDraft": "متابعة",
+      "lockedFromPo": "الصنف والمشروع والوحدة مأخوذة من أمر الشراء.",
+      "nothingOutstanding": "لا يوجد شيء متبقٍ في {{po}}. تم استلام كل ما تم طلبه.",
+      "items": "الأصناف",
+      "noItems": "لا توجد أصناف بعد",
+      "acceptedQty": "الكمية المقبولة",
+      "rejectedQty": "الكمية المرفوضة",
+      "serialNumbers": "الأرقام التسلسلية ({{count}} × {{uom}})",
+      "serialAuto": "سيتم إنشاء {{count}} من الأرقام التسلسلية تلقائيًا. لا حاجة للكتابة.",
+      "serialTyped": "رقم تسلسلي واحد لكل سطر، بإجمالي {{count}}.",
+      "serialWillGenerate": "سيتم إنشاؤه من السلسلة {{series}}.",
+      "serialPlaceholder": "رقم تسلسلي واحد لكل سطر ({{count}} أسطر)",
+      "serialProgress": "تم إدخال {{entered}} من {{expected}}",
+      "perSerialWeight": "الوزن لكل رقم تسلسلي",
+      "perSerialValue": "القيمة لكل رقم تسلسلي",
+      "batchNo": "الدفعة",
+      "batchAuto": "سيتم إنشاؤه من السلسلة {{series}}.",
+      "batchWillGenerate": "سيتم إنشاء رقم الدفعة تلقائيًا.",
+      "batchPlaceholder": "رقم الدفعة",
+      "rate": "السعر",
+      "plateDetails": "تفاصيل استلام الألواح",
+      "supplierWeight": "وزن المورد (Kg)",
+      "theoreticalWeightPerPlate": "الوزن النظري لكل لوح (Kg)",
+      "estimatedWeight": "الوزن التقديري (Kg)",
+      "weightVariance": "التفاوت %",
+      "tolerance": "الحد {{value}}%",
+      "acceptedWeight": "الوزن المقبول (Kg)",
+      "weightPerPlate": "الوزن لكل لوح (Kg)",
+      "standardRate": "السعر (INR)",
+      "lineAmount": "المبلغ (INR)",
+      "weightDecision": "قرار الوزن",
+      "chooseWeightDecision": "اختر كيفية قبول الوزن",
+      "acceptSupplierWeight": "قبول وزن المورد",
+      "acceptEstimatedWeight": "قبول الوزن التقديري",
+      "acceptWeighbridgeWeight": "قبول وزن الميزان",
+      "weighbridgeWeight": "وزن الميزان (Kg)",
+      "weightApprovalRequired": "الوزن خارج الحد المسموح. يجب أن يراجعه معتمد قبل الإرسال.",
+      "ratePerKg": "السعر لكل Kg",
+      "heatNumber": "رقم الصهرة",
+      "mtcNumber": "رقم MTC (اختياري)",
+      "rateDiffers": "تم الطلب بسعر {{rate}}",
+      "stockUom": "{{qty}} {{uom}}",
+      "inStockUom": "في المخزون",
+      "factor": "معامل",
+      "validation": {
+        "totalRequired": "أدخل إجمالي {{uom}} الذي استلمته",
+        "totalInvalid": "أدخل إجمالي {{uom}} صالح",
+        "supplierRequired": "اختر مورداً",
+        "dateRequired": "أدخل تاريخاً",
+        "dateFuture": "لا يمكن أن يكون التاريخ في المستقبل",
+        "addItem": "أضف صنفاً واحداً على الأقل",
+        "pickItem": "اختر صنفاً في كل صف",
+        "duplicatePoRow": "يظهر سطر أمر الشراء نفسه مرتين",
+        "rateRequired": "أدخل سعراً في كل صف",
+        "plateSupplierWeightRequired": "أدخل وزن المورد لكل صف ألواح",
+        "plateHeatRequired": "أدخل رقم الصهرة لكل صف ألواح",
+        "plateRateRequired": "أدخل السعر لكل Kg لكل صف ألواح",
+        "plateDecisionRequired": "اختر قرار الوزن لكل صف ألواح خارج الحد",
+        "plateApproverRequired": "يجب أن يقرر معتمد مخول بشأن هذا الصف",
+        "plateWeighbridgeRequired": "أدخل وزن الميزان لهذا القرار",
+        "plateLookupFailed": "تعذر التحقق من تطبيق قواعد وزن الألواح على هذا الصنف. أعد المحاولة قبل الإرسال.",
+        "warehouseRequired": "اختر مستودعاً في كل صف",
+        "serialNeedsQty": "أدخل الوزن الإجمالي لحساب عدد الأرقام التسلسلية.",
+        "serialNeedsPositiveQty": "يجب أن يكون الوزن الإجمالي أكبر من صفر لإنشاء أرقام تسلسلية.",
+        "serialWholeStockQty": "العنصر المُرقّم يحتاج وزنًا إجماليًا صحيحًا — رقم تسلسلي لكل {{uom}}، ولا يمكن لكسر {{uom}} أن يحمل رقمه. قرّب إلى أقرب {{uom}} صحيح.",
+        "serialCountMismatch": "أدخل {{expected}} رقمًا تسلسليًا، واحد لكل سطر ({{entered}} حتى الآن).",
+        "serialDuplicate": "تم إدخال رقم تسلسلي مرتين. يجب أن يكون كل رقم فريدًا.",
+        "batchRequired": "هذا العنصر مُرقّم بالدفعات، لذا رقم الدفعة مطلوب.",
+        "wholeNumberUom": "{{uom}} يجب أن يكون عدداً صحيحاً"
+      },
+      "picker": {
+        "pickFirst": "اختر بندًا لإكماله",
+        "title": "إضافة أصناف للاستلام",
+        "search": "ابحث بالاسم أو الرمز أو المستودع",
+        "count": "عرض {{shown}} من {{total}} سطر",
+        "added": "تمت الإضافة",
+        "noMatch": "لا يوجد سطر مطابق",
+        "itemSubtitle": "{{name}}"
+      },
+      "receivedUom": "الاستلام بوحدة",
+      "uomFromPo": "يجب أن يطابق أمر الشراء. أنشئ الأمر في الوحدة التي تريد العد بها.",
+      "conversion": "التحويل ({{from}} إلى {{to}})",
+      "oneOf": "1 {{from}}",
+      "equals": "= {{factor}} {{to}}",
+      "thisDelivery": "هذا التسليم",
+      "uomPickHint": "الوحدة التي تعدّ بها",
+      "qtyIn": "الكمية ({{uom}})",
+      "receivingOf": "استلام {{qty}} من {{pending}} {{uom}} المتبقية — يبقى الباقي مفتوحاً على الطلب.",
+      "receivingAll": "استلام كامل {{pending}} {{uom}} المتبقية. قلّلها للاستلام الجزئي.",
+      "driftWarning": "هذا {{factor}} ضعف معدل أمر الشراء. تحقق أن الوزن لهذا السطر فقط وليس了整个 التسليم.",
+      "totalIn": "إجمالي المستلم ({{uom}})",
+      "totalHint": "وزن الكمية كاملة أو قسها ثم نقسمها",
+      "basisMeasured": "من الوزن الذي قِسته",
+      "basisPo": "من أمر الشراء",
+      "basisUnresolved": "لا يوجد معدل تحويل بعد",
+      "totalInOptional": "المستلم إجمالاً ({{uom}}، اختياري)",
+      "totalHintOptional": "اتركه فارغاً لاستخدام معدل أمر الشراء {{factor}} {{uom}}. أدخله فقط إذا اختلف التسليم.",
+      "stockQtyIn": "كمية المخزون ({{uom}})",
+      "perEach": "= {{factor}} {{uom}} لكل قطعة",
+      "rateFromPo": "محددة من أمر الشراء",
+      "wholeNumberNote": "لا يمكن أن تكون {{uom}} كسرية",
+      "progress": "تم استلام {{picked}} من {{total}}",
+      "addedLines": "أصناف هذه الإيصال",
+      "noLinesYet": "لم تتم إضافة شيء بعد. اختر الأصناف التي تستلمها.",
+      "addFromPo": "إضافة أصناف",
+      "editLine": "تعديل",
+      "uomLookupFailed": "تعذّر تحميل معلومات الوحدة",
+      "deleteDraftTitle": "حذف مسودة الإيصال؟",
+      "submittedReceipts": "إيصالات الشراء المقدمة",
+      "submittedReceiptsHint": "افتح إيصالًا مقدمًا لمراجعة تفاصيله.",
+      "noSubmittedReceipts": "لا توجد إيصالات شراء مقدمة.",
+      "viewReceipt": "عرض",
+      "submittedReceiptReadOnly": "الإيصال {{name}} مقدم · للقراءة فقط.",
+      "totalEstimatedWeight": "إجمالي الوزن التقديري (Kg)",
+      "totalAcceptedWeight": "إجمالي الوزن المقبول (Kg)",
+      "receiveQueueTab": "بانتظار الاستلام",
+      "draftsTab": "مسودات",
+      "submittedTab": "مقدمة"
+    },
+    "projectItems": {
+      "title": "مواد المشروع {{project}}",
+      "chooseProject": "اختر مشروعاً",
+      "chooseBom": "اختر صنفاً",
+      "noBom": "لا توجد قائمة مواد مرتبطة بالمشروع {{project}} بعد. اربط واحدة من «قائمة المواد» في وحدة المخزن، أو امسح المشروع لاختيار المواد بنفسك.",
+      "filledFromBom": "تم تعبئة {{added}} من {{total}} عنصرًا من قائمة المواد الخاصة بـ {{project}}.",
+      "allPresent": "كل عناصر قائمة المواد الخاصة بـ {{project}} موجودة بالفعل في هذا الطلب.",
+      "noBomShort": "لا توجد قائمة مواد مرتبطة",
+      "required": "المطلوب",
+      "requestedQty": "تم طلبه سابقاً",
+      "outstanding": "ما زال مطلوباً",
+      "loadFailed": "تعذّرت قراءة قائمة المواد لهذا المشروع",
+      "hint": "أدخل مشروعاً في أحد الصفوف لاختيار المواد من قائمته. اتركه فارغاً للبحث عن أي مادة."
+    },
+    "movements": {
+      "title": "حركات المخزون",
+      "subtitle": "كل أنواع حركات المخزون، مجمّعة حسب ما تقوم به",
+      "groups": {
+        "everyday": "المخزن اليومي",
+        "manufacturing": "التصنيع",
+        "correction": "التصحيحات والتعاقد الخارجي"
+      },
+      "purposes": {
+        "issue": {
+          "title": "صرف مواد",
+          "description": "صرف مخزون لشخص أو عمل أو موقع"
+        },
+        "receipt": {
+          "title": "استلام مواد",
+          "description": "إدخال مواد إلى المخزن"
+        },
+        "transfer": {
+          "title": "النقل بين المخازن",
+          "description": "انقل المخزون من مخزن إلى آخر"
+        },
+        "transferForManufacture": {
+          "title": "إلى الإنتاج",
+          "description": "انقل المواد الخام إلى مخزن الإنتاج الجاري"
+        },
+        "consumption": {
+          "title": "الاستهلاك في الإنتاج",
+          "description": "تسجيل المواد الخام المستهلكة في العمل"
+        },
+        "manufacture": {
+          "title": "تسجيل الإنتاج",
+          "description": "استلام مواد خام وتسجيل تامّع المنتج المنجز"
+        },
+        "repack": {
+          "title": "إعادة التعبئة",
+          "description": "تغيير التعبئة دون تغيير الكمية"
+        },
+        "disassemble": {
+          "title": "تفكيك",
+          "description": "تفكيك تجميعة إلى مكوناتها"
+        },
+        "subcontractor": {
+          "title": "إرسال إلى مقاول باطن",
+          "description": "إرسال مواد للمعالجة الخارجية"
+        }
+      }
+    },
+    "labels": {
+      "purpose": "الغرض",
+      "requiredBy": "المطلوب بحلول",
+      "conversionFactor": "معامل التحويل",
+      "sourceWarehouse": "مستودع المصدر",
+      "targetWarehouse": "المستودع الهدف",
+      "item": "الصنف",
+      "items": "الأصناف",
+      "project": "المشروع",
+      "projectOptional": "المشروع (اختياري)",
+      "workOrder": "أمر التصنيع"
+    },
+    "tiles": {
+      "stockEntry": {
+        "title": "قيد المخزون",
+        "description": "صرف واستلام وتحويل المواد"
+      },
+      "materialRequest": {
+        "title": "طلب مواد",
+        "description": "طلب المواد الخام"
+      },
+      "delivery": {
+        "title": "التسليم / الشحن",
+        "description": "إدارة المواد الصادر"
+      },
+      "stockBalance": {
+        "title": "رصيد المخزون",
+        "description": "عرض توفر المخزون"
+      },
+      "itemMaster": {
+        "title": "بطاقة الأصناف",
+        "description": "إدارة الأصناف والمتغيرات"
+      },
+      "warehouse": {
+        "title": "المستودع",
+        "description": "إدارة المستودعات"
+      },
+      "stockReconciliation": {
+        "title": "تسوية المخزون",
+        "description": "تسوية كميات المخزون"
+      },
+      "bom": {
+        "title": "قائمة المواد",
+        "description": "اربط قائمة مواد بمشروع"
+      },
+      "plateOffcut": {
+        "title": "قطع الألواح",
+        "description": "قطع لوح إلى أجزاء؛ يُرحّل قيد مخزون إعادة تعبئة"
+      }
+    },
+    "mr": {
+      "title": "طلبات المواد",
+      "subtitle": "تتبع وإدارة جميع طلبات المواد",
+      "tiles": {
+        "purchase": {
+          "title": "طلب شراء",
+          "description": "طلب أصناف للشراء"
+        },
+        "transfer": {
+          "title": "تحويل مواد",
+          "description": "نقل المخزون بين المستودعات"
+        },
+        "issue": {
+          "title": "صرف مواد",
+          "description": "صرف المواد للاستخدام"
+        },
+        "receipt": {
+          "title": "استلام مواد",
+          "description": "استلام المواد"
+        },
+        "customerProvided": {
+          "title": "مقدم من العميل",
+          "description": "مواد يوفرها العميل"
+        }
+      },
+      "listTitle": "طلبات {{type}}",
+      "listSubtitle": "تتبع وإدارة الطلبات",
+      "empty": "لم يتم العثور على طلبات مواد",
+      "newTitle": "طلب مواد جديد",
+      "subtitleSubmitted": "{{type}} • مُرسل",
+      "subtitleDraft": "{{type}} • مسودة",
+      "createSubtitle": "إنشاء {{type}}",
+      "form": {
+        "project": "المشروع",
+        "items": "الأصناف",
+        "select": "اختيار"
+      },
+      "unknownPurpose": "نوع الطلب هذا غير متاح.",
+      "allTitle": "جميع الطلبات"
+    },
+    "status": {
+      "draft": "مسودة",
+      "submitted": "مُرسل",
+      "cancelled": "ملغى",
+      "completed": "مكتمل",
+      "toBill": "لفوترة",
+      "stopped": "متوقف"
+    },
+    "filters": {
+      "customer": "العميل",
+      "company": "الشركة",
+      "item": "الصنف",
+      "warehouse": "المستودع",
+      "fromDate": "من تاريخ",
+      "toDate": "إلى تاريخ"
+    },
+    "types": {
+      "purchase": "شراء",
+      "transfer": "تحويل",
+      "materialIssue": "صرف مواد",
+      "materialReceipt": "استلام مواد",
+      "customerProvided": "مقدم من العميل"
+    },
+    "form": {
+      "type": "النوع",
+      "company": "الشركة",
+      "customer": "العميل",
+      "scheduleDate": "تاريخ الجدولة",
+      "item": "الصنف",
+      "qty": "الكمية",
+      "uom": "وحدة القياس",
+      "stockUom": "وحدة قياس المخزون",
+      "conv": "معامل التحويل",
+      "source": "المصدر",
+      "warehouse": "المستودع",
+      "schedule": "الجدولة",
+      "postingDate": "تاريخ الترحيل",
+      "defaultWarehouse": "المستودع الافتراضي",
+      "driver": "السائق",
+      "vehicleNo": "رقم المركبة",
+      "transporter": "ناقل البضائع",
+      "lrNumber": "رقم إذن الشحن",
+      "items": "الأصناف",
+      "getItems": "جلب الأصناف",
+      "dispatch": "الشحن",
+      "basics": "المعلومات الأساسية",
+      "purpose": "الغرض",
+      "requiredBy": "المطلوب بحلول"
+    },
+    "validation": {
+      "typeRequired": "النوع مطلوب",
+      "companyRequired": "الشركة مطلوبة",
+      "customerRequired": "العميل مطلوب",
+      "uomRequired": "وحدة القياس مطلوبة",
+      "invalidConversion": "معامل تحويل غير صالح",
+      "addAtLeastOneItem": "أضف صنفاً واحداً على الأقل",
+      "addItems": "أضف الأصناف",
+      "fillItemRows": "املأ صفوف الأصناف",
+      "fillAllRows": "املأ جميع صفوف الأصناف",
+      "qtyGtZero": "يجب أن تكون الكمية أكبر من 0",
+      "fromToWarehouseRequired": "مستودعا المصدر والوجهة مطلوبان",
+      "sameWarehouse": "لا يمكن أن يكون مستودع المصدر والهدف نفسهما",
+      "warehouseRequired": "المستودع مطلوب"
+    },
+    "dn": {
+      "title": "أذونات التسليم",
+      "subtitle": "الشحن وتتبع التسليم",
+      "empty": "لم يتم العثور على أذونات تسليم",
+      "editTitle": "تسليم {{name}}",
+      "newTitle": "تسليم جديد",
+      "formSubtitle": "شحن البضائع"
+    },
+    "balance": {
+      "title": "رصيد المخزون",
+      "subtitle": "حالة المخزون اللحظية",
+      "empty": "لا يوجد مخزون متاح",
+      "value": "القيمة",
+      "fromDate": "من تاريخ",
+      "toDate": "إلى تاريخ",
+      "opening": "الرصيد الافتتاحي",
+      "inQty": "وارد",
+      "outQty": "منصرف",
+      "closing": "الرصيد",
+      "reserved": "محجوز",
+      "free": "متاح",
+      "rate": "السعر",
+      "projected": "متوقع",
+      "valuationAsOf": "القيمة معروضة حسب اليوم",
+      "performanceWarning": "ضيّق النتائج بصنف أو مستودع — القائمة الكاملة تشمل كل سجلات الحركات.",
+      "trail": "سجل الحركات",
+      "noMovements": "لا حركات في هذه الفترة",
+      "showTrail": "اعرض مصدر هذه المخزون",
+      "incomingRate": "سعر الوارد",
+      "outgoingRate": "سعر المنصرف",
+      "runningBalance": "الرصيد بعد",
+      "balanceQty": "الرصيد",
+      "serial": "الرقم التسلسلي",
+      "batch": "الدفعة",
+      "batchPermission": "تفاصيل الدفعة والرقم التسلسلي تتطلب صلاحية على Serial and Batch Entry",
+      "noBatchOnThisLine": "غير متتبع بالدفعة أو الرقم التسلسلي",
+      "truncated": "توجد حركات أخرى — قيّد التواريخ لرؤية الباقي"
+    },
+    "source": {
+      "loadItems": "تحميل الأصناف",
+      "load": "تحميل",
+      "selectSourceType": "اختر نوع المصدر",
+      "searchDocument": "بحث في المستند...",
+      "selectTypeFirst": "اختر النوع أولاً",
+      "noCustomer": "لا يوجد عميل",
+      "salesOrder": "أمر بيع",
+      "pickList": "قائمة الالتقاط",
+      "materialRequest": "طلب مواد",
+      "purchaseReceipt": "إيصال شراء",
+      "bom": "قائمة الخامات",
+      "bomShort": "BOM",
+      "purchaseInvoice": "فاتورة شراء",
+      "itemMaster": "بطاقة الأصناف",
+      "onlyQcPassed": "الأصناف المطابقة للفحص فقط",
+      "qcDone": "تم الفحص",
+      "sourceType": "نوع المصدر",
+      "selectDocument": "اختر المستند"
+    },
+    "entry": {
+      "title": "قيد المخزون",
+      "subtitleDefault": "عمليات مخزون سريعة",
+      "subtitleReceipt": "وارد → {{warehouse}}",
+      "subtitleIssue": "صادر ← {{warehouse}}",
+      "subtitleTransfer": "{{from}} → {{to}}",
+      "subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+      "subtitleManufacture": "تصنيع @ {{warehouse}}",
+      "subtitleRepack": "إعادة تعبئة @ {{warehouse}}",
+      "subtitleConsume": "استهلاك ← {{warehouse}}",
+      "selectWarehouse": "اختر مستودعاً",
+      "from": "من",
+      "to": "إلى",
+      "actions": {
+        "getItems": "جلب الأصناف",
+        "clear": "مسح"
+      },
+      "basicConfig": "الإعدادات الأساسية",
+      "collapse": "طي",
+      "expand": "توسيع",
+      "entryDate": "تاريخ القيد",
+      "entryTime": "وقت القيد",
+      "items": "الأصناف",
+      "get": "جلب",
+      "entryType": "نوع القيد",
+      "selectEntryType": "اختر نوع القيد",
+      "fromWarehouse": "مستودع المصدر",
+      "toWarehouse": "مستودع الوجهة",
+      "selectFromWarehouse": "اختر مستودع المصدر",
+      "selectToWarehouse": "اختر مستودع الوجهة",
+      "scanPlaceholder": "امسح الصنف أو أدخله",
+      "totalQty": "إجمالي الكمية",
+      "submitEntry": "إرسال القيد",
+      "modes": {
+        "incoming": "وارد",
+        "outgoing": "صادر",
+        "transfer": "تحويل",
+        "adjustment": "تسوية"
+      },
+      "createdToast": "تم إنشاء قيد المخزون: {{name}}",
+      "failedToast": "فشل قيد المخزون"
+    },
+    "entryTypes": {
+      "materialIssue": "صرف مواد",
+      "materialReceipt": "استلام مواد",
+      "materialTransfer": "تحويل مواد",
+      "manufacture": "تصنيع",
+      "repack": "إعادة تعبئة",
+      "disassemble": "تفكيك",
+      "sendToSubcontractor": "إرسال للمقاول من الباطن",
+      "materialTransferForMfg": "تحويل مواد للتصنيع",
+      "materialConsumptionForMfg": "استهلاك مواد للتصنيع"
+    },
+    "item": {
+      "outOfStock": "نفد المخزون",
+      "exceedsStock": "يتجاوز المخزون",
+      "lowStock": "مخزون منخفض",
+      "available": "متاح",
+      "willBeRemoved": "سيتم حذفه",
+      "willAdjust": "سيُعدّل إلى {{qty}}",
+      "emptyList": "لم تتم إضافة أصناف",
+      "itemName": "صنف {{code}}",
+      "increase": "زيادة الكمية",
+      "decrease": "تقليل الكمية",
+      "remove": "إزالة الصنف"
+    },
+    "fix": {
+      "title": "مشكلة مخزون",
+      "outOfStock": "{{count}} أصناف نفدت من المخزون.",
+      "more": "+ {{n}} أخرى...",
+      "removeItems": "إزالة الأصناف",
+      "adjustQty": "تعديل الكمية"
+    },
+    "submitModal": {
+      "title": "تأكيد قيد المخزون",
+      "project": "المشروع",
+      "workOrder": "أمر العمل",
+      "searchProject": "بحث عن مشروع",
+      "searchWorkOrder": "بحث عن أمر عمل"
+    },
+    "demo": {
+      "title": "نموذج شامل",
+      "subtitle": "عرض لجميع أنواع الحقول",
+      "sections": {
+        "basic": "حقول أساسية",
+        "text": "حقول نصية",
+        "dateTime": "التاريخ والوقت",
+        "selection": "التحديد",
+        "attachments": "المرفقات"
+      },
+      "age": "العمر",
+      "salary": "الراتب",
+      "description": "الوصف",
+      "datetime": "التاريخ والوقت",
+      "time": "الوقت",
+      "pending": "قيد الانتظار",
+      "closed": "مغلق",
+      "department": "القسم (رابط)",
+      "searchDepartment": "بحث عن قسم...",
+      "active": "نشط",
+      "uploadFile": "رفع ملف",
+      "chooseFile": "اختيار ملف",
+      "noFileSelected": "لم يتم اختيار ملف",
+      "itemCode": "رمز الصنف",
+      "rate": "السعر"
+    },
+    "returnStock": {
+      "title": "إرجاع المواد إلى المخزون",
+      "action": "إرجاع هذه المواد إلى المخزون",
+      "explainer": "تعود المواد المتبقية من مهمة إلى المخزن عبر إدخال مخزون واحد. لا يتم الحفظ حتى تؤكد.",
+      "whichItem": "ما المواد العائدة؟",
+      "useSameItem": "استخدام هذا الصنف",
+      "useSameItemHint": "يعود إلى رمزه الأصلي",
+      "createNewItem": "إنشاء صنف جديد",
+      "createNewItemHint": "المتبقي بمواصفة مختلفة",
+      "itemName": "اسم الصنف",
+      "itemGroup": "مجموعة الصنف",
+      "trackBatch": "تتبّع الدفعات",
+      "trackSerial": "تتبّع الأرقام التسلسلية",
+      "fromWarehouse": "من (أين هو الآن)",
+      "toWarehouse": "إلى (أين يعود)",
+      "qty": "الكمية ({{uom}})",
+      "batchNumber": "رقم الدفعة",
+      "serialNumbers": "الأرقام التسلسلية",
+      "serialNumbersHint": "رقم في كل سطر، أو مفصول بفواصل",
+      "serialPlaceholder": "SN001\nSN002",
+      "autoBatch": "سيتم إنشاء رقم دفعة جديد تلقائياً لهذا الصنف.",
+      "remarks": "ملاحظة (اختياري)",
+      "makesEntry": "ينشئ إدخال مخزون: {{from}} إلى {{to}}",
+      "confirm": "إرجاع إلى المخزون",
+      "done": "عاد {{item}} إلى المخزون ({{qty}}).",
+      "autoSerial": "سيتم إنشاء الأرقام التسلسلية تلقائياً لهذا الصنف."
+    },
+    "plateOffcut": {
+      "title": "قطع الألواح",
+      "subtitle": "اختر اللوح وأدخل أبعاد القطع، وتُحتسب الأوزان تلقائيًا",
+      "newTitle": "قطعة لوح جديدة",
+      "number": "رقم القطعة",
+      "emptyTitle": "لا توجد قطع ألواح بعد",
+      "emptyDescription": "اقطع لوحًا إلى أجزاء لتظهر هنا.",
+      "sourceSerial": "اللوح (الرقم التسلسلي)",
+      "sourceSerialHint": "يمكن قطع الألواح النشطة الموجودة في مستودع فقط",
+      "sourceItem": "الصنف المصدر",
+      "batch": "الدفعة",
+      "heatNumber": "رقم الفرن",
+      "warehouse": "المستودع",
+      "plateSize": "المقاس (مم)",
+      "plateWeight": "وزن اللوح",
+      "offcutsTitle": "الأجزاء",
+      "noOffcutsYet": "أضف جزءًا واحدًا على الأقل. تحويل اللوح بالكامل إلى خردة ليس عملية قطع.",
+      "length": "الطول (مم)",
+      "width": "العرض (مم)",
+      "pieces": "العدد",
+      "weightEach": "كجم / قطعة",
+      "rowWeight": "وزن الصف",
+      "rowValue": "قيمة الصف",
+      "totalPieces": "إجمالي القطع",
+      "totalOffcutWeight": "وزن القطع",
+      "totalOffcutValue": "قيمة القطع",
+      "scrap": "الخردة",
+      "canvasTitle": "تخطيط اللوح",
+      "canvasIndicative": "تخطيط توضيحي — ليس خطة قطع",
+      "canvasNoGeometry": "اختر لوحًا لعرض تخطيط القطع.",
+      "overBy": "مجموع الأجزاء يتجاوز وزن اللوح بمقدار {{kg}} كجم. لا يمكن الحفظ حتى تتسع.",
+      "errNoSerial": "اختر اللوح الذي تقطعه.",
+      "errNoOffcuts": "أضف جزءًا واحدًا على الأقل.",
+      "errRowSize": "يحتاج الصف {{row}} إلى طول وعرض معًا.",
+      "submittedReadOnly": "{{name}} مُرسل ولا يمكن تعديله.",
+      "backToList": "العودة إلى القائمة",
+      "submitTitle": "إرسال هذه القطعة؟",
+      "submitMessage": "الإرسال يُنشئ أصناف القطع والدفعات والأرقام التسلسلية، ويرحّل قيد مخزون إعادة تعبئة. سيؤدي ذلك إلى تغيير المخزون.",
+      "serial": "اللوح",
+      "sourceWeight": "الوزن (كجم)",
+      "canCut": "جاهزة للتقطيع",
+      "cannotCut": "لا يمكن تقطيعها",
+      "noAvailablePlates": "لا توجد ألواح بانتظار التقطيع",
+      "noAvailablePlatesHint": "كل الألواح الموزونة في المخزون تم تقطيعها، أو لا يوجد وزن مسجل لأحدها.",
+      "offcutSerial": "مسلسل القطعة",
+      "offcutSize": "مقاس القطعة (مم)",
+      "fromPlate": "من لوح",
+      "grade": "الدرجة",
+      "theoreticalWeight": "النظري (كجم)",
+      "noOffcutStock": "لا توجد قطع في المخزون بعد",
+      "noOffcutStockHint": "اعتمد Plate Offcut وستظهر القطع الناتجة هنا.",
+      "offcutDetails": "تفاصيل القطعة",
+      "openCuttingJob": "فتح عملية التقطيع",
+      "hubSubtitle": "اقطع الألواح وشاهد ما نتج منها",
+      "canvasSummary": "{placed} موضوعة، {overflow} لن تتسع",
+      "canvasOverflow": "{count} قطعة أكبر من اللوح",
+      "tab": {
+        "available": "المتاح للتقطيع",
+        "stock": "مخزون القطع",
+        "jobs": "عمليات التقطيع"
+      },
+      "pieces_one": "قطعة واحدة",
+      "pieces_two": "قطعتان",
+      "pieces_few": "{{count}} قطع",
+      "pieces_many": "{{count}} قطعة",
+      "pieces_other": "{{count}} قطعة",
+      "canvasSummary_one": "{{plate}} · قطعة واحدة",
+      "canvasSummary_two": "{{plate}} · قطعتان",
+      "canvasSummary_few": "{{plate}} · {{pieces}} قطع",
+      "canvasSummary_many": "{{plate}} · {{pieces}} قطعة",
+      "canvasSummary_other": "{{plate}} · {{pieces}} قطعة",
+      "canvasOverflow_one": "قطعة واحدة لا تتسع",
+      "canvasOverflow_two": "قطعتان لا تتسعان",
+      "canvasOverflow_few": "{{count}} قطع لا تتسع",
+      "canvasOverflow_many": "{{count}} قطعة لا تتسع",
+      "canvasOverflow_other": "{{count}} قطعة لا تتسع"
+    }
+  }
 }

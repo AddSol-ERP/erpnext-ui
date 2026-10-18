@@ -1,663 +1,684 @@
 {
-	"store": {
-		"hub": {
-			"subtitle": "Raise a request, hand over material, or check what is in stock"
-		},
-		"purposes": {
-			"indent": {
-				"title": "Raise an Indent",
-				"description": "Ask the store for material you need for a job"
-			},
-			"purchase": {
-				"title": "Ask Purchase to Buy",
-				"description": "Request something the store does not have"
-			},
-			"transfer": {
-				"title": "Move Stock Between Stores",
-				"description": "Shift material from one store to another"
-			},
-			"production": {
-				"title": "For Production",
-				"description": "Request material to manufacture against a bill of materials"
-			},
-			"customerProvided": {
-				"title": "Customer's Material",
-				"description": "Material supplied by a customer for our work"
-			}
-		},
-		"purposeGroupRequester": "I need something",
-		"purposeGroupStore": "I keep the stock",
-		"purposeGroupLookup": "Lookups",
-		"scopes": {
-			"all": "All",
-			"project": "Project indents",
-			"general": "General indents"
-		},
-		"giveItems": {
-			"title": "Give Items",
-			"description": "Hand over material for indents raised by others",
-			"empty": "No indents are waiting for material",
-			"outstanding": "Still to give",
-			"requested": "Requested",
-			"issued": "Already given",
-			"giveNow": "Give this",
-			"giveAll": "Give everything outstanding",
-			"partialHint": "Change a quantity to hand over part of an indent now and the rest later",
-			"noWarehouse": "This request has no warehouse, so we cannot work out where the stock comes from",
-			"nothingToGive": "Enter a quantity to hand over first.",
-			"given": "Stock Entry {{name}} created and submitted."
-		},
-		"getItems": {
-			"title": "Get Items",
-			"searchItem": "Search for an item by name or code",
-			"selfHint": "Type a code and press Add. This is the quickest way when you know exactly what arrived.",
-			"addItem": "Add item",
-			"willAdd": "Will add {{count}} item(s):",
-			"useThese": "Use these",
-			"nothingToPick": "Nothing to pick from right now",
-			"sources": {
-				"indent": {
-					"title": "From a pending indent",
-					"description": "Material someone asked the store for"
-				},
-				"workOrder": {
-					"title": "From a work order",
-					"description": "Material a production job still needs"
-				},
-				"self": {
-					"title": "I know the items",
-					"description": "Add them one at a time"
-				}
-			}
-		},
-		"receipt": {
-			"title": "Receive Material",
-			"subtitle": "Receive what a supplier has delivered into the store",
-			"description": "Receive what a supplier has delivered",
-			"newTitle": "New Receipt",
-			"supplier": "Supplier",
-			"postingDate": "Date",
-			"acceptedWarehouse": "Accepted Warehouse",
-			"purchaseOrder": "Purchase Order",
-			"receivedSoFar": "Received",
-			"receive": "Receive",
-			"noOrders": "No purchase orders are waiting to be received",
-			"withoutOrder": "Receive without a Purchase Order",
-			"withoutOrderHint": "Use this when material arrives without an order. Add the items yourself.",
-			"draftReceipts": "Saved receipt drafts",
-			"draftReceiptsHint": "Continue a receipt you saved but have not submitted.",
-			"noDraftReceipts": "No saved receipt drafts.",
-			"resumeDraft": "Continue",
-			"lockedFromPo": "Item, project and unit come from the purchase order.",
-			"nothingOutstanding": "Nothing is outstanding on {{po}}. Everything ordered has already been received.",
-			"items": "Items",
-			"noItems": "No items yet",
-			"acceptedQty": "Accepted Qty",
-			"rejectedQty": "Rejected Qty",
-			"serialNumbers": "Serial numbers ({{count}} × {{uom}})",
-			"serialAuto": "{{count}} serial numbers will be created automatically. Nothing to type.",
-			"serialTyped": "One serial number per line, {{count}} in total.",
-			"serialWillGenerate": "Created from the series {{series}}.",
-			"serialPlaceholder": "One serial number per line ({{count}} lines)",
-			"serialProgress": "{{entered}} of {{expected}} entered",
-			"perSerialWeight": "Weight per serial",
-			"perSerialValue": "Value per serial",
-			"batchNo": "Batch",
-			"batchAuto": "Created from the series {{series}}.",
-			"batchWillGenerate": "A batch number will be created automatically.",
-			"batchPlaceholder": "Batch number",
-			"rate": "Rate",
-			"plateDetails": "Plate receipt details",
-			"supplierWeight": "Supplier weight (Kg)",
-			"theoreticalWeightPerPlate": "Theoretical weight per plate (Kg)",
-			"estimatedWeight": "Estimated weight (Kg)",
-			"weightVariance": "Variance %",
-			"tolerance": "limit {{value}}%",
-			"acceptedWeight": "Accepted weight (Kg)",
-			"weightPerPlate": "Weight per plate (Kg)",
-			"standardRate": "Rate (INR)",
-			"lineAmount": "Amount (INR)",
-			"weightDecision": "Weight decision",
-			"chooseWeightDecision": "Choose how to accept the weight",
-			"acceptSupplierWeight": "Accept supplier weight",
-			"acceptEstimatedWeight": "Accept estimated weight",
-			"acceptWeighbridgeWeight": "Accept weighbridge weight",
-			"weighbridgeWeight": "Weighbridge weight (Kg)",
-			"weightApprovalRequired": "Weight is outside tolerance. An authorized approver must review this line before submission.",
-			"ratePerKg": "Rate per Kg",
-			"heatNumber": "Heat number",
-			"mtcNumber": "MTC number (optional)",
-			"rateDiffers": "Ordered at {{rate}}",
-			"stockUom": "{{qty}} {{uom}}",
-			"inStockUom": "In stock",
-			"factor": "factor",
-			"validation": {
-				"totalRequired": "Enter the total {{uom}} you received",
-				"totalInvalid": "Enter a valid total {{uom}}",
-				"supplierRequired": "Choose a supplier",
-				"dateRequired": "Enter a date",
-				"dateFuture": "The date cannot be in the future",
-				"addItem": "Add at least one item",
-				"pickItem": "Pick an item on every row",
-				"duplicatePoRow": "The same purchase order line appears twice",
-				"rateRequired": "Enter a rate on every row",
-				"plateSupplierWeightRequired": "Enter the supplier weight for every plate line",
-				"plateHeatRequired": "Enter the heat number for every plate line",
-				"plateRateRequired": "Enter a rate per Kg for every plate line",
-				"plateDecisionRequired": "Choose a weight decision for every plate line outside tolerance",
-				"plateApproverRequired": "An authorized weight approver must decide this line",
-				"plateWeighbridgeRequired": "Enter the weighbridge weight for this decision",
-				"plateLookupFailed": "Could not verify whether this item uses plate weight rules. Retry before submitting.",
-				"warehouseRequired": "Choose a warehouse on every row",
-				"serialNeedsQty": "Enter the total weight so the serial count can be worked out.",
-				"serialNeedsPositiveQty": "Total weight must be more than zero to create serials.",
-				"serialWholeStockQty": "A serialised item needs a whole total weight — one serial per {{uom}}, and a fraction of a {{uom}} cannot have its own serial. Round to the nearest whole {{uom}}.",
-				"serialCountMismatch": "Enter {{expected}} serial numbers, one per line ({{entered}} so far).",
-				"serialDuplicate": "A serial number is listed twice. Each must be unique.",
-				"batchRequired": "This item is batched, so a batch number is required.",
-				"wholeNumberUom": "{{uom}} must be a whole number"
-			},
-			"picker": {
-				"pickFirst": "Pick a line to complete it",
-				"title": "Add items to receive",
-				"search": "Search by item name, code or warehouse",
-				"count": "{{shown}} of {{total}} lines shown",
-				"added": "Added",
-				"noMatch": "No matching line",
-				"itemSubtitle": "{{name}}"
-			},
-			"receivedUom": "Received in",
-			"uomFromPo": "Must match the purchase order. Raise the order in the unit you want to count in.",
-			"conversion": "Conversion ({{from}} to {{to}})",
-			"oneOf": "1 {{from}}",
-			"equals": "= {{factor}} {{to}}",
-			"thisDelivery": "This delivery",
-			"uomPickHint": "The unit you are counting in",
-			"qtyIn": "Quantity ({{uom}})",
-			"receivingOf": "Receiving {{qty}} of {{pending}} {{uom}} still outstanding — the rest stays open on the order.",
-			"receivingAll": "Receiving the full {{pending}} {{uom}} outstanding. Reduce it to receive part.",
-			"driftWarning": "That is {{factor}}x the rate this purchase order was raised at. Check the weight is for THIS line only, not the whole delivery.",
-			"totalIn": "Total received ({{uom}})",
-			"totalHint": "Weigh or measure the whole delivery, then we divide it",
-			"basisMeasured": "from your measured weight",
-			"basisPo": "from the purchase order",
-			"basisUnresolved": "no conversion rate yet",
-			"totalInOptional": "Total received ({{uom}}, optional)",
-			"totalHintOptional": "Leave blank to use the purchase order rate of {{factor}} {{uom}}. Weigh it only if the delivery differs.",
-			"stockQtyIn": "Stock quantity ({{uom}})",
-			"perEach": "= {{factor}} {{uom}} each",
-			"rateFromPo": "Fixed by the purchase order",
-			"wholeNumberNote": "{{uom}} cannot have a fractional quantity",
-			"progress": "{{picked}} of {{total}} received",
-			"addedLines": "Items in this receipt",
-			"noLinesYet": "Nothing added yet. Pick the items you are receiving.",
-			"addFromPo": "Add items",
-			"editLine": "Edit",
-			"uomLookupFailed": "Could not load unit information",
-			"deleteDraftTitle": "Delete receipt draft?",
-			"submittedReceipts": "Submitted purchase receipts",
-			"submittedReceiptsHint": "Open a submitted receipt to review its details.",
-			"noSubmittedReceipts": "No submitted purchase receipts.",
-			"viewReceipt": "View",
-			"submittedReceiptReadOnly": "Submitted receipt {{name}} · read only.",
-			"totalEstimatedWeight": "Total estimated weight (Kg)",
-			"totalAcceptedWeight": "Total accepted weight (Kg)",
-			"receiveQueueTab": "To Receive",
-			"draftsTab": "Drafts",
-			"submittedTab": "Submitted"
-		},
-		"projectItems": {
-			"title": "Items for {{project}}",
-			"chooseProject": "Choose a project",
-			"chooseBom": "Choose an item",
-			"noBom": "No bill of materials is linked to {{project}} yet. Link one from Bill of Materials in the Store module, or clear the project to pick items yourself.",
-			"filledFromBom": "Filled {{added}} of {{total}} items from the bill of materials for {{project}}.",
-			"allPresent": "Every item in the bill of materials for {{project}} is already on this indent.",
-			"noBomShort": "No bill of materials linked",
-			"required": "Required",
-			"requestedQty": "Already asked for",
-			"outstanding": "Still needed",
-			"loadFailed": "Could not read the bill of materials for this project",
-			"hint": "Set a project on a row to pick items from its bill of materials. Leave it empty to search all items yourself."
-		},
-		"movements": {
-			"title": "Stock Movements",
-			"subtitle": "Every kind of stock movement, grouped by what you are doing",
-			"groups": {
-				"everyday": "Everyday store",
-				"manufacturing": "Manufacturing",
-				"correction": "Corrections & outsourcing"
-			},
-			"purposes": {
-				"issue": {
-					"title": "Issue Material",
-					"description": "Hand stock out to a person, job or site"
-				},
-				"receipt": {
-					"title": "Receive Material",
-					"description": "Bring material into a store"
-				},
-				"transfer": {
-					"title": "Move Between Stores",
-					"description": "Shift stock from one store to another"
-				},
-				"transferForManufacture": {
-					"title": "Send to Production",
-					"description": "Move raw material into the work-in-progress store"
-				},
-				"consumption": {
-					"title": "Use in Production",
-					"description": "Record raw material used up in a job"
-				},
-				"manufacture": {
-					"title": "Record Production",
-					"description": "Take raw material in and book finished goods out"
-				},
-				"repack": {
-					"title": "Repack",
-					"description": "Change how an item is packed without changing its quantity"
-				},
-				"disassemble": {
-					"title": "Disassemble",
-					"description": "Break an assembly back into its parts"
-				},
-				"subcontractor": {
-					"title": "Send to Subcontractor",
-					"description": "Send material out for outside processing"
-				}
-			}
-		},
-		"labels": {
-			"purpose": "Purpose",
-			"requiredBy": "Required By",
-			"conversionFactor": "Conversion Factor",
-			"sourceWarehouse": "Source Warehouse",
-			"targetWarehouse": "Target Warehouse",
-			"item": "Item",
-			"items": "Items",
-			"project": "Project",
-			"projectOptional": "Project (optional)",
-			"workOrder": "Work Order"
-		},
-		"tiles": {
-			"stockEntry": {
-				"title": "Stock Entry",
-				"description": "Material Issue, Receipt, Transfer"
-			},
-			"materialRequest": {
-				"title": "Material Request",
-				"description": "Request raw materials"
-			},
-			"delivery": {
-				"title": "Delivery / Dispatch",
-				"description": "Manage outgoing materials"
-			},
-			"stockBalance": {
-				"title": "Stock Balance",
-				"description": "View stock availability"
-			},
-			"itemMaster": {
-				"title": "Item Master",
-				"description": "Manage items & variants"
-			},
-			"warehouse": {
-				"title": "Warehouse",
-				"description": "Manage warehouses"
-			},
-			"stockReconciliation": {
-				"title": "Stock Reconciliation",
-				"description": "Reconcile stock quantities"
-			},
-			"bom": {
-				"title": "Bill of Materials",
-				"description": "Link a bill of materials to a project"
-			},
-			"plateOffcut": {
-				"title": "Plate Offcut",
-				"description": "Cut a plate into offcuts; posts a Repack Stock Entry"
-			}
-		},
-		"mr": {
-			"title": "Material Requests",
-			"subtitle": "Track and manage all material requests",
-			"tiles": {
-				"purchase": {
-					"title": "Purchase Request",
-					"description": "Request items for purchase"
-				},
-				"transfer": {
-					"title": "Material Transfer",
-					"description": "Move stock between warehouses"
-				},
-				"issue": {
-					"title": "Material Issue",
-					"description": "Issue material for usage"
-				},
-				"receipt": {
-					"title": "Material Receipt",
-					"description": "Receive materials"
-				},
-				"customerProvided": {
-					"title": "Customer Provided",
-					"description": "Customer supplied materials"
-				}
-			},
-			"listTitle": "{{type}} Requests",
-			"listSubtitle": "Track and manage requests",
-			"empty": "No material requests found",
-			"newTitle": "New Material Request",
-			"subtitleSubmitted": "{{type}} • Submitted",
-			"subtitleDraft": "{{type}} • Draft",
-			"createSubtitle": "Create {{type}}",
-			"form": {
-				"project": "Project",
-				"items": "Items",
-				"select": "Select"
-			},
-			"unknownPurpose": "That request type is not available.",
-			"allTitle": "All requests"
-		},
-		"status": {
-			"draft": "Draft",
-			"submitted": "Submitted",
-			"cancelled": "Cancelled",
-			"completed": "Completed",
-			"toBill": "To Bill",
-			"stopped": "Stopped"
-		},
-		"filters": {
-			"customer": "Customer",
-			"company": "Company",
-			"item": "Item",
-			"warehouse": "Warehouse",
-			"fromDate": "From date",
-			"toDate": "To date"
-		},
-		"types": {
-			"purchase": "Purchase",
-			"transfer": "Transfer",
-			"materialIssue": "Material Issue",
-			"materialReceipt": "Material Receipt",
-			"customerProvided": "Customer Provided"
-		},
-		"form": {
-			"type": "Type",
-			"company": "Company",
-			"customer": "Customer",
-			"scheduleDate": "Schedule Date",
-			"item": "Item",
-			"qty": "Qty",
-			"uom": "UOM",
-			"stockUom": "Stock UOM",
-			"conv": "Conv",
-			"source": "Source",
-			"warehouse": "Warehouse",
-			"schedule": "Schedule",
-			"postingDate": "Posting Date",
-			"defaultWarehouse": "Default Warehouse",
-			"driver": "Driver",
-			"vehicleNo": "Vehicle No",
-			"transporter": "Transporter",
-			"lrNumber": "LR Number",
-			"items": "Items",
-			"getItems": "Get Items",
-			"dispatch": "Dispatch",
-			"basics": "Basic Information",
-			"purpose": "Purpose",
-			"requiredBy": "Required By"
-		},
-		"validation": {
-			"typeRequired": "Type is required",
-			"companyRequired": "Company required",
-			"customerRequired": "Customer is required",
-			"uomRequired": "UOM required",
-			"invalidConversion": "Invalid conversion factor",
-			"addAtLeastOneItem": "Add at least one item",
-			"addItems": "Add items",
-			"fillItemRows": "Fill item rows",
-			"fillAllRows": "Fill all item rows",
-			"qtyGtZero": "Qty must be > 0",
-			"fromToWarehouseRequired": "From & To warehouse required",
-			"sameWarehouse": "Source and target warehouse cannot be same",
-			"warehouseRequired": "Warehouse required"
-		},
-		"dn": {
-			"title": "Delivery Notes",
-			"subtitle": "Dispatch & delivery tracking",
-			"empty": "No delivery notes found",
-			"editTitle": "Delivery {{name}}",
-			"newTitle": "New Delivery",
-			"formSubtitle": "Dispatch goods"
-		},
-		"balance": {
-			"title": "Stock Balance",
-			"subtitle": "Real-time inventory status",
-			"empty": "No stock available",
-			"value": "Value",
-			"fromDate": "From date",
-			"toDate": "To date",
-			"opening": "Opening",
-			"inQty": "In",
-			"outQty": "Out",
-			"closing": "Balance",
-			"reserved": "Reserved",
-			"free": "Free",
-			"rate": "Rate",
-			"projected": "Projected",
-			"valuationAsOf": "Value is shown as of today",
-			"performanceWarning": "Narrow this with an item or warehouse filter — the full list covers every ledger row ever written.",
-			"trail": "Movement history",
-			"noMovements": "No movements in this period",
-			"showTrail": "Show where this stock came from",
-			"incomingRate": "In rate",
-			"outgoingRate": "Out rate",
-			"runningBalance": "Balance after",
-			"balanceQty": "Balance",
-			"serial": "Serial",
-			"batch": "Batch",
-			"batchPermission": "Batch and serial details need permission on Serial and Batch Entry",
-			"noBatchOnThisLine": "Not batch or serial tracked",
-			"truncated": "More movements exist — narrow the dates to see the rest"
-		},
-		"source": {
-			"loadItems": "Load Items",
-			"load": "Load",
-			"selectSourceType": "Select Source Type",
-			"searchDocument": "Search document...",
-			"selectTypeFirst": "Select type first",
-			"noCustomer": "No customer",
-			"salesOrder": "Sales Order",
-			"pickList": "Pick List",
-			"materialRequest": "Material Request",
-			"purchaseReceipt": "Purchase Receipt",
-			"bom": "Bill of Materials",
-			"bomShort": "BOM",
-			"purchaseInvoice": "Purchase Invoice",
-			"itemMaster": "Item Master",
-			"onlyQcPassed": "Only QC Passed Items",
-			"qcDone": "QC Done",
-			"sourceType": "Source Type",
-			"selectDocument": "Select Document"
-		},
-		"entry": {
-			"title": "Stock Entry",
-			"subtitleDefault": "Fast inventory operations",
-			"subtitleReceipt": "Incoming → {{warehouse}}",
-			"subtitleIssue": "Outgoing ← {{warehouse}}",
-			"subtitleTransfer": "{{from}} → {{to}}",
-			"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
-			"subtitleManufacture": "Manufacture @ {{warehouse}}",
-			"subtitleRepack": "Repack @ {{warehouse}}",
-			"subtitleConsume": "Consume ← {{warehouse}}",
-			"selectWarehouse": "Select warehouse",
-			"from": "From",
-			"to": "To",
-			"actions": {
-				"getItems": "Get Items",
-				"clear": "Clear"
-			},
-			"basicConfig": "Basic Configuration",
-			"collapse": "Collapse",
-			"expand": "Expand",
-			"entryDate": "Entry Date",
-			"entryTime": "Entry Time",
-			"items": "Items",
-			"get": "Get",
-			"entryType": "Entry Type",
-			"selectEntryType": "Select Entry Type",
-			"fromWarehouse": "From Warehouse",
-			"toWarehouse": "To Warehouse",
-			"selectFromWarehouse": "Select From Warehouse",
-			"selectToWarehouse": "Select To Warehouse",
-			"scanPlaceholder": "Scan or enter item",
-			"totalQty": "Total Qty",
-			"submitEntry": "Submit Entry",
-			"modes": {
-				"incoming": "Incoming",
-				"outgoing": "Outgoing",
-				"transfer": "Transfer",
-				"adjustment": "Adjustment"
-			},
-			"createdToast": "Stock Entry created: {{name}}",
-			"failedToast": "Stock Entry failed"
-		},
-		"entryTypes": {
-			"materialIssue": "Material Issue",
-			"materialReceipt": "Material Receipt",
-			"materialTransfer": "Material Transfer",
-			"manufacture": "Manufacture",
-			"repack": "Repack",
-			"disassemble": "Disassemble",
-			"sendToSubcontractor": "Send to Subcontractor",
-			"materialTransferForMfg": "Material Transfer for Manufacture",
-			"materialConsumptionForMfg": "Material Consumption for Manufacture"
-		},
-		"item": {
-			"outOfStock": "Out of stock",
-			"exceedsStock": "Exceeds stock",
-			"lowStock": "Low stock",
-			"available": "Available",
-			"willBeRemoved": "Will be removed",
-			"willAdjust": "Will adjust to {{qty}}",
-			"emptyList": "No items added",
-			"itemName": "Item {{code}}",
-			"increase": "Increase quantity",
-			"decrease": "Decrease quantity",
-			"remove": "Remove item"
-		},
-		"fix": {
-			"title": "Stock Issue",
-			"outOfStock": "{{count}} items are out of stock.",
-			"more": "+ {{n}} more...",
-			"removeItems": "Remove Items",
-			"adjustQty": "Adjust Qty"
-		},
-		"submitModal": {
-			"title": "Confirm Stock Entry",
-			"project": "Project",
-			"workOrder": "Work Order",
-			"searchProject": "Search Project",
-			"searchWorkOrder": "Search Work Order"
-		},
-		"demo": {
-			"title": "Universal Form",
-			"subtitle": "All field types demo",
-			"sections": {
-				"basic": "Basic Fields",
-				"text": "Text Fields",
-				"dateTime": "Date & Time",
-				"selection": "Selection",
-				"attachments": "Attachments"
-			},
-			"age": "Age",
-			"salary": "Salary",
-			"description": "Description",
-			"datetime": "Datetime",
-			"time": "Time",
-			"pending": "Pending",
-			"closed": "Closed",
-			"department": "Department (Link)",
-			"searchDepartment": "Search department...",
-			"active": "Active",
-			"uploadFile": "Upload File",
-			"chooseFile": "Choose File",
-			"noFileSelected": "No file selected",
-			"itemCode": "Item Code",
-			"rate": "Rate"
-		},
-		"returnStock": {
-			"title": "Return material to stock",
-			"action": "Return this material to stock",
-			"explainer": "Material left over from a job goes back into Stores as one Stock Entry. Nothing is saved until you confirm.",
-			"whichItem": "What is coming back?",
-			"useSameItem": "Use this item",
-			"useSameItemHint": "Goes back under its own code",
-			"createNewItem": "Create a new item",
-			"createNewItemHint": "The leftover is a different specification",
-			"itemName": "Item name",
-			"itemGroup": "Item group",
-			"trackBatch": "Track batches",
-			"trackSerial": "Track serial numbers",
-			"fromWarehouse": "From (where it is now)",
-			"toWarehouse": "To (where it goes back)",
-			"qty": "How much ({{uom}})",
-			"batchNumber": "Batch number",
-			"serialNumbers": "Serial numbers",
-			"serialNumbersHint": "One per line, or separated by commas",
-			"serialPlaceholder": "SN001\nSN002",
-			"autoBatch": "A new batch number will be generated automatically for this item.",
-			"remarks": "Note (optional)",
-			"makesEntry": "Creates a Stock Entry: {{from}} to {{to}}",
-			"confirm": "Return to stock",
-			"done": "{{item}} is back in stock ({{qty}}).",
-			"autoSerial": "Serial numbers will be generated automatically for this item."
-		},
-		"plateOffcut": {
-			"title": "Plate Offcut",
-			"listSubtitle": "Cut plates into offcuts; each one posts a Repack Stock Entry",
-			"subtitle": "Choose a plate, enter the cut sizes, and the weights are priced for you",
-			"newTitle": "New Plate Offcut",
-			"number": "Offcut No.",
-			"searchPlaceholder": "Search offcut number…",
-			"emptyTitle": "No plate offcuts yet",
-			"emptyDescription": "Cut a plate into offcuts to see them listed here.",
-			"sourceSerial": "Plate (Serial No)",
-			"sourceSerialHint": "Only active plates held in a warehouse can be cut",
-			"sourceItem": "Source Item",
-			"batch": "Source Batch",
-			"heatNumber": "Heat Number",
-			"warehouse": "Warehouse",
-			"plateSize": "Plate Size",
-			"plateWeight": "Plate Weight",
-			"offcutsTitle": "Offcuts",
-			"noOffcutsYet": "Add at least one offcut. A plate booked straight to scrap is not a cutting.",
-			"length": "Length (mm)",
-			"width": "Width (mm)",
-			"pieces": "Pieces",
-			"pieces_one": "{{count}} piece",
-			"pieces_other": "{{count}} pieces",
-			"weightEach": "Kg / piece",
-			"rowWeight": "Row Weight",
-			"rowValue": "Row Value",
-			"totalPieces": "Total Pieces",
-			"totalOffcutWeight": "Offcut Weight",
-			"totalOffcutValue": "Offcut Value",
-			"scrap": "Scrap",
-			"canvasTitle": "Plate Layout",
-			"canvasIndicative": "Indicative layout — not a cut plan",
-			"canvasNoGeometry": "Choose a plate to see the cut layout.",
-			"canvasSummary_one": "{{plate}} · {{pieces}} piece",
-			"canvasSummary_other": "{{plate}} · {{pieces}} pieces",
-			"canvasOverflow_one": "{{count}} piece does not fit",
-			"canvasOverflow_other": "{{count}} pieces do not fit",
-			"overBy": "The offcuts add up to more than the plate weighs — over by {{kg}} kg. It cannot be saved until they fit.",
-			"errNoSerial": "Choose the plate you are cutting.",
-			"errNoOffcuts": "Add at least one offcut.",
-			"errRowSize": "Row {{row}} needs both a length and a width.",
-			"submittedReadOnly": "{{name}} is submitted and cannot be changed.",
-			"backToList": "Back to list",
-			"submitTitle": "Submit this offcut?",
-			"submitMessage": "Submitting creates the offcut Items, Batches and Serial Numbers, and posts a Repack Stock Entry. This changes stock."
-		}
-	}
+  "store": {
+    "hub": {
+      "subtitle": "Raise a request, hand over material, or check what is in stock"
+    },
+    "purposes": {
+      "indent": {
+        "title": "Raise an Indent",
+        "description": "Ask the store for material you need for a job"
+      },
+      "purchase": {
+        "title": "Ask Purchase to Buy",
+        "description": "Request something the store does not have"
+      },
+      "transfer": {
+        "title": "Move Stock Between Stores",
+        "description": "Shift material from one store to another"
+      },
+      "production": {
+        "title": "For Production",
+        "description": "Request material to manufacture against a bill of materials"
+      },
+      "customerProvided": {
+        "title": "Customer's Material",
+        "description": "Material supplied by a customer for our work"
+      }
+    },
+    "purposeGroupRequester": "I need something",
+    "purposeGroupStore": "I keep the stock",
+    "purposeGroupLookup": "Lookups",
+    "scopes": {
+      "all": "All",
+      "project": "Project indents",
+      "general": "General indents"
+    },
+    "giveItems": {
+      "title": "Give Items",
+      "description": "Hand over material for indents raised by others",
+      "empty": "No indents are waiting for material",
+      "outstanding": "Still to give",
+      "requested": "Requested",
+      "issued": "Already given",
+      "giveNow": "Give this",
+      "giveAll": "Give everything outstanding",
+      "partialHint": "Change a quantity to hand over part of an indent now and the rest later",
+      "noWarehouse": "This request has no warehouse, so we cannot work out where the stock comes from",
+      "nothingToGive": "Enter a quantity to hand over first.",
+      "given": "Stock Entry {{name}} created and submitted."
+    },
+    "getItems": {
+      "title": "Get Items",
+      "searchItem": "Search for an item by name or code",
+      "selfHint": "Type a code and press Add. This is the quickest way when you know exactly what arrived.",
+      "addItem": "Add item",
+      "willAdd": "Will add {{count}} item(s):",
+      "useThese": "Use these",
+      "nothingToPick": "Nothing to pick from right now",
+      "sources": {
+        "indent": {
+          "title": "From a pending indent",
+          "description": "Material someone asked the store for"
+        },
+        "workOrder": {
+          "title": "From a work order",
+          "description": "Material a production job still needs"
+        },
+        "self": {
+          "title": "I know the items",
+          "description": "Add them one at a time"
+        }
+      }
+    },
+    "receipt": {
+      "title": "Receive Material",
+      "subtitle": "Receive what a supplier has delivered into the store",
+      "description": "Receive what a supplier has delivered",
+      "newTitle": "New Receipt",
+      "supplier": "Supplier",
+      "postingDate": "Date",
+      "acceptedWarehouse": "Accepted Warehouse",
+      "purchaseOrder": "Purchase Order",
+      "receivedSoFar": "Received",
+      "receive": "Receive",
+      "noOrders": "No purchase orders are waiting to be received",
+      "withoutOrder": "Receive without a Purchase Order",
+      "withoutOrderHint": "Use this when material arrives without an order. Add the items yourself.",
+      "draftReceipts": "Saved receipt drafts",
+      "draftReceiptsHint": "Continue a receipt you saved but have not submitted.",
+      "noDraftReceipts": "No saved receipt drafts.",
+      "resumeDraft": "Continue",
+      "lockedFromPo": "Item, project and unit come from the purchase order.",
+      "nothingOutstanding": "Nothing is outstanding on {{po}}. Everything ordered has already been received.",
+      "items": "Items",
+      "noItems": "No items yet",
+      "acceptedQty": "Accepted Qty",
+      "rejectedQty": "Rejected Qty",
+      "serialNumbers": "Serial numbers ({{count}} × {{uom}})",
+      "serialAuto": "{{count}} serial numbers will be created automatically. Nothing to type.",
+      "serialTyped": "One serial number per line, {{count}} in total.",
+      "serialWillGenerate": "Created from the series {{series}}.",
+      "serialPlaceholder": "One serial number per line ({{count}} lines)",
+      "serialProgress": "{{entered}} of {{expected}} entered",
+      "perSerialWeight": "Weight per serial",
+      "perSerialValue": "Value per serial",
+      "batchNo": "Batch",
+      "batchAuto": "Created from the series {{series}}.",
+      "batchWillGenerate": "A batch number will be created automatically.",
+      "batchPlaceholder": "Batch number",
+      "rate": "Rate",
+      "plateDetails": "Plate receipt details",
+      "supplierWeight": "Supplier weight (Kg)",
+      "theoreticalWeightPerPlate": "Theoretical weight per plate (Kg)",
+      "estimatedWeight": "Estimated weight (Kg)",
+      "weightVariance": "Variance %",
+      "tolerance": "limit {{value}}%",
+      "acceptedWeight": "Accepted weight (Kg)",
+      "weightPerPlate": "Weight per plate (Kg)",
+      "standardRate": "Rate (INR)",
+      "lineAmount": "Amount (INR)",
+      "weightDecision": "Weight decision",
+      "chooseWeightDecision": "Choose how to accept the weight",
+      "acceptSupplierWeight": "Accept supplier weight",
+      "acceptEstimatedWeight": "Accept estimated weight",
+      "acceptWeighbridgeWeight": "Accept weighbridge weight",
+      "weighbridgeWeight": "Weighbridge weight (Kg)",
+      "weightApprovalRequired": "Weight is outside tolerance. An authorized approver must review this line before submission.",
+      "ratePerKg": "Rate per Kg",
+      "heatNumber": "Heat number",
+      "mtcNumber": "MTC number (optional)",
+      "rateDiffers": "Ordered at {{rate}}",
+      "stockUom": "{{qty}} {{uom}}",
+      "inStockUom": "In stock",
+      "factor": "factor",
+      "validation": {
+        "totalRequired": "Enter the total {{uom}} you received",
+        "totalInvalid": "Enter a valid total {{uom}}",
+        "supplierRequired": "Choose a supplier",
+        "dateRequired": "Enter a date",
+        "dateFuture": "The date cannot be in the future",
+        "addItem": "Add at least one item",
+        "pickItem": "Pick an item on every row",
+        "duplicatePoRow": "The same purchase order line appears twice",
+        "rateRequired": "Enter a rate on every row",
+        "plateSupplierWeightRequired": "Enter the supplier weight for every plate line",
+        "plateHeatRequired": "Enter the heat number for every plate line",
+        "plateRateRequired": "Enter a rate per Kg for every plate line",
+        "plateDecisionRequired": "Choose a weight decision for every plate line outside tolerance",
+        "plateApproverRequired": "An authorized weight approver must decide this line",
+        "plateWeighbridgeRequired": "Enter the weighbridge weight for this decision",
+        "plateLookupFailed": "Could not verify whether this item uses plate weight rules. Retry before submitting.",
+        "warehouseRequired": "Choose a warehouse on every row",
+        "serialNeedsQty": "Enter the total weight so the serial count can be worked out.",
+        "serialNeedsPositiveQty": "Total weight must be more than zero to create serials.",
+        "serialWholeStockQty": "A serialised item needs a whole total weight — one serial per {{uom}}, and a fraction of a {{uom}} cannot have its own serial. Round to the nearest whole {{uom}}.",
+        "serialCountMismatch": "Enter {{expected}} serial numbers, one per line ({{entered}} so far).",
+        "serialDuplicate": "A serial number is listed twice. Each must be unique.",
+        "batchRequired": "This item is batched, so a batch number is required.",
+        "wholeNumberUom": "{{uom}} must be a whole number"
+      },
+      "picker": {
+        "pickFirst": "Pick a line to complete it",
+        "title": "Add items to receive",
+        "search": "Search by item name, code or warehouse",
+        "count": "{{shown}} of {{total}} lines shown",
+        "added": "Added",
+        "noMatch": "No matching line",
+        "itemSubtitle": "{{name}}"
+      },
+      "receivedUom": "Received in",
+      "uomFromPo": "Must match the purchase order. Raise the order in the unit you want to count in.",
+      "conversion": "Conversion ({{from}} to {{to}})",
+      "oneOf": "1 {{from}}",
+      "equals": "= {{factor}} {{to}}",
+      "thisDelivery": "This delivery",
+      "uomPickHint": "The unit you are counting in",
+      "qtyIn": "Quantity ({{uom}})",
+      "receivingOf": "Receiving {{qty}} of {{pending}} {{uom}} still outstanding — the rest stays open on the order.",
+      "receivingAll": "Receiving the full {{pending}} {{uom}} outstanding. Reduce it to receive part.",
+      "driftWarning": "That is {{factor}}x the rate this purchase order was raised at. Check the weight is for THIS line only, not the whole delivery.",
+      "totalIn": "Total received ({{uom}})",
+      "totalHint": "Weigh or measure the whole delivery, then we divide it",
+      "basisMeasured": "from your measured weight",
+      "basisPo": "from the purchase order",
+      "basisUnresolved": "no conversion rate yet",
+      "totalInOptional": "Total received ({{uom}}, optional)",
+      "totalHintOptional": "Leave blank to use the purchase order rate of {{factor}} {{uom}}. Weigh it only if the delivery differs.",
+      "stockQtyIn": "Stock quantity ({{uom}})",
+      "perEach": "= {{factor}} {{uom}} each",
+      "rateFromPo": "Fixed by the purchase order",
+      "wholeNumberNote": "{{uom}} cannot have a fractional quantity",
+      "progress": "{{picked}} of {{total}} received",
+      "addedLines": "Items in this receipt",
+      "noLinesYet": "Nothing added yet. Pick the items you are receiving.",
+      "addFromPo": "Add items",
+      "editLine": "Edit",
+      "uomLookupFailed": "Could not load unit information",
+      "deleteDraftTitle": "Delete receipt draft?",
+      "submittedReceipts": "Submitted purchase receipts",
+      "submittedReceiptsHint": "Open a submitted receipt to review its details.",
+      "noSubmittedReceipts": "No submitted purchase receipts.",
+      "viewReceipt": "View",
+      "submittedReceiptReadOnly": "Submitted receipt {{name}} · read only.",
+      "totalEstimatedWeight": "Total estimated weight (Kg)",
+      "totalAcceptedWeight": "Total accepted weight (Kg)",
+      "receiveQueueTab": "To Receive",
+      "draftsTab": "Drafts",
+      "submittedTab": "Submitted"
+    },
+    "projectItems": {
+      "title": "Items for {{project}}",
+      "chooseProject": "Choose a project",
+      "chooseBom": "Choose an item",
+      "noBom": "No bill of materials is linked to {{project}} yet. Link one from Bill of Materials in the Store module, or clear the project to pick items yourself.",
+      "filledFromBom": "Filled {{added}} of {{total}} items from the bill of materials for {{project}}.",
+      "allPresent": "Every item in the bill of materials for {{project}} is already on this indent.",
+      "noBomShort": "No bill of materials linked",
+      "required": "Required",
+      "requestedQty": "Already asked for",
+      "outstanding": "Still needed",
+      "loadFailed": "Could not read the bill of materials for this project",
+      "hint": "Set a project on a row to pick items from its bill of materials. Leave it empty to search all items yourself."
+    },
+    "movements": {
+      "title": "Stock Movements",
+      "subtitle": "Every kind of stock movement, grouped by what you are doing",
+      "groups": {
+        "everyday": "Everyday store",
+        "manufacturing": "Manufacturing",
+        "correction": "Corrections & outsourcing"
+      },
+      "purposes": {
+        "issue": {
+          "title": "Issue Material",
+          "description": "Hand stock out to a person, job or site"
+        },
+        "receipt": {
+          "title": "Receive Material",
+          "description": "Bring material into a store"
+        },
+        "transfer": {
+          "title": "Move Between Stores",
+          "description": "Shift stock from one store to another"
+        },
+        "transferForManufacture": {
+          "title": "Send to Production",
+          "description": "Move raw material into the work-in-progress store"
+        },
+        "consumption": {
+          "title": "Use in Production",
+          "description": "Record raw material used up in a job"
+        },
+        "manufacture": {
+          "title": "Record Production",
+          "description": "Take raw material in and book finished goods out"
+        },
+        "repack": {
+          "title": "Repack",
+          "description": "Change how an item is packed without changing its quantity"
+        },
+        "disassemble": {
+          "title": "Disassemble",
+          "description": "Break an assembly back into its parts"
+        },
+        "subcontractor": {
+          "title": "Send to Subcontractor",
+          "description": "Send material out for outside processing"
+        }
+      }
+    },
+    "labels": {
+      "purpose": "Purpose",
+      "requiredBy": "Required By",
+      "conversionFactor": "Conversion Factor",
+      "sourceWarehouse": "Source Warehouse",
+      "targetWarehouse": "Target Warehouse",
+      "item": "Item",
+      "items": "Items",
+      "project": "Project",
+      "projectOptional": "Project (optional)",
+      "workOrder": "Work Order"
+    },
+    "tiles": {
+      "stockEntry": {
+        "title": "Stock Entry",
+        "description": "Material Issue, Receipt, Transfer"
+      },
+      "materialRequest": {
+        "title": "Material Request",
+        "description": "Request raw materials"
+      },
+      "delivery": {
+        "title": "Delivery / Dispatch",
+        "description": "Manage outgoing materials"
+      },
+      "stockBalance": {
+        "title": "Stock Balance",
+        "description": "View stock availability"
+      },
+      "itemMaster": {
+        "title": "Item Master",
+        "description": "Manage items & variants"
+      },
+      "warehouse": {
+        "title": "Warehouse",
+        "description": "Manage warehouses"
+      },
+      "stockReconciliation": {
+        "title": "Stock Reconciliation",
+        "description": "Reconcile stock quantities"
+      },
+      "bom": {
+        "title": "Bill of Materials",
+        "description": "Link a bill of materials to a project"
+      },
+      "plateOffcut": {
+        "title": "Plate Offcut",
+        "description": "Cut a plate into offcuts; posts a Repack Stock Entry"
+      }
+    },
+    "mr": {
+      "title": "Material Requests",
+      "subtitle": "Track and manage all material requests",
+      "tiles": {
+        "purchase": {
+          "title": "Purchase Request",
+          "description": "Request items for purchase"
+        },
+        "transfer": {
+          "title": "Material Transfer",
+          "description": "Move stock between warehouses"
+        },
+        "issue": {
+          "title": "Material Issue",
+          "description": "Issue material for usage"
+        },
+        "receipt": {
+          "title": "Material Receipt",
+          "description": "Receive materials"
+        },
+        "customerProvided": {
+          "title": "Customer Provided",
+          "description": "Customer supplied materials"
+        }
+      },
+      "listTitle": "{{type}} Requests",
+      "listSubtitle": "Track and manage requests",
+      "empty": "No material requests found",
+      "newTitle": "New Material Request",
+      "subtitleSubmitted": "{{type}} • Submitted",
+      "subtitleDraft": "{{type}} • Draft",
+      "createSubtitle": "Create {{type}}",
+      "form": {
+        "project": "Project",
+        "items": "Items",
+        "select": "Select"
+      },
+      "unknownPurpose": "That request type is not available.",
+      "allTitle": "All requests"
+    },
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "cancelled": "Cancelled",
+      "completed": "Completed",
+      "toBill": "To Bill",
+      "stopped": "Stopped"
+    },
+    "filters": {
+      "customer": "Customer",
+      "company": "Company",
+      "item": "Item",
+      "warehouse": "Warehouse",
+      "fromDate": "From date",
+      "toDate": "To date"
+    },
+    "types": {
+      "purchase": "Purchase",
+      "transfer": "Transfer",
+      "materialIssue": "Material Issue",
+      "materialReceipt": "Material Receipt",
+      "customerProvided": "Customer Provided"
+    },
+    "form": {
+      "type": "Type",
+      "company": "Company",
+      "customer": "Customer",
+      "scheduleDate": "Schedule Date",
+      "item": "Item",
+      "qty": "Qty",
+      "uom": "UOM",
+      "stockUom": "Stock UOM",
+      "conv": "Conv",
+      "source": "Source",
+      "warehouse": "Warehouse",
+      "schedule": "Schedule",
+      "postingDate": "Posting Date",
+      "defaultWarehouse": "Default Warehouse",
+      "driver": "Driver",
+      "vehicleNo": "Vehicle No",
+      "transporter": "Transporter",
+      "lrNumber": "LR Number",
+      "items": "Items",
+      "getItems": "Get Items",
+      "dispatch": "Dispatch",
+      "basics": "Basic Information",
+      "purpose": "Purpose",
+      "requiredBy": "Required By"
+    },
+    "validation": {
+      "typeRequired": "Type is required",
+      "companyRequired": "Company required",
+      "customerRequired": "Customer is required",
+      "uomRequired": "UOM required",
+      "invalidConversion": "Invalid conversion factor",
+      "addAtLeastOneItem": "Add at least one item",
+      "addItems": "Add items",
+      "fillItemRows": "Fill item rows",
+      "fillAllRows": "Fill all item rows",
+      "qtyGtZero": "Qty must be > 0",
+      "fromToWarehouseRequired": "From & To warehouse required",
+      "sameWarehouse": "Source and target warehouse cannot be same",
+      "warehouseRequired": "Warehouse required"
+    },
+    "dn": {
+      "title": "Delivery Notes",
+      "subtitle": "Dispatch & delivery tracking",
+      "empty": "No delivery notes found",
+      "editTitle": "Delivery {{name}}",
+      "newTitle": "New Delivery",
+      "formSubtitle": "Dispatch goods"
+    },
+    "balance": {
+      "title": "Stock Balance",
+      "subtitle": "Real-time inventory status",
+      "empty": "No stock available",
+      "value": "Value",
+      "fromDate": "From date",
+      "toDate": "To date",
+      "opening": "Opening",
+      "inQty": "In",
+      "outQty": "Out",
+      "closing": "Balance",
+      "reserved": "Reserved",
+      "free": "Free",
+      "rate": "Rate",
+      "projected": "Projected",
+      "valuationAsOf": "Value is shown as of today",
+      "performanceWarning": "Narrow this with an item or warehouse filter — the full list covers every ledger row ever written.",
+      "trail": "Movement history",
+      "noMovements": "No movements in this period",
+      "showTrail": "Show where this stock came from",
+      "incomingRate": "In rate",
+      "outgoingRate": "Out rate",
+      "runningBalance": "Balance after",
+      "balanceQty": "Balance",
+      "serial": "Serial",
+      "batch": "Batch",
+      "batchPermission": "Batch and serial details need permission on Serial and Batch Entry",
+      "noBatchOnThisLine": "Not batch or serial tracked",
+      "truncated": "More movements exist — narrow the dates to see the rest"
+    },
+    "source": {
+      "loadItems": "Load Items",
+      "load": "Load",
+      "selectSourceType": "Select Source Type",
+      "searchDocument": "Search document...",
+      "selectTypeFirst": "Select type first",
+      "noCustomer": "No customer",
+      "salesOrder": "Sales Order",
+      "pickList": "Pick List",
+      "materialRequest": "Material Request",
+      "purchaseReceipt": "Purchase Receipt",
+      "bom": "Bill of Materials",
+      "bomShort": "BOM",
+      "purchaseInvoice": "Purchase Invoice",
+      "itemMaster": "Item Master",
+      "onlyQcPassed": "Only QC Passed Items",
+      "qcDone": "QC Done",
+      "sourceType": "Source Type",
+      "selectDocument": "Select Document"
+    },
+    "entry": {
+      "title": "Stock Entry",
+      "subtitleDefault": "Fast inventory operations",
+      "subtitleReceipt": "Incoming → {{warehouse}}",
+      "subtitleIssue": "Outgoing ← {{warehouse}}",
+      "subtitleTransfer": "{{from}} → {{to}}",
+      "subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+      "subtitleManufacture": "Manufacture @ {{warehouse}}",
+      "subtitleRepack": "Repack @ {{warehouse}}",
+      "subtitleConsume": "Consume ← {{warehouse}}",
+      "selectWarehouse": "Select warehouse",
+      "from": "From",
+      "to": "To",
+      "actions": {
+        "getItems": "Get Items",
+        "clear": "Clear"
+      },
+      "basicConfig": "Basic Configuration",
+      "collapse": "Collapse",
+      "expand": "Expand",
+      "entryDate": "Entry Date",
+      "entryTime": "Entry Time",
+      "items": "Items",
+      "get": "Get",
+      "entryType": "Entry Type",
+      "selectEntryType": "Select Entry Type",
+      "fromWarehouse": "From Warehouse",
+      "toWarehouse": "To Warehouse",
+      "selectFromWarehouse": "Select From Warehouse",
+      "selectToWarehouse": "Select To Warehouse",
+      "scanPlaceholder": "Scan or enter item",
+      "totalQty": "Total Qty",
+      "submitEntry": "Submit Entry",
+      "modes": {
+        "incoming": "Incoming",
+        "outgoing": "Outgoing",
+        "transfer": "Transfer",
+        "adjustment": "Adjustment"
+      },
+      "createdToast": "Stock Entry created: {{name}}",
+      "failedToast": "Stock Entry failed"
+    },
+    "entryTypes": {
+      "materialIssue": "Material Issue",
+      "materialReceipt": "Material Receipt",
+      "materialTransfer": "Material Transfer",
+      "manufacture": "Manufacture",
+      "repack": "Repack",
+      "disassemble": "Disassemble",
+      "sendToSubcontractor": "Send to Subcontractor",
+      "materialTransferForMfg": "Material Transfer for Manufacture",
+      "materialConsumptionForMfg": "Material Consumption for Manufacture"
+    },
+    "item": {
+      "outOfStock": "Out of stock",
+      "exceedsStock": "Exceeds stock",
+      "lowStock": "Low stock",
+      "available": "Available",
+      "willBeRemoved": "Will be removed",
+      "willAdjust": "Will adjust to {{qty}}",
+      "emptyList": "No items added",
+      "itemName": "Item {{code}}",
+      "increase": "Increase quantity",
+      "decrease": "Decrease quantity",
+      "remove": "Remove item"
+    },
+    "fix": {
+      "title": "Stock Issue",
+      "outOfStock": "{{count}} items are out of stock.",
+      "more": "+ {{n}} more...",
+      "removeItems": "Remove Items",
+      "adjustQty": "Adjust Qty"
+    },
+    "submitModal": {
+      "title": "Confirm Stock Entry",
+      "project": "Project",
+      "workOrder": "Work Order",
+      "searchProject": "Search Project",
+      "searchWorkOrder": "Search Work Order"
+    },
+    "demo": {
+      "title": "Universal Form",
+      "subtitle": "All field types demo",
+      "sections": {
+        "basic": "Basic Fields",
+        "text": "Text Fields",
+        "dateTime": "Date & Time",
+        "selection": "Selection",
+        "attachments": "Attachments"
+      },
+      "age": "Age",
+      "salary": "Salary",
+      "description": "Description",
+      "datetime": "Datetime",
+      "time": "Time",
+      "pending": "Pending",
+      "closed": "Closed",
+      "department": "Department (Link)",
+      "searchDepartment": "Search department...",
+      "active": "Active",
+      "uploadFile": "Upload File",
+      "chooseFile": "Choose File",
+      "noFileSelected": "No file selected",
+      "itemCode": "Item Code",
+      "rate": "Rate"
+    },
+    "returnStock": {
+      "title": "Return material to stock",
+      "action": "Return this material to stock",
+      "explainer": "Material left over from a job goes back into Stores as one Stock Entry. Nothing is saved until you confirm.",
+      "whichItem": "What is coming back?",
+      "useSameItem": "Use this item",
+      "useSameItemHint": "Goes back under its own code",
+      "createNewItem": "Create a new item",
+      "createNewItemHint": "The leftover is a different specification",
+      "itemName": "Item name",
+      "itemGroup": "Item group",
+      "trackBatch": "Track batches",
+      "trackSerial": "Track serial numbers",
+      "fromWarehouse": "From (where it is now)",
+      "toWarehouse": "To (where it goes back)",
+      "qty": "How much ({{uom}})",
+      "batchNumber": "Batch number",
+      "serialNumbers": "Serial numbers",
+      "serialNumbersHint": "One per line, or separated by commas",
+      "serialPlaceholder": "SN001\nSN002",
+      "autoBatch": "A new batch number will be generated automatically for this item.",
+      "remarks": "Note (optional)",
+      "makesEntry": "Creates a Stock Entry: {{from}} to {{to}}",
+      "confirm": "Return to stock",
+      "done": "{{item}} is back in stock ({{qty}}).",
+      "autoSerial": "Serial numbers will be generated automatically for this item."
+    },
+    "plateOffcut": {
+      "title": "Plate Offcut",
+      "subtitle": "Choose a plate, enter the cut sizes, and the weights are priced for you",
+      "newTitle": "New Plate Offcut",
+      "number": "Offcut No.",
+      "emptyTitle": "No plate offcuts yet",
+      "emptyDescription": "Cut a plate into offcuts to see them listed here.",
+      "sourceSerial": "Plate (Serial No)",
+      "sourceSerialHint": "Only active plates held in a warehouse can be cut",
+      "sourceItem": "Source Item",
+      "batch": "Batch",
+      "heatNumber": "Heat Number",
+      "warehouse": "Warehouse",
+      "plateSize": "Size (mm)",
+      "plateWeight": "Plate Weight",
+      "offcutsTitle": "Offcuts",
+      "noOffcutsYet": "Add at least one offcut. A plate booked straight to scrap is not a cutting.",
+      "length": "Length (mm)",
+      "width": "Width (mm)",
+      "pieces": "Pieces",
+      "weightEach": "Kg / piece",
+      "rowWeight": "Row Weight",
+      "rowValue": "Row Value",
+      "totalPieces": "Total Pieces",
+      "totalOffcutWeight": "Offcut Weight",
+      "totalOffcutValue": "Offcut Value",
+      "scrap": "Scrap",
+      "canvasTitle": "Plate Layout",
+      "canvasIndicative": "Indicative layout — not a cut plan",
+      "canvasNoGeometry": "Choose a plate to see the cut layout.",
+      "overBy": "The offcuts add up to more than the plate weighs — over by {{kg}} kg. It cannot be saved until they fit.",
+      "errNoSerial": "Choose the plate you are cutting.",
+      "errNoOffcuts": "Add at least one offcut.",
+      "errRowSize": "Row {{row}} needs both a length and a width.",
+      "submittedReadOnly": "{{name}} is submitted and cannot be changed.",
+      "backToList": "Back to list",
+      "submitTitle": "Submit this offcut?",
+      "submitMessage": "Submitting creates the offcut Items, Batches and Serial Numbers, and posts a Repack Stock Entry. This changes stock.",
+      "serial": "Plate",
+      "sourceWeight": "Weight (Kg)",
+      "canCut": "Ready to cut",
+      "cannotCut": "Cannot cut",
+      "noAvailablePlates": "No plates waiting to be cut",
+      "noAvailablePlatesHint": "Every weighed plate in stock has already been cut, or none has a recorded weight.",
+      "offcutSerial": "Offcut serial",
+      "offcutSize": "Offcut size (mm)",
+      "fromPlate": "From plate",
+      "grade": "Grade",
+      "theoreticalWeight": "Theoretical (Kg)",
+      "noOffcutStock": "No offcuts in stock yet",
+      "noOffcutStockHint": "Submit a Plate Offcut and the pieces it produces will appear here.",
+      "offcutDetails": "Offcut details",
+      "openCuttingJob": "Open cutting job",
+      "hubSubtitle": "Cut plates, and see what came off them",
+      "canvasSummary": "{placed} placed, {overflow} will not fit",
+      "canvasOverflow": "{count} piece(s) too large for this plate",
+      "tab": {
+        "available": "Available to cut",
+        "stock": "Offcut stock",
+        "jobs": "Cutting jobs"
+      },
+      "pieces_one": "{{count}} piece",
+      "pieces_other": "{{count}} pieces",
+      "canvasSummary_one": "{{plate}} · {{pieces}} piece",
+      "canvasSummary_other": "{{plate}} · {{pieces}} pieces",
+      "canvasOverflow_one": "{{count}} piece does not fit",
+      "canvasOverflow_other": "{{count}} pieces do not fit"
+    }
+  }
 }

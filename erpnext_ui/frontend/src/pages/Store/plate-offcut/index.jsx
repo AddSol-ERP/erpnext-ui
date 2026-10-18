@@ -1,89 +1,59 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
-import { get } from "../../../services/api";
 import { useHeader } from "../../../context/HeaderContext";
 import DashboardShell from "../../../components/dashboard/DashboardShell";
-import ListLayout from "../../../components/ListLayout";
-import DataTable, { StatusBadge } from "../../../components/List/DataTable";
-import { Button } from "@/components/ui/button";
-import Pagination from "../../../components/Pagination";
+import AvailablePlates from "./available-plates";
+import OffcutStock from "./offcut-stock";
+import CuttingJobs from "./cutting-jobs";
 
-const DOCTYPE = "Plate Offcut";
-const PAGE_SIZE = 20;
+/**
+ * The cutting module, as three questions rather than one list.
+ *
+ *   Available to cut -> click a plate, it is chosen for you
+ *   Offcut stock     -> click a piece, see the plate it came from
+ *   Cutting jobs     -> the Plate Offcut documents, with scrap and totals
+ *
+ * The strip matches material-request's scope pills rather than the shadcn line
+ * tabs: it is a LIST-page control, and PageToolbar's status pills are the same
+ * treatment everywhere else, so a line tab here would read as a different
+ * control from the status filters beside it.
+ *
+ * Each panel renders its own ListLayout, so the strip is handed DOWN to whichever
+ * one is mounted -- ListLayout draws `tabs` as a strip inside its own card, and
+ * putting a second card around the panels would give two nested elevated cards.
+ * Only the active panel is rendered: each carries its own fetch, and keeping the
+ * other two alive would fire two needless requests on every visit.
+ */
+const TABS = ["available", "stock", "jobs"];
 
-// Every entry must exist on the doctype. There is no `_name` pseudo-field: a
-// Link stores the *code* in its own column and Frappe materialises no
-// `source_item_name` beside it, so asking for one fails the WHOLE query with
-// "Field not permitted in query" -- not just that column. Verified against
-// plates/doctype/plate_offcut/plate_offcut.json.
-const FIELDS = [
-  "name",
-  "source_item",
-  "warehouse",
-  "heat_number",
-  "total_offcut_weight_kg",
-  "total_offcut_value",
-  "creation",
-  "modified",
-  "docstatus",
-];
-
-export default function PlateOffcutList() {
+export default function PlateOffcut() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
-  const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [applied, setApplied] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // Validated, because this comes from the URL: an unrecognised value must fall
+  // back rather than render a panel that does not exist.
+  const raw = searchParams.get("tab");
+  const tab = TABS.includes(raw) ? raw : "available";
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const term = applied.trim();
-    const filters = term ? [["name", "like", `%${term}%`]] : null;
-    try {
-      const [listRes, countRes] = await Promise.all([
-        get(`resource/${encodeURIComponent(DOCTYPE)}`, {
-          fields: JSON.stringify(FIELDS),
-          filters,
-          order_by: "modified desc",
-          limit_start: (page - 1) * PAGE_SIZE,
-          limit_page_length: PAGE_SIZE,
-        }),
-        get("method/frappe.client.get_count", {
-          doctype: DOCTYPE,
-          filters,
-        }),
-      ]);
-      setRows(listRes.data || []);
-      setTotal(countRes.message ?? 0);
-    } catch (e) {
-      setError(e.message || t("common.failedToLoad", { name: DOCTYPE }));
-      setRows([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [applied, page, t]);
-
-  useEffect(() => {
-    // `load` setStates only after an awaited API response; the rule
-    // conservatively flags any setState-reaching call from an effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  const setTab = useCallback(
+    (next) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("tab", next);
+      // `replace`: switching tabs is not navigation. Pushing would make the
+      // back button walk back through tab clicks instead of leaving the module.
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
   useEffect(() => {
     setHeader({
       title: t("store.plateOffcut.title"),
-      subtitle: t("store.plateOffcut.listSubtitle"),
+      subtitle: t("store.plateOffcut.hubSubtitle"),
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
         { label: t("nav.store"), path: "/store" },
@@ -102,131 +72,34 @@ export default function PlateOffcutList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const columns = useMemo(
-    () => [
-      {
-        id: "name",
-        header: t("store.plateOffcut.number"),
-        cell: (row) => <span className="font-medium">{row.name}</span>,
-      },
-      {
-        id: "source_item",
-        header: t("store.plateOffcut.sourceItem"),
-        // Read what FIELDS actually fetched. A column reading a field that was
-        // never requested is not an error -- it silently renders the fallback
-        // forever, so the column looks plausible while showing nothing.
-        cell: (row) => <span className="truncate text-sm">{row.source_item || "—"}</span>,
-      },
-      {
-        id: "warehouse",
-        header: t("store.plateOffcut.warehouse"),
-        hideBelow: "md",
-        cell: (row) => <span className="truncate text-sm">{row.warehouse || "—"}</span>,
-      },
-      {
-        id: "heat_number",
-        header: t("store.plateOffcut.heatNumber"),
-        hideBelow: "lg",
-        cell: (row) => <span className="text-sm text-muted-foreground">{row.heat_number || "—"}</span>,
-      },
-      {
-        id: "total_offcut_weight_kg",
-        header: t("store.plateOffcut.totalOffcutWeight"),
-        hideBelow: "lg",
-        cell: (row) => (
-          <span className="text-end tabular-nums">
-            {row.total_offcut_weight_kg
-              ? `${row.total_offcut_weight_kg} Kg`
-              : "—"}
-          </span>
-        ),
-      },
-      {
-        id: "total_offcut_value",
-        header: t("store.plateOffcut.totalOffcutValue"),
-        cell: (row) => (
-          <span className="text-end tabular-nums">
-            {row.total_offcut_value != null
-              ? Number(row.total_offcut_value).toFixed(2)
-              : "—"}
-          </span>
-        ),
-      },
-      {
-        id: "status",
-        header: t("common.status"),
-        cell: (row) => {
-          const label =
-            row.docstatus === 1
-              ? t("common.submitted")
-              : row.docstatus === 2
-                ? t("common.cancelled")
-                : t("common.draft");
-          // Tones are the shared set in components/List/statusTones.js:
-          // open | pending | complete | danger | info | warning. Anything else
-          // silently falls back to the grey "open" badge, so these must be exact.
-          const tone =
-            row.docstatus === 1 ? "complete" : row.docstatus === 2 ? "danger" : "open";
-          return <StatusBadge tone={tone}>{label}</StatusBadge>;
-        },
-      },
-    ],
-    [t],
+  const tabsNode = useMemo(
+    () => (
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 pb-2">
+        {TABS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              tab === id
+                ? "bg-primary/15 text-primary ring-1 ring-primary/40"
+                : "text-chrome-muted hover:bg-muted hover:text-chrome-foreground"
+            }`}
+          >
+            {t(`store.plateOffcut.tab.${id}`)}
+          </button>
+        ))}
+      </div>
+    ),
+    [tab, setTab, t],
   );
+
+  const Panel =
+    tab === "available" ? AvailablePlates : tab === "stock" ? OffcutStock : CuttingJobs;
 
   return (
     <DashboardShell>
-      <ListLayout
-        loading={loading}
-        error={error}
-        onRetry={load}
-        isEmpty={!loading && rows.length === 0}
-        emptyTitle={t("store.plateOffcut.emptyTitle")}
-        emptyDescription={t("store.plateOffcut.emptyDescription")}
-        emptyAction={
-          <Button onClick={() => navigate("/store/plate-offcut/new")}>
-            <Plus className="size-4" />
-            {t("store.plateOffcut.newTitle")}
-          </Button>
-        }
-        actionBar={
-          <div className="flex items-center gap-2">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && setApplied(search)}
-              placeholder={t("store.plateOffcut.searchPlaceholder")}
-              aria-label={t("store.plateOffcut.searchPlaceholder")}
-              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-            />
-            <Button size="sm" onClick={() => { setApplied(search); setPage(1); }}>
-              {t("common.search")}
-            </Button>
-          </div>
-        }
-        pagination={
-          total > PAGE_SIZE ? (
-            <Pagination
-              currentPage={page}
-              totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
-              totalItems={total}
-              pageSize={PAGE_SIZE}
-              onPageChange={setPage}
-              disabled={loading}
-            />
-          ) : null
-        }
-      >
-        <DataTable
-          columns={columns}
-          data={rows}
-          loading={loading}
-          onRowClick={(row) =>
-            navigate(`/store/plate-offcut/${encodeURIComponent(row.name)}`)
-          }
-        />
-      </ListLayout>
+      <Panel tabs={tabsNode} />
     </DashboardShell>
   );
 }

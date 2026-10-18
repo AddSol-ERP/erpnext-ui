@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
@@ -63,6 +63,12 @@ const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 export default function PlateOffcutForm() {
   const { name } = useParams();
+  // A plate chosen from the "available" tab arrives here as ?serial=, so the
+  // operator never picks the same plate twice. useSearchParams, not
+  // window.location: the router owns the query string and a raw read would miss
+  // a client-side navigation.
+  const [searchParams] = useSearchParams();
+  const prefillSerial = name ? "" : (searchParams.get("serial") || "").trim();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
@@ -82,7 +88,14 @@ export default function PlateOffcutForm() {
   // renders on the very first paint instead of after the effect, which is what
   // lets .smoke-tmp/entry.jsx exercise it under renderToString.
   const [doc, setDoc] = useState(() =>
-    isEdit ? null : { doctype: DOCTYPE, docstatus: 0, offcuts: [] },
+    isEdit
+      ? null
+      : {
+          doctype: DOCTYPE,
+          docstatus: 0,
+          offcuts: [],
+          ...(prefillSerial ? { source_serial_no: prefillSerial } : {}),
+        },
   );
   const [rows, setRows] = useState(() =>
     isEdit ? [] : [{ _rid: nextRid(), length_mm: "", width_mm: "", pieces: 1 }],
@@ -140,8 +153,19 @@ export default function PlateOffcutForm() {
         } else if (!cancelled) {
           // A new offcut is a blank draft; the only field the operator supplies is
           // the plate, and everything else is derived from it server-side.
-          setDoc({ doctype: DOCTYPE, docstatus: 0, offcuts: [] });
+          setDoc({
+            doctype: DOCTYPE,
+            docstatus: 0,
+            offcuts: [],
+            ...(prefillSerial ? { source_serial_no: prefillSerial } : {}),
+          });
           setRows([]);
+          // One blank row, so a prefilled plate opens onto something to type
+          // sizes into rather than an empty table with an Add button.
+          if (prefillSerial) {
+            setRows([{ _rid: nextRid(), length_mm: "", width_mm: "", pieces: 1 }]);
+            setDirty(true);
+          }
         }
       } catch (e) {
         if (!cancelled) setError(e.message || t("common.failedToLoad", { name: name }));

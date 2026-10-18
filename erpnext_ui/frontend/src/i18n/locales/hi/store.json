@@ -1,663 +1,684 @@
 {
-	"store": {
-		"hub": {
-			"subtitle": "अनुरोध दर्ज करें, सामान दें, या स्टॉक देखें"
-		},
-		"purposes": {
-			"indent": {
-				"title": "इंडेंट दर्ज करें",
-				"description": "किसी काम के लिए स्टोर से सामान मांगें"
-			},
-			"purchase": {
-				"title": "खरीद से मंगवाएं",
-				"description": "जो सामान स्टोर में नहीं है, उसके लिए अनुरोध करें"
-			},
-			"transfer": {
-				"title": "स्टोर के बीच सामान भेजें",
-				"description": "एक स्टोर से दूसरे स्टोर में सामान ले जाएं"
-			},
-			"production": {
-				"title": "उत्पादन के लिए",
-				"description": "बिल ऑफ मटेरियल के आधार पर सामान मांगें"
-			},
-			"customerProvided": {
-				"title": "ग्राहक का सामान",
-				"description": "हमारे काम के लिए ग्राहक द्वारा दिया गया सामान"
-			}
-		},
-		"purposeGroupRequester": "मुझे कुछ चाहिए",
-		"purposeGroupStore": "मेरे पास स्टोर है",
-		"purposeGroupLookup": "सूची देखें",
-		"scopes": {
-			"all": "सभी",
-			"project": "प्रोजेक्ट इंडेंट",
-			"general": "सामान्य इंडेंट"
-		},
-		"giveItems": {
-			"title": "सामान दें",
-			"description": "दूसरों के इंडेंट के लिए सामान दें",
-			"empty": "सामान देने के लिए कोई इंडेंट नहीं है",
-			"outstanding": "देना बाकी",
-			"requested": "मांगा गया",
-			"issued": "पहले दिया जा चुका",
-			"giveNow": "यह दें",
-			"giveAll": "बाकी सब एक साथ दें",
-			"partialHint": "मात्रा बदलकर इंडेंट का कुछ हिस्सा अभी और बाकी बाद में दे सकते हैं",
-			"noWarehouse": "इस अनुरोध में वेयरहाउस नहीं है, इसलिए सामान कहाँ से आएगा यह तय नहीं हो सका",
-			"nothingToGive": "पहले देने के लिए मात्रा भरें।",
-			"given": "स्टॉक एंट्री {{name}} बनाई और सबमिट की गई।"
-		},
-		"getItems": {
-			"title": "सामान लें",
-			"searchItem": "सामान का नाम या कोड खोजें",
-			"selfHint": "कोड लिखकर Add दबाएं। जब आपको ठीक-ठीक पता हो तो यह सबसे तेज़ तरीका है।",
-			"addItem": "सामान जोड़ें",
-			"willAdd": "{{count}} सामान जोड़े जाएंगे:",
-			"useThese": "इन्हें लें",
-			"nothingToPick": "अभी लेने के लिए कुछ नहीं है",
-			"sources": {
-				"indent": {
-					"title": "बकाया इंडेंट से",
-					"description": "जिस सामान की मांग स्टोर के पास लंबित है"
-				},
-				"workOrder": {
-					"title": "वर्क ऑर्डर से",
-					"description": "जो सामान उत्पादन काम को अभी चाहिए"
-				},
-				"self": {
-					"title": "मुझे सामान पता है",
-					"description": "एक-एक करके जोड़ें"
-				}
-			}
-		},
-		"receipt": {
-			"title": "सामान प्राप्त करें",
-			"subtitle": "आपूर्तिकर्ता द्वारा भेजा गया सामान स्टोर में दर्ज करें",
-			"description": "आपूर्तिकर्ता द्वारा भेजा गया सामान प्राप्त करें",
-			"newTitle": "नई रसीद",
-			"supplier": "आपूर्तिकर्ता",
-			"postingDate": "दिनांक",
-			"acceptedWarehouse": "स्वीकृत वेयरहाउस",
-			"purchaseOrder": "खरीद ऑर्डर",
-			"receivedSoFar": "प्राप्त",
-			"receive": "प्राप्त करें",
-			"noOrders": "प्राप्त करने के लिए कोई खरीद ऑर्डर शेष नहीं है",
-			"withoutOrder": "बिना खरीद ऑर्डर के सामान प्राप्त करें",
-			"withoutOrderHint": "जब सामान बिना ऑर्डर के आए तो इसका उपयोग करें और सामान स्वयं जोड़ें।",
-			"draftReceipts": "सहेजे गए प्राप्ति ड्राफ्ट",
-			"draftReceiptsHint": "सहेजी गई लेकिन जमा न की गई प्राप्ति जारी रखें।",
-			"noDraftReceipts": "कोई सहेजा हुआ प्राप्ति ड्राफ्ट नहीं है।",
-			"resumeDraft": "जारी रखें",
-			"lockedFromPo": "आइटम, प्रोजेक्ट और इकाई खरीद आदेश से ली जाती है।",
-			"nothingOutstanding": "{{po}} पर कुछ शेष नहीं है। जो मंगाया गया था वह सब प्राप्त हो चुका है।",
-			"items": "सामान",
-			"noItems": "अभी कोई सामान नहीं",
-			"acceptedQty": "स्वीकृत मात्रा",
-			"rejectedQty": "अस्वीकृत मात्रा",
-			"serialNumbers": "सीरियल नंबर ({{count}} × {{uom}})",
-			"serialAuto": "{{count}} सीरियल नंबर स्वतः बन जाएँगे। कुछ नहीं भरना है।",
-			"serialTyped": "प्रति पंक्ति एक सीरियल नंबर, कुल {{count}}।",
-			"serialWillGenerate": "श्रृंखला {{series}} से बनाया जाएगा।",
-			"serialPlaceholder": "प्रति पंक्ति एक सीरियल नंबर ({{count}} पंक्तियाँ)",
-			"serialProgress": "{{expected}} में से {{entered}} दर्ज",
-			"perSerialWeight": "प्रति सीरियल वज़न",
-			"perSerialValue": "प्रति सीरियल मूल्य",
-			"batchNo": "बैच",
-			"batchAuto": "श्रृंखला {{series}} से बनाया जाएगा।",
-			"batchWillGenerate": "बैच नंबर स्वतः बन जाएगा।",
-			"batchPlaceholder": "बैच नंबर",
-			"rate": "दर",
-			"plateDetails": "प्लेट प्राप्ति विवरण",
-			"supplierWeight": "आपूर्तिकर्ता का वजन (Kg)",
-			"theoreticalWeightPerPlate": "प्रति प्लेट सैद्धांतिक वजन (Kg)",
-			"estimatedWeight": "अनुमानित वजन (Kg)",
-			"weightVariance": "अंतर %",
-			"tolerance": "सीमा {{value}}%",
-			"acceptedWeight": "स्वीकृत वजन (Kg)",
-			"weightPerPlate": "प्रति प्लेट वजन (Kg)",
-			"standardRate": "दर (INR)",
-			"lineAmount": "राशि (INR)",
-			"weightDecision": "वजन का निर्णय",
-			"chooseWeightDecision": "वजन स्वीकार करने का तरीका चुनें",
-			"acceptSupplierWeight": "आपूर्तिकर्ता का वजन स्वीकार करें",
-			"acceptEstimatedWeight": "अनुमानित वजन स्वीकार करें",
-			"acceptWeighbridgeWeight": "वेब्रिज का वजन स्वीकार करें",
-			"weighbridgeWeight": "वेब्रिज का वजन (Kg)",
-			"weightApprovalRequired": "वजन निर्धारित सीमा से बाहर है। जमा करने से पहले अधिकृत अनुमोदक की समीक्षा आवश्यक है।",
-			"ratePerKg": "प्रति Kg दर",
-			"heatNumber": "हीट नंबर",
-			"mtcNumber": "MTC नंबर (वैकल्पिक)",
-			"rateDiffers": "आदेशित दर {{rate}} थी",
-			"stockUom": "{{qty}} {{uom}}",
-			"inStockUom": "स्टॉक में",
-			"factor": "गुणक",
-			"validation": {
-				"totalRequired": "प्राप्त कुल {{uom}} दर्ज करें",
-				"totalInvalid": "मान्य कुल {{uom}} दर्ज करें",
-				"supplierRequired": "आपूर्तिकर्ता चुनें",
-				"dateRequired": "दिनांक भरें",
-				"dateFuture": "दिनांक भविष्य की नहीं हो सकती",
-				"addItem": "कम से कम एक सामान जोड़ें",
-				"pickItem": "हर पंक्ति में सामान चुनें",
-				"duplicatePoRow": "एक ही खरीद ऑर्डर पंक्ति दो बार आई है",
-				"rateRequired": "हर पंक्ति में दर भरें",
-				"plateSupplierWeightRequired": "हर प्लेट पंक्ति के लिए आपूर्तिकर्ता का वजन दर्ज करें",
-				"plateHeatRequired": "हर प्लेट पंक्ति के लिए हीट नंबर दर्ज करें",
-				"plateRateRequired": "हर प्लेट पंक्ति के लिए प्रति Kg दर दर्ज करें",
-				"plateDecisionRequired": "सीमा से बाहर हर प्लेट पंक्ति के लिए वजन निर्णय चुनें",
-				"plateApproverRequired": "इस पंक्ति का निर्णय अधिकृत अनुमोदक को करना होगा",
-				"plateWeighbridgeRequired": "इस निर्णय के लिए वेब्रिज का वजन दर्ज करें",
-				"plateLookupFailed": "यह जाँचा नहीं जा सका कि इस आइटम पर प्लेट वजन नियम लागू हैं या नहीं। जमा करने से पहले पुनः प्रयास करें।",
-				"warehouseRequired": "हर पंक्ति में वेयरहाउस चुनें",
-				"serialNeedsQty": "सीरियल संख्या की गणना करने के लिए कुल वज़न दर्ज करें।",
-				"serialNeedsPositiveQty": "सीरियल बनाने के लिए कुल वज़न शून्य से अधिक होना चाहिए।",
-				"serialWholeStockQty": "सीरियल वाली वस्तु के लिए कुल वज़न पूर्ण होना चाहिए — प्रति {{uom}} एक सीरियल, और {{uom}} का भिन्नांक अपना सीरियल नहीं रख सकता। निकटतम पूर्ण {{uom}} तो लगाएँ।",
-				"serialCountMismatch": "{{expected}} सीरियल नंबर दर्ज करें, प्रति पंक्ति एक ({{entered}} अभी तक)।",
-				"serialDuplicate": "एक सीरियल नंबर दो बार लिखा गया है। हर एक अलग होना चाहिए।",
-				"batchRequired": "यह वस्तु बैच वाली है, इसलिए बैच नंबर आवश्यक है।",
-				"wholeNumberUom": "{{uom}} पूर्ण संख्या होनी चाहिए"
-			},
-			"picker": {
-				"pickFirst": "पूरा करने के लिए एक पंक्ति चुनें",
-				"title": "प्राप्त करने के लिए सामान जोड़ें",
-				"search": "सामान के नाम, कोड या गोदाम से खोजें",
-				"count": "{{total}} में से {{shown}} पंक्तियाँ दिखाई गईं",
-				"added": "जोड़ा गया",
-				"noMatch": "कोई मेल खाती पंक्ति नहीं",
-				"itemSubtitle": "{{name}}"
-			},
-			"receivedUom": "किस इकाई में प्राप्त",
-			"uomFromPo": "खरीद आदेश से मेल खाना चाहिए। जिस इकाई में गिनना है उसी में आदेश बनाएँ।",
-			"conversion": "रूपांतरण ({{from}} से {{to}})",
-			"oneOf": "1 {{from}}",
-			"equals": "= {{factor}} {{to}}",
-			"thisDelivery": "यह डिलीवरी",
-			"uomPickHint": "जिस इकाई में आप गिन रहे हैं",
-			"qtyIn": "मात्रा ({{uom}})",
-			"receivingOf": "{{pending}} {{uom}} में से {{qty}} प्राप्त कर रहे हैं — शेष आदेश पर खुला रहेगा।",
-			"receivingAll": "पूरी {{pending}} {{uom}} प्राप्त कर रहे हैं। आंशिक लेने के लिए घटाएँ।",
-			"driftWarning": "यह खरीद आदेश की दर से {{factor}} गुना है। जाँचें कि वज़न केवल इस पंक्ति का है, पूरी डिलीवरी का नहीं।",
-			"totalIn": "कुल प्राप्त ({{uom}})",
-			"totalHint": "पूरी खेप तौलें या मापें, हम उसे बाँट देंगे",
-			"basisMeasured": "आपके तौले गए वज़न से",
-			"basisPo": "खरीद आदेश से",
-			"basisUnresolved": "अभी कोई रूपांतरण दर नहीं",
-			"totalInOptional": "कुल प्राप्त ({{uom}}, वैकल्पिक)",
-			"totalHintOptional": "खाली छोड़ने पर खरीद आदेश की दर {{factor}} {{uom}} उपयोग होगी। केवल तभी भरें जब डिलीवरी अलग हो।",
-			"stockQtyIn": "स्टॉक मात्रा ({{uom}})",
-			"perEach": "= प्रत्येक {{factor}} {{uom}}",
-			"rateFromPo": "खरीद आदेश से तय",
-			"wholeNumberNote": "{{uom}} में भिन्न मात्रा नहीं हो सकती",
-			"progress": "{{total}} में से {{picked}} प्राप्त",
-			"addedLines": "इस रसीद के सामान",
-			"noLinesYet": "अभी कुछ नहीं जोड़ा। जो सामान प्राप्त कर रहे हैं वह चुनें।",
-			"addFromPo": "सामान जोड़ें",
-			"editLine": "संपादित करें",
-			"uomLookupFailed": "इकाई की जानकारी लोड नहीं हो सकी",
-			"deleteDraftTitle": "प्राप्ति ड्राफ्ट हटाएँ?",
-			"submittedReceipts": "जमा की गई खरीद रसीदें",
-			"submittedReceiptsHint": "विवरण देखने के लिए जमा की गई रसीद खोलें।",
-			"noSubmittedReceipts": "कोई जमा की गई खरीद रसीद नहीं है।",
-			"viewReceipt": "देखें",
-			"submittedReceiptReadOnly": "जमा की गई रसीद {{name}} · केवल पढ़ने के लिए।",
-			"totalEstimatedWeight": "कुल अनुमानित वज़न (Kg)",
-			"totalAcceptedWeight": "कुल स्वीकृत वज़न (Kg)",
-			"receiveQueueTab": "प्राप्ति के लिए",
-			"draftsTab": "ड्राफ्ट",
-			"submittedTab": "जमा"
-		},
-		"projectItems": {
-			"title": "{{project}} के सामान",
-			"chooseProject": "प्रोजेक्ट चुनें",
-			"chooseBom": "सामान चुनें",
-			"noBom": "{{project}} से अभी कोई बिल ऑफ मटेरियल नहीं जुड़ा है। स्टोर मॉड्यूल के 'बिल ऑफ मटेरियल' से जोड़ें, या प्रोजेक्ट हटाकर खुद सामान चुनें।",
-			"filledFromBom": "{{project}} की सामग्री सूची से {{total}} में से {{added}} वस्तुएँ भरी गईं।",
-			"allPresent": "{{project}} की सामग्री सूची की सभी वस्तुएँ इस मांग में पहले से हैं।",
-			"noBomShort": "कोई बिल ऑफ मटेरियल नहीं",
-			"required": "चाहिए",
-			"requestedQty": "पहले मांगा गया",
-			"outstanding": "अब भी चाहिए",
-			"loadFailed": "इस प्रोजेक्ट का बिल ऑफ मटेरियल पढ़ा नहीं जा सका",
-			"hint": "किसी पंक्ति में प्रोजेक्ट भरें तो उसके बिल ऑफ मटेरियल से सामान चुन सकते हैं। खाली छोड़ें तो सभी सामान खुद खोज सकते हैं।"
-		},
-		"movements": {
-			"title": "स्टॉक गतिविधि",
-			"subtitle": "हर प्रकार की स्टॉक गतिविधि, आपके काम के अनुसार समूहीकृत",
-			"groups": {
-				"everyday": "रोज़मर्रा का स्टोर",
-				"manufacturing": "उत्पादन",
-				"correction": "सुधार और आउटसोर्सिंग"
-			},
-			"purposes": {
-				"issue": {
-					"title": "सामान जारी करें",
-					"description": "किसी व्यक्ति, काम या साइट को स्टॉक दें"
-				},
-				"receipt": {
-					"title": "सामान प्राप्त करें",
-					"description": "स्टोर में सामान लाएं"
-				},
-				"transfer": {
-					"title": "स्टोर के बीच ले जाएं",
-					"description": "एक स्टोर से दूसरे स्टोर में स्टॉक ले जाएं"
-				},
-				"transferForManufacture": {
-					"title": "उत्पादन में भेजें",
-					"description": "कच्चा माल वर्क-इन-प्रोग्रेस स्टोर में ले जाएं"
-				},
-				"consumption": {
-					"title": "उत्पादन में उपयोग",
-					"description": "किसी काम में खपा कच्चा माल दर्ज करें"
-				},
-				"manufacture": {
-					"title": "उत्पादन दर्ज करें",
-					"description": "कच्चा माल लें और तैयार माल निकालें"
-				},
-				"repack": {
-					"title": "पैक बदलें",
-					"description": "मात्रा बदले बिना पैकिंग बदलें"
-				},
-				"disassemble": {
-					"title": "अलग करें",
-					"description": "असेंबली को उसके हिस्सों में तोड़ें"
-				},
-				"subcontractor": {
-					"title": "सबकॉन्ट्रैक्टर को भेजें",
-					"description": "बाहर प्रोसेसिंग के लिए सामान भेजें"
-				}
-			}
-		},
-		"labels": {
-			"purpose": "उद्देश्य",
-			"requiredBy": "कब तक चाहिए",
-			"conversionFactor": "रूपांतरण कारक",
-			"sourceWarehouse": "स्रोत वेयरहाउस",
-			"targetWarehouse": "लक्ष्य वेयरहाउस",
-			"item": "सामान",
-			"items": "सामान",
-			"project": "प्रोजेक्ट",
-			"projectOptional": "प्रोजेक्ट (वैकल्पिक)",
-			"workOrder": "वर्क ऑर्डर"
-		},
-		"tiles": {
-			"stockEntry": {
-				"title": "स्टॉक एंट्री",
-				"description": "मटेरियल इश्यू, रसीद, ट्रांसफर"
-			},
-			"materialRequest": {
-				"title": "मटेरियल रिक्वेस्ट",
-				"description": "कच्चा माल अनुरोध करें"
-			},
-			"delivery": {
-				"title": "डिलीवरी / डिस्पैच",
-				"description": "बाहर जाने वाली सामग्री प्रबंधित करें"
-			},
-			"stockBalance": {
-				"title": "स्टॉक बैलेंस",
-				"description": "स्टॉक उपलब्धता देखें"
-			},
-			"itemMaster": {
-				"title": "आइटम मास्टर",
-				"description": "आइटम और वेरिएंट प्रबंधित करें"
-			},
-			"warehouse": {
-				"title": "वेयरहाउस",
-				"description": "गोदाम प्रबंधित करें"
-			},
-			"stockReconciliation": {
-				"title": "स्टॉक मिलान",
-				"description": "स्टॉक मात्रा का मिलान करें"
-			},
-			"bom": {
-				"title": "बिल ऑफ मटेरियल",
-				"description": "बिल ऑफ मटेरियल को प्रोजेक्ट से जोड़ें"
-			},
-			"plateOffcut": {
-				"title": "प्लेट ऑफकट",
-				"description": "प्लेट को ऑफकट में काटें; रीपैक स्टॉक एंट्री बनाती है"
-			}
-		},
-		"mr": {
-			"title": "मटेरियल रिक्वेस्ट",
-			"subtitle": "सभी मटेरियल रिक्वेस्ट ट्रैक और प्रबंधित करें",
-			"tiles": {
-				"purchase": {
-					"title": "खरीद अनुरोध",
-					"description": "खरीद हेतु आइटम अनुरोध करें"
-				},
-				"transfer": {
-					"title": "मटेरियल ट्रांसफर",
-					"description": "गोदामों के बीच स्टॉक स्थानांतरित करें"
-				},
-				"issue": {
-					"title": "मटेरियल इश्यू",
-					"description": "उपयोग हेतु सामग्री जारी करें"
-				},
-				"receipt": {
-					"title": "मटेरियल रसीद",
-					"description": "सामग्री प्राप्त करें"
-				},
-				"customerProvided": {
-					"title": "ग्राहक द्वारा उपलब्ध",
-					"description": "ग्राहक द्वारा उपलब्ध सामग्री"
-				}
-			},
-			"listTitle": "{{type}} अनुरोध",
-			"listSubtitle": "अनुरोध ट्रैक और प्रबंधित करें",
-			"empty": "कोई मटेरियल रिक्वेस्ट नहीं मिली",
-			"newTitle": "नई मटेरियल रिक्वेस्ट",
-			"subtitleSubmitted": "{{type}} • सबमिट किया गया",
-			"subtitleDraft": "{{type}} • ड्राफ्ट",
-			"createSubtitle": "{{type}} बनाएं",
-			"form": {
-				"project": "परियोजना",
-				"items": "आइटम",
-				"select": "चुनें"
-			},
-			"unknownPurpose": "यह अनुरोध प्रकार उपलब्ध नहीं है।",
-			"allTitle": "सभी अनुरोध"
-		},
-		"status": {
-			"draft": "ड्राफ्ट",
-			"submitted": "सबमिट किया गया",
-			"cancelled": "रद्द",
-			"completed": "पूर्ण",
-			"toBill": "बिल हेतु",
-			"stopped": "रोका गया"
-		},
-		"filters": {
-			"customer": "ग्राहक",
-			"company": "कंपनी",
-			"item": "आइटम",
-			"warehouse": "गोदाम",
-			"fromDate": "शुरुआत की तारीख",
-			"toDate": "समाप्ति तारीख"
-		},
-		"types": {
-			"purchase": "खरीद",
-			"transfer": "ट्रांसफर",
-			"materialIssue": "मटेरियल इश्यू",
-			"materialReceipt": "मटेरियल रसीद",
-			"customerProvided": "ग्राहक द्वारा उपलब्ध"
-		},
-		"form": {
-			"type": "प्रकार",
-			"company": "कंपनी",
-			"customer": "ग्राहक",
-			"scheduleDate": "निर्धारित तिथि",
-			"item": "आइटम",
-			"qty": "मात्रा",
-			"uom": "यूओएम",
-			"stockUom": "स्टॉक यूओएम",
-			"conv": "रूपांतरण",
-			"source": "स्रोत",
-			"warehouse": "गोदाम",
-			"schedule": "निर्धारित तिथि",
-			"postingDate": "पोस्टिंग तिथि",
-			"defaultWarehouse": "डिफ़ॉल्ट गोदाम",
-			"driver": "ड्राइवर",
-			"vehicleNo": "वाहन संख्या",
-			"transporter": "ट्रांसपोर्टर",
-			"lrNumber": "एलआर संख्या",
-			"items": "आइटम",
-			"getItems": "आइटम प्राप्त करें",
-			"dispatch": "डिस्पैच",
-			"basics": "मूल जानकारी",
-			"purpose": "उद्देश्य",
-			"requiredBy": "कब तक चाहिए"
-		},
-		"validation": {
-			"typeRequired": "प्रकार आवश्यक है",
-			"companyRequired": "कंपनी आवश्यक है",
-			"customerRequired": "ग्राहक आवश्यक है",
-			"uomRequired": "यूओएम आवश्यक है",
-			"invalidConversion": "अमान्य रूपांतरण कारक",
-			"addAtLeastOneItem": "कम से कम एक आइटम जोड़ें",
-			"addItems": "आइटम जोड़ें",
-			"fillItemRows": "आइटम पंक्तियाँ भरें",
-			"fillAllRows": "सभी आइटम पंक्तियाँ भरें",
-			"qtyGtZero": "मात्रा 0 से अधिक होनी चाहिए",
-			"fromToWarehouseRequired": "स्रोत और गंतव्य गोदाम आवश्यक हैं",
-			"sameWarehouse": "स्रोत और लक्ष्य गोदाम एक नहीं हो सकते",
-			"warehouseRequired": "गोदाम आवश्यक है"
-		},
-		"dn": {
-			"title": "डिलीवरी नोट्स",
-			"subtitle": "डिस्पैच और डिलीवरी ट्रैकिंग",
-			"empty": "कोई डिलीवरी नोट नहीं मिला",
-			"editTitle": "डिलीवरी {{name}}",
-			"newTitle": "नई डिलीवरी",
-			"formSubtitle": "सामग्री भेजें"
-		},
-		"balance": {
-			"title": "स्टॉक बैलेंस",
-			"subtitle": "रीयल-टाइम इन्वेंटरी स्थिति",
-			"empty": "कोई स्टॉक उपलब्ध नहीं",
-			"value": "मूल्य",
-			"fromDate": "शुरुआत की तारीख",
-			"toDate": "समाप्ति तारीख",
-			"opening": "शुरुआती",
-			"inQty": "आया",
-			"outQty": "गया",
-			"closing": "शेष",
-			"reserved": "आरक्षित",
-			"free": "उपलब्ध",
-			"rate": "दर",
-			"projected": "अनुमानित",
-			"valuationAsOf": "मूल्य आज के अनुसार दिखाया गया है",
-			"performanceWarning": "किसी आइटम या गोदाम से इसे सीमित करें — पूरी सूची में हर लेजर पंक्ति शामिल होती है।",
-			"trail": "गतिविधि इतिहास",
-			"noMovements": "इस अवधि में कोई गतिविधि नहीं",
-			"showTrail": "यह स्टॉक कहाँ से आया, देखें",
-			"incomingRate": "आने की दर",
-			"outgoingRate": "जाने की दर",
-			"runningBalance": "इसके बाद शेष",
-			"balanceQty": "शेष",
-			"serial": "सीरियल",
-			"batch": "बैच",
-			"batchPermission": "बैच और सीरियल विवरण के लिए Serial and Batch Entry की अनुमति चाहिए",
-			"noBatchOnThisLine": "बैच या सीरियल ट्रैक नहीं है",
-			"truncated": "और गतिविधियाँ हैं — सीमित करने के लिए तारीखें बदलें"
-		},
-		"source": {
-			"loadItems": "आइटम लोड करें",
-			"load": "लोड करें",
-			"selectSourceType": "स्रोत प्रकार चुनें",
-			"searchDocument": "दस्तावेज़ खोजें...",
-			"selectTypeFirst": "पहले प्रकार चुनें",
-			"noCustomer": "कोई ग्राहक नहीं",
-			"salesOrder": "सेल्स ऑर्डर",
-			"pickList": "पिक लिस्ट",
-			"materialRequest": "मटेरियल रिक्वेस्ट",
-			"purchaseReceipt": "परचेज रसीद",
-			"bom": "बिल ऑफ मटेरियल्स",
-			"bomShort": "बीओएम",
-			"purchaseInvoice": "परचेज इनवॉइस",
-			"itemMaster": "आइटम मास्टर",
-			"onlyQcPassed": "केवल क्यूसी पास आइटम",
-			"qcDone": "क्यूसी पूर्ण",
-			"sourceType": "स्रोत प्रकार",
-			"selectDocument": "दस्तावेज़ चुनें"
-		},
-		"entry": {
-			"title": "स्टॉक एंट्री",
-			"subtitleDefault": "त्वरित इन्वेंटरी संचालन",
-			"subtitleReceipt": "आगमन → {{warehouse}}",
-			"subtitleIssue": "जावक ← {{warehouse}}",
-			"subtitleTransfer": "{{from}} → {{to}}",
-			"subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
-			"subtitleManufacture": "निर्माण @ {{warehouse}}",
-			"subtitleRepack": "रीपैक @ {{warehouse}}",
-			"subtitleConsume": "उपभोग ← {{warehouse}}",
-			"selectWarehouse": "गोदाम चुनें",
-			"from": "स्रोत",
-			"to": "गंतव्य",
-			"actions": {
-				"getItems": "आइटम प्राप्त करें",
-				"clear": "साफ़ करें"
-			},
-			"basicConfig": "मूल कॉन्फ़िगरेशन",
-			"collapse": "संकुचित करें",
-			"expand": "विस्तारित करें",
-			"entryDate": "एंट्री तिथि",
-			"entryTime": "एंट्री समय",
-			"items": "आइटम",
-			"get": "प्राप्त करें",
-			"entryType": "एंट्री प्रकार",
-			"selectEntryType": "एंट्री प्रकार चुनें",
-			"fromWarehouse": "स्रोत गोदाम",
-			"toWarehouse": "गंतव्य गोदाम",
-			"selectFromWarehouse": "स्रोत गोदाम चुनें",
-			"selectToWarehouse": "गंतव्य गोदाम चुनें",
-			"scanPlaceholder": "आइटम स्कैन करें या दर्ज करें",
-			"totalQty": "कुल मात्रा",
-			"submitEntry": "एंट्री सबमिट करें",
-			"modes": {
-				"incoming": "आगमन",
-				"outgoing": "जावक",
-				"transfer": "ट्रांसफर",
-				"adjustment": "समायोजन"
-			},
-			"createdToast": "स्टॉक एंट्री बनाई गई: {{name}}",
-			"failedToast": "स्टॉक एंट्री विफल रही"
-		},
-		"entryTypes": {
-			"materialIssue": "मटेरियल इश्यू",
-			"materialReceipt": "मटेरियल रसीद",
-			"materialTransfer": "मटेरियल ट्रांसफर",
-			"manufacture": "निर्माण",
-			"repack": "रीपैक",
-			"disassemble": "विघटन",
-			"sendToSubcontractor": "सबकॉन्ट्रैक्टर को भेजें",
-			"materialTransferForMfg": "निर्माण हेतु मटेरियल ट्रांसफर",
-			"materialConsumptionForMfg": "निर्माण हेतु मटेरियल खपत"
-		},
-		"item": {
-			"outOfStock": "स्टॉक समाप्त",
-			"exceedsStock": "स्टॉक से अधिक",
-			"lowStock": "कम स्टॉक",
-			"available": "उपलब्ध",
-			"willBeRemoved": "हटा दिया जाएगा",
-			"willAdjust": "{{qty}} पर समायोजित होगा",
-			"emptyList": "कोई आइटम नहीं जोड़ा गया",
-			"itemName": "आइटम {{code}}",
-			"increase": "मात्रा बढ़ाएँ",
-			"decrease": "मात्रा घटाएँ",
-			"remove": "आइटम हटाएँ"
-		},
-		"fix": {
-			"title": "स्टॉक समस्या",
-			"outOfStock": "{{count}} आइटम स्टॉक से बाहर हैं।",
-			"more": "+ {{n}} और...",
-			"removeItems": "आइटम हटाएँ",
-			"adjustQty": "मात्रा समायोजित करें"
-		},
-		"submitModal": {
-			"title": "स्टॉक एंट्री की पुष्टि करें",
-			"project": "प्रोजेक्ट",
-			"workOrder": "वर्क ऑर्डर",
-			"searchProject": "प्रोजेक्ट खोजें",
-			"searchWorkOrder": "वर्क ऑर्डर खोजें"
-		},
-		"demo": {
-			"title": "सार्वभौमिक फ़ॉर्म",
-			"subtitle": "सभी फ़ील्ड प्रकारों का डेमो",
-			"sections": {
-				"basic": "मूल फ़ील्ड",
-				"text": "टेक्स्ट फ़ील्ड",
-				"dateTime": "दिनांक और समय",
-				"selection": "चयन",
-				"attachments": "अनुलग्नक"
-			},
-			"age": "आयु",
-			"salary": "वेतन",
-			"description": "विवरण",
-			"datetime": "दिनांक-समय",
-			"time": "समय",
-			"pending": "लंबित",
-			"closed": "बंद",
-			"department": "विभाग (लिंक)",
-			"searchDepartment": "विभाग खोजें...",
-			"active": "सक्रिय",
-			"uploadFile": "फ़ाइल अपलोड करें",
-			"chooseFile": "फ़ाइल चुनें",
-			"noFileSelected": "कोई फ़ाइल नहीं चुनी गई",
-			"itemCode": "आइटम कोड",
-			"rate": "दर"
-		},
-		"returnStock": {
-			"title": "सामान स्टॉक में वापस लाएँ",
-			"action": "इस सामान को स्टॉक में वापस लाएँ",
-			"explainer": "काम से बचा सामान एक ही स्टॉक एंट्री के ज़रिए स्टोर में वापस जाता है। आपके पुष्टि करने तक कुछ भी सेव नहीं होता।",
-			"whichItem": "क्या वापस आ रहा है?",
-			"useSameItem": "यही आइटम इस्तेमाल करें",
-			"useSameItemHint": "अपने ही कोड में वापस जाएगा",
-			"createNewItem": "नया आइटम बनाएँ",
-			"createNewItemHint": "बचा हुआ सामान अलग स्पेसिफिकेशन का है",
-			"itemName": "आइटम का नाम",
-			"itemGroup": "आइटम समूह",
-			"trackBatch": "बैच ट्रैक करें",
-			"trackSerial": "सीरियल नंबर ट्रैक करें",
-			"fromWarehouse": "कहाँ से (अभी कहाँ है)",
-			"toWarehouse": "कहाँ पर (वापस कहाँ)",
-			"qty": "कितना ({{uom}})",
-			"batchNumber": "बैच नंबर",
-			"serialNumbers": "सीरियल नंबर",
-			"serialNumbersHint": "हर पंक्ति में एक, या अल्पविराम से अलग",
-			"serialPlaceholder": "SN001\nSN002",
-			"autoBatch": "इस आइटम के लिए नया बैच नंबर अपने आप बनेगा।",
-			"remarks": "टिप्पणी (वैकल्पिक)",
-			"makesEntry": "स्टॉक एंट्री बनाएगा: {{from}} से {{to}}",
-			"confirm": "स्टॉक में वापस लाएँ",
-			"done": "{{item}} स्टॉक में वापस आ गया ({{qty}})।",
-			"autoSerial": "इस आइटम के लिए सीरियल नंबर अपने आप बनेंगे।"
-		},
-		"plateOffcut": {
-			"title": "प्लेट ऑफकट",
-			"listSubtitle": "प्लेट को ऑफकट में काटें; प्रत्येक एक रीपैक स्टॉक एंट्री बनाता है",
-			"subtitle": "प्लेट चुनें, कट के आकार दर्ज करें, वजन स्वतः आ जाएँगे",
-			"newTitle": "नया प्लेट ऑफकट",
-			"number": "ऑफकट क्र.",
-			"searchPlaceholder": "ऑफकट क्रंबर खोजें…",
-			"emptyTitle": "अभी तक कोई प्लेट ऑफकट नहीं",
-			"emptyDescription": "प्लेट को ऑफकट में काटकर यहाँ सूचीबद्ध करें।",
-			"sourceSerial": "प्लेट (सीरियल नं.)",
-			"sourceSerialHint": "केवल गोदाम में रखी सक्रिय प्लेट ही काटी जा सकती है",
-			"sourceItem": "स्रोत आइटम",
-			"batch": "स्रोत बैच",
-			"heatNumber": "हीट नंबर",
-			"warehouse": "वेयरहाउस",
-			"plateSize": "प्लेट आकार",
-			"plateWeight": "प्लेट वजन",
-			"offcutsTitle": "ऑफकट",
-			"noOffcutsYet": "कम से कम एक ऑफकट जोड़ें। प्लेट को सीधे स्क्रैप करना कटाई नहीं है।",
-			"length": "लंबाई (mm)",
-			"width": "चौड़ाई (mm)",
-			"pieces": "टुकड़े",
-			"pieces_one": "{{count}} टुकड़ा",
-			"pieces_other": "{{count}} टुकड़े",
-			"weightEach": "Kg / टुकड़ा",
-			"rowWeight": "पंक्ति वजन",
-			"rowValue": "पंक्ति मूल्य",
-			"totalPieces": "कुल टुकड़े",
-			"totalOffcutWeight": "ऑफकट वजन",
-			"totalOffcutValue": "ऑफकट मूल्य",
-			"scrap": "स्क्रैप",
-			"canvasTitle": "प्लेट लेआउट",
-			"canvasIndicative": "संकेतक लेआउट — कटिंग योजना नहीं",
-			"canvasNoGeometry": "कट लेआउट देखने के लिए प्लेट चुनें।",
-			"canvasSummary_one": "{{plate}} · {{pieces}} टुकड़ा",
-			"canvasSummary_other": "{{plate}} · {{pieces}} टुकड़े",
-			"canvasOverflow_one": "{{count}} टुकड़ा फिट नहीं होता",
-			"canvasOverflow_other": "{{count}} टुकड़े फिट नहीं होते",
-			"overBy": "ऑफकट का वजन प्लेट से अधिक है — {{kg}} kg अधिक। फिट होने तक सेव नहीं हो सकेगा।",
-			"errNoSerial": "जिस प्लेट को काट रहे हैं उसे चुनें।",
-			"errNoOffcuts": "कम से कम एक ऑफकट जोड़ें।",
-			"errRowSize": "पंक्ति {{row}} में लंबाई और चौड़ाई दोनों चाहिए।",
-			"submittedReadOnly": "{{name}} सबमिट हो चुका है और बदला नहीं जा सकता।",
-			"backToList": "सूची पर लौटें",
-			"submitTitle": "यह ऑफकट सबमिट करें?",
-			"submitMessage": "सबमिट करने पर ऑफकट आइटम, बैच और सीरियल नंबर बनेंगे और रीपैक स्टॉक एंट्री पोस्ट होगी। इससे स्टॉक बदलता है।"
-		}
-	}
+  "store": {
+    "hub": {
+      "subtitle": "अनुरोध दर्ज करें, सामान दें, या स्टॉक देखें"
+    },
+    "purposes": {
+      "indent": {
+        "title": "इंडेंट दर्ज करें",
+        "description": "किसी काम के लिए स्टोर से सामान मांगें"
+      },
+      "purchase": {
+        "title": "खरीद से मंगवाएं",
+        "description": "जो सामान स्टोर में नहीं है, उसके लिए अनुरोध करें"
+      },
+      "transfer": {
+        "title": "स्टोर के बीच सामान भेजें",
+        "description": "एक स्टोर से दूसरे स्टोर में सामान ले जाएं"
+      },
+      "production": {
+        "title": "उत्पादन के लिए",
+        "description": "बिल ऑफ मटेरियल के आधार पर सामान मांगें"
+      },
+      "customerProvided": {
+        "title": "ग्राहक का सामान",
+        "description": "हमारे काम के लिए ग्राहक द्वारा दिया गया सामान"
+      }
+    },
+    "purposeGroupRequester": "मुझे कुछ चाहिए",
+    "purposeGroupStore": "मेरे पास स्टोर है",
+    "purposeGroupLookup": "सूची देखें",
+    "scopes": {
+      "all": "सभी",
+      "project": "प्रोजेक्ट इंडेंट",
+      "general": "सामान्य इंडेंट"
+    },
+    "giveItems": {
+      "title": "सामान दें",
+      "description": "दूसरों के इंडेंट के लिए सामान दें",
+      "empty": "सामान देने के लिए कोई इंडेंट नहीं है",
+      "outstanding": "देना बाकी",
+      "requested": "मांगा गया",
+      "issued": "पहले दिया जा चुका",
+      "giveNow": "यह दें",
+      "giveAll": "बाकी सब एक साथ दें",
+      "partialHint": "मात्रा बदलकर इंडेंट का कुछ हिस्सा अभी और बाकी बाद में दे सकते हैं",
+      "noWarehouse": "इस अनुरोध में वेयरहाउस नहीं है, इसलिए सामान कहाँ से आएगा यह तय नहीं हो सका",
+      "nothingToGive": "पहले देने के लिए मात्रा भरें।",
+      "given": "स्टॉक एंट्री {{name}} बनाई और सबमिट की गई।"
+    },
+    "getItems": {
+      "title": "सामान लें",
+      "searchItem": "सामान का नाम या कोड खोजें",
+      "selfHint": "कोड लिखकर Add दबाएं। जब आपको ठीक-ठीक पता हो तो यह सबसे तेज़ तरीका है।",
+      "addItem": "सामान जोड़ें",
+      "willAdd": "{{count}} सामान जोड़े जाएंगे:",
+      "useThese": "इन्हें लें",
+      "nothingToPick": "अभी लेने के लिए कुछ नहीं है",
+      "sources": {
+        "indent": {
+          "title": "बकाया इंडेंट से",
+          "description": "जिस सामान की मांग स्टोर के पास लंबित है"
+        },
+        "workOrder": {
+          "title": "वर्क ऑर्डर से",
+          "description": "जो सामान उत्पादन काम को अभी चाहिए"
+        },
+        "self": {
+          "title": "मुझे सामान पता है",
+          "description": "एक-एक करके जोड़ें"
+        }
+      }
+    },
+    "receipt": {
+      "title": "सामान प्राप्त करें",
+      "subtitle": "आपूर्तिकर्ता द्वारा भेजा गया सामान स्टोर में दर्ज करें",
+      "description": "आपूर्तिकर्ता द्वारा भेजा गया सामान प्राप्त करें",
+      "newTitle": "नई रसीद",
+      "supplier": "आपूर्तिकर्ता",
+      "postingDate": "दिनांक",
+      "acceptedWarehouse": "स्वीकृत वेयरहाउस",
+      "purchaseOrder": "खरीद ऑर्डर",
+      "receivedSoFar": "प्राप्त",
+      "receive": "प्राप्त करें",
+      "noOrders": "प्राप्त करने के लिए कोई खरीद ऑर्डर शेष नहीं है",
+      "withoutOrder": "बिना खरीद ऑर्डर के सामान प्राप्त करें",
+      "withoutOrderHint": "जब सामान बिना ऑर्डर के आए तो इसका उपयोग करें और सामान स्वयं जोड़ें।",
+      "draftReceipts": "सहेजे गए प्राप्ति ड्राफ्ट",
+      "draftReceiptsHint": "सहेजी गई लेकिन जमा न की गई प्राप्ति जारी रखें।",
+      "noDraftReceipts": "कोई सहेजा हुआ प्राप्ति ड्राफ्ट नहीं है।",
+      "resumeDraft": "जारी रखें",
+      "lockedFromPo": "आइटम, प्रोजेक्ट और इकाई खरीद आदेश से ली जाती है।",
+      "nothingOutstanding": "{{po}} पर कुछ शेष नहीं है। जो मंगाया गया था वह सब प्राप्त हो चुका है।",
+      "items": "सामान",
+      "noItems": "अभी कोई सामान नहीं",
+      "acceptedQty": "स्वीकृत मात्रा",
+      "rejectedQty": "अस्वीकृत मात्रा",
+      "serialNumbers": "सीरियल नंबर ({{count}} × {{uom}})",
+      "serialAuto": "{{count}} सीरियल नंबर स्वतः बन जाएँगे। कुछ नहीं भरना है।",
+      "serialTyped": "प्रति पंक्ति एक सीरियल नंबर, कुल {{count}}।",
+      "serialWillGenerate": "श्रृंखला {{series}} से बनाया जाएगा।",
+      "serialPlaceholder": "प्रति पंक्ति एक सीरियल नंबर ({{count}} पंक्तियाँ)",
+      "serialProgress": "{{expected}} में से {{entered}} दर्ज",
+      "perSerialWeight": "प्रति सीरियल वज़न",
+      "perSerialValue": "प्रति सीरियल मूल्य",
+      "batchNo": "बैच",
+      "batchAuto": "श्रृंखला {{series}} से बनाया जाएगा।",
+      "batchWillGenerate": "बैच नंबर स्वतः बन जाएगा।",
+      "batchPlaceholder": "बैच नंबर",
+      "rate": "दर",
+      "plateDetails": "प्लेट प्राप्ति विवरण",
+      "supplierWeight": "आपूर्तिकर्ता का वजन (Kg)",
+      "theoreticalWeightPerPlate": "प्रति प्लेट सैद्धांतिक वजन (Kg)",
+      "estimatedWeight": "अनुमानित वजन (Kg)",
+      "weightVariance": "अंतर %",
+      "tolerance": "सीमा {{value}}%",
+      "acceptedWeight": "स्वीकृत वजन (Kg)",
+      "weightPerPlate": "प्रति प्लेट वजन (Kg)",
+      "standardRate": "दर (INR)",
+      "lineAmount": "राशि (INR)",
+      "weightDecision": "वजन का निर्णय",
+      "chooseWeightDecision": "वजन स्वीकार करने का तरीका चुनें",
+      "acceptSupplierWeight": "आपूर्तिकर्ता का वजन स्वीकार करें",
+      "acceptEstimatedWeight": "अनुमानित वजन स्वीकार करें",
+      "acceptWeighbridgeWeight": "वेब्रिज का वजन स्वीकार करें",
+      "weighbridgeWeight": "वेब्रिज का वजन (Kg)",
+      "weightApprovalRequired": "वजन निर्धारित सीमा से बाहर है। जमा करने से पहले अधिकृत अनुमोदक की समीक्षा आवश्यक है।",
+      "ratePerKg": "प्रति Kg दर",
+      "heatNumber": "हीट नंबर",
+      "mtcNumber": "MTC नंबर (वैकल्पिक)",
+      "rateDiffers": "आदेशित दर {{rate}} थी",
+      "stockUom": "{{qty}} {{uom}}",
+      "inStockUom": "स्टॉक में",
+      "factor": "गुणक",
+      "validation": {
+        "totalRequired": "प्राप्त कुल {{uom}} दर्ज करें",
+        "totalInvalid": "मान्य कुल {{uom}} दर्ज करें",
+        "supplierRequired": "आपूर्तिकर्ता चुनें",
+        "dateRequired": "दिनांक भरें",
+        "dateFuture": "दिनांक भविष्य की नहीं हो सकती",
+        "addItem": "कम से कम एक सामान जोड़ें",
+        "pickItem": "हर पंक्ति में सामान चुनें",
+        "duplicatePoRow": "एक ही खरीद ऑर्डर पंक्ति दो बार आई है",
+        "rateRequired": "हर पंक्ति में दर भरें",
+        "plateSupplierWeightRequired": "हर प्लेट पंक्ति के लिए आपूर्तिकर्ता का वजन दर्ज करें",
+        "plateHeatRequired": "हर प्लेट पंक्ति के लिए हीट नंबर दर्ज करें",
+        "plateRateRequired": "हर प्लेट पंक्ति के लिए प्रति Kg दर दर्ज करें",
+        "plateDecisionRequired": "सीमा से बाहर हर प्लेट पंक्ति के लिए वजन निर्णय चुनें",
+        "plateApproverRequired": "इस पंक्ति का निर्णय अधिकृत अनुमोदक को करना होगा",
+        "plateWeighbridgeRequired": "इस निर्णय के लिए वेब्रिज का वजन दर्ज करें",
+        "plateLookupFailed": "यह जाँचा नहीं जा सका कि इस आइटम पर प्लेट वजन नियम लागू हैं या नहीं। जमा करने से पहले पुनः प्रयास करें।",
+        "warehouseRequired": "हर पंक्ति में वेयरहाउस चुनें",
+        "serialNeedsQty": "सीरियल संख्या की गणना करने के लिए कुल वज़न दर्ज करें।",
+        "serialNeedsPositiveQty": "सीरियल बनाने के लिए कुल वज़न शून्य से अधिक होना चाहिए।",
+        "serialWholeStockQty": "सीरियल वाली वस्तु के लिए कुल वज़न पूर्ण होना चाहिए — प्रति {{uom}} एक सीरियल, और {{uom}} का भिन्नांक अपना सीरियल नहीं रख सकता। निकटतम पूर्ण {{uom}} तो लगाएँ।",
+        "serialCountMismatch": "{{expected}} सीरियल नंबर दर्ज करें, प्रति पंक्ति एक ({{entered}} अभी तक)।",
+        "serialDuplicate": "एक सीरियल नंबर दो बार लिखा गया है। हर एक अलग होना चाहिए।",
+        "batchRequired": "यह वस्तु बैच वाली है, इसलिए बैच नंबर आवश्यक है।",
+        "wholeNumberUom": "{{uom}} पूर्ण संख्या होनी चाहिए"
+      },
+      "picker": {
+        "pickFirst": "पूरा करने के लिए एक पंक्ति चुनें",
+        "title": "प्राप्त करने के लिए सामान जोड़ें",
+        "search": "सामान के नाम, कोड या गोदाम से खोजें",
+        "count": "{{total}} में से {{shown}} पंक्तियाँ दिखाई गईं",
+        "added": "जोड़ा गया",
+        "noMatch": "कोई मेल खाती पंक्ति नहीं",
+        "itemSubtitle": "{{name}}"
+      },
+      "receivedUom": "किस इकाई में प्राप्त",
+      "uomFromPo": "खरीद आदेश से मेल खाना चाहिए। जिस इकाई में गिनना है उसी में आदेश बनाएँ।",
+      "conversion": "रूपांतरण ({{from}} से {{to}})",
+      "oneOf": "1 {{from}}",
+      "equals": "= {{factor}} {{to}}",
+      "thisDelivery": "यह डिलीवरी",
+      "uomPickHint": "जिस इकाई में आप गिन रहे हैं",
+      "qtyIn": "मात्रा ({{uom}})",
+      "receivingOf": "{{pending}} {{uom}} में से {{qty}} प्राप्त कर रहे हैं — शेष आदेश पर खुला रहेगा।",
+      "receivingAll": "पूरी {{pending}} {{uom}} प्राप्त कर रहे हैं। आंशिक लेने के लिए घटाएँ।",
+      "driftWarning": "यह खरीद आदेश की दर से {{factor}} गुना है। जाँचें कि वज़न केवल इस पंक्ति का है, पूरी डिलीवरी का नहीं।",
+      "totalIn": "कुल प्राप्त ({{uom}})",
+      "totalHint": "पूरी खेप तौलें या मापें, हम उसे बाँट देंगे",
+      "basisMeasured": "आपके तौले गए वज़न से",
+      "basisPo": "खरीद आदेश से",
+      "basisUnresolved": "अभी कोई रूपांतरण दर नहीं",
+      "totalInOptional": "कुल प्राप्त ({{uom}}, वैकल्पिक)",
+      "totalHintOptional": "खाली छोड़ने पर खरीद आदेश की दर {{factor}} {{uom}} उपयोग होगी। केवल तभी भरें जब डिलीवरी अलग हो।",
+      "stockQtyIn": "स्टॉक मात्रा ({{uom}})",
+      "perEach": "= प्रत्येक {{factor}} {{uom}}",
+      "rateFromPo": "खरीद आदेश से तय",
+      "wholeNumberNote": "{{uom}} में भिन्न मात्रा नहीं हो सकती",
+      "progress": "{{total}} में से {{picked}} प्राप्त",
+      "addedLines": "इस रसीद के सामान",
+      "noLinesYet": "अभी कुछ नहीं जोड़ा। जो सामान प्राप्त कर रहे हैं वह चुनें।",
+      "addFromPo": "सामान जोड़ें",
+      "editLine": "संपादित करें",
+      "uomLookupFailed": "इकाई की जानकारी लोड नहीं हो सकी",
+      "deleteDraftTitle": "प्राप्ति ड्राफ्ट हटाएँ?",
+      "submittedReceipts": "जमा की गई खरीद रसीदें",
+      "submittedReceiptsHint": "विवरण देखने के लिए जमा की गई रसीद खोलें।",
+      "noSubmittedReceipts": "कोई जमा की गई खरीद रसीद नहीं है।",
+      "viewReceipt": "देखें",
+      "submittedReceiptReadOnly": "जमा की गई रसीद {{name}} · केवल पढ़ने के लिए।",
+      "totalEstimatedWeight": "कुल अनुमानित वज़न (Kg)",
+      "totalAcceptedWeight": "कुल स्वीकृत वज़न (Kg)",
+      "receiveQueueTab": "प्राप्ति के लिए",
+      "draftsTab": "ड्राफ्ट",
+      "submittedTab": "जमा"
+    },
+    "projectItems": {
+      "title": "{{project}} के सामान",
+      "chooseProject": "प्रोजेक्ट चुनें",
+      "chooseBom": "सामान चुनें",
+      "noBom": "{{project}} से अभी कोई बिल ऑफ मटेरियल नहीं जुड़ा है। स्टोर मॉड्यूल के 'बिल ऑफ मटेरियल' से जोड़ें, या प्रोजेक्ट हटाकर खुद सामान चुनें।",
+      "filledFromBom": "{{project}} की सामग्री सूची से {{total}} में से {{added}} वस्तुएँ भरी गईं।",
+      "allPresent": "{{project}} की सामग्री सूची की सभी वस्तुएँ इस मांग में पहले से हैं।",
+      "noBomShort": "कोई बिल ऑफ मटेरियल नहीं",
+      "required": "चाहिए",
+      "requestedQty": "पहले मांगा गया",
+      "outstanding": "अब भी चाहिए",
+      "loadFailed": "इस प्रोजेक्ट का बिल ऑफ मटेरियल पढ़ा नहीं जा सका",
+      "hint": "किसी पंक्ति में प्रोजेक्ट भरें तो उसके बिल ऑफ मटेरियल से सामान चुन सकते हैं। खाली छोड़ें तो सभी सामान खुद खोज सकते हैं।"
+    },
+    "movements": {
+      "title": "स्टॉक गतिविधि",
+      "subtitle": "हर प्रकार की स्टॉक गतिविधि, आपके काम के अनुसार समूहीकृत",
+      "groups": {
+        "everyday": "रोज़मर्रा का स्टोर",
+        "manufacturing": "उत्पादन",
+        "correction": "सुधार और आउटसोर्सिंग"
+      },
+      "purposes": {
+        "issue": {
+          "title": "सामान जारी करें",
+          "description": "किसी व्यक्ति, काम या साइट को स्टॉक दें"
+        },
+        "receipt": {
+          "title": "सामान प्राप्त करें",
+          "description": "स्टोर में सामान लाएं"
+        },
+        "transfer": {
+          "title": "स्टोर के बीच ले जाएं",
+          "description": "एक स्टोर से दूसरे स्टोर में स्टॉक ले जाएं"
+        },
+        "transferForManufacture": {
+          "title": "उत्पादन में भेजें",
+          "description": "कच्चा माल वर्क-इन-प्रोग्रेस स्टोर में ले जाएं"
+        },
+        "consumption": {
+          "title": "उत्पादन में उपयोग",
+          "description": "किसी काम में खपा कच्चा माल दर्ज करें"
+        },
+        "manufacture": {
+          "title": "उत्पादन दर्ज करें",
+          "description": "कच्चा माल लें और तैयार माल निकालें"
+        },
+        "repack": {
+          "title": "पैक बदलें",
+          "description": "मात्रा बदले बिना पैकिंग बदलें"
+        },
+        "disassemble": {
+          "title": "अलग करें",
+          "description": "असेंबली को उसके हिस्सों में तोड़ें"
+        },
+        "subcontractor": {
+          "title": "सबकॉन्ट्रैक्टर को भेजें",
+          "description": "बाहर प्रोसेसिंग के लिए सामान भेजें"
+        }
+      }
+    },
+    "labels": {
+      "purpose": "उद्देश्य",
+      "requiredBy": "कब तक चाहिए",
+      "conversionFactor": "रूपांतरण कारक",
+      "sourceWarehouse": "स्रोत वेयरहाउस",
+      "targetWarehouse": "लक्ष्य वेयरहाउस",
+      "item": "सामान",
+      "items": "सामान",
+      "project": "प्रोजेक्ट",
+      "projectOptional": "प्रोजेक्ट (वैकल्पिक)",
+      "workOrder": "वर्क ऑर्डर"
+    },
+    "tiles": {
+      "stockEntry": {
+        "title": "स्टॉक एंट्री",
+        "description": "मटेरियल इश्यू, रसीद, ट्रांसफर"
+      },
+      "materialRequest": {
+        "title": "मटेरियल रिक्वेस्ट",
+        "description": "कच्चा माल अनुरोध करें"
+      },
+      "delivery": {
+        "title": "डिलीवरी / डिस्पैच",
+        "description": "बाहर जाने वाली सामग्री प्रबंधित करें"
+      },
+      "stockBalance": {
+        "title": "स्टॉक बैलेंस",
+        "description": "स्टॉक उपलब्धता देखें"
+      },
+      "itemMaster": {
+        "title": "आइटम मास्टर",
+        "description": "आइटम और वेरिएंट प्रबंधित करें"
+      },
+      "warehouse": {
+        "title": "वेयरहाउस",
+        "description": "गोदाम प्रबंधित करें"
+      },
+      "stockReconciliation": {
+        "title": "स्टॉक मिलान",
+        "description": "स्टॉक मात्रा का मिलान करें"
+      },
+      "bom": {
+        "title": "बिल ऑफ मटेरियल",
+        "description": "बिल ऑफ मटेरियल को प्रोजेक्ट से जोड़ें"
+      },
+      "plateOffcut": {
+        "title": "प्लेट ऑफकट",
+        "description": "प्लेट को ऑफकट में काटें; रीपैक स्टॉक एंट्री बनाती है"
+      }
+    },
+    "mr": {
+      "title": "मटेरियल रिक्वेस्ट",
+      "subtitle": "सभी मटेरियल रिक्वेस्ट ट्रैक और प्रबंधित करें",
+      "tiles": {
+        "purchase": {
+          "title": "खरीद अनुरोध",
+          "description": "खरीद हेतु आइटम अनुरोध करें"
+        },
+        "transfer": {
+          "title": "मटेरियल ट्रांसफर",
+          "description": "गोदामों के बीच स्टॉक स्थानांतरित करें"
+        },
+        "issue": {
+          "title": "मटेरियल इश्यू",
+          "description": "उपयोग हेतु सामग्री जारी करें"
+        },
+        "receipt": {
+          "title": "मटेरियल रसीद",
+          "description": "सामग्री प्राप्त करें"
+        },
+        "customerProvided": {
+          "title": "ग्राहक द्वारा उपलब्ध",
+          "description": "ग्राहक द्वारा उपलब्ध सामग्री"
+        }
+      },
+      "listTitle": "{{type}} अनुरोध",
+      "listSubtitle": "अनुरोध ट्रैक और प्रबंधित करें",
+      "empty": "कोई मटेरियल रिक्वेस्ट नहीं मिली",
+      "newTitle": "नई मटेरियल रिक्वेस्ट",
+      "subtitleSubmitted": "{{type}} • सबमिट किया गया",
+      "subtitleDraft": "{{type}} • ड्राफ्ट",
+      "createSubtitle": "{{type}} बनाएं",
+      "form": {
+        "project": "परियोजना",
+        "items": "आइटम",
+        "select": "चुनें"
+      },
+      "unknownPurpose": "यह अनुरोध प्रकार उपलब्ध नहीं है।",
+      "allTitle": "सभी अनुरोध"
+    },
+    "status": {
+      "draft": "ड्राफ्ट",
+      "submitted": "सबमिट किया गया",
+      "cancelled": "रद्द",
+      "completed": "पूर्ण",
+      "toBill": "बिल हेतु",
+      "stopped": "रोका गया"
+    },
+    "filters": {
+      "customer": "ग्राहक",
+      "company": "कंपनी",
+      "item": "आइटम",
+      "warehouse": "गोदाम",
+      "fromDate": "शुरुआत की तारीख",
+      "toDate": "समाप्ति तारीख"
+    },
+    "types": {
+      "purchase": "खरीद",
+      "transfer": "ट्रांसफर",
+      "materialIssue": "मटेरियल इश्यू",
+      "materialReceipt": "मटेरियल रसीद",
+      "customerProvided": "ग्राहक द्वारा उपलब्ध"
+    },
+    "form": {
+      "type": "प्रकार",
+      "company": "कंपनी",
+      "customer": "ग्राहक",
+      "scheduleDate": "निर्धारित तिथि",
+      "item": "आइटम",
+      "qty": "मात्रा",
+      "uom": "यूओएम",
+      "stockUom": "स्टॉक यूओएम",
+      "conv": "रूपांतरण",
+      "source": "स्रोत",
+      "warehouse": "गोदाम",
+      "schedule": "निर्धारित तिथि",
+      "postingDate": "पोस्टिंग तिथि",
+      "defaultWarehouse": "डिफ़ॉल्ट गोदाम",
+      "driver": "ड्राइवर",
+      "vehicleNo": "वाहन संख्या",
+      "transporter": "ट्रांसपोर्टर",
+      "lrNumber": "एलआर संख्या",
+      "items": "आइटम",
+      "getItems": "आइटम प्राप्त करें",
+      "dispatch": "डिस्पैच",
+      "basics": "मूल जानकारी",
+      "purpose": "उद्देश्य",
+      "requiredBy": "कब तक चाहिए"
+    },
+    "validation": {
+      "typeRequired": "प्रकार आवश्यक है",
+      "companyRequired": "कंपनी आवश्यक है",
+      "customerRequired": "ग्राहक आवश्यक है",
+      "uomRequired": "यूओएम आवश्यक है",
+      "invalidConversion": "अमान्य रूपांतरण कारक",
+      "addAtLeastOneItem": "कम से कम एक आइटम जोड़ें",
+      "addItems": "आइटम जोड़ें",
+      "fillItemRows": "आइटम पंक्तियाँ भरें",
+      "fillAllRows": "सभी आइटम पंक्तियाँ भरें",
+      "qtyGtZero": "मात्रा 0 से अधिक होनी चाहिए",
+      "fromToWarehouseRequired": "स्रोत और गंतव्य गोदाम आवश्यक हैं",
+      "sameWarehouse": "स्रोत और लक्ष्य गोदाम एक नहीं हो सकते",
+      "warehouseRequired": "गोदाम आवश्यक है"
+    },
+    "dn": {
+      "title": "डिलीवरी नोट्स",
+      "subtitle": "डिस्पैच और डिलीवरी ट्रैकिंग",
+      "empty": "कोई डिलीवरी नोट नहीं मिला",
+      "editTitle": "डिलीवरी {{name}}",
+      "newTitle": "नई डिलीवरी",
+      "formSubtitle": "सामग्री भेजें"
+    },
+    "balance": {
+      "title": "स्टॉक बैलेंस",
+      "subtitle": "रीयल-टाइम इन्वेंटरी स्थिति",
+      "empty": "कोई स्टॉक उपलब्ध नहीं",
+      "value": "मूल्य",
+      "fromDate": "शुरुआत की तारीख",
+      "toDate": "समाप्ति तारीख",
+      "opening": "शुरुआती",
+      "inQty": "आया",
+      "outQty": "गया",
+      "closing": "शेष",
+      "reserved": "आरक्षित",
+      "free": "उपलब्ध",
+      "rate": "दर",
+      "projected": "अनुमानित",
+      "valuationAsOf": "मूल्य आज के अनुसार दिखाया गया है",
+      "performanceWarning": "किसी आइटम या गोदाम से इसे सीमित करें — पूरी सूची में हर लेजर पंक्ति शामिल होती है।",
+      "trail": "गतिविधि इतिहास",
+      "noMovements": "इस अवधि में कोई गतिविधि नहीं",
+      "showTrail": "यह स्टॉक कहाँ से आया, देखें",
+      "incomingRate": "आने की दर",
+      "outgoingRate": "जाने की दर",
+      "runningBalance": "इसके बाद शेष",
+      "balanceQty": "शेष",
+      "serial": "सीरियल",
+      "batch": "बैच",
+      "batchPermission": "बैच और सीरियल विवरण के लिए Serial and Batch Entry की अनुमति चाहिए",
+      "noBatchOnThisLine": "बैच या सीरियल ट्रैक नहीं है",
+      "truncated": "और गतिविधियाँ हैं — सीमित करने के लिए तारीखें बदलें"
+    },
+    "source": {
+      "loadItems": "आइटम लोड करें",
+      "load": "लोड करें",
+      "selectSourceType": "स्रोत प्रकार चुनें",
+      "searchDocument": "दस्तावेज़ खोजें...",
+      "selectTypeFirst": "पहले प्रकार चुनें",
+      "noCustomer": "कोई ग्राहक नहीं",
+      "salesOrder": "सेल्स ऑर्डर",
+      "pickList": "पिक लिस्ट",
+      "materialRequest": "मटेरियल रिक्वेस्ट",
+      "purchaseReceipt": "परचेज रसीद",
+      "bom": "बिल ऑफ मटेरियल्स",
+      "bomShort": "बीओएम",
+      "purchaseInvoice": "परचेज इनवॉइस",
+      "itemMaster": "आइटम मास्टर",
+      "onlyQcPassed": "केवल क्यूसी पास आइटम",
+      "qcDone": "क्यूसी पूर्ण",
+      "sourceType": "स्रोत प्रकार",
+      "selectDocument": "दस्तावेज़ चुनें"
+    },
+    "entry": {
+      "title": "स्टॉक एंट्री",
+      "subtitleDefault": "त्वरित इन्वेंटरी संचालन",
+      "subtitleReceipt": "आगमन → {{warehouse}}",
+      "subtitleIssue": "जावक ← {{warehouse}}",
+      "subtitleTransfer": "{{from}} → {{to}}",
+      "subtitleTransferMfg": "{{from}} → {{to}} (MFG)",
+      "subtitleManufacture": "निर्माण @ {{warehouse}}",
+      "subtitleRepack": "रीपैक @ {{warehouse}}",
+      "subtitleConsume": "उपभोग ← {{warehouse}}",
+      "selectWarehouse": "गोदाम चुनें",
+      "from": "स्रोत",
+      "to": "गंतव्य",
+      "actions": {
+        "getItems": "आइटम प्राप्त करें",
+        "clear": "साफ़ करें"
+      },
+      "basicConfig": "मूल कॉन्फ़िगरेशन",
+      "collapse": "संकुचित करें",
+      "expand": "विस्तारित करें",
+      "entryDate": "एंट्री तिथि",
+      "entryTime": "एंट्री समय",
+      "items": "आइटम",
+      "get": "प्राप्त करें",
+      "entryType": "एंट्री प्रकार",
+      "selectEntryType": "एंट्री प्रकार चुनें",
+      "fromWarehouse": "स्रोत गोदाम",
+      "toWarehouse": "गंतव्य गोदाम",
+      "selectFromWarehouse": "स्रोत गोदाम चुनें",
+      "selectToWarehouse": "गंतव्य गोदाम चुनें",
+      "scanPlaceholder": "आइटम स्कैन करें या दर्ज करें",
+      "totalQty": "कुल मात्रा",
+      "submitEntry": "एंट्री सबमिट करें",
+      "modes": {
+        "incoming": "आगमन",
+        "outgoing": "जावक",
+        "transfer": "ट्रांसफर",
+        "adjustment": "समायोजन"
+      },
+      "createdToast": "स्टॉक एंट्री बनाई गई: {{name}}",
+      "failedToast": "स्टॉक एंट्री विफल रही"
+    },
+    "entryTypes": {
+      "materialIssue": "मटेरियल इश्यू",
+      "materialReceipt": "मटेरियल रसीद",
+      "materialTransfer": "मटेरियल ट्रांसफर",
+      "manufacture": "निर्माण",
+      "repack": "रीपैक",
+      "disassemble": "विघटन",
+      "sendToSubcontractor": "सबकॉन्ट्रैक्टर को भेजें",
+      "materialTransferForMfg": "निर्माण हेतु मटेरियल ट्रांसफर",
+      "materialConsumptionForMfg": "निर्माण हेतु मटेरियल खपत"
+    },
+    "item": {
+      "outOfStock": "स्टॉक समाप्त",
+      "exceedsStock": "स्टॉक से अधिक",
+      "lowStock": "कम स्टॉक",
+      "available": "उपलब्ध",
+      "willBeRemoved": "हटा दिया जाएगा",
+      "willAdjust": "{{qty}} पर समायोजित होगा",
+      "emptyList": "कोई आइटम नहीं जोड़ा गया",
+      "itemName": "आइटम {{code}}",
+      "increase": "मात्रा बढ़ाएँ",
+      "decrease": "मात्रा घटाएँ",
+      "remove": "आइटम हटाएँ"
+    },
+    "fix": {
+      "title": "स्टॉक समस्या",
+      "outOfStock": "{{count}} आइटम स्टॉक से बाहर हैं।",
+      "more": "+ {{n}} और...",
+      "removeItems": "आइटम हटाएँ",
+      "adjustQty": "मात्रा समायोजित करें"
+    },
+    "submitModal": {
+      "title": "स्टॉक एंट्री की पुष्टि करें",
+      "project": "प्रोजेक्ट",
+      "workOrder": "वर्क ऑर्डर",
+      "searchProject": "प्रोजेक्ट खोजें",
+      "searchWorkOrder": "वर्क ऑर्डर खोजें"
+    },
+    "demo": {
+      "title": "सार्वभौमिक फ़ॉर्म",
+      "subtitle": "सभी फ़ील्ड प्रकारों का डेमो",
+      "sections": {
+        "basic": "मूल फ़ील्ड",
+        "text": "टेक्स्ट फ़ील्ड",
+        "dateTime": "दिनांक और समय",
+        "selection": "चयन",
+        "attachments": "अनुलग्नक"
+      },
+      "age": "आयु",
+      "salary": "वेतन",
+      "description": "विवरण",
+      "datetime": "दिनांक-समय",
+      "time": "समय",
+      "pending": "लंबित",
+      "closed": "बंद",
+      "department": "विभाग (लिंक)",
+      "searchDepartment": "विभाग खोजें...",
+      "active": "सक्रिय",
+      "uploadFile": "फ़ाइल अपलोड करें",
+      "chooseFile": "फ़ाइल चुनें",
+      "noFileSelected": "कोई फ़ाइल नहीं चुनी गई",
+      "itemCode": "आइटम कोड",
+      "rate": "दर"
+    },
+    "returnStock": {
+      "title": "सामान स्टॉक में वापस लाएँ",
+      "action": "इस सामान को स्टॉक में वापस लाएँ",
+      "explainer": "काम से बचा सामान एक ही स्टॉक एंट्री के ज़रिए स्टोर में वापस जाता है। आपके पुष्टि करने तक कुछ भी सेव नहीं होता।",
+      "whichItem": "क्या वापस आ रहा है?",
+      "useSameItem": "यही आइटम इस्तेमाल करें",
+      "useSameItemHint": "अपने ही कोड में वापस जाएगा",
+      "createNewItem": "नया आइटम बनाएँ",
+      "createNewItemHint": "बचा हुआ सामान अलग स्पेसिफिकेशन का है",
+      "itemName": "आइटम का नाम",
+      "itemGroup": "आइटम समूह",
+      "trackBatch": "बैच ट्रैक करें",
+      "trackSerial": "सीरियल नंबर ट्रैक करें",
+      "fromWarehouse": "कहाँ से (अभी कहाँ है)",
+      "toWarehouse": "कहाँ पर (वापस कहाँ)",
+      "qty": "कितना ({{uom}})",
+      "batchNumber": "बैच नंबर",
+      "serialNumbers": "सीरियल नंबर",
+      "serialNumbersHint": "हर पंक्ति में एक, या अल्पविराम से अलग",
+      "serialPlaceholder": "SN001\nSN002",
+      "autoBatch": "इस आइटम के लिए नया बैच नंबर अपने आप बनेगा।",
+      "remarks": "टिप्पणी (वैकल्पिक)",
+      "makesEntry": "स्टॉक एंट्री बनाएगा: {{from}} से {{to}}",
+      "confirm": "स्टॉक में वापस लाएँ",
+      "done": "{{item}} स्टॉक में वापस आ गया ({{qty}})।",
+      "autoSerial": "इस आइटम के लिए सीरियल नंबर अपने आप बनेंगे।"
+    },
+    "plateOffcut": {
+      "title": "प्लेट ऑफकट",
+      "subtitle": "प्लेट चुनें, कट के आकार दर्ज करें, वजन स्वतः आ जाएँगे",
+      "newTitle": "नया प्लेट ऑफकट",
+      "number": "ऑफकट क्र.",
+      "emptyTitle": "अभी तक कोई प्लेट ऑफकट नहीं",
+      "emptyDescription": "प्लेट को ऑफकट में काटकर यहाँ सूचीबद्ध करें।",
+      "sourceSerial": "प्लेट (सीरियल नं.)",
+      "sourceSerialHint": "केवल गोदाम में रखी सक्रिय प्लेट ही काटी जा सकती है",
+      "sourceItem": "स्रोत आइटम",
+      "batch": "बैच",
+      "heatNumber": "हीट नंबर",
+      "warehouse": "वेयरहाउस",
+      "plateSize": "आकार (mm)",
+      "plateWeight": "प्लेट वजन",
+      "offcutsTitle": "ऑफकट",
+      "noOffcutsYet": "कम से कम एक ऑफकट जोड़ें। प्लेट को सीधे स्क्रैप करना कटाई नहीं है।",
+      "length": "लंबाई (mm)",
+      "width": "चौड़ाई (mm)",
+      "pieces": "टुकड़े",
+      "weightEach": "Kg / टुकड़ा",
+      "rowWeight": "पंक्ति वजन",
+      "rowValue": "पंक्ति मूल्य",
+      "totalPieces": "कुल टुकड़े",
+      "totalOffcutWeight": "ऑफकट वजन",
+      "totalOffcutValue": "ऑफकट मूल्य",
+      "scrap": "स्क्रैप",
+      "canvasTitle": "प्लेट लेआउट",
+      "canvasIndicative": "संकेतक लेआउट — कटिंग योजना नहीं",
+      "canvasNoGeometry": "कट लेआउट देखने के लिए प्लेट चुनें।",
+      "overBy": "ऑफकट का वजन प्लेट से अधिक है — {{kg}} kg अधिक। फिट होने तक सेव नहीं हो सकेगा।",
+      "errNoSerial": "जिस प्लेट को काट रहे हैं उसे चुनें।",
+      "errNoOffcuts": "कम से कम एक ऑफकट जोड़ें।",
+      "errRowSize": "पंक्ति {{row}} में लंबाई और चौड़ाई दोनों चाहिए।",
+      "submittedReadOnly": "{{name}} सबमिट हो चुका है और बदला नहीं जा सकता।",
+      "backToList": "सूची पर लौटें",
+      "submitTitle": "यह ऑफकट सबमिट करें?",
+      "submitMessage": "सबमिट करने पर ऑफकट आइटम, बैच और सीरियल नंबर बनेंगे और रीपैक स्टॉक एंट्री पोस्ट होगी। इससे स्टॉक बदलता है।",
+      "serial": "प्लेट",
+      "sourceWeight": "वज़न (Kg)",
+      "canCut": "काटने योग्य",
+      "cannotCut": "काटा नहीं जा सकता",
+      "noAvailablePlates": "काटने के लिए कोई प्लेट उपलब्ध नहीं",
+      "noAvailablePlatesHint": "स्टॉक की हर वज़न-वाली प्लेट कटी हुई है, या किसी पर वज़न दर्ज नहीं है।",
+      "offcutSerial": "ऑफकट सीरियल",
+      "offcutSize": "ऑफकट आकार (mm)",
+      "fromPlate": "किस प्लेट से",
+      "grade": "ग्रेड",
+      "theoreticalWeight": "सैद्धांतिक (Kg)",
+      "noOffcutStock": "अभी तक कोई ऑफकट स्टॉक में नहीं",
+      "noOffcutStockHint": "Plate Offcut सबमिट करें, बने हुए टुकड़े यहाँ दिखेंगे।",
+      "offcutDetails": "ऑफकट विवरण",
+      "openCuttingJob": "कटिंग जॉब खोलें",
+      "hubSubtitle": "प्लेट काटें और उनसे निकले टुकड़े देखें",
+      "canvasSummary": "{placed} रखे गए, {overflow} फिट नहीं होंगे",
+      "canvasOverflow": "{count} टुकड़े इस प्लेट में बड़े हैं",
+      "tab": {
+        "available": "काटने योग्य",
+        "stock": "ऑफकट स्टॉक",
+        "jobs": "कटिंग जॉब"
+      },
+      "pieces_one": "{{count}} टुकड़ा",
+      "pieces_other": "{{count}} टुकड़े",
+      "canvasSummary_one": "{{plate}} · {{pieces}} टुकड़ा",
+      "canvasSummary_other": "{{plate}} · {{pieces}} टुकड़े",
+      "canvasOverflow_one": "{{count}} टुकड़ा फिट नहीं होता",
+      "canvasOverflow_other": "{{count}} टुकड़े फिट नहीं होते"
+    }
+  }
 }
