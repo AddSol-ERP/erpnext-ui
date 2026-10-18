@@ -687,7 +687,26 @@
       "canvasOverflow_two": "قطعتان لا تتسعان",
       "canvasOverflow_few": "{{count}} قطع لا تتسع",
       "canvasOverflow_many": "{{count}} قطعة لا تتسع",
-      "canvasOverflow_other": "{{count}} قطعة لا تتسع"
+      "canvasOverflow_other": "{{count}} قطعة لا تتسع",
+      "plateCount": "ألواح",
+      "warehouseCount_one": "مستودع واحد",
+      "warehouseCount_two": "مستودعان",
+      "warehouseCount_few": "{{count}} مستودعات",
+      "warehouseCount_many": "{{count}} مستودعًا",
+      "warehouseCount_other": "{{count}} مستودع",
+      "heatCount_one": "رقم heat واحد",
+      "heatCount_two": "رقما heat",
+      "heatCount_few": "{{count}} أرقام heat",
+      "heatCount_many": "{{count}} رقم heat",
+      "heatCount_other": "{{count}} رقم heat",
+      "someCannotCut_one": "واحدة لا يمكن تقطيعها",
+      "someCannotCut_two": "اثنتان لا يمكن تقطيعهما",
+      "someCannotCut_few": "{{count}} لا يمكن تقطيعها",
+      "someCannotCut_many": "{{count}} لا يمكن تقطيعها",
+      "someCannotCut_other": "{{count}} لا يمكن تقطيعها",
+      "warehouseCount": "{{count}} مستودع",
+      "heatCount": "{{count}} رقم heat",
+      "someCannotCut": "{{count}} لا يمكن تقطيعها"
     }
   }
 }

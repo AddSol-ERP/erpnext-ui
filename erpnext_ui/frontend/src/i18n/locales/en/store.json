@@ -678,7 +678,17 @@
       "canvasSummary_one": "{{plate}} · {{pieces}} piece",
       "canvasSummary_other": "{{plate}} · {{pieces}} pieces",
       "canvasOverflow_one": "{{count}} piece does not fit",
-      "canvasOverflow_other": "{{count}} pieces do not fit"
+      "canvasOverflow_other": "{{count}} pieces do not fit",
+      "plateCount": "Plates",
+      "warehouseCount_one": "{{count}} warehouse",
+      "warehouseCount_other": "{{count}} warehouses",
+      "heatCount_one": "{{count}} heat",
+      "heatCount_other": "{{count}} heats",
+      "someCannotCut_one": "1 cannot be cut",
+      "someCannotCut_other": "{{count}} cannot be cut",
+      "warehouseCount": "{{count}} warehouses",
+      "heatCount": "{{count}} heats",
+      "someCannotCut": "{{count}} cannot be cut"
     }
   }
 }

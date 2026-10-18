@@ -678,7 +678,17 @@
       "canvasSummary_one": "{{plate}} · {{pieces}} टुकड़ा",
       "canvasSummary_other": "{{plate}} · {{pieces}} टुकड़े",
       "canvasOverflow_one": "{{count}} टुकड़ा फिट नहीं होता",
-      "canvasOverflow_other": "{{count}} टुकड़े फिट नहीं होते"
+      "canvasOverflow_other": "{{count}} टुकड़े फिट नहीं होते",
+      "plateCount": "प्लेटें",
+      "warehouseCount_one": "{{count}} गोदाम",
+      "warehouseCount_other": "{{count}} गोदाम",
+      "heatCount_one": "{{count}} हीट",
+      "heatCount_other": "{{count}} हीट",
+      "someCannotCut_one": "1 कटी नहीं जा सकती",
+      "someCannotCut_other": "{{count}} कटी नहीं जा सकतीं",
+      "warehouseCount": "{{count}} गोदाम",
+      "heatCount": "{{count}} हीट",
+      "someCannotCut": "{{count}} कटी नहीं जा सकतीं"
     }
   }
 }

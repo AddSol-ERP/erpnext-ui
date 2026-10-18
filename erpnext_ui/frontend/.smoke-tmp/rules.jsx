@@ -3049,19 +3049,52 @@ ok(
   "a plate needs a three-table join; a child-table filter from the browser cross-joins",
 );
 // A plate the server would refuse is not a link.
+// The row is now a grouped child, so the guard and the navigation live in
+// different files: plate-groups decides, available-plates navigates.
+const plateGroupsSrc = readSrc("../../src/pages/Store/plate-offcut/plate-groups.jsx");
 ok(
   "an uncuttable plate cannot be opened",
-  /if \(!row\.can_cut\) return;/.test(offcutAvailableSrc) &&
-    /can_cut/.test(offcutAvailableSrc),
+  /if \(child\.row\.can_cut\) onSelect\(child\.row\)/.test(plateGroupsSrc) &&
+    /child\.row\.can_cut && "cursor-pointer"/.test(plateGroupsSrc),
+  "the click handler must test can_cut, and the row must not read as clickable without it",
   "sending the operator into a form that cannot save is a dead end",
 );
 // The prefill is the whole point of the first tab.
 ok(
   "clicking a plate opens the cut form with that plate already chosen",
-  /\/store\/plate-offcut\/new\?serial=\$\{encodeURIComponent\(row\.serial\)\}/.test(
+  /\/store\/plate-offcut\/new\?serial=\$\{encodeURIComponent\(plate\.serial\)\}/.test(
     offcutAvailableSrc,
-  ) && /useSearchParams/.test(offcutFormSrc) && /searchParams\.get\("serial"\)/.test(offcutFormSrc),
+  ) && /onSelect=\{\(plate\) =>/.test(offcutAvailableSrc) &&
+    /useSearchParams/.test(offcutFormSrc) && /searchParams\.get\("serial"\)/.test(offcutFormSrc),
   "without it the plate is chosen twice: once in the list, again in the form",
+);
+
+// A flat list of serials is unusable at any real size: twenty plates of the same
+// mill spec are twenty near-identical rows. `groupRows` is the Plate Stock
+// Register's own grouping, reused rather than reimplemented, so "the same item"
+// cannot come to mean two different things in two screens.
+ok(
+  "available plates are grouped per item, reusing the register's groupRows",
+  /from "\.\.\/\.\.\/Reports\/custom-report\/group"/.test(plateGroupsSrc) &&
+    /groupBy: \["item_code"\]/.test(plateGroupsSrc) &&
+    !/<DataTable/.test(offcutAvailableSrc),
+  "a flat serial list buries the answer to 'how many and how heavy' under its own rows",
+);
+// "Cannot cut" must not vanish with the flatten -- it is a record to fix, and
+// the parent row is where an operator scanning stock will actually notice it.
+ok(
+  "a plate that cannot be cut is summarised on its parent row",
+  /group\.children\.filter\(\(c\) => !c\.row\.can_cut\)/.test(plateGroupsSrc) &&
+    /someCannotCut/.test(plateGroupsSrc),
+  "hiding it entirely leaves the operator wondering where their plate went",
+);
+// Size is an Item attribute, identical for every serial under one item. Reading
+// it as `constant` means a data inconsistency renders blank rather than as a
+// confident wrong number on the aggregate.
+ok(
+  "the group's size comes from `constant`, so a mismatch shows blank not a lie",
+  /constant: \["length_mm", "width_mm", "thickness_mm"\]/.test(plateGroupsSrc),
+  "groupRows only returns a constant when the value is unanimous across the group",
 );
 // A raw window.location read would miss a client-side navigation.
 ok(
