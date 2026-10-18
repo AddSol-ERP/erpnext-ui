@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import { useHeader } from "../../../context/HeaderContext";
-import DashboardShell from "../../../components/dashboard/DashboardShell";
 import AvailablePlates from "./available-plates";
 import OffcutStock from "./offcut-stock";
 import CuttingJobs from "./cutting-jobs";
@@ -97,9 +96,12 @@ export default function PlateOffcut() {
   const Panel =
     tab === "available" ? AvailablePlates : tab === "stock" ? OffcutStock : CuttingJobs;
 
-  return (
-    <DashboardShell>
-      <Panel tabs={tabsNode} />
-    </DashboardShell>
-  );
+  // NOT DashboardShell. ListLayout's scroll container is bounded by an `h-full`
+  // root, which only resolves if its parent has a real height -- AppShell's
+  // <main> is `min-h-0 flex-1 overflow-y-auto`, so ListLayout has to be a direct
+  // child of it. DashboardShell is `mx-auto w-full max-w-[1600px] space-y-4 pt-4`
+  // with no height at all, so `h-full` fell back to auto, the card grew to fit
+  // its content, and the `overflow-auto` body had nothing left to scroll. No
+  // other list page in the app wraps ListLayout in it either.
+  return <Panel tabs={tabsNode} />;
 }

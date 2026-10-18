@@ -3207,5 +3207,36 @@ ok(
   `undefined JSX component(s): ${undefinedTags.join(", ")} -- no-undef does not resolve JSX names and eslint-plugin-react is not installed`,
 );
 
+// The module rendered inside DashboardShell and its list body would not scroll.
+// ListLayout's scroll container is bounded by an `h-full` root, which only means
+// anything when the parent HAS a height: AppShell's <main> is
+// `min-h-0 flex-1 overflow-y-auto`, so ListLayout must be a direct child of it.
+// DashboardShell is `mx-auto w-full max-w-[1600px] space-y-4 pt-4 md:space-y-6`
+// with no height, so `h-full` fell back to auto, the card grew to fit its
+// content, and the `overflow-auto` body had nothing left to scroll.
+const dashboardShellSrc = readSrc("../../src/components/dashboard/DashboardShell.jsx");
+const dhClasses = (dashboardShellSrc.match(/space-y-4[^"`]*/) || [""])[0];
+ok(
+  "no list wraps ListLayout in DashboardShell",
+  !/DashboardShell/.test(hub) && /<Panel tabs=\{tabsNode\} \/>/.test(hub),
+  `DashboardShell carries no height (${dhClasses} is all it adds), so h-full collapses to auto and the list cannot scroll`,
+);
+// `Pagination` returns null on a single page unless `totalItems` is passed, in
+// which case it still prints the range. Gating the element itself on
+// `total > PAGE_SIZE` therefore removed the footer entirely, and the operator
+// lost "Showing 1-10 of 10" on any short list.
+ok(
+  "pagination is rendered unconditionally, so the count is always visible",
+  offcutPanelSrcs.every((src) => /totalPages > PAGE_SIZE|total > PAGE_SIZE\s*\?/.test(src) === false) &&
+    offcutPanelSrcs.every((src) => /totalItems=\{total\}/.test(src)) &&
+    offcutPanelSrcs.every((src) => /totalPages=\{totalPages\}/.test(src)),
+  "a short list would otherwise show no footer and no result count at all",
+);
+ok(
+  "every panel uses the agreed page size of 10",
+  offcutPanelSrcs.every((src) => /const PAGE_SIZE = 10;/.test(src)),
+  "a page size that differs per tab makes the three lists feel like different apps",
+);
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

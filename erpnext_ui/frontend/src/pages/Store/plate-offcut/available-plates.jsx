@@ -8,7 +8,7 @@ import ActionBar from "../../../components/ActionBar";
 import { listFilterHandlers } from "../../../lib/filterChips";
 import { fetchAvailablePlates } from "./api";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -99,6 +99,8 @@ export default function AvailablePlates({ tabs }) {
     () => listFilterHandlers(setFilters, resetPage),
     [resetPage],
   );
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const columns = useMemo(
     () => [
@@ -201,16 +203,14 @@ export default function AvailablePlates({ tabs }) {
         />
       }
       pagination={
-        total > PAGE_SIZE ? (
-          <Pagination
-            currentPage={page}
-            totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
-            totalItems={total}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
-            disabled={loading}
-          />
-        ) : null
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={total}
+          pageSize={PAGE_SIZE}
+          disabled={loading}
+        />
       }
     >
       <DataTable

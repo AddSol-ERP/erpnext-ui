@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import Pagination from "../../../components/Pagination";
 import { fetchOffcutStock } from "./api";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -75,6 +75,8 @@ export default function OffcutStock({ tabs }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const columns = useMemo(
     () => [
@@ -209,16 +211,14 @@ export default function OffcutStock({ tabs }) {
           />
         }
         pagination={
-          total > PAGE_SIZE ? (
-            <Pagination
-              currentPage={page}
-              totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
-              totalItems={total}
-              pageSize={PAGE_SIZE}
-              onPageChange={setPage}
-              disabled={loading}
-            />
-          ) : null
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            totalItems={total}
+            pageSize={PAGE_SIZE}
+            disabled={loading}
+          />
         }
       >
         <DataTable
