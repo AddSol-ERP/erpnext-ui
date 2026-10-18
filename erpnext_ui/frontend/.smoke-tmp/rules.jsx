@@ -3054,8 +3054,10 @@ ok(
 const plateGroupsSrc = readSrc("../../src/pages/Store/plate-offcut/plate-groups.jsx");
 ok(
   "an uncuttable plate cannot be opened",
-  // ChildRow takes the plate itself now that grouping is server-side.
-  /function ChildRow\(\{ plate, onSelect \}\)/.test(plateGroupsSrc) &&
+  // The plate row lives in the side panel. Radix renders a Sheet through a
+  // Portal, so renderToString yields an empty string for it and the SSR suite
+  // cannot see any of this -- which is why it is asserted on the source.
+  /function PlateRow\(\{ plate, onSelect \}\)/.test(plateGroupsSrc) &&
     /if \(plate\.can_cut\) onSelect\(plate\)/.test(plateGroupsSrc) &&
     /plate\.can_cut && "cursor-pointer"/.test(plateGroupsSrc),
   "the click handler must test can_cut, and the row must not read as clickable without it",
@@ -3095,14 +3097,15 @@ ok(
   "the list asks for a page of GROUPS, and the count it reads is a group count",
   /limitStart: \(page - 1\) \* PAGE_SIZE/.test(offcutAvailableSrc) &&
     /pageLength: PAGE_SIZE/.test(offcutAvailableSrc) &&
-    /group\.plate_count > 1/.test(plateGroupsSrc),
+    /\{group\.plate_count\}/.test(plateGroupsSrc),
   "the parent must show the item's real plate count, which is the server's aggregate and not this page's length",
 );
 // "Cannot cut" must not vanish with the flatten -- it is a record to fix, and
 // the parent row is where an operator scanning stock will actually notice it.
 ok(
   "a plate that cannot be cut is summarised on its parent row",
-  /const blocked = group\.blocked_count \|\| 0;/.test(plateGroupsSrc) &&
+  /<GroupStatus blocked=\{group\.blocked_count \|\| 0\} \/>/.test(plateGroupsSrc) &&
+    /function GroupStatus\(\{ blocked \}\)/.test(plateGroupsSrc) &&
     /someCannotCut/.test(plateGroupsSrc),
   "hiding it entirely leaves the operator wondering where their plate went",
 );
@@ -3303,25 +3306,49 @@ ok(
 // `group.key` was the groupRows field. The server sends no `key`, so it read
 // undefined: the React key went undefined (a warning per group) AND every group
 // keyed the open-set as `undefined`, so toggling one expanded all of them.
+// `group.key` was the groupRows field. The server sends no `key`, so it read
+// undefined: React warned once per group AND every group keyed the open-set as
+// undefined, so toggling one expanded all of them.
 ok(
-  "each group is keyed by a field the server sends, and the open-set agrees",
-  /<Fragment key=\{group\.item_code\}>/.test(plateGroupsSrc) &&
-    /open\.has\(group\.item_code\)/.test(plateGroupsSrc) &&
-    /toggle\(group\.item_code\)/.test(plateGroupsSrc) &&
-    /groups\.map\(\(group\) =>/.test(plateGroupsSrc),
-  "an undefined key both warns per group and collapses the expand state of all of them into one",
+  "each group row is keyed by a field the server sends",
+  /<TableRow\s+key=\{group\.item_code\}/.test(plateGroupsSrc) &&
+    !/group\.key/.test(plateGroupsSrc),
+  "an undefined key warns once per group, and previously collapsed every group's expand state into one",
 );
-// The register's rule: a group of ONE is not a toggle. Making it one cost a
-// click to reach a single serial and left the row looking expandable when
-// expanding it changed nothing.
+// There is no in-place expansion any more. An item holds every plate of that
+// mill spec, so expanding one put 25+ rows into the list and pushed the rest off
+// screen -- and a scroll region cannot be nested inside it, because HTML
+// requires `<tr>` as the direct child of `<tbody>`.
 ok(
-  "a group holding one plate is not a toggle -- its row is the plate",
-  /const expandable = group\.plate_count > 1;/.test(plateGroupsSrc) &&
-    /expanded \|\| !expandable/.test(plateGroupsSrc) &&
-    /expandable \? \(/.test(plateGroupsSrc),
-  "one click to reveal one serial is a dead control, and it looks broken",
+  "plates open in a panel that scrolls, and nothing expands in place",
+  /function PlatePanel/.test(plateGroupsSrc) &&
+    /<SheetContent side="right"/.test(plateGroupsSrc) &&
+    /min-h-0 flex-1 overflow-y-auto overscroll-contain/.test(plateGroupsSrc) &&
+    !/const expandable/.test(plateGroupsSrc) &&
+    // The Set-of-open-groups pattern in any form. `open.has(group.x)` alone was
+    // too narrow: switching to `useState(new Set())` reintroduces in-place
+    // expansion without that call and sailed straight through.
+    !/useState\(new Set\(\)/.test(plateGroupsSrc) &&
+    !/open\.has\(group\./.test(plateGroupsSrc) &&
+    !/setOpen\(\(prev\)/.test(plateGroupsSrc),
+  "min-h-0 is what lets a flex child scroll instead of growing past the viewport",
 );
-
+ok(
+  "the panel is bounded, and selecting closes it before navigating",
+  /sm:max-w-xl/.test(plateGroupsSrc) &&
+    /setOpen\(null\);[\s\S]{0,40}onSelect\(plate\)/.test(plateGroupsSrc),
+  "a full-width sheet covers the list it was opened from",
+);
+// Radix renders a Sheet through a Portal, so renderToString produces an empty
+// string for it. That is why the panel's contents are asserted on the source
+// above and never on rendered output -- worth saying, because "the suite passes"
+// would otherwise read as coverage.
+ok(
+  "the panel is understood to be portal-rendered, not render-asserted",
+  /<Sheet[\s\S]*?<TableBody>/.test(plateGroupsSrc) &&
+    !/SSR_PORTAL/.test(plateGroupsSrc),
+  "a Portal yields an empty string under renderToString, so a render assertion here would pass on nothing",
+);
 // The shape get_available_plates returns. Frozen here for the same reason the
 // Plate Offcut FIELDS list is: a field the server does not send reads as
 // `undefined` in JavaScript, which is not an error -- it is a silent blank.

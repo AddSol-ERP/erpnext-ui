@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import {
@@ -9,26 +9,41 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { StatusBadge } from "../../../components/List/DataTable";
 import { cn } from "cn";
 
 /**
- * Plate items awaiting a cut, each expanded to the plates behind it.
+ * Plate items awaiting a cut. Clicking one opens its plates.
  *
- * GROUPING IS THE SERVER'S. `get_available_plates` groups by item_code and pages
- * by item, returning each item's total plate count, total weight, warehouse and
- * heat counts together with its plates. This component renders that shape and
- * nothing more -- it deliberately does NOT regroup.
+ * GROUPING AND PAGING ARE THE SERVER'S. `get_available_plates` groups by
+ * item_code and pages by item, returning each item's total plate count, total
+ * weight, warehouse and heat counts together with its plates. This component
+ * renders that shape and nothing more -- it deliberately does NOT regroup.
  *
  * Grouping here instead was wrong in two ways that only appear past the first
  * page: a parent row's count and weight would describe the PAGE rather than the
  * item (twenty-five plates reading as "10"), and an item whose plates straddled
  * a page boundary would appear as two separate groups, so paging forward showed
- * the same item again. The layout still mirrors the Plate Stock Register, whose
- * own grouping is a different concern -- it groups whatever a report returns.
+ * the same item again.
+ *
+ * The plates live in a side panel rather than expanding in place. An item holds
+ * every plate of that mill spec, so expanding one put 25+ rows into the list and
+ * pushed the rest of it off screen -- and a scroll region cannot be nested
+ * inside it: HTML requires `<tr>` as the direct child of `<tbody>`, so rows
+ * cannot wrap themselves in a scrolling div. A panel is the one place a real
+ * scrollbar around the plates is possible, and it gives the selection somewhere
+ * to land without navigating away from the list first.
+ *
+ * The layout still mirrors the Plate Stock Register, whose own grouping is a
+ * different concern -- it groups whatever a report returns.
  */
-
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 /** 2500 x 1250 x 10 -- only the dimensions that are actually recorded. */
@@ -41,12 +56,18 @@ function sizeLabel(row) {
   return "—";
 }
 
-/** 245.400 Kg, or a dash when the group has no weight at all. */
+/** 245.400 Kg, or a dash when there is no weight at all. */
 function weightLabel(value) {
-  return num(value) ? `${num(value).toFixed(3)} Kg` : "\u2014";
+  return num(value) ? `${num(value).toFixed(3)} Kg` : "—";
 }
 
-/** The parent row's right-hand badge: how many of its plates cannot be cut. */
+/**
+ * The parent row's right-hand badge: how many of its plates cannot be cut.
+ *
+ * This count is the reason the panel is not a filter. A plate with no recorded
+ * weight is a record to fix rather than a plate to cut, and hiding it would
+ * leave the operator wondering where their plate went.
+ */
 function GroupStatus({ blocked }) {
   const { t } = useTranslation();
   return blocked ? (
@@ -60,13 +81,14 @@ function GroupStatus({ blocked }) {
 }
 
 /**
- * One plate.
+ * One plate, inside the panel.
  *
- * A plate that cannot be cut is shown with the reason under its badge and is
- * not clickable: `onSelect` opens the cutting form, and a plate with no recorded
- * weight cannot be cut, so making it a link would only produce a save that fails.
+ * A plate that cannot be cut is shown with the reason under its badge and is not
+ * clickable: selecting it opens the cutting form, and a plate with no recorded
+ * weight cannot be cut, so making it selectable would only produce a save that
+ * fails.
  */
-function ChildRow({ plate, onSelect }) {
+function PlateRow({ plate, onSelect }) {
   const { t } = useTranslation();
   return (
     <TableRow
@@ -75,22 +97,17 @@ function ChildRow({ plate, onSelect }) {
         if (plate.can_cut) onSelect(plate);
       }}
     >
-      <TableCell className="ps-8">
-        <span aria-hidden="true" className="text-muted-foreground/40">
-          •
-        </span>{" "}
+      <TableCell>
         <span className="font-medium">{plate.serial}</span>
         {plate.batch_no && (
           <span className="ms-2 text-xs text-muted-foreground">{plate.batch_no}</span>
         )}
       </TableCell>
-      <TableCell className="hidden md:table-cell" />
-      <TableCell className="text-end tabular-nums" />
-      <TableCell className="text-end tabular-nums">{weightLabel(plate.weight_kg)}</TableCell>
-      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
-        {plate.warehouse || "\u2014"}
-        {plate.heat_number ? ` \u2022 ${plate.heat_number}` : ""}
+      <TableCell className="text-sm text-muted-foreground">
+        {plate.warehouse || "—"}
+        {plate.heat_number ? ` • ${plate.heat_number}` : ""}
       </TableCell>
+      <TableCell className="text-end tabular-nums">{weightLabel(plate.weight_kg)}</TableCell>
       <TableCell className="text-end">
         {plate.can_cut ? (
           <StatusBadge tone="complete">{t("store.plateOffcut.canCut")}</StatusBadge>
@@ -100,7 +117,7 @@ function ChildRow({ plate, onSelect }) {
             title={plate.blocked_reason}
           >
             <StatusBadge tone="warning">{t("store.plateOffcut.cannotCut")}</StatusBadge>
-            <span className="mt-0.5 max-w-[22ch] truncate">{plate.blocked_reason}</span>
+            <span className="mt-0.5 max-w-[24ch] truncate">{plate.blocked_reason}</span>
           </span>
         )}
       </TableCell>
@@ -108,36 +125,69 @@ function ChildRow({ plate, onSelect }) {
   );
 }
 
+/**
+ * The plates behind one item.
+ *
+ * `sm:max-w-xl` rather than full width: this is a list to pick a serial out of,
+ * not a page to work in, and a full-width sheet would hide the group list it
+ * was opened from. The body scrolls on its own, so a 200-plate item is bounded
+ * by the viewport rather than growing the page.
+ */
+function PlatePanel({ group, onClose, onSelect }) {
+  const { t } = useTranslation();
+  if (!group) return null;
+
+  return (
+    <Sheet open={!!group} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" className="flex max-w-full flex-col sm:max-w-xl">
+        <SheetHeader>
+          <SheetTitle className="truncate">{group.item_code}</SheetTitle>
+          <SheetDescription>
+            {[
+              sizeLabel(group),
+              t("store.plateOffcut.plateCount", { count: group.plate_count }),
+              weightLabel(group.total_weight_kg),
+              group.item_group,
+            ]
+              .filter(Boolean)
+              .join(" • ")}
+          </SheetDescription>
+        </SheetHeader>
+
+        {/* The scroll region. min-h-0 is what lets a flex child actually
+            scroll instead of growing its parent past the viewport. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("store.plateOffcut.serial")}</TableHead>
+                <TableHead>{t("store.plateOffcut.warehouse")}</TableHead>
+                <TableHead className="text-end">
+                  {t("store.plateOffcut.sourceWeight")}
+                </TableHead>
+                <TableHead className="text-end">{t("common.status")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.plates.map((plate) => (
+                <PlateRow key={plate.serial} plate={plate} onSelect={onSelect} />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export default function PlateGroups({ groups, loading, onSelect }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(() => new Set());
-
-  const allExpanded = groups.length > 0 && open.size === groups.length;
-
-  const toggle = (key) =>
-    setOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  const toggleAll = () =>
-    setOpen(allExpanded ? new Set() : new Set(groups.map((g) => g.key)));
+  const [open, setOpen] = useState(null);
 
   if (!loading && !groups.length) return null;
 
   return (
     <>
-      {groups.length > 1 ? (
-        <div className="flex items-center justify-end px-3 pt-2">
-          <Button size="sm" variant="ghost" onClick={toggleAll} disabled={loading}>
-            <ChevronRight className={cn("size-4 transition-transform", allExpanded && "rotate-90")} />
-            {allExpanded ? t("reports.collapseAll") : t("reports.expandAll")}
-          </Button>
-        </div>
-      ) : null}
-
       <div className="px-3 pb-3">
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
@@ -147,10 +197,11 @@ export default function PlateGroups({ groups, loading, onSelect }) {
                 <TableHead className="hidden md:table-cell">
                   {t("store.plateOffcut.plateSize")}
                 </TableHead>
-                <TableHead className="text-end">{t("store.plateOffcut.plateCount")}</TableHead>
-                <TableHead className="text-end">{t("store.plateOffcut.sourceWeight")}</TableHead>
-                <TableHead className="hidden lg:table-cell">
-                  {t("store.plateOffcut.serial")}
+                <TableHead className="text-end">
+                  {t("store.plateOffcut.plateCount")}
+                </TableHead>
+                <TableHead className="text-end">
+                  {t("store.plateOffcut.sourceWeight")}
                 </TableHead>
                 <TableHead className="text-end">{t("common.status")}</TableHead>
               </TableRow>
@@ -158,102 +209,63 @@ export default function PlateGroups({ groups, loading, onSelect }) {
             <TableBody>
               {loading
                 ? null
-                : groups.map((group) => {
-                    // Same rule as the register: a group holding ONE plate has
-                    // nothing to reveal, so it is not a toggle. Making it one
-                    // cost a click to reach a single serial, and left the row
-                    // looking expandable when expanding it changed nothing.
-                    const expandable = group.plate_count > 1;
-                    const expanded = expandable && open.has(group.item_code);
-                    const blocked = group.blocked_count || 0;
-
-                    return (
-                      // Keyed on the fragment, not the first row inside it --
-                      // the register does the same, and a bare <> cannot carry
-                      // a key at all.
-                      <Fragment key={group.item_code}>
-                        {expandable ? (
-                          <TableRow
-                            className="cursor-pointer"
-                            aria-expanded={expanded}
-                            onClick={() => toggle(group.item_code)}
-                          >
-                            <TableCell>
-                              <div className="flex items-start gap-1.5">
-                                <ChevronRight
-                                  className={cn(
-                                    "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
-                                    expanded && "rotate-90",
-                                  )}
-                                />
-                                <div className="min-w-0">
-                                  <div className="truncate font-medium">
-                                    {group.item_code}
-                                  </div>
-                                  {group.item_group ? (
-                                    <div className="truncate text-xs text-muted-foreground">
-                                      {group.item_group}
-                                    </div>
-                                  ) : null}
-                                  <div className="truncate text-xs text-muted-foreground">
-                                    {[
-                                      t("store.plateOffcut.warehouseCount", {
-                                        count: group.warehouse_count ?? 0,
-                                      }),
-                                      t("store.plateOffcut.heatCount", {
-                                        count: group.heat_count ?? 0,
-                                      }),
-                                    ].join(" • ")}
-                                  </div>
-                                </div>
+                : groups.map((group) => (
+                    <TableRow
+                      key={group.item_code}
+                      className="cursor-pointer"
+                      onClick={() => setOpen(group)}
+                    >
+                      <TableCell>
+                        <div className="flex items-start gap-1.5">
+                          {/* A chevron, not a toggle: the row opens a panel. */}
+                          <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{group.item_code}</div>
+                            {group.item_group ? (
+                              <div className="truncate text-xs text-muted-foreground">
+                                {group.item_group}
                               </div>
-                            </TableCell>
-                            <TableCell className="hidden tabular-nums md:table-cell">
-                              {sizeLabel(group)}
-                            </TableCell>
-                            <TableCell className="text-end tabular-nums font-medium">
-                              {group.plate_count}
-                            </TableCell>
-                            <TableCell className="text-end tabular-nums font-medium">
-                              {weightLabel(group.total_weight_kg)}
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell">
-                              {/* The serials behind the number, so the count can
-                                  be checked without expanding anything. */}
-                              <span className="truncate text-xs text-muted-foreground">
-                                {group.plates
-                                  .slice(0, 3)
-                                  .map((p2) => p2.serial)
-                                  .join(", ")}
-                                {group.plate_count > 3
-                                  ? ` +${group.plate_count - 3}`
-                                  : ""}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-end">
-                              <GroupStatus blocked={blocked} />
-                            </TableCell>
-                          </TableRow>
-                        ) : null}
-
-                        {/* A lone child is rendered as the row itself, so its
-                            serial is one click away instead of two. */}
-                        {group.plates.map((plate) =>
-                          expanded || !expandable ? (
-                            <ChildRow
-                              key={plate.serial}
-                              plate={plate}
-                              onSelect={onSelect}
-                            />
-                          ) : null,
-                        )}
-                      </Fragment>
-                    );
-                  })}
+                            ) : null}
+                            <div className="truncate text-xs text-muted-foreground">
+                              {[
+                                t("store.plateOffcut.warehouseCount", {
+                                  count: group.warehouse_count ?? 0,
+                                }),
+                                t("store.plateOffcut.heatCount", {
+                                  count: group.heat_count ?? 0,
+                                }),
+                              ].join(" • ")}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden tabular-nums md:table-cell">
+                        {sizeLabel(group)}
+                      </TableCell>
+                      <TableCell className="text-end tabular-nums font-medium">
+                        {group.plate_count}
+                      </TableCell>
+                      <TableCell className="text-end tabular-nums font-medium">
+                        {weightLabel(group.total_weight_kg)}
+                      </TableCell>
+                      <TableCell className="text-end">
+                        <GroupStatus blocked={group.blocked_count || 0} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
             </TableBody>
           </Table>
         </div>
       </div>
+
+      <PlatePanel
+        group={open}
+        onClose={() => setOpen(null)}
+        onSelect={(plate) => {
+          setOpen(null);
+          onSelect(plate);
+        }}
+      />
     </>
   );
 }
