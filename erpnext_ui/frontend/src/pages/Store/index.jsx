@@ -105,12 +105,13 @@ const STORE_TILES = [
     // belongs beside Stock Entry rather than under Lookups. `app` hides it on
     // every other site -- DOCTYPE_CONFIG is static, so without the gate this
     // tile would appear for all customers and open a doctype that is not there.
-    // `createRoute` is deliberate: createTileNav opens the desk new form
-    // directly for a nativeForm doctype, exactly as it does for Item/Warehouse.
+    //
+    // A bespoke static route rather than /store/:doctype, because the offcut
+    // rows are priced live from the server as the operator types.
     key: "plate-offcut",
     icon: Scissors,
-    route: "/store/Plate Offcut",
-    createRoute: "/store/Plate Offcut/new",
+    route: "/store/plate-offcut",
+    createRoute: "/store/plate-offcut/new",
     app: "addsol_nl_custom",
     titleKey: "store.tiles.plateOffcut.title",
     descriptionKey: "store.tiles.plateOffcut.description",

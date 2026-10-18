@@ -38,15 +38,19 @@ function FilterControl({ filter, value, onChange }) {
       );
 
     case "Check":
+      // No inline label. `Labelled` already renders `filter.label` above every
+      // control, so printing it again showed "Above Tolerance Only" twice and
+      // made this row taller than the inputs beside it, which is what knocked the
+      // row out of alignment. `h-8` matches the height of the other controls.
       return (
-        <label className="flex h-8 cursor-pointer items-center gap-2 text-sm">
+        <label className="flex h-8 cursor-pointer items-center">
           <input
             type="checkbox"
             className="size-4 accent-[var(--brand-primary)]"
             checked={value === 1 || value === "1"}
             onChange={(e) => onChange(e.target.checked ? 1 : 0)}
+            aria-label={filter.label}
           />
-          {filter.label}
         </label>
       );
 
@@ -86,13 +90,22 @@ function FilterControl({ filter, value, onChange }) {
       );
   }
 }
-
+/**
+ * Caption above one control.
+ *
+ * A `<span>`, not a `<label>`: there is no `htmlFor` and the control is a child
+ * of a SIBLING, so a real label here would be attached to nothing — announced by
+ * a screen reader as a label with no control, and for a Check it produced two
+ * labels stacked on the same field. Every control instead carries
+ * `aria-label={filter.label}` (or a placeholder that serves as its name), so the
+ * accessible name is intact either way.
+ */
 function Labelled({ filter, children }) {
   return (
     <div className="min-w-0">
-      <label className="mb-1 block truncate text-xs font-medium text-muted-foreground">
+      <span className="mb-1 block truncate text-xs font-medium text-muted-foreground">
         {filter.label}
-      </label>
+      </span>
       {children}
     </div>
   );
@@ -118,6 +131,30 @@ function isSet(value) {
  * - Apply is repeated INSIDE the popover, so a phone user never has to close the
  *   panel and hunt for the button.
  */
+/**
+ * Column counts per number of primary filters, at each breakpoint.
+ *
+ * One row means one row on the desktop: the desktop column count has to equal
+ * the number of filters or the last one wraps onto a second line. It used to be
+ * a flat `primaryFields.length > 2 && "lg:grid-cols-3"`, so any report declaring
+ * FOUR primary filters wrapped -- "Plate Receipt Weight Variance" declares
+ * from_date, to_date, supplier and above_tolerance_only.
+ *
+ * Below `lg` it goes TWO-UP rather than one-per-row: a single column of
+ * full-width inputs is unusable on a phone, and with four filters it pushed the
+ * results off the screen entirely. One filter stays single, because a half-width
+ * date input for a lone filter just looks broken.
+ *
+ * Every class is written out in full because Tailwind only generates names it can
+ * see literally -- `lg:grid-cols-${n}` would generate nothing.
+ */
+const PRIMARY_GRID_COLS = {
+  1: "grid-cols-1 sm:grid-cols-1 lg:grid-cols-1",
+  2: "grid-cols-2 sm:grid-cols-2 lg:grid-cols-2",
+  3: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-3",
+  4: "grid-cols-2 sm:grid-cols-2 lg:grid-cols-4",
+};
+
 export default function FilterBar({
   declared,
   values,
@@ -152,12 +189,13 @@ export default function FilterBar({
   return (
     <div className="rounded-lg border border-border bg-card p-2">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-end">
-        {/* PRIMARY — one row on desktop, stacked on a phone. */}
+        {/* PRIMARY — two-up on a phone, one row on a desktop. Column counts come
+            from PRIMARY_GRID_COLS above. */}
         {primaryFields.length ? (
           <div
             className={cn(
-              "grid grid-cols-1 gap-2 sm:grid-cols-2",
-              primaryFields.length > 2 && "lg:grid-cols-3",
+              "grid gap-2",
+              PRIMARY_GRID_COLS[Math.min(primaryFields.length, 4)],
               "lg:flex-1",
             )}
           >
@@ -172,8 +210,11 @@ export default function FilterBar({
           </div>
         ) : null}
 
-        {/* ACTIONS — always reachable, never inside the collapsed panel only. */}
-        <div className="flex shrink-0 items-center gap-2">
+        {/* ACTIONS — always reachable, never inside the collapsed panel only.
+            `flex-wrap` so a narrow phone pushes the clear button onto a second
+            line instead of clipping it off-screen; `lg:shrink-0` keeps the row
+            from being squeezed when it sits beside the filters on desktop. */}
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
           {overflow.length ? (
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>

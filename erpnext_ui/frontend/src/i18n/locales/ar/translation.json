@@ -96,7 +96,9 @@
 		"add": "إضافة",
 		"done": "تم",
 		"remove": "إزالة",
-		"none": "لا شيء"
+		"none": "لا شيء",
+		"submitted": "مُرسل",
+		"cancelled": "ملغى"
 	},
 	"nav": {
 		"approvals": "الموافقات",

@@ -104,7 +104,7 @@ const NAV_SECTIONS = [
             // `reportKey`.
             key: "plate-offcut",
             labelKey: "nav.plateOffcut",
-            to: "/store/Plate Offcut",
+            to: "/store/plate-offcut",
             icon: Scissors,
             app: "addsol_nl_custom",
           },

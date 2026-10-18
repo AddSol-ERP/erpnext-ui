@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { get } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
+import {
+  withCleanChildRows,
+  nextRid,
+} from "../../../../lib/childRows";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
@@ -84,72 +88,35 @@ import { deleteDocument } from "../../../../lib/docTransition";
  *    the setting needs no code change.
  */
 
-const SYSTEM_FIELDS = [
-  "name",
-  "owner",
-  "creation",
-  "modified",
-  "modified_by",
-  "idx",
-  "docstatus",
-  "amended_from",
-  "amended_by",
-  "_user_tags",
-  "_comments",
-  "_assign",
-  "_liked_by",
-  "doctype",
-  "__islocal",
-  "__unsaved",
-];
-
-const CHILD_SYSTEM_FIELDS = [
-  "name",
-  "parent",
-  "parenttype",
-  "parentfield",
-  "docstatus",
-  "idx",
-  "__islocal",
-  "__unsaved",
-  "owner",
-  "creation",
-  "modified",
-  "modified_by",
-];
-
-/** Strip system fields so the mapped doc can be saved as a new document. */
-function toSavePayload(doc) {
-  const out = { ...doc };
-  SYSTEM_FIELDS.forEach((f) => delete out[f]);
-  out.items = (doc.items || []).map((row) => {
-    const clean = { ...row };
-    CHILD_SYSTEM_FIELDS.forEach((f) => delete clean[f]);
-    // _rid is our client-side row key, and measured_total is our input that
-    // exists only to derive the factor. Neither is a Purchase Receipt Item
-    // field; sending them would produce an unknown-attribute error.
-    delete clean._rid;
-    delete clean.measured_total;
-    delete clean.pending_qty;
-    delete clean.rate_from_po;
-    delete clean.factor_from_po;
-    delete clean.factor_source_po;
-    delete clean.conversion_source;
-    delete clean.weight_per_unit;
-    // transfer_qty / received_stock_qty are read_only and re-derived server-side
-    // (set_stock_qty); posting a stale value would be discarded at best.
-    delete clean.transfer_qty;
-    delete clean.received_stock_qty;
-    return clean;
-  });
-  return out;
-}
-
-let ridSeq = 0;
-/** Stable client key for a row. See the _rid note below. */
-const nextRid = () => `r${++ridSeq}`;
 
 const todayISO = localDateISO;
+
+/**
+ * Client-only and server-derived keys on a Purchase Receipt Item.
+ *
+ * `_rid` and `measured_total` are ours: the first is the row key, the second an
+ * input that exists only to derive the factor. Neither is a field, and sending
+ * either produces an unknown-attribute error. `transfer_qty` /
+ * `received_stock_qty` are read_only and re-derived server-side, so a stale value
+ * is discarded at best.
+ */
+const RECEIPT_ITEM_CLIENT_FIELDS = [
+  "_rid",
+  "measured_total",
+  "pending_qty",
+  "rate_from_po",
+  "factor_from_po",
+  "factor_source_po",
+  "conversion_source",
+  "weight_per_unit",
+  "transfer_qty",
+  "received_stock_qty",
+];
+
+/** Strip everything that must not leave the browser. */
+function toSavePayload(doc) {
+  return withCleanChildRows(doc, { extra: RECEIPT_ITEM_CLIENT_FIELDS });
+}
 
 export default function PurchaseReceiptForm() {
   const { name } = useParams();

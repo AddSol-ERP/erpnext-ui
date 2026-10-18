@@ -96,7 +96,9 @@
 		"add": "जोड़ें",
 		"done": "हो गया",
 		"remove": "हटाएँ",
-		"none": "कोई नहीं"
+		"none": "कोई नहीं",
+		"submitted": "सबमिट",
+		"cancelled": "रद्द"
 	},
 	"nav": {
 		"approvals": "अनुमोदन",

@@ -50,6 +50,18 @@ import {
   seedDefault,
   visibleColumns,
 } from "../src/pages/Reports/custom-report/format.js";
+import { packPieces, pieceLabel } from "../src/pages/Store/plate-offcut/pack.js";
+import {
+  aggregateEstimates,
+  expandRows,
+  pieceTotal,
+  plateGeometry,
+} from "../src/pages/Store/plate-offcut/estimate.js";
+import {
+  stripChildRow,
+  stripSystemFields,
+  withCleanChildRows,
+} from "../src/lib/childRows.js";
 import {
   groupRows,
   isBlankCell,
@@ -2308,10 +2320,15 @@ ok(
     /!tile\.app \|\| hasApp\(tile\.app\)/.test(storeIndexSrc),
   "an ungated static tile would appear on every customer site",
 );
+// SUPERSEDED by the bespoke form. This used to assert `nativeForm: true` (a desk
+// hand-out). It is kept as its inverse so the flag cannot silently come back on:
+// with a bespoke route the tile and form are ours, and `nativeForm` would make the
+// tile's create button bounce the operator out to the desk instead.
 ok(
-  "Plate Offcut is configured as a desk hand-out, not an SPA form",
-  /"Plate Offcut": \{[\s\S]*?nativeForm: true,/.test(doctypesSrc),
-  "cutting a plate is a submittable stock write; the owning app validates it",
+  "Plate Offcut no longer hands out to the desk",
+  !/"Plate Offcut": \{[\s\S]{0,400}?nativeForm: true,/.test(doctypesSrc) &&
+    /"Plate Offcut": \{[\s\S]{0,400}?searchFields/.test(doctypesSrc),
+  "nativeForm would send the create button to the ERPNext desk again",
 );
 
 // The report's own filter/column metadata is what the page renders from, so the
@@ -2607,6 +2624,293 @@ ok(
   groupRows(ROWS, DEFAULT_GROUP_CONFIG).length === 1 &&
     groupRows([], DEFAULT_GROUP_CONFIG).length === 0,
   "the second NL report may not be grouped at all",
+);
+
+// ---------------------------------------------------------------------------
+// Plate Offcut. The server owns every weight; the client draws and asks.
+// ---------------------------------------------------------------------------
+const offcutDir = "../../src/pages/Store/plate-offcut/";
+const offcutFormSrc = readSrc(`${offcutDir}form/index.jsx`);
+const offcutCanvasSrc = readSrc(`${offcutDir}PlateCanvas.jsx`);
+const linkFieldSrc = readSrc("../../src/components/LinkField/index.jsx");
+
+// THE rule. `compute_theoretical_weight` evaluates an admin-authored formula on
+// the Item Group and THROWS rather than guessing (`plates/weight.py`), so a
+// client-side weight is not "a slightly different number", it is wrong with no
+// way to notice. The desk client states the same rule about itself ("must never
+// calculate anything itself, or the preview and the save would disagree").
+const offcutCode = stripComments(offcutFormSrc + offcutCanvasSrc);
+// Banned in BOTH operand orders. The first version of this only matched
+// `something * length_mm`, so `length_mm * weight_per_unit` -- the natural way to
+// write it -- walked straight through. Utilisation (`weight / weight`) is a
+// display ratio between two server figures and is deliberately allowed; only
+// arithmetic on a DIMENSION is forbidden.
+const dimensionArithmetic =
+  /(?:length_mm|width_mm|thickness_mm)\s*[*/]|[*/]\s*(?:length_mm|width_mm|thickness_mm)/;
+ok(
+  "the Plate Offcut UI never does arithmetic on a dimension",
+  !dimensionArithmetic.test(offcutCode),
+  "every weight must come from estimate_offcut_weights; a formula here would silently diverge",
+);
+
+// `pieces` is a UI affordance -- the doctype has no such field -- so the SAME
+// expansion has to feed the estimate request and the save payload. If they
+// diverged the preview would total six pieces while the save wrote one: the
+// totals would look right and the stock would be wrong.
+ok(
+  "expandRows turns one row into `pieces` children",
+  expandRows([{ _rid: "a", length_mm: 100, width_mm: 50, pieces: 3 }]).length === 3 &&
+    expandRows([{ _rid: "a", length_mm: 100, width_mm: 50 }]).length === 1 &&
+    pieceTotal([{ _rid: "a", pieces: 2 }, { _rid: "b", pieces: 3 }]) === 5,
+);
+ok(
+  "expanded rows carry the client key as `name`, so replies match by key not index",
+  expandRows([{ _rid: "a", length_mm: 100, width_mm: 50, pieces: 2 }]).every(
+    (r) => typeof r.name === "string" && r.name.startsWith("a#"),
+  ) && new Set(expandRows([{ _rid: "a", pieces: 2 }]).map((r) => r.name)).size === 2,
+  "the server echoes `name` straight back; matching on it is what stops a slow reply landing on the wrong row",
+);
+ok(
+  "per-row estimates aggregate over that row's own pieces",
+  aggregateEstimates([{ _rid: "a" }], [
+    { name: "a#0", weight_kg: 2, theoretical_weight_kg: 2.5, value: 100 },
+    { name: "a#1", weight_kg: 3, theoretical_weight_kg: 3.5, value: 150 },
+  ]).get("a").weight_kg === 5 &&
+    aggregateEstimates([{ _rid: "a" }], [{ name: "b#0", weight_kg: 9 }]).get("a") === undefined,
+  "a reply for another row must not be summed in",
+);
+ok(
+  "plate geometry reads the dimensions the server now forwards",
+  plateGeometry({ source_length_mm: 2500, source_width_mm: 1250, source_thickness_mm: 10 })
+    .length_mm === 2500 &&
+    plateGeometry({}).length_mm === 0,
+  "absent geometry must be 0 so the canvas says so rather than inventing a scale",
+);
+
+// The preview is a drawing, not a cut plan: `check_offcut_fits` only asks whether
+// a piece fits in either orientation, and the server never positions anything.
+ok(
+  "the canvas labels its layout as indicative, not a cut plan",
+  /t\("store\.plateOffcut\.canvasIndicative"\)/.test(offcutCanvasSrc),
+  "the server has no notion of layout, so claiming one would mislead the operator",
+);
+ok(
+  "scrap is shown as a number, never shaded as leftover area",
+  !/fill-destructive[^"]*"[^"]*scrap/i.test(offcutCanvasSrc) &&
+    /store\.plateOffcut\.scrap/.test(offcutFormSrc),
+  "weight comes from an Item Group formula that need not be linear in area, so leftover area is not the scrap weight",
+);
+
+// --- pack.js, behaviourally ------------------------------------------------
+const PLATE = { plateLength: 2500, plateWidth: 1250 };
+const half = packPieces({ ...PLATE, pieces: [{ id: "a", length_mm: 1250, width_mm: 625, count: 2 }] });
+ok(
+  "pack: two quarter-pieces sit on the plate and cover exactly half of it",
+  half.placed.length === 2 &&
+    half.overflow.length === 0 &&
+    half.usedArea === half.plateArea / 2,
+  `used=${half.usedArea} plate=${half.plateArea} -- 1250x625 is a quarter of 2500x1250`,
+);
+ok(
+  "pack: nothing overlaps and everything stays inside the plate",
+  (() => {
+    const r = packPieces({
+      ...PLATE,
+      pieces: [
+        { id: "a", length_mm: 1250, width_mm: 625, count: 2 },
+        { id: "b", length_mm: 800, width_mm: 400, count: 3 },
+        { id: "c", length_mm: 600, width_mm: 300, count: 4 },
+      ],
+    });
+    const inside = r.placed.every(
+      (p) => p.x >= 0 && p.y >= 0 && p.x + p.w <= 2500 && p.y + p.h <= 1250,
+    );
+    const overlap = r.placed.some((p, i) =>
+      r.placed.some(
+        (q, j) =>
+          i < j &&
+          p.x < q.x + q.w &&
+          q.x < p.x + p.w &&
+          p.y < q.y + q.h &&
+          q.y < p.y + p.h,
+      ),
+    );
+    return inside && !overlap;
+  })(),
+);
+ok(
+  "pack: a piece too large for the plate is REPORTED as overflow, not dropped",
+  (() => {
+    const r = packPieces({ ...PLATE, pieces: [{ id: "big", length_mm: 6000, width_mm: 100 }] });
+    return r.placed.length === 0 && r.overflow.length === 1 && r.overflow[0].fitsAtAll === false;
+  })(),
+  "the save refuses it; a piece that vanished from the canvas would read as counted",
+);
+ok(
+  "pack: the drawing is deterministic and independent of the order rows were typed",
+  (() => {
+    const a = packPieces({ ...PLATE, pieces: [{ id: "z", length_mm: 800, width_mm: 600, count: 3 }, { id: "y", length_mm: 1200, width_mm: 300, count: 2 }] });
+    const b = packPieces({ ...PLATE, pieces: [{ id: "y", length_mm: 1200, width_mm: 300, count: 2 }, { id: "z", length_mm: 800, width_mm: 600, count: 3 }] });
+    return JSON.stringify(a.placed) === JSON.stringify(b.placed);
+  })(),
+  "the canvas must not reshuffle under the operator while they type",
+);
+ok(
+  "pack: missing plate geometry degrades to overflow rather than throwing",
+  packPieces({ plateLength: 0, plateWidth: 0, pieces: [{ id: "a", length_mm: 10, width_mm: 10 }] }).placed.length === 0,
+);
+ok(
+  "pack: a piece label shows the count only when there is more than one",
+  pieceLabel({ id: "a", w: 100, h: 50 }, new Map([["a", 1]])) === "100x50" &&
+    pieceLabel({ id: "a", w: 100, h: 50 }, new Map([["a", 3]])) === "100x50 x3",
+);
+
+// --- the save path ---------------------------------------------------------
+// `stripChildRow` strips SYSTEM fields plus whatever the caller names; it does
+// not know about `pieces` or `_rid`, and should not -- those are per-form
+// concerns. The guarantee comes from `expandForSave`, which builds each child
+// from an EXPLICIT literal rather than spreading the row, so a new client-only
+// key cannot leak into the payload by being forgotten in a delete list.
+ok(
+  "client-only keys cannot reach the save payload: expandForSave builds an explicit literal",
+  /const child = \{ length_mm: row\.length_mm, width_mm: row\.width_mm \}/.test(offcutCode) &&
+    !/\.\.\.row/.test(
+      offcutCode.match(/function expandForSave[\s\S]{0,700}/)?.[0] || "",
+    ) &&
+    /rows\.flatMap\(expandForSave\)\.map\(\(row\) => stripChildRow\(row\)\)/.test(offcutCode),
+  "a spread of the row would carry _rid and pieces into a document that has neither",
+);
+ok(
+  "stripChildRow removes system fields and the caller's own keys, keeping real ones",
+  (() => {
+    const clean = stripChildRow(
+      { name: "x", parent: "p", idx: 0, _rid: "r1", length_mm: 10 },
+      ["_rid"],
+    );
+    return !("name" in clean) && !("parent" in clean) && !("idx" in clean) &&
+      !("_rid" in clean) && clean.length_mm === 10;
+  })(),
+);
+ok(
+  "withCleanChildRows strips system fields from the header too",
+  (() => {
+    const out = withCleanChildRows(
+      { name: "OFC-1", owner: "x", docstatus: 0, posting_date: null, offcuts: [] },
+      { extra: ["_rid"] },
+    );
+    return !("name" in out) && !("owner" in out) && !("docstatus" in out) && "offcuts" in out;
+  })() &&
+    stripSystemFields({ a: 1, name: "n" }).a === 1,
+);
+ok(
+  "the receipt form now shares the sanitiser instead of duplicating it",
+  /from "\.\.\/\.\.\/\.\.\/\.\.\/lib\/childRows"/.test(
+    readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx"),
+  ) && !/const SYSTEM_FIELDS = \[/ .test(
+    readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx"),
+  ),
+  "two copies of a list this subtle would drift",
+);
+// Submit must go through docTransition, not a raw POST (invariant 1), and must
+// NOT use apply_workflow -- no Workflow exists for this doctype.
+const offcutCodeNoComments = stripComments(offcutFormSrc);
+ok(
+  "submit goes through submitDocument, and save through saveDocument",
+  /submitDocument\(/.test(offcutFormSrc) && /saveDocument\(/.test(offcutFormSrc) &&
+    !/apply_workflow/.test(offcutCodeNoComments) &&
+    !/run_method/.test(offcutCodeNoComments),
+  "Plate Offcut has no Workflow, so a workflow call would fail; a raw POST would raise KeyError: run_method",
+);
+ok(
+  "a submitted offcut cannot be edited or re-submitted",
+  /const submitted = Boolean\(doc\?\.docstatus\)/.test(offcutFormSrc) &&
+    /disabled=\{submitted\}/.test(offcutFormSrc) &&
+    /!submitted \? \(/.test(offcutFormSrc),
+);
+// Only Active serials are cuttable -- the server refuses the rest, so offering
+// them would produce a form that cannot be saved.
+ok(
+  "the plate picker is restricted to Active serials",
+  /SERIAL_FILTERS = \{ status: "Active" \}/.test(offcutFormSrc) &&
+    /filters=\{SERIAL_FILTERS\}/.test(offcutFormSrc),
+);
+ok(
+  "LinkField passes filters through only when given, so existing callers are unchanged",
+  /if \(filters\) params\.filters = JSON\.stringify\(filters\)/.test(linkFieldSrc) &&
+    !/params\.filters/.test(linkFieldSrc.replace(/if \(filters\).*/, "")),
+  "search_link parses a JSON string, and ~40 call sites pass no filters at all",
+);
+ok(
+  "Plate Offcut is a bespoke SPA form, not a desk hand-out",
+  !/nativeForm: true/.test(
+    doctypesSrc.slice(doctypesSrc.indexOf('"Plate Offcut"'), doctypesSrc.indexOf('"Plate Offcut"') + 400),
+  ) && /path="\/store\/plate-offcut"/.test(appRouteSrc),
+  "the offcut rows are priced live from the server, which a generic form cannot do",
+);
+
+// ---------------------------------------------------------------------------
+// FilterBar: the caption is a <span>, and the grid columns are literal.
+// ---------------------------------------------------------------------------
+const filterBarSrc = readSrc("../../src/pages/Reports/custom-report/FilterBar.jsx");
+
+// `Labelled` renders the caption for EVERY control, so a Check that printed
+// `filter.label` as well showed "Above Tolerance Only" twice AND grew that
+// control's row taller than the inputs beside it -- which is what knocked the
+// primary row out of alignment, the whole reason this changed. Asserting only on
+// the rendered string would need a full render; asserting on the source catches
+// the regression at its origin.
+// Bounded generously and stopped by the NEXT `case`, not by an indentation: the
+// branch is ~680 chars, so a tight bound sat right on the edge of matching.
+// Comments stripped for the same reason as below: the note inside this very
+// branch explains the fix and quotes `{filter.label}`, which is the exact token
+// being asserted absent.
+const checkBranch = stripComments(
+  filterBarSrc.match(/case "Check":[\s\S]*?\n {4}case "[A-Za-z]+":/)?.[0] || "",
+);
+// The aria-label is REMOVED before looking for an inline caption: it is itself
+// spelled `{filter.label}`, so a naive search for that token flags the very
+// attribute that replaced the duplicate caption.
+const checkCaption = checkBranch.replace(/aria-label=\{filter\.label\}/g, "");
+ok(
+  "a Check filter prints no duplicate inline caption",
+  !/\{filter\.label\}/.test(checkCaption) &&
+    /aria-label=\{filter\.label\}/.test(checkBranch),
+  "Labelled already renders filter.label above every control, so the second copy duplicated it",
+);
+// The caption cannot be a real <label>: there is no htmlFor and the control is a
+// SIBLING, so it would be announced as a label attached to nothing.
+ok(
+  "the filter caption is a span, not a <label> attached to nothing",
+  /function Labelled\(\{ filter, children \}\)[\s\S]{0,400}?<span className="mb-1 block truncate/.test(filterBarSrc),
+  "no htmlFor + a sibling control makes a <label> an orphaned accessible name",
+);
+// Tailwind only emits class names it can see literally, so a computed
+// `lg:grid-cols-${n}` generates NOTHING -- the filter row silently collapses to
+// one column with no error anywhere. The desktop count must also equal the
+// filter count or the last filter wraps onto a second line.
+ok(
+  "filter grid columns are literal class names, never computed",
+  // Comments stripped: the note explaining WHY the classes are written out
+  // literally quotes `lg:grid-cols-${n}` as the counterexample, so the unstripped
+  // source matched the very pattern being forbidden.
+  /PRIMARY_GRID_COLS/.test(stripComments(filterBarSrc)) &&
+    !/lg:grid-cols-\$\{/.test(stripComments(filterBarSrc)) &&
+    /4: "grid-cols-2 sm:grid-cols-2 lg:grid-cols-4"/.test(filterBarSrc),
+  "Tailwind purges class names it cannot see literally; a template literal yields no CSS at all",
+);
+ok(
+  "the desktop column count equals the filter count up to four",
+  (() => {
+    const map = filterBarSrc.match(/const PRIMARY_GRID_COLS = \{([\s\S]*?)\n\};/)?.[1] || "";
+    const cols = {};
+    for (const m of map.matchAll(/(\d):\s*"([^"]+)"/g)) {
+      const lg = m[2].match(/lg:grid-cols-(\d+)/);
+      if (lg) cols[m[1]] = Number(lg[1]);
+    }
+    // 1 filter stays single; 2-4 must land on exactly one desktop row.
+    return cols["1"] === 1 && cols["2"] === 2 && cols["3"] === 3 && cols["4"] === 4;
+  })(),
+  "a count that does not match the filter count wraps the last filter onto a second line",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

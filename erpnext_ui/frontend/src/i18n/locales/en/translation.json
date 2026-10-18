@@ -96,7 +96,9 @@
 		"add": "Add",
 		"done": "Done",
 		"remove": "Remove",
-		"none": "None"
+		"none": "None",
+		"submitted": "Submitted",
+		"cancelled": "Cancelled"
 	},
 	"nav": {
 		"approvals": "Approvals",

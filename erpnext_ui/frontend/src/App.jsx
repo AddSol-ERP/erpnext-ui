@@ -7,6 +7,11 @@ import DemoForm from "./pages/StockEntry";
 import StockEntryPage from "./components/StockEntry/StockEntryPage";
 import PurchaseReceiptPicker from "./pages/Store/purchase-receipt";
 import PurchaseReceiptForm from "./pages/Store/purchase-receipt/form";
+// Plate Offcut lives in addsol_nl_custom, so the whole module is app-gated
+// (see hasApp) -- the routes exist on every site and resolve to a doctype that
+// is only present on NL ones.
+import PlateOffcutList from "./pages/Store/plate-offcut";
+import PlateOffcutForm from "./pages/Store/plate-offcut/form";
 import Approval from "./components/Approval";
 import ApprovalListPage from "./components/Approval/ApprovalListPage";
 import ProductionDashboard from "./pages/Production";
@@ -187,6 +192,15 @@ export default function App() {
               pattern-based audit passed it. */}
           <Route path="/store/delivery/:name" element={<DeliveryNoteForm />} />
           <Route path="/store/stock-balance" element={<StockBalance />} />
+          {/* Plate Offcut. A static route trio, NOT the generic
+              /store/:doctype below: this doctype has a bespoke form because its
+              offcut rows are priced live from the server. */}
+          <Route path="/store/plate-offcut" element={<PlateOffcutList />} />
+          <Route path="/store/plate-offcut/new" element={<PlateOffcutForm />} />
+          <Route
+            path="/store/plate-offcut/:name"
+            element={<PlateOffcutForm />}
+          />
           {/* Store generic routes for new doctypes (Item, Warehouse, etc.) */}
           <Route path="/store/:doctype" element={<GenericListPage />} />
           <Route path="/store/:doctype/new" element={<GenericFormPage />} />

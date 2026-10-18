@@ -314,7 +314,7 @@
 			},
 			"plateOffcut": {
 				"title": "Plate Offcut",
-				"description": "Cut a plate into offcuts; creates a Repack Stock Entry"
+				"description": "Cut a plate into offcuts; posts a Repack Stock Entry"
 			}
 		},
 		"mr": {
@@ -611,6 +611,53 @@
 			"confirm": "Return to stock",
 			"done": "{{item}} is back in stock ({{qty}}).",
 			"autoSerial": "Serial numbers will be generated automatically for this item."
+		},
+		"plateOffcut": {
+			"title": "Plate Offcut",
+			"listSubtitle": "Cut plates into offcuts; each one posts a Repack Stock Entry",
+			"subtitle": "Choose a plate, enter the cut sizes, and the weights are priced for you",
+			"newTitle": "New Plate Offcut",
+			"number": "Offcut No.",
+			"searchPlaceholder": "Search offcut number…",
+			"emptyTitle": "No plate offcuts yet",
+			"emptyDescription": "Cut a plate into offcuts to see them listed here.",
+			"sourceSerial": "Plate (Serial No)",
+			"sourceSerialHint": "Only active plates held in a warehouse can be cut",
+			"sourceItem": "Source Item",
+			"batch": "Source Batch",
+			"heatNumber": "Heat Number",
+			"warehouse": "Warehouse",
+			"plateSize": "Plate Size",
+			"plateWeight": "Plate Weight",
+			"offcutsTitle": "Offcuts",
+			"noOffcutsYet": "Add at least one offcut. A plate booked straight to scrap is not a cutting.",
+			"length": "Length (mm)",
+			"width": "Width (mm)",
+			"pieces": "Pieces",
+			"pieces_one": "{{count}} piece",
+			"pieces_other": "{{count}} pieces",
+			"weightEach": "Kg / piece",
+			"rowWeight": "Row Weight",
+			"rowValue": "Row Value",
+			"totalPieces": "Total Pieces",
+			"totalOffcutWeight": "Offcut Weight",
+			"totalOffcutValue": "Offcut Value",
+			"scrap": "Scrap",
+			"canvasTitle": "Plate Layout",
+			"canvasIndicative": "Indicative layout — not a cut plan",
+			"canvasNoGeometry": "Choose a plate to see the cut layout.",
+			"canvasSummary_one": "{{plate}} · {{pieces}} piece",
+			"canvasSummary_other": "{{plate}} · {{pieces}} pieces",
+			"canvasOverflow_one": "{{count}} piece does not fit",
+			"canvasOverflow_other": "{{count}} pieces do not fit",
+			"overBy": "The offcuts add up to more than the plate weighs — over by {{kg}} kg. It cannot be saved until they fit.",
+			"errNoSerial": "Choose the plate you are cutting.",
+			"errNoOffcuts": "Add at least one offcut.",
+			"errRowSize": "Row {{row}} needs both a length and a width.",
+			"submittedReadOnly": "{{name}} is submitted and cannot be changed.",
+			"backToList": "Back to list",
+			"submitTitle": "Submit this offcut?",
+			"submitMessage": "Submitting creates the offcut Items, Batches and Serial Numbers, and posts a Repack Stock Entry. This changes stock."
 		}
 	}
 }

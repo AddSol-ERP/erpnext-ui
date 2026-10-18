@@ -313,12 +313,11 @@ export const DOCTYPE_CONFIG = {
   // source Serial No and, on submit, creates and submits a Repack Stock Entry
   // moving the offcuts back into the same warehouse.
   //
-  // `nativeForm: true` hands list and form to the ERPNext desk: cutting a plate
-  // is a stock write with weight arithmetic the owning app already validates, and
-  // rebuilding it here would mean reimplementing plate_offcut.js against a
-  // submittable stock document. DOCTYPE_CONFIG is static, so the tile itself is
-  // gated on `hasApp("addsol_nl_custom")` at the hub and nav -- without that it
-  // would appear on every customer and open a URL for a doctype that is not
+  // No `nativeForm`: this used to hand out to the ERPNext desk, and now has a
+  // bespoke SPA list and form at /store/plate-offcut because the offcut rows are
+  // priced live from the server as they are typed. DOCTYPE_CONFIG is static, so
+  // the tile and nav entry are gated on `hasApp("addsol_nl_custom")` -- without
+  // that they would appear on every customer and link to a doctype that is not
   // there.
   "Plate Offcut": {
     list: {
@@ -328,7 +327,6 @@ export const DOCTYPE_CONFIG = {
       statusField: "docstatus",
     },
     searchFields: ["name", "source_item", "heat_number"],
-    nativeForm: true,
   },
 
   // ============================

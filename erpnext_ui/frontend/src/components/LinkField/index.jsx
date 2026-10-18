@@ -14,6 +14,15 @@ export default function LinkField({
   onChange,
   placeholder,
   disabled = false,
+  /**
+   * Optional server-side filter, e.g. `{ status: "Active" }` on Serial No.
+   *
+   * Passed straight to `frappe.desk.search.search_link`, which accepts a dict, a
+   * list or a JSON STRING (frappe/desk/search.py:84-85) -- so it is serialised
+   * here and the server parses it back. Omitted entirely when not supplied, which
+   * is every existing caller, so their request bodies are unchanged.
+   */
+  filters,
 }) {
   const { t } = useTranslation();
 
@@ -101,11 +110,14 @@ export default function LinkField({
     const id = ++requestId.current;
     setLoading(true);
 
-    return get("method/frappe.desk.search.search_link", {
+    const params = {
       doctype,
       txt,
       page_length: 10,
-    })
+    };
+    if (filters) params.filters = JSON.stringify(filters);
+
+    return get("method/frappe.desk.search.search_link", params)
       .then((res) => {
         // A newer search has already started -- discard this stale response.
         if (id !== requestId.current) return;

@@ -14,6 +14,19 @@ import GenericForm from "@/components/GenericForm/index.jsx";
 import EmployeeDocuments from "@/pages/ESS/EmployeeDocuments";
 import { DocStatusField } from "@/components/DocStatusField";
 import { statusTone } from "@/components/List/statusTones";
+// These two are the only SPA forms the stock harness did NOT render, and both
+// bugs below shipped past every suite in this directory: `../../../../services/api`
+// resolved one directory too high, and FormField was imported as a default when
+// it is a named export. Neither ESLint (no import resolver is configured) nor
+// rules.jsx nor storecheck.jsx could see either one -- they only surface when a
+// module is actually pulled into the production graph and rendered. Rendering
+// them here is the cheapest place to catch a fourth.
+//
+// Note the form's body only renders because a new document seeds its initial
+// state instead of starting on a spinner that never clears without an effect;
+// that took the render from 650 to ~15k chars.
+import PlateOffcutForm from "@/pages/Store/plate-offcut/form/index.jsx";
+import PlateOffcutList from "@/pages/Store/plate-offcut/index.jsx";
 
 // Effects do not run under renderToString, so nothing should fetch here.
 globalThis.fetch = () => {
@@ -25,6 +38,8 @@ const FORMS = [
   { label: "Attendance Request", path: "/requests/attendance", C: AttendanceRequestForm },
   { label: "Expense Claim", path: "/requests/expense", C: ExpenseClaimForm },
   { label: "GenericForm", path: "/g/purchase-order/new", C: GenericForm },
+  { label: "Plate Offcut", path: "/store/plate-offcut/new", C: PlateOffcutForm },
+  { label: "Plate Offcut list", path: "/store/plate-offcut", C: PlateOffcutList },
 ];
 
 let fail = 0;

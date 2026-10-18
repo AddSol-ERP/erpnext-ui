@@ -314,7 +314,7 @@
 			},
 			"plateOffcut": {
 				"title": "प्लेट ऑफकट",
-				"description": "प्लेट को ऑफकट में काटें; रीपैक स्टॉक एंट्री बनाता है"
+				"description": "प्लेट को ऑफकट में काटें; रीपैक स्टॉक एंट्री बनाती है"
 			}
 		},
 		"mr": {
@@ -611,6 +611,53 @@
 			"confirm": "स्टॉक में वापस लाएँ",
 			"done": "{{item}} स्टॉक में वापस आ गया ({{qty}})।",
 			"autoSerial": "इस आइटम के लिए सीरियल नंबर अपने आप बनेंगे।"
+		},
+		"plateOffcut": {
+			"title": "प्लेट ऑफकट",
+			"listSubtitle": "प्लेट को ऑफकट में काटें; प्रत्येक एक रीपैक स्टॉक एंट्री बनाता है",
+			"subtitle": "प्लेट चुनें, कट के आकार दर्ज करें, वजन स्वतः आ जाएँगे",
+			"newTitle": "नया प्लेट ऑफकट",
+			"number": "ऑफकट क्र.",
+			"searchPlaceholder": "ऑफकट क्रंबर खोजें…",
+			"emptyTitle": "अभी तक कोई प्लेट ऑफकट नहीं",
+			"emptyDescription": "प्लेट को ऑफकट में काटकर यहाँ सूचीबद्ध करें।",
+			"sourceSerial": "प्लेट (सीरियल नं.)",
+			"sourceSerialHint": "केवल गोदाम में रखी सक्रिय प्लेट ही काटी जा सकती है",
+			"sourceItem": "स्रोत आइटम",
+			"batch": "स्रोत बैच",
+			"heatNumber": "हीट नंबर",
+			"warehouse": "वेयरहाउस",
+			"plateSize": "प्लेट आकार",
+			"plateWeight": "प्लेट वजन",
+			"offcutsTitle": "ऑफकट",
+			"noOffcutsYet": "कम से कम एक ऑफकट जोड़ें। प्लेट को सीधे स्क्रैप करना कटाई नहीं है।",
+			"length": "लंबाई (mm)",
+			"width": "चौड़ाई (mm)",
+			"pieces": "टुकड़े",
+			"pieces_one": "{{count}} टुकड़ा",
+			"pieces_other": "{{count}} टुकड़े",
+			"weightEach": "Kg / टुकड़ा",
+			"rowWeight": "पंक्ति वजन",
+			"rowValue": "पंक्ति मूल्य",
+			"totalPieces": "कुल टुकड़े",
+			"totalOffcutWeight": "ऑफकट वजन",
+			"totalOffcutValue": "ऑफकट मूल्य",
+			"scrap": "स्क्रैप",
+			"canvasTitle": "प्लेट लेआउट",
+			"canvasIndicative": "संकेतक लेआउट — कटिंग योजना नहीं",
+			"canvasNoGeometry": "कट लेआउट देखने के लिए प्लेट चुनें।",
+			"canvasSummary_one": "{{plate}} · {{pieces}} टुकड़ा",
+			"canvasSummary_other": "{{plate}} · {{pieces}} टुकड़े",
+			"canvasOverflow_one": "{{count}} टुकड़ा फिट नहीं होता",
+			"canvasOverflow_other": "{{count}} टुकड़े फिट नहीं होते",
+			"overBy": "ऑफकट का वजन प्लेट से अधिक है — {{kg}} kg अधिक। फिट होने तक सेव नहीं हो सकेगा।",
+			"errNoSerial": "जिस प्लेट को काट रहे हैं उसे चुनें।",
+			"errNoOffcuts": "कम से कम एक ऑफकट जोड़ें।",
+			"errRowSize": "पंक्ति {{row}} में लंबाई और चौड़ाई दोनों चाहिए।",
+			"submittedReadOnly": "{{name}} सबमिट हो चुका है और बदला नहीं जा सकता।",
+			"backToList": "सूची पर लौटें",
+			"submitTitle": "यह ऑफकट सबमिट करें?",
+			"submitMessage": "सबमिट करने पर ऑफकट आइटम, बैच और सीरियल नंबर बनेंगे और रीपैक स्टॉक एंट्री पोस्ट होगी। इससे स्टॉक बदलता है।"
 		}
 	}
 }
