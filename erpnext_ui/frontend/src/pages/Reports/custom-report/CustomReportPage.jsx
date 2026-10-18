@@ -94,6 +94,35 @@ const REPORT_PAGES = {
       ],
     },
   },
+
+  "plate-receipt-weight-variance": {
+    titleKey: "reports.plateWeightVariance",
+    subtitleKey: "reports.plateWeightVarianceDesc",
+    // A date range is the question this report answers ("what came in short
+    // weight over the last 30 days"), so both dates and the tolerance switch sit
+    // inline; supplier and item group are the narrower lookups.
+    primaryFilters: [
+      "from_date",
+      "to_date",
+      "supplier",
+      "above_tolerance_only",
+    ],
+    grouping: {
+      // One parent per Purchase Receipt, its lines beneath: a receipt is the
+      // transaction, so its weights and amount total meaningfully.
+      groupBy: ["receipt"],
+      childKey: ["item"],
+      sum: ["plates", "estimated_kg", "supplier_kg", "accepted_kg", "amount"],
+      // `variance_pct` is deliberately absent from both sum and ratio. It is a
+      // per-row percentage, and the correct aggregate is
+      // (Σsupplier_kg - Σestimated_kg) / Σestimated_kg -- a SUBTRACTIVE ratio,
+      // which group.js's {col: [num, den]} cannot express. Summing the rows'
+      // percentages would be meaningless, so the parent shows no percentage at
+      // all rather than a wrong one. `decision` and `above_tolerance` are
+      // per-row flags for the same reason.
+      countFields: [{ field: "item", labelKey: "reports.itemCount" }],
+    },
+  },
 };
 
 export default function CustomReportPage({ reportKey }) {
@@ -200,6 +229,14 @@ export default function CustomReportPage({ reportKey }) {
 
   const groups = useMemo(() => groupRows(data, grouping), [data, grouping]);
 
+  // An UNGROUPED report must render as a flat list, not as one parent row.
+  // `groupRows` returns a single group containing everything when `groupBy` is
+  // empty, and `isBlankCell(field, "parent", null)` answers `true` for EVERY
+  // column when there is no config -- so routing an ungrouped report through the
+  // parent/child markup rendered one completely blank row. No error, no empty
+  // state, just an empty table. Flat rendering is the correct generic behaviour.
+  const isGrouped = Boolean((grouping?.groupBy || []).length);
+
   const toggleGroup = useCallback((key) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -279,9 +316,10 @@ export default function CustomReportPage({ reportKey }) {
       ) : (
         <div className="space-y-2">
           {/* Group controls sit with the TABLE, not in the filter bar: they act
-              on rows, not on the query. Hidden when nothing is grouped or there
-              is only one group, so an ungrouped report carries no dead control. */}
-          {groups.length > 1 ? (
+              on rows, not on the query. Hidden unless the report is grouped AND
+              has more than one group, so an ungrouped report carries no dead
+              control. */}
+          {isGrouped && groups.length > 1 ? (
             <div className="flex items-center justify-end">
               <Button
                 size="sm"
@@ -325,6 +363,25 @@ export default function CustomReportPage({ reportKey }) {
                     </div>
                   </TableCell>
                 </TableRow>
+              ) : !isGrouped ? (
+                // FLAT -- the report declares no grouping, so every row is its
+                // own row and every column is its own value. See isGrouped.
+                data.map((row, i) => (
+                  <TableRow key={row.name || i}>
+                    {visibleColumns.map((col) => (
+                      <TableCell
+                        key={col.fieldname}
+                        className={cn(
+                          isNumericColumn(col)
+                            ? "text-end tabular-nums"
+                            : col.fieldtype === "Link" && "text-primary",
+                        )}
+                      >
+                        {formatCell(row[col.fieldname], col)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
               ) : groups.map((group) => {
                 const open = expanded.has(group.key);
                 const expandable = isExpandable(group);

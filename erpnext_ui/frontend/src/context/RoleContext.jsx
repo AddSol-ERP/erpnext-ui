@@ -23,6 +23,10 @@ export function RoleProvider({ children }) {
   const [doctypeAccess, setDoctypeAccess] = useState({
     approvals: {},
     reports: {},
+    // Empty means "no optional app", so a customer's site never sees an NL-only
+    // tile before -- or instead of -- the answer arriving. Fail closed, like
+    // approvals and reports.
+    apps: {},
   });
 
   async function fetchUserRoles() {
@@ -35,6 +39,7 @@ export function RoleProvider({ children }) {
       const access = {
         approvals: accessRes?.message?.approvals || {},
         reports: accessRes?.message?.reports || {},
+        apps: accessRes?.message?.apps || {},
       };
       setDoctypeAccess(access);
 
@@ -61,7 +66,7 @@ export function RoleProvider({ children }) {
       // every user the Approvals hub and the Reports page. Withhold everything
       // that is not explicitly public instead.
       console.error("Failed to load user roles:", e);
-      setDoctypeAccess({ approvals: {}, reports: {} });
+      setDoctypeAccess({ approvals: {}, reports: {}, apps: {} });
       setAccessibleModules(getFailClosedModules());
     } finally {
       setLoading(false);
@@ -91,6 +96,15 @@ export function RoleProvider({ children }) {
   const canReadReport = (reportKey) =>
     Boolean(doctypeAccess.reports?.[reportKey]);
 
+  /**
+   * Whether an optional app is installed on this site.
+   *
+   * DOCTYPE_CONFIG is static, so an NL-only doctype's tile would otherwise be
+   * offered to every customer and link to a doctype that is not there. Visibility
+   * only: the doctype's own permissions still govern the desk form it opens.
+   */
+  const hasApp = (appName) => Boolean(doctypeAccess.apps?.[appName]);
+
   return (
     <RoleContext.Provider
       value={{
@@ -101,6 +115,7 @@ export function RoleProvider({ children }) {
         doctypeAccess,
         canReadApprovalDoctype,
         canReadReport,
+        hasApp,
         loading,
         refresh: fetchUserRoles,
       }}

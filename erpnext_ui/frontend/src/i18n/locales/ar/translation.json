@@ -136,7 +136,9 @@
 		"reportOvertime": "العمل الإضافي",
 		"reportPlateStock": "سجل مخزون الألواح",
 		"salarySlips": "قواتير راتبي",
-		"tasks": "مهامي"
+		"tasks": "مهامي",
+		"plateOffcut": "قطع الألواح",
+		"reportPlateWeightVariance": "اختلاف وزن الإيصال"
 	},
 	"theme": {
 		"appearance": "المظهر",

@@ -20,6 +20,8 @@ import {
   CalendarDays,
   Timer,
   Ruler,
+  Scale,
+  Scissors,
   Wallet,
   FileSignature,
   UserCog,
@@ -95,6 +97,16 @@ const NAV_SECTIONS = [
             labelKey: "nav.stockEntry",
             to: "/store/stock-entry",
             icon: Boxes,
+          },
+          {
+            // NL only (addsol_nl_custom). Filtered out below by `app` on a site
+            // without that app, the same way report children are filtered by
+            // `reportKey`.
+            key: "plate-offcut",
+            labelKey: "nav.plateOffcut",
+            to: "/store/Plate Offcut",
+            icon: Scissors,
+            app: "addsol_nl_custom",
           },
           {
             key: "material-request",
@@ -305,6 +317,15 @@ const NAV_SECTIONS = [
             icon: Ruler,
             reportKey: "plate-stock-register",
           },
+          {
+            // Defined in addsol_nl_custom; the sidebar child is filtered out by
+            // the canReadReport check below when that app is absent.
+            key: "report-plate-weight-variance",
+            labelKey: "nav.reportPlateWeightVariance",
+            to: "/reports/plate-receipt-weight-variance",
+            icon: Scale,
+            reportKey: "plate-receipt-weight-variance",
+          },
         ],
       },
     ],
@@ -318,7 +339,7 @@ function isPathActive(pathname, to) {
 
 function NavItem({ item, pathname }) {
   const { t } = useTranslation();
-  const { canReadReport } = useRole();
+  const { canReadReport, hasApp } = useRole();
   const active = isPathActive(pathname, item.to);
   const Icon = item.icon;
   const label = t(item.labelKey);
@@ -328,7 +349,9 @@ function NavItem({ item, pathname }) {
   // stayed visible to everyone whose roles merely reached the Reports module,
   // even when none of their roles can read Attendance or Leave Allocation.
   const children = item.children?.filter(
-    (child) => !child.reportKey || canReadReport(child.reportKey),
+    (child) =>
+      (!child.reportKey || canReadReport(child.reportKey)) &&
+      (!child.app || hasApp(child.app)),
   );
 
   const childActive =

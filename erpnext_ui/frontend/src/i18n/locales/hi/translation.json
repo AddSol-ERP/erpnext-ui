@@ -136,7 +136,9 @@
 		"reportOvertime": "ओवरटाइम",
 		"reportPlateStock": "प्लेट स्टॉक रजिस्टर",
 		"salarySlips": "मेरी वेतन पर्चियाँ",
-		"tasks": "मेरे कार्य"
+		"tasks": "मेरे कार्य",
+		"plateOffcut": "प्लेट ऑफकट",
+		"reportPlateWeightVariance": "रसीद वजन विभिन्नता"
 	},
 	"theme": {
 		"appearance": "रूप-रंग",

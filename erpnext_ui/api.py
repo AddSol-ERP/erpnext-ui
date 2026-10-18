@@ -1,5 +1,7 @@
+import re
+
 import frappe
-from frappe.utils import cint, flt, getdate, nowdate
+from frappe.utils import add_to_date, cint, flt, getdate, nowdate
 
 HR_ROLES = {"HR Manager", "HR User", "Administrator"}
 
@@ -45,7 +47,20 @@ SPA_REPORT_DOCTYPES = {
 # no tile, no sidebar entry, and the route guard denies it.
 SPA_CUSTOM_REPORTS = {
     "plate-stock-register": ("Plate Stock Register", "addsol_nl_custom"),
+    "plate-receipt-weight-variance": (
+        "Plate Receipt Weight Variance",
+        "addsol_nl_custom",
+    ),
 }
+
+# Apps that only exist on SOME customer sites. Their reports are gated per-key by
+# SPA_CUSTOM_REPORTS, but their DOCTYPES cannot be: DOCTYPE_CONFIG is static, so
+# a tile would otherwise appear everywhere and link to a doctype that is not
+# there. The frontend hides those tiles and nav entries on `hasApp(app)`.
+#
+# App names are not sensitive and are already present in the shipped bundle --
+# the Store receipt calls `addsol_nl_custom...` methods by path.
+SPA_OPTIONAL_APPS = ("addsol_nl_custom",)
 
 
 def _can_read(doctype):
@@ -353,9 +368,18 @@ def get_ui_access():
     for key, (report_name, app) in SPA_CUSTOM_REPORTS.items():
         reports[key] = _custom_report_available(report_name, app)
 
+    # Which optional apps are installed. Reports already answer this per-key, but
+    # a DOCTYPE tile has no such mechanism: DOCTYPE_CONFIG is static, so adding
+    # an NL doctype would show its tile on every customer's site and open a desk
+    # URL for a doctype that does not exist there. Optional apps are listed here
+    # so the frontend can gate such a tile and its nav entry off the same
+    # fail-closed signal the reports use.
+    installed = frappe.get_installed_apps()
+
     return {
         "approvals": {dt: _can_read(dt) for dt in SPA_APPROVAL_DOCTYPES},
         "reports": reports,
+        "apps": {app: (app in installed) for app in SPA_OPTIONAL_APPS},
     }
 
 
@@ -2687,6 +2711,72 @@ def get_checkin_logs(employee=None, date=None, limit=100):
 # at call time. A filter added in the other app shows up with no SPA change.
 
 
+_RELATIVE_DATE_UNITS = {"d": "days", "w": "weeks", "m": "months", "y": "years"}
+
+
+def _resolve_report_filter_default(value):
+    """Turn a report filter's relative default into a literal value.
+
+    Report filters declare defaults that are relative, not literal. Across every
+    Frappe and ERPNext report the only date defaults in use are `Today` (53) and
+    `Now` (13); `addsol_nl_custom`'s "Plate Receipt Weight Variance" adds
+    `Today -30d`, which is that app's own convention.
+
+    Nothing resolves these server-side. The ERPNext desk resolves them in the
+    browser (`query_report.js` -> `set_input(df.default)`), and a Script Report
+    receives whatever string arrived. `Plate Receipt Weight Variance` then
+    interpolates it straight into SQL:
+
+        conditions.append(f"pr.posting_date >= {_quote(filters['from_date'])}")
+
+    so `posting_date >= 'Today -30d'` compares a DATE column to a literal string,
+    matches nothing, and the report renders an empty table with no error
+    anywhere. That is the worst possible failure: it looks like "no variance in
+    the last 30 days" rather than a bug.
+
+    Resolved here, server-side, for two reasons: "today" stays on the server's
+    clock (a browser in another timezone should not shift a 30-day window), and
+    the SPA receives a value its `<input type="date">` can actually hold.
+
+    Anything not recognised is returned UNCHANGED, so a literal `2026-10-01`
+    passes straight through.
+    """
+    if not value or not isinstance(value, str):
+        return value
+
+    raw = value.strip()
+    if not raw:
+        return value
+
+    lowered = raw.lower()
+
+    if lowered == "today":
+        return nowdate()
+    if lowered == "yesterday":
+        try:
+            return add_to_date(nowdate(), days=-1)
+        except Exception:
+            return value
+    if lowered == "now":
+        # Datetime filters use `Now`. Returned in the same form Frappe's `now()`
+        # does so it can be compared against a Datetime column.
+        return frappe.utils.now()
+
+    match = re.match(r"^today\s*([+-])\s*(\d+)\s*([dwmy])$", lowered)
+    if match:
+        offset = int(match.group(2)) * (-1 if match.group(1) == "-" else 1)
+        try:
+            return add_to_date(nowdate(), **{_RELATIVE_DATE_UNITS[match.group(3)]: offset})
+        except Exception:
+            # This runs inside a whitelisted endpoint that also returns the
+            # filter metadata, so a resolver that raised would take down the
+            # WHOLE report rather than one filter. Fall back to the raw value and
+            # let the user type a date.
+            return value
+
+    return value
+
+
 def _sanitise_report_filters(raw, declared):
     """Reduce caller-supplied filters to the ones the Report actually declares.
 
@@ -2726,6 +2816,12 @@ def _sanitise_report_filters(raw, declared):
             # report tests `filters.get("include_offcuts")` for TRUTHINESS --
             # the string "0" is truthy and would silently invert the filter.
             clean[name] = 1 if cint(value) else 0
+        elif f.fieldtype in ("Date", "Datetime"):
+            # Defensive: a relative value could still arrive from a client that
+            # skipped the seeded default, and the report would compare a DATE
+            # column to a literal string and return nothing. See
+            # _resolve_report_filter_default.
+            clean[name] = _resolve_report_filter_default(value)
         elif value is not None and str(value).strip() != "":
             clean[name] = value
 
@@ -2850,7 +2946,11 @@ def get_custom_report_data(report_key, filters=None):
                 "label": f.label or f.fieldname,
                 "fieldtype": f.fieldtype,
                 "options": f.options or "",
-                "default": f.default if f.default is not None else "",
+                # Resolved, so the SPA's <input type="date"> receives a real date
+                # instead of "Today -30d". `raw_default` keeps the declared value
+                # for diagnosis.
+                "default": _resolve_report_filter_default(f.default),
+                "raw_default": f.default if f.default is not None else "",
                 "mandatory": cint(f.mandatory),
             }
             for f in declared

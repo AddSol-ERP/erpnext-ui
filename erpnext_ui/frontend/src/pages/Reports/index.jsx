@@ -17,6 +17,7 @@ import {
   Lock,
   PieChart,
   Ruler,
+  Scale,
 } from "lucide-react";
 
 export default function ReportDashboard() {
@@ -79,6 +80,15 @@ export default function ReportDashboard() {
       description: t("reports.plateStockRegisterDesc"),
       icon: Ruler,
       route: "/reports/plate-stock-register",
+    },
+    {
+      // Defined in addsol_nl_custom. Hidden automatically on any site without
+      // that app — see SPA_CUSTOM_REPORTS.
+      key: "plate-receipt-weight-variance",
+      title: t("reports.plateWeightVariance"),
+      description: t("reports.plateWeightVarianceDesc"),
+      icon: Scale,
+      route: "/reports/plate-receipt-weight-variance",
     },
   ];
 

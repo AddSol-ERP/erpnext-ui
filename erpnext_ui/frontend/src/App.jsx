@@ -344,6 +344,16 @@ export default function App() {
               </RequireReportAccess>
             }
           />
+          <Route
+            path="/reports/plate-receipt-weight-variance"
+            element={
+              <RequireReportAccess reportKey="plate-receipt-weight-variance">
+                <Suspense fallback={null}>
+                  <CustomReportPage reportKey="plate-receipt-weight-variance" />
+                </Suspense>
+              </RequireReportAccess>
+            }
+          />
 
           {/* ================================
               HR HUB

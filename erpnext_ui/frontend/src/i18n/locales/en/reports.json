@@ -125,6 +125,10 @@
 		"batchCount_other": "{{count}} batches",
 		"warehouseCount_one": "{{count}} warehouse",
 		"warehouseCount_other": "{{count}} warehouses",
-		"moreFilters": "More filters"
+		"moreFilters": "More filters",
+		"plateWeightVariance": "Receipt Weight Variance",
+		"plateWeightVarianceDesc": "Supplier vs estimated weight on plate receipts",
+		"itemCount_one": "{{count}} item",
+		"itemCount_other": "{{count}} items"
 	}
 }

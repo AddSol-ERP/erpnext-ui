@@ -125,6 +125,10 @@
 		"batchCount_other": "{{count}} बैच",
 		"warehouseCount_one": "{{count}} वेयरहाउस",
 		"warehouseCount_other": "{{count}} वेयरहाउस",
-		"moreFilters": "और फ़िल्टर"
+		"moreFilters": "और फ़िल्टर",
+		"plateWeightVariance": "रसीद वजन विभिन्नता",
+		"plateWeightVarianceDesc": "प्लेट रसीदों पर आपूर्तिकर्ता और अनुमानित वजन",
+		"itemCount_one": "{{count}} आइटम",
+		"itemCount_other": "{{count}} आइटम"
 	}
 }

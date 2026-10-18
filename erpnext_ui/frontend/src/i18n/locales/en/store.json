@@ -311,6 +311,10 @@
 			"bom": {
 				"title": "Bill of Materials",
 				"description": "Link a bill of materials to a project"
+			},
+			"plateOffcut": {
+				"title": "Plate Offcut",
+				"description": "Cut a plate into offcuts; creates a Repack Stock Entry"
 			}
 		},
 		"mr": {

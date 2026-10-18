@@ -15,8 +15,10 @@ import {
   BookOpen,
   Truck,
   Package,
+  Scissors,
 } from "lucide-react";
 import { useHeader } from "../../context/HeaderContext";
+import { useRole } from "../../context/RoleContext";
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import Section from "../../components/Section";
@@ -98,6 +100,21 @@ const STORE_TILES = [
     titleKey: "store.tiles.stockEntry.title",
     descriptionKey: "store.tiles.stockEntry.description",
   },
+  {
+    // NL only. Cutting a plate produces offcuts, so it is a stock movement and
+    // belongs beside Stock Entry rather than under Lookups. `app` hides it on
+    // every other site -- DOCTYPE_CONFIG is static, so without the gate this
+    // tile would appear for all customers and open a doctype that is not there.
+    // `createRoute` is deliberate: createTileNav opens the desk new form
+    // directly for a nativeForm doctype, exactly as it does for Item/Warehouse.
+    key: "plate-offcut",
+    icon: Scissors,
+    route: "/store/Plate Offcut",
+    createRoute: "/store/Plate Offcut/new",
+    app: "addsol_nl_custom",
+    titleKey: "store.tiles.plateOffcut.title",
+    descriptionKey: "store.tiles.plateOffcut.description",
+  },
 ];
 
 const LOOKUP_TILES = [
@@ -148,7 +165,13 @@ export default function StoreDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
+  const { hasApp } = useRole();
   const handleTileClick = createTileNav(navigate);
+
+  // Hide tiles that belong to an optional app this site does not have. Mirrors
+  // how the sidebar filters children on `reportKey`.
+  const visibleTiles = (tiles) =>
+    tiles.filter((tile) => !tile.app || hasApp(tile.app));
 
   useEffect(() => {
     setHeader({
@@ -198,11 +221,11 @@ export default function StoreDashboard() {
       </Section>
 
       <Section title={t("store.purposeGroupStore")}>
-        <ModuleGrid items={STORE_TILES} onClick={handleTileClick} />
+        <ModuleGrid items={visibleTiles(STORE_TILES)} onClick={handleTileClick} />
       </Section>
 
       <Section title={t("store.purposeGroupLookup")}>
-        <ModuleGrid items={LOOKUP_TILES} onClick={handleTileClick} />
+        <ModuleGrid items={visibleTiles(LOOKUP_TILES)} onClick={handleTileClick} />
       </Section>
     </DashboardShell>
   );

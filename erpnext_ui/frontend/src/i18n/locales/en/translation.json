@@ -136,7 +136,9 @@
 		"reportOvertime": "Overtime",
 		"reportPlateStock": "Plate Stock Register",
 		"salarySlips": "My Payslips",
-		"tasks": "My Tasks"
+		"tasks": "My Tasks",
+		"plateOffcut": "Plate Offcut",
+		"reportPlateWeightVariance": "Receipt Weight Variance"
 	},
 	"theme": {
 		"appearance": "Appearance",

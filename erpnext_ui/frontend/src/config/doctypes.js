@@ -309,6 +309,28 @@ export const DOCTYPE_CONFIG = {
     nativeForm: true,
   },
 
+  // NL-only (addsol_nl_custom). A submittable stock document that consumes a
+  // source Serial No and, on submit, creates and submits a Repack Stock Entry
+  // moving the offcuts back into the same warehouse.
+  //
+  // `nativeForm: true` hands list and form to the ERPNext desk: cutting a plate
+  // is a stock write with weight arithmetic the owning app already validates, and
+  // rebuilding it here would mean reimplementing plate_offcut.js against a
+  // submittable stock document. DOCTYPE_CONFIG is static, so the tile itself is
+  // gated on `hasApp("addsol_nl_custom")` at the hub and nav -- without that it
+  // would appear on every customer and open a URL for a doctype that is not
+  // there.
+  "Plate Offcut": {
+    list: {
+      titleField: "name",
+      subtitleField: "source_item",
+      metaField: "warehouse",
+      statusField: "docstatus",
+    },
+    searchFields: ["name", "source_item", "heat_number"],
+    nativeForm: true,
+  },
+
   // ============================
   // QUALITY MODULE (enhancements)
   // ============================

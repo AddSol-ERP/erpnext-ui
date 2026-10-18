@@ -131,6 +131,13 @@
 		"warehouseCount_few": "{{count}} مستودعات",
 		"warehouseCount_many": "{{count}} مستودعًا",
 		"warehouseCount_other": "{{count}} مستودع",
-		"moreFilters": "المزيد من عوامل التصفية"
+		"moreFilters": "المزيد من عوامل التصفية",
+		"plateWeightVariance": "اختلاف وزن الإيصال",
+		"plateWeightVarianceDesc": "وزن المورد مقابل التقديري في إيصالات الألواح",
+		"itemCount_one": "صنف واحد",
+		"itemCount_two": "صنفان",
+		"itemCount_few": "{{count}} أصناف",
+		"itemCount_many": "{{count}} صنفًا",
+		"itemCount_other": "{{count}} صنف"
 	}
 }

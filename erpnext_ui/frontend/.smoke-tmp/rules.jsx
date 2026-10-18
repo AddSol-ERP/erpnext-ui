@@ -2190,6 +2190,130 @@ ok(
   "Arabic: zero/one/two/few(3-10)/many(11-99)/other",
 );
 
+// Source handles used by the guards below. Declared here, ahead of first use --
+// a `const` read above its declaration is a TDZ ReferenceError that takes the
+// whole suite down rather than failing one assertion.
+const customReportPageSrc = readSrc(
+  "../../src/pages/Reports/custom-report/CustomReportPage.jsx",
+);
+const roleContextSrc = readSrc("../../src/context/RoleContext.jsx");
+const storeIndexSrc = readSrc("../../src/pages/Store/index.jsx");
+const doctypesSrc = readSrc("../../src/config/doctypes.js");
+
+// Every `countFields` labelKey a report page declares must resolve to plural
+// forms in all three languages. A bare "{{count}} items" renders "1 items", and
+// Arabic needs its six categories, so this is checked per key rather than for
+// the two that existed when the assertion above was written.
+const countLabelKeys = [
+  ...new Set(
+    [
+      ...customReportPageSrc.matchAll(/labelKey:\s*"reports\.(\w+)"/g),
+    ].map((m) => `reports.${m[1]}`),
+  ),
+];
+const PLURAL_CATEGORIES = ["zero", "one", "two", "few", "many", "other"];
+ok(
+  "every count label a report page declares has plural forms in en/hi/ar",
+  countLabelKeys.length > 0 &&
+    reportLocales.every((ns) =>
+      countLabelKeys.every((k) => {
+        const base = k.split(".")[1];
+        return (
+          ns[k] !== undefined ||
+          PLURAL_CATEGORIES.some((c) => ns[`${base}_${c}`] !== undefined)
+        );
+      }),
+    ),
+  `unresolved: ${countLabelKeys.filter((k) => !reportLocales.every((ns) => ns[k] !== undefined || PLURAL_CATEGORIES.some((c) => ns[`${k.split(".")[1]}_${c}`] !== undefined))).join(", ")}`,
+);
+
+// An UNGROUPED report must render a flat list. `groupRows` returns ONE group when
+// groupBy is empty, and `isBlankCell(field, "parent", null)` answers `true` for
+// every column -- so routing an ungrouped report through the parent/child markup
+// produced a single, completely blank row: no error, no empty state, just an
+// empty table.
+ok(
+  "an ungrouped report blanks every cell on the parent, so it MUST render flat",
+  isBlankCell("receipt", "parent", null) === true &&
+    customReportPageSrc.includes("const isGrouped =") &&
+    /!isGrouped \? \(/.test(customReportPageSrc) &&
+    /isGrouped && groups\.length > 1/.test(customReportPageSrc),
+  "the flat branch and the isGrouped guard both have to exist",
+);
+
+// Relative filter defaults must be resolved server-side. `Plate Receipt Weight
+// Variance` declares `Today -30d` and interpolates it straight into SQL
+// (`pr.posting_date >= 'Today -30d'`), which matches nothing and renders an empty
+// table with no error -- it reads as "no variance in 30 days" rather than a bug.
+const resolverBody =
+  apiSource.match(/def _resolve_report_filter_default\(([\s\S]*?)\ndef /)?.[1] || "";
+ok(
+  "relative filter defaults are resolved server-side before reaching the report",
+  /lowered == "today"/.test(resolverBody) &&
+    /lowered == "yesterday"/.test(resolverBody) &&
+    /lowered == "now"/.test(resolverBody) &&
+    /\^today\\s\*\(\[\+-\]\)/.test(resolverBody),
+  "Today / Yesterday / Now / Today±N d|w|m|y must all resolve",
+);
+ok(
+  "a resolved default is what the SPA receives, with the declared value kept",
+  apiSource.includes('"default": _resolve_report_filter_default(f.default)') &&
+    apiSource.includes('"raw_default": f.default if f.default is not None else ""'),
+  "the SPA's <input type=date> cannot hold 'Today -30d'",
+);
+ok(
+  "incoming Date/Datetime filters are normalised too, not just the default",
+  /f\.fieldtype in \("Date", "Datetime"\)/.test(apiSource) &&
+    apiSource.includes("_resolve_report_filter_default(value)"),
+  "a client that skipped the seeded default would otherwise return no rows",
+);
+
+// The resolver runs inside a whitelisted endpoint that also returns the filter
+// metadata, so it must never raise.
+ok(
+  "the relative-date resolver cannot take down the report",
+  (resolverBody.match(/except Exception/g) || []).length >= 2,
+  "an exception here would fail the whole endpoint, not one filter",
+);
+
+// An optional app gate must FAIL CLOSED. `apps` defaults to `{}`, so a site
+// without addsol_nl_custom never shows an NL-only tile -- including before the
+// access fetch resolves, which is the window a null-guard would miss.
+// Read the useState initialiser as a block rather than one strict regex: a
+// comment sits between `reports` and `apps`, so adjacency assertions were the
+// wrong tool and failed on correct code.
+const accessInitBlock =
+  roleContextSrc.match(/useState\(\{([\s\S]*?)\}\);/)?.[1] || "";
+ok(
+  "the optional-app gate defaults to denied and is cleared on fetch failure",
+  ["approvals", "reports", "apps"].every(
+    (k) => new RegExp(`${k}:\\s*\\{\\}`).test(accessInitBlock),
+  ) &&
+    /setDoctypeAccess\(\{ approvals: \{\}, reports: \{\}, apps: \{\} \}\)/.test(
+      roleContextSrc,
+    ) &&
+    /const hasApp = \(appName\) => Boolean\(doctypeAccess\.apps\?\.\[appName\]\)/.test(
+      roleContextSrc,
+    ),
+  "a default of {} plus Boolean() means an unknown app is denied",
+);
+
+// DOCTYPE_CONFIG is static, so an NL-only doctype tile MUST be app-gated at the
+// hub and in the nav or every customer sees a link to a doctype that is not there.
+ok(
+  "the Plate Offcut tile and nav entry are gated on the optional app",
+  storeIndexSrc.includes('app: "addsol_nl_custom"') &&
+    appShellSrc.includes('app: "addsol_nl_custom"') &&
+    /\(!child\.app \|\| hasApp\(child\.app\)\)/.test(appShellSrc) &&
+    /!tile\.app \|\| hasApp\(tile\.app\)/.test(storeIndexSrc),
+  "an ungated static tile would appear on every customer site",
+);
+ok(
+  "Plate Offcut is configured as a desk hand-out, not an SPA form",
+  /"Plate Offcut": \{[\s\S]*?nativeForm: true,/.test(doctypesSrc),
+  "cutting a plate is a submittable stock write; the owning app validates it",
+);
+
 // The report's own filter/column metadata is what the page renders from, so the
 // endpoint must return both. Losing `filters` renders no filter bar at all and
 // losing `columns` renders an empty table -- neither is an exception.
