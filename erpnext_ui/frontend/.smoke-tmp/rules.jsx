@@ -2631,6 +2631,7 @@ ok(
 // ---------------------------------------------------------------------------
 const offcutDir = "../../src/pages/Store/plate-offcut/";
 const offcutFormSrc = readSrc(`${offcutDir}form/index.jsx`);
+const offcutListSrc = readSrc(`${offcutDir}index.jsx`);
 const offcutCanvasSrc = readSrc(`${offcutDir}PlateCanvas.jsx`);
 const linkFieldSrc = readSrc("../../src/components/LinkField/index.jsx");
 
@@ -2911,6 +2912,49 @@ ok(
     return cols["1"] === 1 && cols["2"] === 2 && cols["3"] === 3 && cols["4"] === 4;
   })(),
   "a count that does not match the filter count wraps the last filter onto a second line",
+);
+
+// ---------------------------------------------------------------------------
+// A bespoke list hand-writes its field array, so nothing meta-validates it.
+// ---------------------------------------------------------------------------
+// Frozen from addsol_nl_custom/.../doctype/plate_offcut/plate_offcut.json, plus
+// the seven standard Frappe columns. If that doctype gains or drops a field,
+// THIS LIST is what has to be updated -- and the assertion below is what says so.
+const PLATE_OFFCUT_FIELDS = new Set([
+  "name", "creation", "modified", "docstatus", "owner", "modified_by", "idx",
+  "source_serial_no", "source_item", "source_batch", "heat_number", "warehouse",
+  "thickness_mm", "source_length_mm", "source_width_mm", "source_weight_kg",
+  "source_cost_per_kg", "ratio", "scrap_weight_kg", "scrap_value", "offcuts",
+  "total_offcut_weight_kg", "total_offcut_value", "stock_entry", "amended_from",
+]);
+
+const offcutRequested = [
+  ...(offcutListSrc.match(/const FIELDS = \[([\s\S]*?)\];/)?.[1] || "").matchAll(
+    /"([a-z_0-9]+)"/g,
+  ),
+].map((m) => m[1]);
+
+// Frappe materialises no `<link>_name` beside a Link -- `source_item` stores the
+// code in its own column -- so asking for one fails the ENTIRE query with
+// "Field not permitted in query", taking every other column with it.
+ok(
+  "the Plate Offcut list requests no <link>_name pseudo-field",
+  offcutRequested.length > 0 && !offcutRequested.some((f) => /_name$/.test(f)),
+  "there is no source_item_name column; one bad fieldname fails the whole query",
+);
+ok(
+  "every field the Plate Offcut list requests exists on the doctype",
+  offcutRequested.every((f) => PLATE_OFFCUT_FIELDS.has(f)),
+  `not on the doctype: ${offcutRequested.filter((f) => !PLATE_OFFCUT_FIELDS.has(f)).join(", ")}`,
+);
+// Reading a field that was never requested is NOT an error -- it renders the
+// fallback forever, so the column looks plausible while permanently empty.
+ok(
+  "every field the Plate Offcut columns read was actually requested",
+  [...new Set([...offcutListSrc.matchAll(/row\.([a-z_0-9]+)/g)].map((m) => m[1]))].every(
+    (f) => offcutRequested.includes(f),
+  ),
+  "an unfetched field silently falls back to the empty placeholder forever",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

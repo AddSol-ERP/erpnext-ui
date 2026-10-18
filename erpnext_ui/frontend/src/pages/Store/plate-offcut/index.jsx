@@ -13,10 +13,14 @@ import Pagination from "../../../components/Pagination";
 const DOCTYPE = "Plate Offcut";
 const PAGE_SIZE = 20;
 
+// Every entry must exist on the doctype. There is no `_name` pseudo-field: a
+// Link stores the *code* in its own column and Frappe materialises no
+// `source_item_name` beside it, so asking for one fails the WHOLE query with
+// "Field not permitted in query" -- not just that column. Verified against
+// plates/doctype/plate_offcut/plate_offcut.json.
 const FIELDS = [
   "name",
   "source_item",
-  "source_item_name",
   "warehouse",
   "heat_number",
   "total_offcut_weight_kg",
@@ -108,11 +112,10 @@ export default function PlateOffcutList() {
       {
         id: "source_item",
         header: t("store.plateOffcut.sourceItem"),
-        cell: (row) => (
-          <span className="truncate text-sm">
-            {row.source_item_name || row.source_item || "—"}
-          </span>
-        ),
+        // Read what FIELDS actually fetched. A column reading a field that was
+        // never requested is not an error -- it silently renders the fallback
+        // forever, so the column looks plausible while showing nothing.
+        cell: (row) => <span className="truncate text-sm">{row.source_item || "—"}</span>,
       },
       {
         id: "warehouse",
