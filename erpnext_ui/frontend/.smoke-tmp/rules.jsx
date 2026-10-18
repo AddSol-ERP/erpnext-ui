@@ -3054,10 +3054,10 @@ ok(
 const plateGroupsSrc = readSrc("../../src/pages/Store/plate-offcut/plate-groups.jsx");
 ok(
   "an uncuttable plate cannot be opened",
-  // ChildRow destructures: `const { row } = child`, so these read `row.can_cut`.
-  /function ChildRow\(\{ child, onSelect \}\)/.test(plateGroupsSrc) &&
-    /if \(row\.can_cut\) onSelect\(row\)/.test(plateGroupsSrc) &&
-    /row\.can_cut && "cursor-pointer"/.test(plateGroupsSrc),
+  // ChildRow takes the plate itself now that grouping is server-side.
+  /function ChildRow\(\{ plate, onSelect \}\)/.test(plateGroupsSrc) &&
+    /if \(plate\.can_cut\) onSelect\(plate\)/.test(plateGroupsSrc) &&
+    /plate\.can_cut && "cursor-pointer"/.test(plateGroupsSrc),
   "the click handler must test can_cut, and the row must not read as clickable without it",
   "sending the operator into a form that cannot save is a dead end",
 );
@@ -3075,28 +3075,50 @@ ok(
 // mill spec are twenty near-identical rows. `groupRows` is the Plate Stock
 // Register's own grouping, reused rather than reimplemented, so "the same item"
 // cannot come to mean two different things in two screens.
+// GROUPING AND PAGING ARE THE SERVER'S. Paging the SERIALS and grouping the
+// page in the browser was wrong past the first page: a parent row's count and
+// weight described the page rather than the item (25 plates reading as "10"),
+// and an item whose plates straddled a page boundary appeared as two groups, so
+// paging forward showed the same item again.
 ok(
-  "available plates are grouped per item, reusing the register's groupRows",
-  /from "\.\.\/\.\.\/Reports\/custom-report\/group"/.test(plateGroupsSrc) &&
-    /groupBy: \["item_code"\]/.test(plateGroupsSrc) &&
-    !/<DataTable/.test(offcutAvailableSrc),
-  "a flat serial list buries the answer to 'how many and how heavy' under its own rows",
+  "the client renders the server's grouping and never regroups",
+  !/groupRows/.test(plateGroupsSrc) &&
+    !/custom-report\/group/.test(plateGroupsSrc) &&
+    !/GROUP_CONFIG/.test(plateGroupsSrc) &&
+    /group\.plate_count/.test(plateGroupsSrc) &&
+    /group\.total_weight_kg/.test(plateGroupsSrc) &&
+    /fetchAvailablePlates/.test(offcutAvailableSrc) &&
+    /res\.groups/.test(offcutAvailableSrc),
+  "regrouping a page of items is a silent no-op that hides the server already did it",
+);
+ok(
+  "the list asks for a page of GROUPS, and the count it reads is a group count",
+  /limitStart: \(page - 1\) \* PAGE_SIZE/.test(offcutAvailableSrc) &&
+    /pageLength: PAGE_SIZE/.test(offcutAvailableSrc) &&
+    /group\.plate_count > 1/.test(plateGroupsSrc),
+  "the parent must show the item's real plate count, which is the server's aggregate and not this page's length",
 );
 // "Cannot cut" must not vanish with the flatten -- it is a record to fix, and
 // the parent row is where an operator scanning stock will actually notice it.
 ok(
   "a plate that cannot be cut is summarised on its parent row",
-  /group\.children\.filter\(\(c\) => !c\.row\.can_cut\)/.test(plateGroupsSrc) &&
+  /const blocked = group\.blocked_count \|\| 0;/.test(plateGroupsSrc) &&
     /someCannotCut/.test(plateGroupsSrc),
   "hiding it entirely leaves the operator wondering where their plate went",
 );
 // Size is an Item attribute, identical for every serial under one item. Reading
 // it as `constant` means a data inconsistency renders blank rather than as a
 // confident wrong number on the aggregate.
+// Size is an Item attribute -- every plate of one item is the same mill spec --
+// so it is a property of the GROUP, read from the server rather than derived
+// here. Deriving it client-side would mean parsing an item name or taking the
+// first plate's numbers and presenting them as the item's size.
 ok(
-  "the group's size comes from `constant`, so a mismatch shows blank not a lie",
-  /constant: \["length_mm", "width_mm", "thickness_mm"\]/.test(plateGroupsSrc),
-  "groupRows only returns a constant when the value is unanimous across the group",
+  "the group's size is read from the server, never derived from a plate",
+  /sizeLabel\(group\)/.test(plateGroupsSrc) &&
+    /function sizeLabel\(row\)/.test(plateGroupsSrc) &&
+    !/item_code\.(split|match|substring)/.test(plateGroupsSrc),
+  "the item name encodes the size, but parsing a name is a second source of truth",
 );
 // A raw window.location read would miss a client-side navigation.
 ok(
@@ -3278,21 +3300,55 @@ ok(
 // A bare <> cannot take a key, so the key landed on the inner TableRow and
 // every group logged "Each child in a list should have a unique key prop". The
 // register wraps in <Fragment key={group.key}> for exactly this reason.
+// `group.key` was the groupRows field. The server sends no `key`, so it read
+// undefined: the React key went undefined (a warning per group) AND every group
+// keyed the open-set as `undefined`, so toggling one expanded all of them.
 ok(
-  "each group is a keyed Fragment, so the row inside it carries the key",
-  /<Fragment key=\{group\.key\}>/.test(plateGroupsSrc) &&
+  "each group is keyed by a field the server sends, and the open-set agrees",
+  /<Fragment key=\{group\.item_code\}>/.test(plateGroupsSrc) &&
+    /open\.has\(group\.item_code\)/.test(plateGroupsSrc) &&
+    /toggle\(group\.item_code\)/.test(plateGroupsSrc) &&
     /groups\.map\(\(group\) =>/.test(plateGroupsSrc),
-  "a bare <> inside .map() cannot hold a key, so React warns once per group",
+  "an undefined key both warns per group and collapses the expand state of all of them into one",
 );
 // The register's rule: a group of ONE is not a toggle. Making it one cost a
 // click to reach a single serial and left the row looking expandable when
 // expanding it changed nothing.
 ok(
   "a group holding one plate is not a toggle -- its row is the plate",
-  /const expandable = group\.children\.length > 1;/.test(plateGroupsSrc) &&
+  /const expandable = group\.plate_count > 1;/.test(plateGroupsSrc) &&
     /expanded \|\| !expandable/.test(plateGroupsSrc) &&
     /expandable \? \(/.test(plateGroupsSrc),
   "one click to reveal one serial is a dead control, and it looks broken",
+);
+
+// The shape get_available_plates returns. Frozen here for the same reason the
+// Plate Offcut FIELDS list is: a field the server does not send reads as
+// `undefined` in JavaScript, which is not an error -- it is a silent blank.
+// Three of those got through in this module (`source_item_name`,
+// `Item.thickness_mm`, `group.key`), each caught only by looking at the output.
+const AVAILABLE_PLATE_GROUP_KEYS = new Set([
+  "item_code", "item_group", "length_mm", "width_mm", "thickness_mm",
+  "plate_count", "total_weight_kg", "warehouse_count", "heat_count",
+  "blocked_count", "plates",
+]);
+const AVAILABLE_PLATE_KEYS = new Set([
+  "serial", "item_code", "batch_no", "warehouse", "heat_number",
+  "weight_kg", "can_cut", "blocked_reason",
+]);
+ok(
+  "the grouped table reads only fields the endpoint actually sends",
+  (() => {
+    const bad = [];
+    for (const m of stripComments(plateGroupsSrc).matchAll(/\bgroup\.([a-z_0-9]+)/g)) {
+      if (!AVAILABLE_PLATE_GROUP_KEYS.has(m[1])) bad.push(`group.${m[1]}`);
+    }
+    for (const m of stripComments(plateGroupsSrc).matchAll(/\bplate\.([a-z_0-9]+)/g)) {
+      if (!AVAILABLE_PLATE_KEYS.has(m[1])) bad.push(`plate.${m[1]}`);
+    }
+    return bad.length === 0;
+  })(),
+  "an unsent field is undefined, not an error -- the cell just renders blank",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

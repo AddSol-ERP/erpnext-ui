@@ -27,7 +27,7 @@ export default function AvailablePlates({ tabs }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const [rows, setRows] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -45,11 +45,12 @@ export default function AvailablePlates({ tabs }) {
         limitStart: (page - 1) * PAGE_SIZE,
         pageLength: PAGE_SIZE,
       });
-      setRows(res.plates);
+      // `total` counts GROUPS, so this is the number of pages.
+      setGroups(res.groups);
       setTotal(res.total);
     } catch (e) {
       setError(e.message || t("common.failedToLoad", { name: t("store.plateOffcut.title") }));
-      setRows([]);
+      setGroups([]);
       setTotal(0);
     } finally {
       setLoading(false);
@@ -93,7 +94,7 @@ export default function AvailablePlates({ tabs }) {
       loading={loading}
       error={error}
       onRetry={load}
-      isEmpty={!loading && rows.length === 0}
+      isEmpty={!loading && groups.length === 0}
       emptyTitle={t("store.plateOffcut.noAvailablePlates")}
       emptyDescription={t("store.plateOffcut.noAvailablePlatesHint")}
       actionBar={
@@ -120,7 +121,7 @@ export default function AvailablePlates({ tabs }) {
       }
     >
       <PlateGroups
-        plates={rows}
+        groups={groups}
         loading={loading}
         onSelect={(plate) =>
           navigate(`/store/plate-offcut/new?serial=${encodeURIComponent(plate.serial)}`)
