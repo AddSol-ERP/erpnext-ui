@@ -170,7 +170,6 @@ return (
       emptyDescription={t("store.plateOffcut.emptyDescription")}
       emptyAction={
         <Button onClick={() => navigate("/store/plate-offcut/new")}>
-          <Plus className="size-4" />
           {t("store.plateOffcut.newTitle")}
         </Button>
       }

@@ -39,16 +39,30 @@ const FORMS = [
   { label: "Expense Claim", path: "/requests/expense", C: ExpenseClaimForm },
   { label: "GenericForm", path: "/g/purchase-order/new", C: GenericForm },
   { label: "Plate Offcut", path: "/store/plate-offcut/new", C: PlateOffcutForm },
-  { label: "Plate Offcut list", path: "/store/plate-offcut", C: PlateOffcutList },
+  // Every tab, not just the default. The hub picks ONE panel from the `?tab=`
+  // query param and only that panel mounts -- which is the right behaviour and
+  // also meant the two non-default panels were never rendered here at all. A
+  // `<Plus />` with no import reached main that way: ESLint's `no-undef` does not
+  // resolve JSX element names, and rolldown does not error on an undefined
+  // global, so the only thing that can catch it is actually rendering it.
+  { label: "Plate Offcut tab: available", path: "/store/plate-offcut", entry: "/store/plate-offcut?tab=available", C: PlateOffcutList, only: true },
+  { label: "Plate Offcut tab: stock", path: "/store/plate-offcut", entry: "/store/plate-offcut?tab=stock", C: PlateOffcutList, only: true },
+  { label: "Plate Offcut tab: jobs", path: "/store/plate-offcut", entry: "/store/plate-offcut?tab=jobs", C: PlateOffcutList, only: true },
+  // An unrecognised tab must fall back to a real panel rather than render
+  // nothing. The hub validates with TABS.includes(raw), and this is the case
+  // that proves the fallback is a panel and not undefined.
+  { label: "Plate Offcut tab: invalid", path: "/store/plate-offcut", entry: "/store/plate-offcut?tab=nope", C: PlateOffcutList, only: true },
 ];
 
 let fail = 0;
-for (const { label, path, C } of FORMS) {
-  for (const [mode, route] of [
-    ["new", path],
-    ["existing", `${path}/TEST-0001`],
-    ["generic-new", "/g/purchase-order/new"],
-  ]) {
+for (const { label, path, entry, only, C } of FORMS) {
+  // `only` renders just the bare URL: an entry that addresses itself with a
+  // query string has no /:name route, and appending one puts it after the "?",
+  // where it becomes part of the parameter value rather than the path.
+  const MODES = only
+    ? [["new", entry]]
+    : [["new", entry || path], ["existing", `${path}/TEST-0001`], ["generic-new", "/g/purchase-order/new"]];
+  for (const [mode, route] of MODES) {
     if (label !== "GenericForm" && mode === "generic-new") continue;
     try {
       // RoleProvider is mounted app-wide in main.jsx, so mirror it here: forms

@@ -3148,5 +3148,64 @@ ok(
 );
 
 
+// ---------------------------------------------------------------------------
+// Undefined JSX components. ESLint cannot catch these here.
+// ---------------------------------------------------------------------------
+// `<Plus />` with no import reached main because: `no-undef` does not resolve JSX
+// element names (that is eslint-plugin-react's `react/jsx-no-undef`, and the
+// plugin is NOT installed), and rolldown does not error on an undefined global.
+// The SSR suite now renders all three tab panels, but that only covers files a
+// harness entry happens to reach -- this checks every module in the feature.
+//
+// A tag is satisfied by an import, a local declaration, or React itself.
+const jsxDefined = (src) => {
+  const declared = new Set();
+  const add = (raw) => {
+    for (const part of raw.split(",")) {
+      const name = part.trim().split(/\s+as\s+/).pop().trim();
+      if (name) declared.add(name);
+    }
+  };
+  // All three import shapes, because `import DataTable, { StatusBadge } from`
+  // is a DEFAULT plus a named list in one clause and is the common form here.
+  for (const m of src.matchAll(/import\s+([A-Za-z_$][\w$]*)\s*,\s*\{([^}]*)\}/g)) {
+    declared.add(m[1]);
+    add(m[2]);
+  }
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}/g)) add(m[1]);
+  for (const m of src.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from/g)) declared.add(m[1]);
+  // Locally defined components.
+  for (const m of src.matchAll(/(?:function|class)\s+([A-Z][\w$]*)/g)) declared.add(m[1]);
+  for (const m of src.matchAll(/(?:const|let)\s+([A-Z][\w$]*)\s*=/g)) declared.add(m[1]);
+  return declared;
+};
+
+const JSX_BUILTINS = new Set(["Fragment"]);
+const offcutModuleSrcs = [
+  ["index.jsx", offcutHubSrc],
+  ["available-plates.jsx", offcutAvailableSrc],
+  ["offcut-stock.jsx", offcutStockSrc],
+  ["cutting-jobs.jsx", offcutListSrc],
+  ["api.js", offcutApiSrc],
+  ["estimate.js", readSrc("../../src/pages/Store/plate-offcut/estimate.js")],
+  ["pack.js", readSrc("../../src/pages/Store/plate-offcut/pack.js")],
+  ["PlateCanvas.jsx", offcutCanvasSrc],
+  ["form/index.jsx", offcutFormSrc],
+];
+
+const undefinedTags = [];
+for (const [name, src] of offcutModuleSrcs) {
+  const known = jsxDefined(src);
+  for (const m of stripComments(src).matchAll(/<([A-Z][\w$]*)(?=[\s/>])/g)) {
+    const tag = m[1];
+    if (!known.has(tag) && !JSX_BUILTINS.has(tag)) undefinedTags.push(`${name}:${tag}`);
+  }
+}
+ok(
+  "no module in the feature renders a component it never imported",
+  undefinedTags.length === 0,
+  `undefined JSX component(s): ${undefinedTags.join(", ")} -- no-undef does not resolve JSX names and eslint-plugin-react is not installed`,
+);
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
