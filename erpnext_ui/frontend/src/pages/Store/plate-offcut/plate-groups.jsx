@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import {
@@ -62,6 +62,74 @@ function sizeLabel(row) {
   return "—";
 }
 
+/** 245.400 Kg, or a dash when the group has no weight at all. */
+function weightLabel(value) {
+  return num(value) ? `${num(value).toFixed(3)} Kg` : "\u2014";
+}
+
+/** The parent row's right-hand badge: how many of its plates cannot be cut. */
+function GroupStatus({ blocked }) {
+  const { t } = useTranslation();
+  return blocked ? (
+    <StatusBadge tone="warning">
+      <AlertTriangle className="size-3" />
+      {t("store.plateOffcut.someCannotCut", { count: blocked })}
+    </StatusBadge>
+  ) : (
+    <StatusBadge tone="open">{t("store.plateOffcut.canCut")}</StatusBadge>
+  );
+}
+
+/**
+ * One plate.
+ *
+ * A plate that cannot be cut is shown with the reason under its badge and is
+ * not clickable: `onSelect` opens the cutting form, and a plate with no recorded
+ * weight cannot be cut, so making it a link would only produce a save that fails.
+ */
+function ChildRow({ child, onSelect }) {
+  const { t } = useTranslation();
+  const { row } = child;
+  return (
+    <TableRow
+      className={cn("hover:bg-muted/40", row.can_cut && "cursor-pointer")}
+      onClick={() => {
+        if (row.can_cut) onSelect(row);
+      }}
+    >
+      <TableCell className="ps-8">
+        <span aria-hidden="true" className="text-muted-foreground/40">
+          •
+        </span>{" "}
+        <span className="font-medium">{row.serial}</span>
+        {row.batch_no && (
+          <span className="ms-2 text-xs text-muted-foreground">{row.batch_no}</span>
+        )}
+      </TableCell>
+      <TableCell className="hidden md:table-cell" />
+      <TableCell className="text-end tabular-nums" />
+      <TableCell className="text-end tabular-nums">{weightLabel(row.weight_kg)}</TableCell>
+      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+        {row.warehouse || "\u2014"}
+        {row.heat_number ? ` \u2022 ${row.heat_number}` : ""}
+      </TableCell>
+      <TableCell className="text-end">
+        {row.can_cut ? (
+          <StatusBadge tone="complete">{t("store.plateOffcut.canCut")}</StatusBadge>
+        ) : (
+          <span
+            className="inline-flex flex-col items-end text-xs text-muted-foreground"
+            title={row.blocked_reason}
+          >
+            <StatusBadge tone="warning">{t("store.plateOffcut.cannotCut")}</StatusBadge>
+            <span className="mt-0.5 max-w-[22ch] truncate">{row.blocked_reason}</span>
+          </span>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export default function PlateGroups({ plates, loading, onSelect }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(() => new Set());
@@ -114,145 +182,94 @@ export default function PlateGroups({ plates, loading, onSelect }) {
               {loading
                 ? null
                 : groups.map((group) => {
-                    const expanded = open.has(group.key);
+                    // Same rule as the register: a group holding ONE plate has
+                    // nothing to reveal, so it is not a toggle. Making it one
+                    // cost a click to reach a single serial, and left the row
+                    // looking expandable when expanding it changed nothing.
+                    const expandable = group.children.length > 1;
+                    const expanded = expandable && open.has(group.key);
                     const blocked = group.children.filter((c) => !c.row.can_cut);
+
                     return (
-                      <>
-                        <TableRow
-                          key={group.key}
-                          className="cursor-pointer"
-                          onClick={() => toggle(group.key)}
-                        >
-                          <TableCell>
-                            <div className="flex items-start gap-1.5">
-                              <ChevronRight
-                                className={cn(
-                                  "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
-                                  expanded && "rotate-90",
-                                )}
-                              />
-                              <div className="min-w-0">
-                                <div className="truncate font-medium">
-                                  {group.labelRow?.item_code || group.label}
-                                </div>
-                                {/* Grade can differ between two batches of the same
-                                    item, so it is marked rather than guessed. */}
-                                <div className="truncate text-xs text-muted-foreground">
-                                  {group.mixedFlags?.item_group
-                                    ? t("reports.mixed")
-                                    : group.aggregate?.item_group || ""}
-                                </div>
-                                <div className="truncate text-xs text-muted-foreground">
-                                  {group.countFields
-                                    ? (GROUP_CONFIG.countFields || [])
-                                        .map(({ field, labelKey }) =>
-                                          t(labelKey, { count: group.counts[field] ?? 0 }),
-                                        )
-                                        .join(" • ")
-                                    : null}
+                      // Keyed on the fragment, not the first row inside it --
+                      // the register does the same, and a bare <> cannot carry
+                      // a key at all.
+                      <Fragment key={group.key}>
+                        {expandable ? (
+                          <TableRow
+                            className="cursor-pointer"
+                            aria-expanded={expanded}
+                            onClick={() => toggle(group.key)}
+                          >
+                            <TableCell>
+                              <div className="flex items-start gap-1.5">
+                                <ChevronRight
+                                  className={cn(
+                                    "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
+                                    expanded && "rotate-90",
+                                  )}
+                                />
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">
+                                    {group.labelRow?.item_code || group.label}
+                                  </div>
+                                  {/* Grade can differ between two batches of the
+                                      same item, so it is marked, never guessed. */}
+                                  <div className="truncate text-xs text-muted-foreground">
+                                    {group.mixedFlags?.item_group
+                                      ? t("reports.mixed")
+                                      : group.aggregate?.item_group || ""}
+                                  </div>
+                                  <div className="truncate text-xs text-muted-foreground">
+                                    {GROUP_CONFIG.countFields
+                                      .map(({ field, labelKey }) =>
+                                        t(labelKey, { count: group.counts[field] ?? 0 }),
+                                      )
+                                      .join(" • ")}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden tabular-nums md:table-cell">
-                            {sizeLabel(group.aggregate)}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums font-medium">
-                            {group.children.length}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums font-medium">
-                            {num(group.aggregate?.weight_kg)
-                              ? `${num(group.aggregate?.weight_kg).toFixed(3)} Kg`
-                              : "—"}
-                          </TableCell>
-                          <TableCell className="hidden lg:table-cell">
-                            {/* The serials behind this number, without making the
-                                operator expand anything to see what they have. */}
-                            <span className="truncate text-xs text-muted-foreground">
-                              {group.children
-                                .slice(0, 3)
-                                .map((c) => c.row.serial)
-                                .join(", ")}
-                              {group.children.length > 3
-                                ? ` +${group.children.length - 3}`
-                                : ""}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-end">
-                            {blocked.length ? (
-                              <StatusBadge tone="warning">
-                                <AlertTriangle className="size-3" />
-                                {t("store.plateOffcut.someCannotCut", {
-                                  count: blocked.length,
-                                })}
-                              </StatusBadge>
-                            ) : (
-                              <StatusBadge tone="open">
-                                {t("store.plateOffcut.canCut")}
-                              </StatusBadge>
-                            )}
-                          </TableCell>
-                        </TableRow>
+                            </TableCell>
+                            <TableCell className="hidden tabular-nums md:table-cell">
+                              {sizeLabel(group.aggregate)}
+                            </TableCell>
+                            <TableCell className="text-end tabular-nums font-medium">
+                              {group.children.length}
+                            </TableCell>
+                            <TableCell className="text-end tabular-nums font-medium">
+                              {weightLabel(group.aggregate?.weight_kg)}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              {/* The serials behind the number, so the count can
+                                  be checked without expanding anything. */}
+                              <span className="truncate text-xs text-muted-foreground">
+                                {group.children
+                                  .slice(0, 3)
+                                  .map((c) => c.row.serial)
+                                  .join(", ")}
+                                {group.children.length > 3
+                                  ? ` +${group.children.length - 3}`
+                                  : ""}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-end">
+                              <GroupStatus blocked={blocked.length} />
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
 
-                        {expanded
-                          ? group.children.map((child) => (
-                              <TableRow
-                                key={child.key}
-                                className={cn(
-                                  "hover:bg-muted/40",
-                                  child.row.can_cut && "cursor-pointer",
-                                )}
-                                onClick={() => {
-                                  if (child.row.can_cut) onSelect(child.row);
-                                }}
-                              >
-                                <TableCell className="ps-8">
-                                  <span aria-hidden="true" className="text-muted-foreground/40">
-                                    •
-                                  </span>{" "}
-                                  <span className="font-medium">{child.row.serial}</span>
-                                  {child.row.batch_no && (
-                                    <span className="ms-2 text-xs text-muted-foreground">
-                                      {child.row.batch_no}
-                                    </span>
-                                  )}
-                                </TableCell>
-                                <TableCell className="hidden md:table-cell" />
-                                <TableCell className="text-end tabular-nums" />
-                                <TableCell className="text-end tabular-nums">
-                                  {num(child.row.weight_kg)
-                                    ? `${num(child.row.weight_kg).toFixed(3)} Kg`
-                                    : "—"}
-                                </TableCell>
-                                <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
-                                  {child.row.warehouse || "—"}
-                                  {child.row.heat_number
-                                    ? ` • ${child.row.heat_number}`
-                                    : ""}
-                                </TableCell>
-                                <TableCell className="text-end">
-                                  {child.row.can_cut ? (
-                                    <StatusBadge tone="complete">
-                                      {t("store.plateOffcut.canCut")}
-                                    </StatusBadge>
-                                  ) : (
-                                    <span
-                                      className="inline-flex flex-col items-end text-xs text-muted-foreground"
-                                      title={child.row.blocked_reason}
-                                    >
-                                      <StatusBadge tone="warning">
-                                        {t("store.plateOffcut.cannotCut")}
-                                      </StatusBadge>
-                                      <span className="mt-0.5 max-w-[22ch] truncate">
-                                        {child.row.blocked_reason}
-                                      </span>
-                                    </span>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          : null}
-                      </>
+                        {/* A lone child is rendered as the row itself, so its
+                            serial is one click away instead of two. */}
+                        {group.children.map((child) =>
+                          expanded || !expandable ? (
+                            <ChildRow
+                              key={child.key}
+                              child={child}
+                              onSelect={onSelect}
+                            />
+                          ) : null,
+                        )}
+                      </Fragment>
                     );
                   })}
             </TableBody>

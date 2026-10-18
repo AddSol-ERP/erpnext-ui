@@ -3054,8 +3054,10 @@ ok(
 const plateGroupsSrc = readSrc("../../src/pages/Store/plate-offcut/plate-groups.jsx");
 ok(
   "an uncuttable plate cannot be opened",
-  /if \(child\.row\.can_cut\) onSelect\(child\.row\)/.test(plateGroupsSrc) &&
-    /child\.row\.can_cut && "cursor-pointer"/.test(plateGroupsSrc),
+  // ChildRow destructures: `const { row } = child`, so these read `row.can_cut`.
+  /function ChildRow\(\{ child, onSelect \}\)/.test(plateGroupsSrc) &&
+    /if \(row\.can_cut\) onSelect\(row\)/.test(plateGroupsSrc) &&
+    /row\.can_cut && "cursor-pointer"/.test(plateGroupsSrc),
   "the click handler must test can_cut, and the row must not read as clickable without it",
   "sending the operator into a form that cannot save is a dead end",
 );
@@ -3269,6 +3271,28 @@ ok(
   "every panel uses the agreed page size of 10",
   offcutPanelSrcs.every((src) => /const PAGE_SIZE = 10;/.test(src)),
   "a page size that differs per tab makes the three lists feel like different apps",
+);
+
+// Both of these shipped in the first version of this table and were only caught
+// by rendering it, not by any assertion.
+// A bare <> cannot take a key, so the key landed on the inner TableRow and
+// every group logged "Each child in a list should have a unique key prop". The
+// register wraps in <Fragment key={group.key}> for exactly this reason.
+ok(
+  "each group is a keyed Fragment, so the row inside it carries the key",
+  /<Fragment key=\{group\.key\}>/.test(plateGroupsSrc) &&
+    /groups\.map\(\(group\) =>/.test(plateGroupsSrc),
+  "a bare <> inside .map() cannot hold a key, so React warns once per group",
+);
+// The register's rule: a group of ONE is not a toggle. Making it one cost a
+// click to reach a single serial and left the row looking expandable when
+// expanding it changed nothing.
+ok(
+  "a group holding one plate is not a toggle -- its row is the plate",
+  /const expandable = group\.children\.length > 1;/.test(plateGroupsSrc) &&
+    /expanded \|\| !expandable/.test(plateGroupsSrc) &&
+    /expandable \? \(/.test(plateGroupsSrc),
+  "one click to reveal one serial is a dead control, and it looks broken",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);
