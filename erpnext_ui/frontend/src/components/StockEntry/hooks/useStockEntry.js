@@ -31,6 +31,11 @@ export function useStockEntry() {
 
   const openSubmitModal = () => setShowSubmit(true);
   const closeSubmitModal = () => setShowSubmit(false);
+  // The saved Stock Entry name the attach dialog is opened against, and whether
+  // it is open. The entry type is passed too so the dialog offers that type's
+  // document keys rather than every type's.
+  const [attachTarget, setAttachTarget] = useState(null);
+  const [showAttach, setShowAttach] = useState(false);
 
   const isWarehouseValid = fromWarehouse || toWarehouse;
   const hasItems = items.length > 0;
@@ -371,6 +376,14 @@ export function useStockEntry() {
         t("store.entry.createdToast", { name: res.data.name }),
       );
 
+      // AFTER submit, deliberately. This flow inserts and submits in one
+      // click, so attaching before would mean splitting it into insert ->
+      // attach -> submit and leaving a docstatus 0 entry behind if the operator
+      // abandons the dialog. There is no draft step here to hang a file from.
+      // The entry is saved and submitted by this point, so the name is real.
+      setAttachTarget(res.data.name);
+      setShowAttach(true);
+
       setItems([]);
       closeSubmitModal();
     } catch {
@@ -434,6 +447,9 @@ export function useStockEntry() {
   };
 
   return {
+    attachTarget,
+    showAttach,
+    setShowAttach,
     setItems,
     items,
     updateQty,

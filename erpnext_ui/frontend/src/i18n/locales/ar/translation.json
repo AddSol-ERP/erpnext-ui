@@ -99,7 +99,8 @@
     "none": "لا شيء",
     "submitted": "مُرسل",
     "cancelled": "ملغى",
-    "unknown": "غير معروف"
+    "unknown": "غير معروف",
+    "uploading": "جارٍ الرفع…"
   },
   "nav": {
     "approvals": "الموافقات",
@@ -215,5 +216,20 @@
     "profile": "الملف الشخصي",
     "settings": "الإعدادات",
     "logout": "تسجيل الخروج"
+  },
+  "attachments": {
+    "title": "المستندات — {doctype}",
+    "none": "لا توجد مستندات مرفقة بعد.",
+    "add": "إضافة {label}",
+    "remove": "إزالة {label}",
+    "hint": "بحد أقصى {mb} ميغابايت · {ext}",
+    "loadFailed": "تعذّر تحميل المستندات.",
+    "uploadFailed": "فشل الرفع.",
+    "deleteFailed": "تعذّرت إزالة المستند.",
+    "saveFirst": "احفظ المستند قبل إرفاق الملفات به.",
+    "dialogTitle": "إرفاق مستندات",
+    "skip": "إرسال دون إرفاق",
+    "confirmDelete": "إزالة {label} من هذا المستند؟",
+    "deleteConfirm": "إزالة {label}؟"
   }
 }

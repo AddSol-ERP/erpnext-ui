@@ -33,6 +33,7 @@ import {
   YAxis,
 } from "recharts";
 import DashboardShell from "../../../components/dashboard/DashboardShell";
+import { AttachDialog } from "@/components/attachments";
 import StatRow from "../../../components/dashboard/StatRow";
 import ChartPanel from "../../../components/dashboard/ChartPanel";
 import ChartGrid from "../../../components/dashboard/ChartGrid";
@@ -58,6 +59,11 @@ export default function QualityInspectionReport() {
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Quality Inspection has NO form in the SPA -- only this list -- so the
+  // attach dialog is launched from a row here. The inspection always came off
+  // the server, so there is a saved document to attach to.
+  const [attachTo, setAttachTo] = useState(null);
 
   const [filters, setFilters] = useState({
     from_date: "",
@@ -422,9 +428,11 @@ export default function QualityInspectionReport() {
           ) : (
             <div className="flex flex-col">
               {recentFailures.map((r) => (
-                <div
+                <button
+                  type="button"
                   key={r.name}
-                  className="flex items-center justify-between gap-2 border-b border-border py-2 last:border-0"
+                  onClick={() => setAttachTo(r)}
+                  className="flex w-full cursor-pointer items-center justify-between gap-2 border-b border-border py-2 text-start last:border-0 hover:bg-muted/40"
                 >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">
@@ -440,7 +448,7 @@ export default function QualityInspectionReport() {
                   >
                     {t("quality.fail")}
                   </Badge>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -452,6 +460,13 @@ export default function QualityInspectionReport() {
           {t("common.loading")}
         </p>
       ) : null}
+
+      <AttachDialog
+        show={Boolean(attachTo)}
+        doctype="Quality Inspection"
+        docname={attachTo?.name || ""}
+        onClose={() => setAttachTo(null)}
+      />
     </DashboardShell>
   );
 }

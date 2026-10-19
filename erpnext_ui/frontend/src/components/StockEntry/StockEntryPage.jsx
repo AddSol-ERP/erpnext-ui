@@ -8,6 +8,7 @@ import { useHeader } from "../../context/HeaderContext";
 import { stockPurposeForType } from "../../config/storePurposes";
 import StockEntryTypeSelector from "./components/StockEntryTypeSelector";
 import GetItemsModal from "./components/GetItemsModal";
+import { AttachDialog } from "@/components/Attachments";
 import SubmitModal from "./components/SubmitModal";
 import StockFixModal from "./components/StockFixModal";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,8 @@ export default function StockEntryPage() {
     : "";
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] pt-4">
+    <>
+      <div className="mx-auto w-full max-w-[1600px] pt-4">
       <StockFixModal
         show={stock.showFixModal}
         onClose={() => stock.setShowFixModal(false)}
@@ -285,5 +287,16 @@ export default function StockEntryPage() {
         />
       </div>
     </div>
+
+      {/* Attach step, opened after the entry has been saved AND submitted --
+          this flow has no draft stage to hang a file from. Skippable, and
+          closing it only closes it: the entry is already submitted. */}
+      <AttachDialog
+        show={stock.showAttach}
+        doctype="Stock Entry"
+        docname={stock.attachTarget || ""}
+        onClose={() => stock.setShowAttach(false)}
+      />
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { FormField } from "../../../../components/FormField";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { AttachDialog } from "../../../../components/Attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -105,6 +106,11 @@ export default function PlateOffcutForm() {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+
+  // Attach step, shown after the Submit confirmation and before the submit
+  // itself. The draft is saved by then -- Submit only appears once `isEdit` --
+  // so the files have a document to hang from.
+  const [showAttach, setShowAttach] = useState(false);
 
   // `dirty` is event-based, never diff-based: only a row edit or a serial change
   // counts. The server's own derived fields arrive on load and must not be
@@ -363,8 +369,7 @@ export default function PlateOffcutForm() {
   }, [buildPayload, isEdit, name, navigate, t, validate]);
 
   /* ---------------------------------------------------------------- submit */
-  const handleSubmit = useCallback(async () => {
-    setConfirmSubmit(false);
+  const submitNow = useCallback(async () => {
     const errors = validate();
     setFieldErrors(errors);
     if (Object.keys(errors).length) return;
@@ -393,6 +398,17 @@ export default function PlateOffcutForm() {
       setSaving(false);
     }
   }, [buildPayload, isEdit, name, navigate, t, validate]);
+
+  const handleSubmit = useCallback(async () => {
+    setConfirmSubmit(false);
+    if (isEdit && !docRef.current?.docstatus) {
+      setShowAttach(true);
+      return;
+    }
+    submitNow();
+  }, [isEdit, submitNow]);
+
+
 
   /* --------------------------------------------------------------- derived */
   const utilisation = useMemo(() => {
@@ -803,6 +819,19 @@ export default function PlateOffcutForm() {
       {/* Submitting POSTS STOCK: it creates Items, a Batch and a reserved Serial
           No per offcut, then submits a Repack Stock Entry. It must not read as an
           ordinary save. */}
+      {/* Attach step. `onSkip` is the escape hatch that keeps a device with no
+          camera from being trapped: it closes AND submits. */}
+      <AttachDialog
+        show={showAttach}
+        doctype="Plate Offcut"
+        docname={name}
+        onClose={() => setShowAttach(false)}
+        onSkip={() => {
+          setShowAttach(false);
+          submitNow();
+        }}
+      />
+
       <ConfirmDialog
         open={confirmSubmit}
         loading={saving}

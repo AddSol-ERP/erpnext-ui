@@ -99,7 +99,8 @@
     "none": "कोई नहीं",
     "submitted": "सबमिट",
     "cancelled": "रद्द",
-    "unknown": "अज्ञात"
+    "unknown": "अज्ञात",
+    "uploading": "अपलोड हो रहा है…"
   },
   "nav": {
     "approvals": "अनुमोदन",
@@ -215,5 +216,20 @@
     "profile": "प्रोफ़ाइल",
     "settings": "सेटिंग्स",
     "logout": "लॉग आउट"
+  },
+  "attachments": {
+    "title": "दस्तावेज़ — {doctype}",
+    "none": "अभी तक कोई दस्तावेज़ संलग्न नहीं है।",
+    "add": "{label} जोड़ें",
+    "remove": "{label} हटाएँ",
+    "hint": "अधिकतम {mb} MB · {ext}",
+    "loadFailed": "दस्तावेज़ लोड नहीं हो सके।",
+    "uploadFailed": "अपलोड विफल।",
+    "deleteFailed": "दस्तावेज़ हटाया नहीं जा सका।",
+    "saveFirst": "दस्तावेज़ सहेजने के बाद ही फ़ाइलें संलग्न की जा सकती हैं।",
+    "dialogTitle": "दस्तावेज़ संलग्न करें",
+    "skip": "संलग्न किए बिना सबमिट करें",
+    "confirmDelete": "इस दस्तावेज़ से {label} हटाएँ?",
+    "deleteConfirm": "{label} हटाएँ?"
   }
 }

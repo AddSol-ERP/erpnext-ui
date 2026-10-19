@@ -99,7 +99,8 @@
     "none": "None",
     "submitted": "Submitted",
     "cancelled": "Cancelled",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "uploading": "Uploading…"
   },
   "nav": {
     "approvals": "Approvals",
@@ -215,5 +216,20 @@
     "profile": "Profile",
     "settings": "Settings",
     "logout": "Logout"
+  },
+  "attachments": {
+    "title": "Documents — {doctype}",
+    "none": "No documents attached yet.",
+    "add": "Add {label}",
+    "remove": "Remove {label}",
+    "hint": "{mb} MB max · {ext}",
+    "loadFailed": "Could not load documents.",
+    "uploadFailed": "Upload failed.",
+    "deleteFailed": "Could not remove the document.",
+    "saveFirst": "Save the document before attaching files to it.",
+    "dialogTitle": "Attach documents",
+    "skip": "Submit without attaching",
+    "confirmDelete": "Remove {label} from this document?",
+    "deleteConfirm": "Remove {label}?"
   }
 }

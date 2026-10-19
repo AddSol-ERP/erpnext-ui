@@ -12,6 +12,7 @@ import MaterialRequestList from "@/pages/Store/material-request/list/index.jsx";
 import IndentQueue from "@/pages/Store/indents/index.jsx";
 import PurchaseReceiptPicker from "@/pages/Store/purchase-receipt/index.jsx";
 import PurchaseReceiptForm from "@/pages/Store/purchase-receipt/form/index.jsx";
+import { AttachDialog } from "@/components/Attachments/index.jsx";
 import StockEntryPage from "@/components/StockEntry/StockEntryPage.jsx";
 import ESSDashboard from "@/pages/ESS/index.jsx";
 import ReceiptItemWorkbench from "@/pages/Store/purchase-receipt/components/ReceiptItemWorkbench.jsx";
@@ -791,6 +792,84 @@ const essLocales = ["en", "hi", "ar"].map((l) =>
   readFileSync(new URL(`../../src/i18n/locales/${l}/ess.json`, import.meta.url), "utf8"));
 ok("attendance: checkinLogsShort exists in all three locales",
    essLocales.every((t) => t.includes('"checkinLogsShort"')));
+
+
+/* =======================================================================
+   Document attachments panel.
+
+   Rendered through the AppModal stub for the same reason as the picker: the
+   dialog is what the operator actually sees, and under renderToString a
+   portalled Radix Dialog returns an empty string -- which would turn every
+   assertion below into a silent pass on nothing.
+   ======================================================================= */
+
+const ATTACH_CONFIG = {
+  doctype: "Purchase Receipt",
+  types: [
+    {
+      type_key: "RECEIPT_PHOTO", label: "Receipt Photo",
+      extensions: ["jpg", "jpeg", "png"], max_size_mb: 5,
+    },
+    {
+      type_key: "WEIGHBRIDGE_TICKET", label: "Weighbridge Ticket",
+      extensions: ["pdf", "jpg"], max_size_mb: 5,
+    },
+  ],
+};
+const ATTACH_FILES = {
+  doctype: "Purchase Receipt",
+  files: [
+    {
+      name: "file/abc", file_name: "[RECEIPT_PHOTO]1-IMG_0001.jpg",
+      label: "Receipt Photo", file_url: "/private/files/x.jpg", is_private: 1,
+    },
+  ],
+};
+
+globalThis.fetch = (url) => {
+  const body = JSON.stringify({
+    message: String(url).includes("list_document_attachments") ? ATTACH_FILES : ATTACH_CONFIG,
+  });
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(body),
+    text: () => Promise.resolve(body),
+  });
+};
+
+const attachHtml = renderNode(
+  <AttachDialog
+    show
+    doctype="Purchase Receipt"
+    docname="MAT-PRE-00011"
+    onSkip={() => {}}
+  />,
+);
+
+// Both responses arrive as promises, and renderToString is synchronous, so the
+// panel's initial (empty) frame is what is on the string. That is still the
+// frame worth asserting: it is the one that decides whether a half-loaded
+// panel flashes raw i18n keys at the operator.
+ok("attachments: no raw translation key leaks into the dialog",
+   !/attachments\.[a-zA-Z]/.test(attachHtml) && !/common\.[a-zA-Z]/.test(attachHtml),
+   "i18next returns the key itself when a namespace is missing, so this is the assertion that catches an untranslated string");
+ok("attachments: the dialog offers a way past it, and the label is translated",
+   attachHtml.includes("Submit without attaching") && !/attachments\.skip/.test(attachHtml),
+   "this dialog sits in front of a submit; an operator on a phone with no camera must still be able to finish, and a raw key here means the escape hatch is both ugly and unreadable");
+
+// The ACCEPT attribute is the real contract with the server's extension list.
+const attachLibSrc = readFileSync(
+  new URL("../../src/lib/attachments.js", import.meta.url), "utf8");
+const attachSrc = readFileSync(
+  new URL("../../src/components/Attachments/index.jsx", import.meta.url), "utf8");
+ok("attachments: the accept filter is built from the server config, not a literal",
+   /accept={acceptFor\(type\)}/.test(attachSrc) &&
+     /accept={[a-z]+\s*[&|]/.test(attachSrc) === false &&
+     /\.map\(\(ext\) => `\.\$\{ext\}`\)\.join\(","\)/.test(attachLibSrc),
+   "a hardcoded accept would offer a file the server then refuses, after the upload has already left the device");
+ok("attachments: the file input is never rendered as a visible control",
+   /hidden/.test(attachSrc) && /\.click\(\)/.test(attachSrc),
+   "an always-open file input invites picking from anywhere on the form");
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

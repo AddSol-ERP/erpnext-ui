@@ -3620,6 +3620,28 @@ ok(
 // ---------------------------------------------------------------------------
 const moduleGridSrc = readSrc("../../src/components/dashboard/ModuleGrid.jsx");
 const actionTileSrc = readSrc("../../src/components/ActionTile.jsx");
+// The desk script lives in a SEPARATE repository, so this read must not become
+// a build dependency: CI checks out erpnext-ui alone and a hard read would fail
+// the whole suite. Read it when it happens to be alongside -- which is how the
+// cross-repo contract is actually worth checking -- and skip those two
+// assertions when it is not.
+const deskAttachSrc = (() => {
+  try {
+    return readFileSync(
+      new URL(
+        "../../../../../../project/nlengineer/addsol_nl_custom/addsol_nl_custom/public/js/document_attachments.js",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+  } catch {
+    return "";
+  }
+})();
+const stockHookSrc = readSrc(
+  "../../src/components/StockEntry/hooks/useStockEntry.js",
+);
+const prFormSrc = readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx");
 // ActionTile clamps its title AND its description with `truncate`, so a tile's
 // height comes from its icon block and padding, not its text. That is what makes
 // more columns a saving rather than a trade -- narrower clips the label instead
@@ -3669,6 +3691,134 @@ ok(
   "the grid names no breakpoint that this build cannot emit",
   !/\b2xl:/.test(stripComments(moduleGridSrc)),
   "2xl is in the theme but generates no utility here, so such a class silently does nothing",
+);
+
+// ---------------------------------------------------------------------------
+// Document attachments. One contract, two renderings, all rules on the server.
+// ---------------------------------------------------------------------------
+const uiDocsSrc = readSrc("../../../ui_documents.py");
+const attachPanelSrc = readSrc("../../src/components/Attachments/index.jsx");
+const attachLibSrc = readSrc("../../src/lib/attachments.js");
+
+// THE ANTI-DRIFT RULE. The React panel and the ERPNext desk script are two
+// renderings of one contract, in two languages, and neither may hold a copy of
+// the rules -- an extension list or a size limit written in either client is a
+// second thing to be wrong, and nothing would fail when they disagreed.
+ok(
+  "neither client hardcodes an extension or size limit",
+  !/["'][a-z]{3,4}["']\s*,\s*["'](?:jpe?g|png|pdf)/i.test(attachLibSrc) &&
+    !/extensions\s*:\s*\[/.test(attachPanelSrc) &&
+    /get_attachment_config/.test(attachLibSrc),
+  "the server owns what is allowed; a client copy is a second thing to be wrong",
+);
+ok(
+  "the desk script reads the same config endpoint",
+  // Skipped, not failed, when addsol_nl_custom is not checked out beside us.
+  deskAttachSrc === "" ||
+    (/get_attachment_config/.test(deskAttachSrc) &&
+      !/extensions\s*:\s*\[/.test(deskAttachSrc)),
+  "the React panel and the desk script must render from ONE source of accepted types",
+);
+
+// Phone photos are all named like IMG_0001.jpg, so the caller's own name is not
+// a key. Without the sequence two uploads collide on `file_name`; I could not
+// verify how Frappe handles that, so it is not relied on.
+ok(
+  "stored names carry the type key AND a per-document sequence",
+  /file_name.*\[{type_key}\]\{sequence\}-\{original_name\}/s.test(uiDocsSrc) &&
+    /def _next_sequence/.test(uiDocsSrc),
+  "IMG_0001.jpg is not a unique name; the sequence is also what makes the list read in capture order",
+);
+// A generic endpoint can be pointed at any document. Two things must hold: the
+// doctype has to be in the config, and the caller needs write on THAT document.
+{
+  // Split on the def so these windows are per-function. A single regex over the
+  // whole file would match `_require_write`'s DEFINITION and count as proof that
+  // upload CALLS it -- which is the check that actually matters, and which a
+  // deleted call would otherwise still pass.
+  const uploadSrc = uiDocsSrc.slice(uiDocsSrc.indexOf("def upload_document"));
+  const requireWriteSrc = uiDocsSrc.slice(
+    uiDocsSrc.indexOf("def _require_write"),
+    uiDocsSrc.indexOf("def _require_write") + 1200,
+  );
+  const fileCreateAt = uploadSrc.indexOf('"doctype": "File"');
+
+  ok(
+    "upload refuses any doctype not in the config",
+    /def _attachment_types[\s\S]{0,300}DOCUMENT_ATTACHMENT_CONFIG\.get\(doctype\)/.test(
+      uiDocsSrc,
+    ) &&
+      /types is None/.test(uploadSrc) &&
+      /does not support document attachments/.test(uploadSrc),
+    "the config allow-list IS the authorisation boundary, so an unconfigured doctype must refuse rather than fall through",
+  );
+  ok(
+    "the parent's write permission is checked on the RECORD, not just the doctype",
+    /frappe\.has_permission\(doctype, "write", docname\)/.test(requireWriteSrc),
+    "doctype-level write would let anyone with the role attach to any record they can name",
+  );
+  ok(
+    "upload checks that permission BEFORE creating the File",
+    uploadSrc.indexOf("_require_write(doctype, docname)") !== -1 &&
+      uploadSrc.indexOf("_require_write(doctype, docname)") < fileCreateAt,
+    "authorising after the write has already happened authorises nothing",
+  );
+}
+// `is_private` is load-bearing: File.has_permission returns True for any
+// NON-private file to any authenticated user, so a public attachment here hands
+// a receipt photo or a defect shot to the whole company.
+ok(
+  "attachments are always private",
+  /"is_private": 1/.test(uiDocsSrc),
+  "a non-private File is readable by any authenticated user, regardless of the document",
+);
+ok(
+  "no upload path uses ignore_permissions",
+  /def upload_document[\s\S]*?save\(ignore_permissions=False\)/s.test(uiDocsSrc),
+  "setting it would let this endpoint attach to somebody else's record",
+);
+// Deleting evidence must be at least as protected as attaching it.
+ok(
+  "delete resolves the PARENT and requires write on it, plus our own key marker",
+  /def delete_document_attachment[\s\S]*?DOCUMENT_KEY_PATTERN\.match/s.test(uiDocsSrc) &&
+    /def delete_document_attachment[\s\S]*?_require_write\(row\.attached_to_doctype, row\.attached_to_name\)/s.test(uiDocsSrc),
+  "without the parent check this is a generic 'delete any File I can write to' primitive",
+);
+// A File is attached BY NAME, so an unsaved document has nothing to attach to.
+ok(
+  "an unsaved document is refused with a reason, not silently saved for the operator",
+  /Save the document before attaching files/.test(uiDocsSrc) &&
+    /attachments\.saveFirst/.test(attachPanelSrc) &&
+    (deskAttachSrc === "" || /frm\.is_new\(\)/.test(deskAttachSrc)),
+  "there is no name to attach to before the save, and saving on their behalf is not ours to do",
+);
+// The attach step sits in front of a submit, so it must never be able to trap
+// an operator on a device with no camera.
+ok(
+  "the attach dialog is skippable, and skipping still submits",
+  /attachments\.skip/.test(attachPanelSrc) &&
+    /submitNow\(\);/.test(prFormSrc) &&
+    /submitNow\(\);/.test(offcutFormSrc),
+  "a mandatory file would make a receipt unsubmittable from a phone with no gallery",
+);
+ok(
+  "uploading an attachment never submits the document it hangs off",
+  !/onChange={onSkip}/.test(attachPanelSrc),
+  "an upload submitted the receipt the moment it succeeded, so a SECOND file could not attach at all",
+);
+// This dialog is the reason the feature exists on a shop floor. capture is a
+// hint a browser may ignore, so it cannot be asserted to work -- only that the
+// markup asks, since without it mobile offers "choose from Files" first.
+ok(
+  "photo types ask the browser for the camera",
+  /capture={isImageType\(type\)\s*\?\s*"environment"/.test(attachPanelSrc),
+  "capture is a hint the browser may ignore, but omitting it puts a Files browser in front of every weighbridge photo",
+);
+ok(
+  "Stock Entry attaches AFTER submit, never between insert and submit",
+  /setShowAttach\(true\)/.test(stockHookSrc) &&
+    stockHookSrc.indexOf("run_method: \"submit\"") < stockHookSrc.indexOf("setShowAttach(true)"),
+  "this flow inserts and submits in one click; splitting it would leave a docstatus 0 entry behind",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

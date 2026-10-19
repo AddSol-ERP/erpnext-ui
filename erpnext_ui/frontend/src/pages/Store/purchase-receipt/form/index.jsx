@@ -20,6 +20,7 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
+import { AttachDialog } from "../../../../components/Attachments";
 import { focusFirstError } from "../../../../lib/formValidation";
 import { useHeader } from "../../../../context/HeaderContext";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,11 @@ export default function PurchaseReceiptForm() {
   const [plateConfig, setPlateConfig] = useState({ enabled: false });
   const [plateItems, setPlateItems] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // The attach step, shown immediately before Submit. A draft already exists by
+  // then -- Submit only appears when `isEdit` -- so the files have a document to
+  // hang from. Skippable: a device with no camera must still be able to finish.
+  const [showAttach, setShowAttach] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const plateConfigRef = useRef(plateConfig);
 
@@ -713,6 +719,16 @@ export default function PurchaseReceiptForm() {
   };
 
   const handleSubmit = async () => {
+    // Attach first, submit second. Closing the dialog without skipping submits
+    // as before, so nothing here can strand a receipt that used to be savable.
+    if (isEdit && !doc?.docstatus) {
+      setShowAttach(true);
+      return;
+    }
+    submitNow();
+  };
+
+  const submitNow = async () => {
     const current = docRef.current;
     let checkedPlateItems = plateItems;
     if (plateConfig.enabled) {
@@ -870,6 +886,20 @@ export default function PurchaseReceiptForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
+      {/* Attach step. `onSkip` is the escape hatch that keeps the flow usable on
+          a device with no camera: it closes AND submits, so the operator is
+          never trapped by a mandatory file. */}
+      <AttachDialog
+        show={showAttach}
+        doctype="Purchase Receipt"
+        docname={name}
+        onClose={() => setShowAttach(false)}
+        onSkip={() => {
+          setShowAttach(false);
+          submitNow();
+        }}
+      />
+
       <ConfirmDialog
         open={confirmDelete}
         loading={deleting}

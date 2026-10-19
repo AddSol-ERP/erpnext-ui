@@ -2,6 +2,7 @@ import os
 import re
 
 import frappe
+from frappe import _
 from frappe.model import workflow as workflow_model
 
 
@@ -90,6 +91,47 @@ IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
 # Anchored at the start on purpose: a user's original file name may itself
 # contain brackets (`tax[2024].pdf`), and only the first group is ours.
 DOCUMENT_KEY_PATTERN = re.compile(r"^\[([A-Z0-9_]+)\]")
+
+
+# ------------------------------------------------------------------
+# Transactional document attachments
+# ------------------------------------------------------------------
+# The same shape as the Employee config above, extended to the documents the
+# Store and Quality flows work with. ONE dict serves both clients: the React
+# panel and the ERPNext desk script both ask get_attachment_config() what is
+# allowed, so neither can hardcode a list the server would then reject.
+#
+# This dict is also the AUTHORISATION allow-list. upload_document() takes a
+# doctype from the caller, which means without this it would be a generic
+# "attach a file to any document I can write to" primitive. A doctype absent
+# from here is refused outright.
+#
+# Keys are permanent in practice: they are written into every stored file name
+# as a `[KEY]` marker, so renaming one later orphans the files already uploaded
+# under the old name. The first upload is the cheapest moment to get it right.
+DOCUMENT_ATTACHMENT_CONFIG = {
+    "Purchase Receipt": {
+        "RECEIPT_PHOTO": {"label": "Goods photo", "extensions": ["jpg", "jpeg", "png", "webp", "pdf"], "max_size_mb": 8, "sort_order": 10},
+        "WEIGHBRIDGE_TICKET": {"label": "Weighbridge ticket", "extensions": ["jpg", "jpeg", "png", "webp", "pdf"], "max_size_mb": 8, "sort_order": 20},
+        "INVOICE": {"label": "Supplier invoice", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 30},
+        "MTC": {"label": "Mill test certificate", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 40},
+        "QUALITY_REPORT": {"label": "Quality report", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 50},
+    },
+    "Quality Inspection": {
+        "DEFECT_PHOTO": {"label": "Defect photo", "extensions": ["jpg", "jpeg", "png", "webp"], "max_size_mb": 8, "sort_order": 10},
+        "MEASUREMENT_REPORT": {"label": "Measurement report", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 20},
+        "CERTIFICATE": {"label": "Certificate", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 30},
+    },
+    "Stock Entry": {
+        "STOCK_PHOTO": {"label": "Stock photo", "extensions": ["jpg", "jpeg", "png", "webp"], "max_size_mb": 8, "sort_order": 10},
+        "GATE_PASS": {"label": "Gate pass", "extensions": ["jpg", "jpeg", "png", "pdf"], "max_size_mb": 8, "sort_order": 20},
+    },
+    "Plate Offcut": {
+        "BEFORE_CUT": {"label": "Before cut", "extensions": ["jpg", "jpeg", "png", "webp"], "max_size_mb": 8, "sort_order": 10},
+        "AFTER_CUT": {"label": "After cut", "extensions": ["jpg", "jpeg", "png", "webp"], "max_size_mb": 8, "sort_order": 20},
+        "CUT_DETAIL": {"label": "Cut detail", "extensions": ["jpg", "jpeg", "png", "webp"], "max_size_mb": 8, "sort_order": 30},
+    },
+}
 
 
 # ------------------------------------------------------------------
@@ -490,6 +532,286 @@ def delete_employee_document(file_name):
         )
 
     # No ignore_permissions, so Frappe re-checks File write permission.
+    frappe.delete_doc("File", file_name, ignore_permissions=False)
+
+    return {"deleted": file_name}
+
+# ------------------------------------------------------------------
+# Transactional attachments -- shared by the React panel and the desk script
+# ------------------------------------------------------------------
+
+
+def _attachment_types(doctype):
+    """Configured types for a doctype, or None when the doctype is not allowed.
+
+    Absent from DOCUMENT_ATTACHMENT_CONFIG means refused, which is the whole
+    reason this dict is the authorisation allow-list and not just a UI hint.
+    """
+    return DOCUMENT_ATTACHMENT_CONFIG.get(doctype)
+
+
+def _require_write(doctype, docname):
+    """Fail closed unless the session may write this exact document.
+
+    The parent permission is the whole security boundary: a File carries
+    `is_private`, but read access to a private file is granted on the attached
+    document, so gating the upload on that document is what stops this endpoint
+    becoming a way to park a file against any record in the system.
+    """
+    try:
+        allowed = frappe.has_permission(doctype, "write", docname)
+    except Exception:
+        allowed = False
+    if not allowed:
+        frappe.throw(
+            _("You are not allowed to attach documents to {0} {1}.").format(doctype, docname),
+            frappe.PermissionError,
+        )
+
+
+@frappe.whitelist(allow_guest=False)
+def get_attachment_config(doctype):
+    """What may be attached to a doctype, for BOTH clients to render from.
+
+    Returned rather than duplicated in JavaScript: the React panel and the desk
+    script each build their own UI, and a hardcoded extension list in either one
+    would drift from what the server actually accepts.
+
+    Args:
+        doctype (str): e.g. "Purchase Receipt".
+
+    Returns:
+        dict: {"doctype", "types": [{"type_key", "label", "extensions", "max_size_mb"}]}
+    """
+    types = _attachment_types(doctype)
+    if types is None:
+        frappe.throw(_("{0} does not support document attachments.").format(doctype))
+
+    return {
+        "doctype": doctype,
+        "types": [
+            {
+                "type_key": key,
+                "label": conf["label"],
+                "extensions": conf["extensions"],
+                "max_size_mb": conf["max_size_mb"],
+            }
+            for key, conf in sorted(types.items(), key=lambda kv: kv[1].get("sort_order", 100))
+        ],
+    }
+
+
+def _next_sequence(doctype, docname, type_key):
+    """The next 1-based sequence for one type on one document.
+
+    Phone photos are all named like IMG_0001.jpg, so the caller's own name is
+    not a key. A prefix counter keeps two uploads of identically named files
+    distinct AND makes the files sort in the order they were taken.
+
+    Counted with LIKE rather than by parsing the names: the count is of files we
+    could have written, and a file renamed outside the UI would otherwise reuse
+    a sequence that already exists.
+    """
+    prefix = f"[{type_key}]"
+    return (
+        frappe.db.count(
+            "File",
+            filters={
+                "attached_to_doctype": doctype,
+                "attached_to_name": docname,
+                "file_name": ["like", f"{prefix}%"],
+            },
+        )
+        + 1
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def upload_document(doctype, docname, type_key):
+    """Attach an uploaded file to a transaction, as a private `File`.
+
+    The document must already be SAVED: a `File` is attached by name, and there
+    is no name to attach to before the save. Callers surface that rather than
+    saving on the operator's behalf.
+
+    Naming is `[{TYPE_KEY}]{sequence}-{original}` -- the existing marker, plus a
+    per-document sequence so two phone photos called IMG_0001.jpg cannot
+    collide, and so the list reads in capture order.
+
+    `is_private = 1` is deliberate, not cosmetic: File.has_permission returns
+    True for any NON-private file to any authenticated user, so a public
+    attachment here would hand a receipt photo or a defect shot to the whole
+    company.
+
+    Returns:
+        dict: the created `File` descriptor.
+    """
+
+    types = _attachment_types(doctype)
+    if types is None:
+        frappe.throw(_("{0} does not support document attachments.").format(doctype))
+
+    config = types.get(type_key)
+    if not config:
+        frappe.throw(_("Unknown document type: {0}").format(type_key))
+
+    if not docname or docname in ("new-form", "new"):
+        frappe.throw(_("Save the document before attaching files to it."))
+
+    if not frappe.db.exists(doctype, docname):
+        frappe.throw(_("{0} {1} does not exist.").format(doctype, docname))
+
+    _require_write(doctype, docname)
+
+    uploaded = frappe.request.files.get("file")
+    if not uploaded:
+        frappe.throw(_("No file was uploaded."))
+
+    # frappe.request.files returns a list even for a single file.
+    file = uploaded[0] if isinstance(uploaded, list) else uploaded
+
+    original_name = os.path.basename(file.filename or "")
+    extension = _extension_of(original_name)
+
+    if extension not in config["extensions"]:
+        frappe.throw(
+            _("{0} must be one of: {1}").format(config["label"], ", ".join(config["extensions"]))
+        )
+
+    content = file.read()
+    if not content:
+        frappe.throw(_("The uploaded file is empty."))
+
+    max_bytes = config["max_size_mb"] * 1024 * 1024
+    if len(content) > max_bytes:
+        frappe.throw(
+            _("{0} must be {1} MB or smaller.").format(config["label"], config["max_size_mb"])
+        )
+
+    sequence = _next_sequence(doctype, docname, type_key)
+
+    # ignore_permissions is deliberately NOT set: Frappe then enforces write on
+    # the attached document as well, so this endpoint cannot attach to somebody
+    # else's record.
+    file_doc = frappe.get_doc(
+        {
+            "doctype": "File",
+            "file_name": f"[{type_key}]{sequence}-{original_name}",
+            "attached_to_doctype": doctype,
+            "attached_to_name": docname,
+            "attached_to_field": "attachments",
+            "file_url": "",
+            "is_private": 1,
+            "content": content,
+            "file_size": len(content),
+        }
+    )
+    file_doc.save(ignore_permissions=False)
+
+    return {
+        "name": file_doc.name,
+        "file_name": file_doc.file_name,
+        "file_url": file_doc.file_url,
+        "is_image": _is_image(file_doc.file_name),
+        "file_size": file_doc.file_size,
+        "type_key": type_key,
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def list_document_attachments(doctype, docname):
+    """Every stored attachment on one document, newest first.
+
+    Read through the parent document's READ permission rather than the File's,
+    so a user who cannot open the Purchase Receipt cannot enumerate its
+    attachments either -- the same document that gates reading is what grants it.
+
+    Returns:
+        dict: {"files": [...]}
+    """
+
+    types = _attachment_types(doctype)
+    if types is None:
+        frappe.throw(_("{0} does not support document attachments.").format(doctype))
+
+    if not docname:
+        return {"files": []}
+
+    if not frappe.has_permission(doctype, "read", docname):
+        frappe.throw(
+            _("You are not allowed to view documents attached to {0} {1}.").format(doctype, docname),
+            frappe.PermissionError,
+        )
+
+    rows = frappe.get_all(
+        "File",
+        filters={"attached_to_doctype": doctype, "attached_to_name": docname},
+        fields=["name", "file_name", "file_url", "file_size", "creation"],
+        order_by="creation desc",
+        limit_page_length=200,
+    )
+
+    files = []
+    for row in rows:
+        match = DOCUMENT_KEY_PATTERN.match(row.file_name or "")
+        type_key = match.group(1) if match else None
+        # Only surface types this doctype actually configures: a file carrying
+        # some other `[KEY]` belongs to a different feature and has no label
+        # here, so it is not shown rather than shown wrongly.
+        if type_key is None or type_key not in types:
+            continue
+        files.append(
+            {
+                "name": row.name,
+                "file_name": row.file_name,
+                "file_url": row.file_url,
+                "file_size": row.file_size,
+                "is_image": _is_image(row.file_name),
+                "type_key": type_key,
+                "label": types[type_key]["label"],
+                "creation": row.creation,
+            }
+        )
+
+    return {"files": files}
+
+
+@frappe.whitelist(allow_guest=False)
+def delete_document_attachment(file_name):
+    """Remove one attachment from a transaction.
+
+    The File must carry one of OUR `[KEY]` markers AND belong to a doctype in
+    DOCUMENT_ATTACHMENT_CONFIG. Without both checks this would be a generic
+    "delete any File I can write to" primitive, aimed at attachments the panel
+    never showed.
+
+    WRITE on the PARENT is required, not merely delete on the File: otherwise
+    deleting evidence would be easier than attaching it, and a user who can
+    write the document would lose files another department put there.
+
+    Returns:
+        dict: {"deleted": str}
+    """
+
+    if not file_name:
+        frappe.throw(_("No file specified."))
+
+    row = frappe.db.get_value(
+        "File",
+        file_name,
+        ["name", "attached_to_doctype", "attached_to_name", "file_name"],
+        as_dict=True,
+    )
+    if not row:
+        frappe.throw(_("Document not found."))
+
+    types = _attachment_types(row.attached_to_doctype)
+    match = DOCUMENT_KEY_PATTERN.match(row.file_name or "")
+    if types is None or not match or match.group(1) not in types:
+        frappe.throw(_("That file is not a document attachment."))
+
+    _require_write(row.attached_to_doctype, row.attached_to_name)
+
     frappe.delete_doc("File", file_name, ignore_permissions=False)
 
     return {"deleted": file_name}
