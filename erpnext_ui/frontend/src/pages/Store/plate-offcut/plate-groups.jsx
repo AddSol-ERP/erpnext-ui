@@ -105,21 +105,24 @@ function PlateRow({ plate, onSelect }) {
         if (plate.can_cut) onSelect(plate);
       }}
     >
-      <TableCell className="w-px whitespace-nowrap pe-3">
+      <TableCell className="whitespace-nowrap pe-3">
         {plate.can_cut ? (
           <StatusBadge tone="complete">{t("store.plateOffcut.canCut")}</StatusBadge>
         ) : (
           <StatusBadge tone="warning">{t("store.plateOffcut.cannotCut")}</StatusBadge>
         )}
       </TableCell>
-      <TableCell className="min-w-0">
-        <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+      {/* The only elastic column. Warehouse is the one free-text field here and
+          a name like "Stores - Finished Goods" is unbounded, so it is the thing
+          that gives; serial, batch and heat are short codes and stay whole. */}
+      <TableCell className="truncate">
+        <div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
           <span className="shrink-0 font-medium">{plate.serial}</span>
           {plate.batch_no && (
             <span className="shrink-0 text-xs text-muted-foreground">{plate.batch_no}</span>
           )}
           {plate.warehouse && (
-            <span className="shrink-0 text-xs text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {plate.warehouse}
             </span>
           )}
@@ -129,13 +132,13 @@ function PlateRow({ plate, onSelect }) {
             </span>
           )}
           {!plate.can_cut && plate.blocked_reason && (
-            <span className="truncate text-xs italic text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate text-xs italic text-muted-foreground">
               {plate.blocked_reason}
             </span>
           )}
         </div>
       </TableCell>
-      <TableCell className="w-px whitespace-nowrap text-end tabular-nums ps-3">
+      <TableCell className="whitespace-nowrap text-end tabular-nums ps-3">
         {weightLabel(plate.weight_kg)}
       </TableCell>
     </TableRow>
@@ -184,14 +187,21 @@ function PlatePanel({ group, onClose, onSelect }) {
         {/* The scroll region. min-h-0 is what lets a flex child actually
             scroll instead of growing its parent past the viewport. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <Table>
+          {/* `table-fixed` is what removes the sideways scroll for good. The
+              table is `w-full` and sizes itself from its CONTENT, so one long
+              warehouse name widens every row past the drawer and the panel
+              scrolls horizontally. Fixed layout takes the width from the column
+              definitions instead, and overflow is clipped rather than expanding.
+              Without it, `truncate` does not help either: a flex item's default
+              `min-width: auto` refuses to shrink below its content. */}
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-px whitespace-nowrap pe-3">
+                <TableHead className="w-[6.5rem] whitespace-nowrap pe-3">
                   {t("common.status")}
                 </TableHead>
                 <TableHead>{t("store.plateOffcut.serial")}</TableHead>
-                <TableHead className="w-px whitespace-nowrap text-end ps-3">
+                <TableHead className="w-[6rem] whitespace-nowrap text-end ps-3">
                   {t("store.plateOffcut.sourceWeight")}
                 </TableHead>
               </TableRow>

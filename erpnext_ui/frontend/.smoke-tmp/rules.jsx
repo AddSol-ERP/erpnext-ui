@@ -3052,6 +3052,14 @@ ok(
 // The row is now a grouped child, so the guard and the navigation live in
 // different files: plate-groups decides, available-plates navigates.
 const plateGroupsSrc = readSrc("../../src/pages/Store/plate-offcut/plate-groups.jsx");
+// The drawer's own slice, so a fix in the group list cannot satisfy a guard
+// about the panel (and the reverse).
+// From PlateRow, NOT PlatePanel: the row markup lives above the panel in the
+// file, and slicing from the panel silently excluded the code being asserted.
+const panelSrc = plateGroupsSrc.slice(
+  plateGroupsSrc.indexOf("function PlateRow"),
+  plateGroupsSrc.indexOf("export default function PlateGroups"),
+);
 ok(
   "an uncuttable plate cannot be opened",
   // The plate row lives in the side panel. Radix renders a Sheet through a
@@ -3410,6 +3418,27 @@ ok(
     return bad.length === 0;
   })(),
   "an unsent field is undefined, not an error -- the cell just renders blank",
+);
+
+// ---------------------------------------------------------------------------
+// The plate drawer must not scroll sideways. Not one pixel of it.
+// ---------------------------------------------------------------------------
+// Every span in a plate row was `shrink-0`, so a warehouse named "Stores -
+// Finished Goods" -- free text, unbounded -- widened every row past the drawer
+// and the panel scrolled horizontally. `truncate` alone does not save it either:
+// a flex item's default `min-width: auto` refuses to shrink below its content.
+ok(
+  "the panel table is fixed-width, so content cannot widen it past the drawer",
+  /<Table className="table-fixed">/.test(panelSrc) &&
+    /w-\[6\.5rem\]/.test(panelSrc) &&
+    /w-\[6rem\]/.test(panelSrc),
+  "w-full tables size from their content; one long warehouse name is enough to scroll the panel",
+);
+ok(
+  "warehouse truncates, and the short codes stay whole",
+  /min-w-0 flex-1 truncate text-xs text-muted-foreground/.test(panelSrc) &&
+    /shrink-0 font-medium/.test(panelSrc),
+  "shrink-0 on the free-text field is what makes the row overflow",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);
