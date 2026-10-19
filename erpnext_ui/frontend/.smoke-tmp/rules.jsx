@@ -3831,45 +3831,72 @@ ok(
 // `make_quality_inspection` overwrites it; the SPA does not use that mapper.
 // ---------------------------------------------------------------------------
 {
-  let hooksSource = "";
-  for (const rel of ["../../../hooks.py", "../../../../hooks.py"]) {
-    try {
-      hooksSource = readFileSync(new URL(rel, import.meta.url), "utf8");
-      break;
-    } catch {
-      /* try the next depth */
+  const readUp = (name) => {
+    for (const rel of [`../../../${name}`, `../../../../${name}`]) {
+      try {
+        return readFileSync(new URL(rel, import.meta.url), "utf8");
+      } catch {
+        /* try the next depth */
+      }
     }
-  }
-  const repairSrc = apiSource.slice(
-    apiSource.indexOf("def repair_inspected_by"),
-    apiSource.indexOf("def repair_inspected_by") + 1400,
+    return "";
+  };
+  const hooksSource = readUp("hooks.py");
+  const overridesSource = readUp("overrides.py");
+  const overrideClass = overridesSource.slice(
+    overridesSource.indexOf("class QualityInspection"),
+    overridesSource.indexOf("class QualityInspection") + 4000,
+  );
+  const insertBody = overrideClass.slice(
+    overrideClass.indexOf("def insert"),
+    overrideClass.indexOf("def insert") + 600,
   );
 
   ok(
-    "the Quality Inspection repair is actually wired into doc_events",
-    /"Quality Inspection":\s*\{[\s\S]{0,120}"before_validate":\s*"erpnext_ui\.api\.repair_inspected_by"/.test(
-      hooksSource,
-    ),
-    "the handler existing is not the same as it running; nothing here would notice an unwired one",
+    "the repair is wired through override_doctype_class",
+    /"Quality Inspection":\s*"erpnext_ui\.overrides\.QualityInspection"/.test(hooksSource) &&
+      /class QualityInspection\(StockQualityInspection\)/.test(overridesSource),
+    "the class existing is not the same as Frappe using it -- get_controller only honours override_doctype_class",
+  );
+
+  // The regression this guards: fixing it with a `doc_events` hook reads
+  // naturally and is silently useless. Document.insert calls _validate_links
+  // at document.py:302, ahead of before_insert (303) and
+  // run_before_save_methods (309), and before_validate does not run on create
+  // at all -- it is gated on `_action in ("save", "submit")`. So the repair has
+  // to be an `insert` override, ahead of super().
+  ok(
+    "the repair is an insert() override, not a hook",
+    /def insert\(self/.test(overrideClass) &&
+      insertBody.indexOf("_repair_inspected_by") !== -1 &&
+      insertBody.indexOf("_repair_inspected_by") <
+        insertBody.indexOf("super().insert"),
+    "_validate_links raises before ANY hook runs, so a before_insert/before_validate handler is already too late on create",
   );
   ok(
-    "before_validate, not before_insert -- a draft already carrying \"user\" must be repairable too",
-    /"before_validate"/.test(hooksSource) && !/Quality Inspection[\s\S]{0,200}"before_insert"/.test(hooksSource),
-    "before_insert alone leaves an already-saved draft failing the same link check on every re-save",
+    "no hook-only repair is left behind in api.py",
+    !/def repair_inspected_by/.test(apiSource),
+    "the superseded handler is dead code that reads as if it were doing the work",
+  );
+  ok(
+    "the update and submit path is covered too",
+    /def before_validate\(self\)/.test(overrideClass),
+    "a draft already carrying \"user\" fails the same link check on every re-save",
   );
   // The overwrite has to be NARROW. Setting this unconditionally would quietly
   // rewrite who performed the inspection to whoever last saved the document,
   // which for an audit field is worse than the bug being fixed.
   ok(
     "the repair replaces only the broken value, never a real user",
-    /current\.lower\(\) in \("", "user"\)/.test(repairSrc) &&
-      /doc\.inspected_by = frappe\.session\.user/.test(repairSrc),
+    /current\.lower\(\) in \("", "user"\)/.test(overrideClass) &&
+      /self\.inspected_by = frappe\.session\.user/.test(overrideClass),
     "an inspection done on someone else's behalf must survive; blanket-assigning session.user destroys that",
   );
   ok(
     "identity comes from the session, never from the client",
-    /frappe\.session\.user/.test(repairSrc) && !/doc\.get\("inspected_by"\)|form_dict/.test(repairSrc),
-    "reading inspected_by off form_dict would let any caller assert who performed the inspection",
+    /frappe\.session\.user/.test(overrideClass) &&
+      !/form_dict/.test(overrideClass) && !/frappe\.request\.args|get\("inspected_by"\)/.test(overrideClass),
+    "reading inspected_by off the request would let any caller assert who performed the inspection",
   );
 }
 

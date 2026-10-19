@@ -140,14 +140,18 @@ app_include_js = ["/assets/erpnext_ui/js/addsol_ui_nav.js"]
 # ---------------
 # Hook on document methods and events
 
-doc_events = {
-	# Quality Inspection's `inspected_by` default is the literal string "user",
-	# which is not a User id, so a direct REST insert fails link validation. The
-	# desk hides this because `make_quality_inspection` overwrites it; we do not
-	# go through that mapper. See the comment on the handler for the full story.
-	"Quality Inspection": {
-		"before_validate": "erpnext_ui.api.repair_inspected_by"
-	}
+# Quality Inspection's `inspected_by` default is the literal string "user",
+# which is not a User id, so a direct REST insert dies in `_validate_links` with
+# `LinkValidationError: Could not find Inspected By: user`.
+#
+# This is an `override_doctype_class` and NOT a `doc_events` hook on purpose.
+# `Document.insert` calls `_validate_links()` at document.py:302, ahead of both
+# `before_insert` (303) and `run_before_save_methods` (309) -- and
+# `before_validate` does not run at all on create, since it is gated on
+# `_action in ("save", "submit")`. So no hook can run early enough. Overriding
+# `insert` can. See erpnext_ui/overrides.py for the full account.
+override_doctype_class = {
+	"Quality Inspection": "erpnext_ui.overrides.QualityInspection"
 }
 
 # Scheduled Tasks
