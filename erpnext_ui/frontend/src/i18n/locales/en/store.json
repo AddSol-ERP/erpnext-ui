@@ -626,7 +626,6 @@
       "heatNumber": "Heat Number",
       "warehouse": "Warehouse",
       "plateSize": "Size (mm)",
-      "plateWeight": "Plate Weight",
       "offcutsTitle": "Offcuts",
       "noOffcutsYet": "Add at least one offcut. A plate booked straight to scrap is not a cutting.",
       "length": "Length (mm)",

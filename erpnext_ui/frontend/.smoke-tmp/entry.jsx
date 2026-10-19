@@ -39,6 +39,10 @@ const FORMS = [
   { label: "Expense Claim", path: "/requests/expense", C: ExpenseClaimForm },
   { label: "GenericForm", path: "/g/purchase-order/new", C: GenericForm },
   { label: "Plate Offcut", path: "/store/plate-offcut/new", C: PlateOffcutForm },
+  // The prefill path: a plate chosen on the Available tab arrives as ?serial=,
+  // which seeds the document, seeds a first row, and is what makes the compact
+  // plate confirmation line render at all. Nothing else here covers it.
+  { label: "Plate Offcut prefilled", path: "/store/plate-offcut/new", entry: "/store/plate-offcut/new?serial=PL-000008", C: PlateOffcutForm, only: true },
   // Every tab, not just the default. The hub picks ONE panel from the `?tab=`
   // query param and only that panel mounts -- which is the right behaviour and
   // also meant the two non-default panels were never rendered here at all. A

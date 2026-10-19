@@ -347,6 +347,29 @@ export default function PlateOffcutForm() {
     [rows],
   );
 
+  // Plate weight for the confirmation line. The estimate is authoritative while
+  // the form is live; the saved document carries it otherwise.
+  const sourceWeightKg =
+    num(estimate?.source_weight_kg) || num(doc?.source_weight_kg);
+
+  // Confirmation of the chosen plate, in the order an operator checks it before
+  // the saw. Empty while the plate is unset, and briefly empty after a choice
+  // but before the estimate answers -- which is why the container is only
+  // rendered when there is something in it, rather than reserving a row of
+  // dead space.
+  const plateSummary = doc?.source_serial_no
+    ? [
+        geometry?.length_mm
+          ? `${geometry.length_mm} x ${geometry.width_mm} x ${geometry.thickness_mm} mm`
+          : "",
+        sourceWeightKg > 0 ? `${sourceWeightKg.toFixed(3)} Kg` : "",
+        doc.heat_number,
+        doc.warehouse,
+        doc.source_item,
+        doc.source_batch,
+      ].filter(Boolean)
+    : [];
+
   const submitted = Boolean(doc?.docstatus);
   const pieces = pieceTotal(rows);
   const over = num(estimate?.over_by_kg);
@@ -433,33 +456,26 @@ export default function PlateOffcutForm() {
         </FormField>
 
         {/* Everything below is DERIVED by the server from the serial
-            (PlateOffcut.set_source) and shown for confirmation only. */}
-        <ReadOnly
-          label={t("store.plateOffcut.sourceItem")}
-          value={doc?.source_item}
-        />
-        <ReadOnly label={t("store.plateOffcut.batch")} value={doc?.source_batch} />
-        <ReadOnly label={t("store.plateOffcut.heatNumber")} value={doc?.heat_number} />
-        <ReadOnly label={t("store.plateOffcut.warehouse")} value={doc?.warehouse} />
-        <ReadOnly
-          label={t("store.plateOffcut.plateSize")}
-          value={
-            geometry?.length_mm
-              ? `${geometry.length_mm} x ${geometry.width_mm} mm`
-              : ""
-          }
-        />
-        <ReadOnly
-          label={t("store.plateOffcut.plateWeight")}
-          value={
-            estimate?.source_weight_kg !== undefined &&
-            estimate?.source_weight_kg !== null
-              ? `${estimate.source_weight_kg} Kg`
-              : doc?.source_weight_kg
-                ? `${doc.source_weight_kg} Kg`
-                : ""
-          }
-        />
+            (PlateOffcut.set_source) and is shown only to confirm what is about
+            to be cut. It was six labelled fields in a three-column grid -- three
+            full rows to restate the plate -- which pushed the offcut rows and
+            the diagram below the fold. This form exists to cut a plate, so the
+            confirmation is one line, ordered by what the operator checks before
+            the saw: size, then the weight that becomes the scrap budget, then
+            the heat for traceability. */}
+        {plateSummary.length ? (
+          <div
+            className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground md:col-span-2"
+            data-testid="plate-summary"
+          >
+            {plateSummary.map((part, i) => (
+              <span key={part} className="flex items-baseline gap-2">
+                {i > 0 && <span aria-hidden="true">&middot;</span>}
+                <span className="truncate">{part}</span>
+              </span>
+            ))}
+          </div>
+        ) : null}
       </FormSection>
 
       {/* OVERAGE -- a warning, never a block. `over_by_kg` comes from the
@@ -727,19 +743,6 @@ function expandForSave(row) {
     out.push(child);
   }
   return out;
-}
-
-function ReadOnly({ label, value }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <span className="flex h-8 items-center truncate text-sm text-muted-foreground">
-        {value || "—"}
-      </span>
-    </div>
-  );
 }
 
 function Total({ label, value }) {

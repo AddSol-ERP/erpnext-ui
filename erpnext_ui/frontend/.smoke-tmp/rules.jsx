@@ -3441,5 +3441,42 @@ ok(
   "shrink-0 on the free-text field is what makes the row overflow",
 );
 
+// ---------------------------------------------------------------------------
+// The form is for cutting a plate. The plate confirmation must not cost a screen.
+// ---------------------------------------------------------------------------
+// "Basic Information" was one input plus SIX derived read-only fields in a
+// three-column grid: three full rows restating the plate, which pushed the
+// offcut rows and the diagram below the fold on a laptop and entirely off it on
+// a phone. Everything there is derived server-side (PlateOffcut.set_source) and
+// exists only to confirm what is about to be cut.
+ok(
+  "the derived plate facts are one confirmation line, not six stacked fields",
+  /const plateSummary = doc\?\.source_serial_no/.test(offcutFormSrc) &&
+    /data-testid="plate-summary"/.test(offcutFormSrc) &&
+    !/<ReadOnly/.test(offcutFormSrc) &&
+    !/function ReadOnly/.test(offcutFormSrc),
+  "three rows to restate the plate is the opposite of what this form is for",
+);
+ok(
+  "the confirmation line is ordered by what is checked before the saw",
+  (() => {
+    const i = offcutFormSrc.indexOf("const plateSummary");
+    const block = offcutFormSrc.slice(i, offcutFormSrc.indexOf("]", i));
+    const sizeAt = block.indexOf("geometry.length_mm");
+    const weightAt = block.indexOf("sourceWeightKg");
+    const heatAt = block.indexOf("heat_number");
+    return sizeAt >= 0 && weightAt > sizeAt && heatAt > weightAt;
+  })(),
+  "size, then the weight that becomes the scrap budget, then heat for traceability",
+);
+// A choice with no estimate yet produces an empty list, and an empty container
+// reserves a row of dead space -- which is the very thing this change removed.
+ok(
+  "an empty confirmation reserves no space",
+  /plateSummary\.length \?/.test(offcutFormSrc) &&
+    /doc\?\.source_serial_no\s*\?\s*\[/.test(offcutFormSrc),
+  "a permanently empty row is the same cost as the six fields it replaced",
+);
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
