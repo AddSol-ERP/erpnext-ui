@@ -83,43 +83,60 @@ function GroupStatus({ blocked }) {
 /**
  * One plate, inside the panel.
  *
- * A plate that cannot be cut is shown with the reason under its badge and is not
- * clickable: selecting it opens the cutting form, and a plate with no recorded
- * weight cannot be cut, so making it selectable would only produce a save that
- * fails.
+ * ONE LINE per plate. The row used to carry four columns and stack the status
+ * badge above its reason, which made every blocked plate two lines tall and
+ * pushed the table wide enough to scroll sideways in a panel -- the exact thing
+ * a drawer for picking a serial out of must not do. Serial, batch, warehouse
+ * and heat now sit on one line and only that line truncates; the weight never
+ * wraps. A blocked plate keeps its reason inline as muted text, so it stays one
+ * line AND still says why.
+ *
+ * A plate that cannot be cut is shown with that reason and is not clickable:
+ * selecting it opens the cutting form, and a plate with no recorded weight
+ * cannot be cut, so making it selectable would only produce a save that fails.
  */
 function PlateRow({ plate, onSelect }) {
   const { t } = useTranslation();
   return (
     <TableRow
-      className={cn("hover:bg-muted/40", plate.can_cut && "cursor-pointer")}
+      className={cn("h-9 hover:bg-muted/40", plate.can_cut && "cursor-pointer")}
+      title={plate.can_cut ? undefined : plate.blocked_reason}
       onClick={() => {
         if (plate.can_cut) onSelect(plate);
       }}
     >
-      <TableCell>
-        <span className="font-medium">{plate.serial}</span>
-        {plate.batch_no && (
-          <span className="ms-2 text-xs text-muted-foreground">{plate.batch_no}</span>
-        )}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {plate.warehouse || "—"}
-        {plate.heat_number ? ` • ${plate.heat_number}` : ""}
-      </TableCell>
-      <TableCell className="text-end tabular-nums">{weightLabel(plate.weight_kg)}</TableCell>
-      <TableCell className="text-end">
+      <TableCell className="w-px whitespace-nowrap pe-3">
         {plate.can_cut ? (
           <StatusBadge tone="complete">{t("store.plateOffcut.canCut")}</StatusBadge>
         ) : (
-          <span
-            className="inline-flex flex-col items-end text-xs text-muted-foreground"
-            title={plate.blocked_reason}
-          >
-            <StatusBadge tone="warning">{t("store.plateOffcut.cannotCut")}</StatusBadge>
-            <span className="mt-0.5 max-w-[24ch] truncate">{plate.blocked_reason}</span>
-          </span>
+          <StatusBadge tone="warning">{t("store.plateOffcut.cannotCut")}</StatusBadge>
         )}
+      </TableCell>
+      <TableCell className="min-w-0">
+        <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+          <span className="shrink-0 font-medium">{plate.serial}</span>
+          {plate.batch_no && (
+            <span className="shrink-0 text-xs text-muted-foreground">{plate.batch_no}</span>
+          )}
+          {plate.warehouse && (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {plate.warehouse}
+            </span>
+          )}
+          {plate.heat_number && (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {plate.heat_number}
+            </span>
+          )}
+          {!plate.can_cut && plate.blocked_reason && (
+            <span className="truncate text-xs italic text-muted-foreground">
+              {plate.blocked_reason}
+            </span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="w-px whitespace-nowrap text-end tabular-nums ps-3">
+        {weightLabel(plate.weight_kg)}
       </TableCell>
     </TableRow>
   );
@@ -128,10 +145,12 @@ function PlateRow({ plate, onSelect }) {
 /**
  * The plates behind one item.
  *
- * `sm:max-w-xl` rather than full width: this is a list to pick a serial out of,
- * not a page to work in, and a full-width sheet would hide the group list it
- * was opened from. The body scrolls on its own, so a 200-plate item is bounded
- * by the viewport rather than growing the page.
+ * Bounded at sm:max-w-2xl rather than full width on a desktop: this is a list
+ * to pick a serial out of, and a full-width sheet would hide the group list it
+ * was opened from. Below `sm` it takes the WHOLE screen, because the
+ * primitive's default `w-3/4` leaves a phone around 280px -- too narrow for the
+ * rows, which then scrolled sideways. The body scrolls on its own, so a
+ * 200-plate item is bounded by the viewport rather than growing the page.
  */
 function PlatePanel({ group, onClose, onSelect }) {
   const { t } = useTranslation();
@@ -139,10 +158,18 @@ function PlatePanel({ group, onClose, onSelect }) {
 
   return (
     <Sheet open={!!group} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex max-w-full flex-col sm:max-w-xl">
+      {/* `data-[side=right]:` prefixed deliberately. The primitive sets
+          `data-[side=right]:w-3/4 sm:max-w-sm`, and a PLAIN `w-full` would not
+          override a variant utility -- both would survive, and on a 375px phone
+          the variant won: 75% of the screen, ~281px, which is why four columns
+          scrolled sideways. Full width on a phone, a comfortable drawer above. */}
+      <SheetContent
+        side="right"
+        className="flex flex-col data-[side=right]:w-full sm:data-[side=right]:max-w-2xl"
+      >
         <SheetHeader>
           <SheetTitle className="truncate">{group.item_code}</SheetTitle>
-          <SheetDescription>
+          <SheetDescription className="flex flex-wrap gap-x-2">
             {[
               sizeLabel(group),
               t("store.plateOffcut.plateCount", { count: group.plate_count }),
@@ -160,12 +187,13 @@ function PlatePanel({ group, onClose, onSelect }) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-px whitespace-nowrap pe-3">
+                  {t("common.status")}
+                </TableHead>
                 <TableHead>{t("store.plateOffcut.serial")}</TableHead>
-                <TableHead>{t("store.plateOffcut.warehouse")}</TableHead>
-                <TableHead className="text-end">
+                <TableHead className="w-px whitespace-nowrap text-end ps-3">
                   {t("store.plateOffcut.sourceWeight")}
                 </TableHead>
-                <TableHead className="text-end">{t("common.status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

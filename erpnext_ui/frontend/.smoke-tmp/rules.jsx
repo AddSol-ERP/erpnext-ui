@@ -3322,7 +3322,9 @@ ok(
 ok(
   "plates open in a panel that scrolls, and nothing expands in place",
   /function PlatePanel/.test(plateGroupsSrc) &&
-    /<SheetContent side="right"/.test(plateGroupsSrc) &&
+    // `\s+`, not a literal space: the prop moved onto its own line when the
+  // width classes were added, and an exact-space match silently stopped matching.
+  /<SheetContent\s+side="right"/.test(plateGroupsSrc) &&
     /min-h-0 flex-1 overflow-y-auto overscroll-contain/.test(plateGroupsSrc) &&
     !/const expandable/.test(plateGroupsSrc) &&
     // The Set-of-open-groups pattern in any form. `open.has(group.x)` alone was
@@ -3333,11 +3335,43 @@ ok(
     !/setOpen\(\(prev\)/.test(plateGroupsSrc),
   "min-h-0 is what lets a flex child scroll instead of growing past the viewport",
 );
+// The primitive sets `data-[side=right]:w-3/4 sm:max-w-sm`, so on a 375px
+// phone the drawer was 75% of the screen -- about 280px -- and four columns
+// scrolled sideways inside it. A PLAIN `w-full` does not fix that: it is a
+// different variant group, both utilities survive, and the variant wins.
 ok(
-  "the panel is bounded, and selecting closes it before navigating",
-  /sm:max-w-xl/.test(plateGroupsSrc) &&
-    /setOpen\(null\);[\s\S]{0,40}onSelect\(plate\)/.test(plateGroupsSrc),
-  "a full-width sheet covers the list it was opened from",
+  "the drawer fills a phone and is wider than sm on a desktop",
+  /data-\[side=right\]:w-full/.test(plateGroupsSrc) &&
+    /sm:data-\[side=right\]:max-w-2xl/.test(plateGroupsSrc) &&
+    !/sm:max-w-xl/.test(plateGroupsSrc),
+  "a plain w-full loses to the primitive's w-3/4 variant, leaving 280px on a phone",
+);
+ok(
+  "the panel's rows fit without a sideways scrollbar",
+  (() => {
+    const panel = plateGroupsSrc.slice(
+      plateGroupsSrc.indexOf("function PlatePanel"),
+      plateGroupsSrc.indexOf("export default function PlateGroups"),
+    );
+    // `<TableHeader` also matches a `<TableHead` prefix, so count with a space.
+    const heads = panel.match(/<TableHead[\s>]/g) || [];
+    return heads.length === 3 && !/overflow-x-auto/.test(panel);
+  })(),
+  "four columns plus a stacked badge and reason overflowed the drawer",
+);
+ok(
+  "a plate row is one line, and a blocked plate keeps its reason on that line",
+  /function PlateRow[\s\S]*?h-9 hover:bg-muted\/40/.test(plateGroupsSrc) &&
+    /whitespace-nowrap text-end tabular-nums ps-3/.test(plateGroupsSrc) &&
+    // the reason is inline + truncated, NOT a second stacked line
+    !/max-w-\[24ch\] truncate/.test(plateGroupsSrc) &&
+    /truncate text-xs italic text-muted-foreground/.test(plateGroupsSrc),
+  "a two-line row per plate doubles the scroll for no extra information",
+);
+ok(
+  "selecting a plate closes the drawer before navigating",
+  /setOpen\(null\);[\s\S]{0,40}onSelect\(plate\)/.test(plateGroupsSrc),
+  "navigating with the sheet still open leaves the overlay over the next screen",
 );
 // Radix renders a Sheet through a Portal, so renderToString produces an empty
 // string for it. That is why the panel's contents are asserted on the source
