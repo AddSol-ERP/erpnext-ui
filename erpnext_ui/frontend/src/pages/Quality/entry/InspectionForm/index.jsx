@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 import { useToast } from "../../../../context/ToastContext";
 import { get } from "../../../../services/api";
-import { saveDocument } from "../../../../lib/docTransition";
+import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import { ClipboardList } from "lucide-react";
@@ -77,7 +77,25 @@ export default function InspectionForm() {
     reference_type: "",
     reference_name: "",
     sample_size: DEFAULT_SAMPLE_SIZE,
+    // ERPNext makes a submitted Quality Inspection read-only. It was never
+    // tracked here, so `!doc.docstatus` was ALWAYS true -- the header had no
+    // way to tell a draft from a submitted document.
+    docstatus: 0,
   });
+  // Event-based, never diff-based. Diffing would leave Save permanently hidden,
+  // because effects also write to `doc` (loadDoc, the post-submit docstatus
+  // bump) and those are not edits.
+  const [dirty, setDirty] = useState(false);
+
+  /*
+   * Every edit goes through here, so a new field cannot be added without
+   * becoming dirty. The alternative -- calling setDirty at each onChange -- is
+   * how the Purchase Receipt form ended up needing an audit.
+   */
+  const updateDoc = (patch) => {
+    setDoc((prev) => ({ ...prev, ...patch }));
+    setDirty(true);
+  };
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
@@ -101,6 +119,9 @@ export default function InspectionForm() {
 
   /* ================= CALC ================= */
   const updateReading = (pi, vi, value) => {
+    // A reading is an edit. Without this, filling in the numbers that decide
+    // the inspection's status left the document clean and Save hidden.
+    setDirty(true);
     const updated = [...parameters];
     const p = updated[pi];
 
@@ -154,7 +175,7 @@ export default function InspectionForm() {
    * deleted. It is the one field in this form that can silently become wrong.
    */
   const handleReferenceTypeChange = (reference_type) => {
-    setDoc({ ...doc, reference_type, reference_name: "" });
+    updateDoc({ reference_type, reference_name: "" });
     setFieldErrors((prev) => ({ ...prev, reference_type: "", reference_name: "" }));
   };
 
@@ -174,6 +195,7 @@ export default function InspectionForm() {
       reference_type: d.reference_type || "",
       reference_name: d.reference_name || "",
       sample_size: d.sample_size ?? DEFAULT_SAMPLE_SIZE,
+      docstatus: d.docstatus ?? 0,
     });
 
     const templateRes = await get(
@@ -213,7 +235,7 @@ export default function InspectionForm() {
 
   /* ================= TEMPLATE LOAD ================= */
   const handleTemplateChange = async (template) => {
-    setDoc({ ...doc, template });
+    updateDoc({ template });
 
     const res = await get(`resource/Quality Inspection Template/${template}`);
 
@@ -249,27 +271,43 @@ export default function InspectionForm() {
     parametersRef.current = parameters;
   });
 
+  /*
+   * Save and Submit have OPPOSITE conditions and must not share one `if` --
+   * the same correction made on the Plate Offcut form.
+   */
+  const canSave = !doc.docstatus && (dirty || !isEdit);
+  const canSubmit = !doc.docstatus && !dirty && isEdit;
+
+  /**
+   * The posted document. One builder, shared by Save and Submit.
+   *
+   * It used to be inlined in the save handler, which left nothing for Submit
+   * to reuse -- so Submit was given its own copy, drifted, and ended up
+   * omitting the four mandatory header fields.
+   */
+  const payloadFrom = (current) => ({
+    item_code: current.item_code,
+    quality_inspection_template: current.template,
+    // Mandatory on the doctype. Omitting them produced
+    // `MandatoryError: [Quality Inspection, ...]: inspection_type,
+    // reference_type, reference_name, sample_size`.
+    inspection_type: current.inspection_type,
+    reference_type: current.reference_type,
+    reference_name: current.reference_name,
+    sample_size: Number(current.sample_size) || DEFAULT_SAMPLE_SIZE,
+    status: overallStatusRef.current,
+    readings: parametersRef.current.map((p) => ({
+      specification: p.parameter,
+      reading_1: p.values[0] || "",
+      reading_2: p.values[1] || "",
+      reading_3: p.values[2] || "",
+      status: p.status,
+    })),
+  });
+
   const handleSave = async () => {
     const current = docRef.current;
-    const payload = {
-      item_code: current.item_code,
-      quality_inspection_template: current.template,
-      // Mandatory on the doctype. Omitting them produced
-      // `MandatoryError: [Quality Inspection, ...]: inspection_type,
-      // reference_type, reference_name, sample_size`.
-      inspection_type: current.inspection_type,
-      reference_type: current.reference_type,
-      reference_name: current.reference_name,
-      sample_size: Number(current.sample_size) || DEFAULT_SAMPLE_SIZE,
-      status: overallStatusRef.current,
-      readings: parametersRef.current.map((p) => ({
-        specification: p.parameter,
-        reading_1: p.values[0] || "",
-        reading_2: p.values[1] || "",
-        reading_3: p.values[2] || "",
-        status: p.status,
-      })),
-    };
+    const payload = payloadFrom(current);
 
     // A failed save has to be LOUD. This used to call saveDocument bare, so the
     // rejection escaped an async event handler, the only trace was an
@@ -326,6 +364,67 @@ export default function InspectionForm() {
     }
   };
 
+  /* ================= SUBMIT ================= */
+
+  /**
+   * Save, then submit. Never just save.
+   *
+   * The header's Submit action used to call `handleSave`, so it saved a second
+   * time and reported success with a toast that said "created successfully"
+   * while leaving the document at docstatus 0. The user had no way to tell the
+   * two apart, because both buttons did exactly the same thing.
+   *
+   * `submitDocument` is called with NO `doc`, so it fetches the stored document
+   * and posts that to `frappe.client.submit` -- which takes the WHOLE document,
+   * not `{doctype, name}`. Passing our trimmed payload instead would submit a
+   * partial document.
+   */
+  const handleSubmit = async () => {
+    const current = docRef.current;
+
+    const errs = requiredFields(
+      current,
+      {
+        inspection_type: t("quality.inspectionType"),
+        reference_type: t("quality.referenceType"),
+        reference_name: t("quality.referenceName"),
+        sample_size: t("quality.sampleSize"),
+      },
+      t,
+    );
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      const list = errorList(errs);
+      setError(list.length > 1 ? t("common.fixErrors") : list[0]);
+      requestAnimationFrame(() => focusFirstError(errs));
+      return;
+    }
+    setError("");
+
+    setSaving(true);
+    try {
+      // Save first: on a NEW form there is nothing stored to submit yet, and on
+      // an edited draft the stored copy is not what the user just corrected.
+      const saved = await saveDocument({
+        doctype: "Quality Inspection",
+        name: isEdit ? name : undefined,
+        doc: payloadFrom(current),
+      });
+      const savedName = saved.data.name;
+      await submitDocument({ doctype: "Quality Inspection", name: savedName });
+      setDoc({ ...current, docstatus: 1, name: savedName });
+      setDirty(false);
+      toast.success(
+        t("common.submittedSuccess", { name: "Quality Inspection" }),
+      );
+      navigate("/quality/inspection");
+    } catch (e) {
+      toast.error(e.message || t("common.submitFailed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   /* ================= HEADER ================= */
   useEffect(() => {
     setHeader({
@@ -346,8 +445,17 @@ export default function InspectionForm() {
         },
       ],
 
+      // A submitted Quality Inspection is READ-ONLY in ERPNext (docstatus 1,
+      // allow_on_submit is not set on any editable field here). Offering Save
+      // and Submit on one is not just misleading -- Save would be rejected by
+      // the server, and the user would have no way to tell that from a real
+      // save.
+      //
+      // Save is also gated on `dirty`, and Submit on `!dirty`: they are
+      // opposite conditions, since Submit acts on the STORED document and must
+      // not run against edits that were never saved.
       actions: [
-        {
+        canSave && {
           label: t("common.save"),
           variant: "btn-success",
           onClick: handleSave,
@@ -357,12 +465,14 @@ export default function InspectionForm() {
           disabled: saving,
         },
 
-        isEdit &&
-          !doc.docstatus && {
-            label: t("common.submit"),
-            variant: "btn-primary",
-            onClick: handleSave,
-          },
+        canSubmit && {
+          label: t("common.submit"),
+          variant: "btn-primary",
+          // Was `handleSave`, so "Submit" saved a second time and toasted
+          // "created successfully" while leaving the document at docstatus 0.
+          onClick: handleSubmit,
+          disabled: saving,
+        },
       ].filter(Boolean),
     });
 
@@ -407,7 +517,7 @@ export default function InspectionForm() {
             <LinkField
               doctype="Item"
               value={doc.item_code}
-              onChange={(v) => setDoc({ ...doc, item_code: v })}
+              onChange={(v) => updateDoc({ item_code: v })}
             />
           </FormField>
 
@@ -419,7 +529,7 @@ export default function InspectionForm() {
             <FormSelect
               value={doc.inspection_type}
               onChange={(v) => {
-                setDoc({ ...doc, inspection_type: v });
+                updateDoc({ inspection_type: v });
                 setFieldErrors((p) => ({ ...p, inspection_type: "" }));
               }}
               placeholder={t("quality.selectType")}
@@ -458,7 +568,7 @@ export default function InspectionForm() {
               doctype={doc.reference_type || undefined}
               value={doc.reference_name}
               onChange={(v) => {
-                setDoc({ ...doc, reference_name: v });
+                updateDoc({ reference_name: v });
                 setFieldErrors((p) => ({ ...p, reference_name: "" }));
               }}
               disabled={!doc.reference_type}
@@ -487,7 +597,7 @@ export default function InspectionForm() {
               className="h-8"
               value={doc.sample_size}
               onChange={(e) => {
-                setDoc({ ...doc, sample_size: e.target.value });
+                updateDoc({ sample_size: e.target.value });
                 setFieldErrors((p) => ({ ...p, sample_size: "" }));
               }}
             />

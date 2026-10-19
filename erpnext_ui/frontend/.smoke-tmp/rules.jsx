@@ -4011,8 +4011,8 @@ ok(
   );
 
   const saveBody = qiFormSrc.slice(
-    qiFormSrc.indexOf("const payload = {"),
-    qiFormSrc.indexOf("const payload = {") + 900,
+    qiFormSrc.indexOf("const payloadFrom = (current) => ({"),
+    qiFormSrc.indexOf("const payloadFrom = (current) => ({") + 900,
   );
   ok(
     "all four mandatory fields are in the save payload",
@@ -4033,7 +4033,7 @@ ok(
   // Receipt with a Delivery Note and ERPNext reports it as a missing document.
   ok(
     "changing the reference type clears the reference name",
-    /const handleReferenceTypeChange[\s\S]{0,400}setDoc\(\{ \.\.\.doc, reference_type, reference_name: "" \}\)/.test(
+    /const handleReferenceTypeChange[\s\S]{0,400}updateDoc\(\{ reference_type, reference_name: "" \}\)/.test(
       qiFormSrc,
     ),
     "a stale reference is reported as \"Could not find Reference Name\" -- naming the document, so it reads as if it were deleted",
@@ -4067,6 +4067,38 @@ ok(
     ),
     "an inspection that loads valid and then fails mandatory validation on save is indistinguishable from a broken server",
   );
+  // Save and Submit were two hand-written copies of the payload. Submit drifted
+  // and simply called handleSave, so it re-saved and toasted "created
+  // successfully" while leaving the document at docstatus 0.
+  ok(
+    "Save and Submit share one payload builder, so they cannot drift",
+    (qiFormSrc.match(/payloadFrom\(current\)/g) || []).length >= 2 &&
+      /const payload = payloadFrom\(current\);/.test(qiFormSrc) &&
+      /doc: payloadFrom\(current\),/.test(qiFormSrc),
+    "two copies meant Submit could post a document Save would refuse",
+  );
+  ok(
+    "the Submit action actually submits",
+    /submitDocument\(\{ doctype: "Quality Inspection", name: savedName \}\)/.test(qiFormSrc) &&
+      /label: t\("common\.submit"\),[\s\S]{0,200}onClick: handleSubmit/.test(qiFormSrc),
+    "Submit used to call handleSave -- a second save that reported success and submitted nothing",
+  );
+  // A submitted Quality Inspection is read-only; offering Save on one is a
+  // button that can only fail.
+  ok(
+    "both actions are hidden once the document is submitted",
+    /const canSave = !doc\.docstatus &&/.test(qiFormSrc) &&
+      /const canSubmit = !doc\.docstatus &&/.test(qiFormSrc) &&
+      /docstatus: d\.docstatus \?\? 0/.test(qiFormSrc),
+    "docstatus was never tracked, so `!doc.docstatus` was always true and a submitted document looked like a draft",
+  );
+  ok(
+    "every field edit goes through the single dirty funnel",
+    /const updateDoc = \(patch\)[\s\S]{0,200}setDirty\(true\)/.test(qiFormSrc) &&
+      (qiFormSrc.match(/updateDoc\(\{/g) || []).length >= 6,
+    "a new field added without setDirty would leave Save hidden and the edit unreachable",
+  );
+
   ok(
     "the four fields are checked before the save is attempted",
     /const errs = requiredFields\([\s\S]{0,300}inspection_type[\s\S]{0,300}reference_name[\s\S]{0,400}return;/.test(
