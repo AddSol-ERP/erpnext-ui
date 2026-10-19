@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
@@ -39,9 +39,11 @@ import {
   ESTIMATE_DEBOUNCE_MS,
   fetchEstimate,
   pieceTotal,
+  minOffcut,
   plateGeometry,
   serverReason,
 } from "../estimate";
+import { isComplete, rowIssues } from "../../../../lib/offcutIssues";
 
 const DOCTYPE = "Plate Offcut";
 
@@ -248,19 +250,83 @@ export default function PlateOffcutForm() {
   );
 
   /* ------------------------------------------------------------ validation */
+  // The plate's real size, from the estimate. Declared here rather than in the
+  // derived block below because `fits` needs it, and a row must not be judged
+  // against a plate whose size is not known yet.
+  const geometry = estimate?.geometry;
+
+  // PER ROW, keyed by `_rid` rather than by position: a single shared message
+  // reported only the FIRST bad row, so two wrong rows produced one complaint
+  // about the earlier one. `_rid` also survives expansion and reordering, which
+  // an index would not.
+  //
+  // Live issues are only `tooBig` / `tooSmall`, and only on a COMPLETE row. A
+  // half-typed row is incomplete, not invalid -- otherwise passing through
+  // 25000 on the way to 2500 would flash an error on a correct entry. Gaps are
+  // reported by `validate()` when the operator actually tries to save.
+  const liveIssues = useMemo(() => {
+    const map = new Map();
+    if (!geometry || !geometry.length_mm) return map;
+    for (const row of rows) {
+      if (!isComplete(row)) continue;
+      const issues = rowIssues(row, geometry, minOffcut(estimate));
+      if (issues.length) map.set(row._rid, issues);
+    }
+    return map;
+  }, [rows, geometry, estimate]);
+
+  // What the operator is told, in their language. Kept beside the predicates so
+  // adding an issue code is one place, not two.
+  const issueText = useCallback(
+    (row, code) => {
+      const l = num(row?.length_mm);
+      const w = num(row?.width_mm);
+      const plate = geometry
+        ? `${num(geometry.length_mm)} x ${num(geometry.width_mm)} mm`
+        : "";
+      switch (code) {
+        case "missing":
+          return t("store.plateOffcut.errRowSize");
+        case "tooBig":
+          return t("store.plateOffcut.errRowTooBig", {
+            length: l,
+            width: w,
+            plate,
+          });
+        case "tooSmall":
+          return t("store.plateOffcut.errRowTooSmall", {
+            length: l,
+            width: w,
+          });
+        default:
+          return "";
+      }
+    },
+    [geometry, t],
+  );
+
   const validate = useCallback(() => {
     const errors = {};
     if (!doc?.source_serial_no) errors.source_serial_no = t("store.plateOffcut.errNoSerial");
     if (!rows.length) errors.offcuts = t("store.plateOffcut.errNoOffcuts");
-    rows.forEach((r, i) => {
-      if (!(num(r.length_mm) > 0) || !(num(r.width_mm) > 0)) {
-        errors.offcuts =
-          errors.offcuts ||
-          t("store.plateOffcut.errRowSize", { row: i + 1 });
+    // Save is where incompleteness is judged: before that, an empty row is
+    // simply a row being filled in.
+    rows.forEach((row) => {
+      if (!isComplete(row)) {
+        errors.rows = errors.rows || {};
+        errors.rows[row._rid] = ["missing"];
+        return;
+      }
+      // Already flagged live -- carry it into the save so the summary agrees
+      // with what the rows are showing rather than contradicting them.
+      const live = liveIssues.get(row._rid);
+      if (live?.length) {
+        errors.rows = errors.rows || {};
+        errors.rows[row._rid] = live;
       }
     });
     return errors;
-  }, [doc, rows, t]);
+  }, [doc, rows, liveIssues, t]);
 
   /* ------------------------------------------------------------------ save */
   const buildPayload = useCallback(() => {
@@ -329,7 +395,6 @@ export default function PlateOffcutForm() {
   }, [buildPayload, isEdit, name, navigate, t, validate]);
 
   /* --------------------------------------------------------------- derived */
-  const geometry = estimate?.geometry;
   const utilisation = useMemo(() => {
     const src = num(estimate?.source_weight_kg);
     if (!(src > 0)) return null;
@@ -537,6 +602,11 @@ export default function PlateOffcutForm() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((row) => {
+                    // Live issues plus anything a save just flagged. Both are
+                    // keyed by `_rid`, so a message cannot drift onto the row
+                    // above it when one is inserted or removed.
+                    const issues =
+                      liveIssues.get(row._rid) || fieldErrors.rows?.[row._rid] || [];
                     const agg = estimate?.perRow?.get(row._rid);
                     const shown =
                       agg ??
@@ -548,8 +618,8 @@ export default function PlateOffcutForm() {
                         : null);
                     const pieces = Math.max(1, Math.floor(num(row.pieces) || 1));
                     return (
+                      <Fragment key={row._rid}>
                       <TableRow
-                        key={row._rid}
                         className={
                           highlight === row._rid ? "bg-primary/[0.06]" : undefined
                         }
@@ -565,6 +635,7 @@ export default function PlateOffcutForm() {
                             value={row.length_mm ?? ""}
                             disabled={submitted}
                             aria-label={t("store.plateOffcut.length")}
+                            aria-invalid={issues.length > 0}
                             onChange={(e) => {
                               patchRow(row._rid, { length_mm: e.target.value });
                               requestEstimate(docRef.current?.source_serial_no, [
@@ -583,6 +654,7 @@ export default function PlateOffcutForm() {
                             value={row.width_mm ?? ""}
                             disabled={submitted}
                             aria-label={t("store.plateOffcut.width")}
+                            aria-invalid={issues.length > 0}
                             onChange={(e) => {
                               patchRow(row._rid, { width_mm: e.target.value });
                               requestEstimate(docRef.current?.source_serial_no, [
@@ -636,6 +708,26 @@ export default function PlateOffcutForm() {
                           ) : null}
                         </TableCell>
                       </TableRow>
+
+                        {/* The message lives in the row's own span, directly
+                            under it, rather than in one shared line above the
+                            table -- which reported only the FIRST bad row and
+                            so never named the one being looked at. */}
+                        {issues.length ? (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell
+                              colSpan={7}
+                              className="border-t-0 px-2 pb-2 pt-0 text-xs text-destructive"
+                            >
+                              <span role="alert">
+                                {issues
+                                  .map((code) => issueText(row, code))
+                                  .join(" ")}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </Fragment>
                     );
                   })}
                 </TableBody>

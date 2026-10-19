@@ -64,6 +64,11 @@ import {
   withCleanChildRows,
 } from "../src/lib/childRows.js";
 import {
+  fits,
+  isComplete,
+  rowIssues,
+} from "../src/lib/offcutIssues.js";
+import {
   groupRows,
   isBlankCell,
   distinctCount,
@@ -3476,6 +3481,138 @@ ok(
   /plateSummary\.length \?/.test(offcutFormSrc) &&
     /doc\?\.source_serial_no\s*\?\s*\[/.test(offcutFormSrc),
   "a permanently empty row is the same cost as the six fields it replaced",
+);
+
+// ---------------------------------------------------------------------------
+// Offcut row issues. A wrong answer is not cosmetic: it either hides a bad
+// cutting or blocks a good one, so the whole truth table is asserted here.
+// ---------------------------------------------------------------------------
+const OFFCUT_PLATE = { length_mm: 2500, width_mm: 1250 };
+const MIN = { length_mm: 100, width_mm: 100 };
+
+// Mirrors `cutting.fits`, which allows EITHER orientation. A copy that compared
+// length-to-length would refuse a 600x2000 piece in a 2500x1250 plate, and the
+// operator would be shown a rule the server does not have.
+ok(
+  "fits allows either orientation, exactly like the server",
+  fits(600, 2000, 2500, 1250) === true &&
+    fits(2500, 1250, 2500, 1250) === true &&
+    fits(3000, 100, 2500, 1250) === false &&
+    fits(1250, 2500, 2500, 1250) === true,
+  "rotating a piece is allowed by check_offcut_fits; refusing it would block a valid cut",
+);
+ok(
+  "fits refuses to judge without plate geometry rather than answering false",
+  fits(600, 2000, 0, 0) === false,
+  "an unknown plate is not a plate every piece fails to fit",
+);
+ok(
+  "a missing dimension is 'incomplete', and outranks everything else",
+  JSON.stringify(rowIssues({ length_mm: "", width_mm: "" }, OFFCUT_PLATE, MIN)) === '["missing"]' &&
+    JSON.stringify(rowIssues({ length_mm: 800, width_mm: 0 }, OFFCUT_PLATE, MIN)) === '["missing"]' &&
+    JSON.stringify(rowIssues({ length_mm: 3000, width_mm: "" }, OFFCUT_PLATE, MIN)) === '["missing"]',
+  "there is nothing to measure an incomplete row against",
+);
+ok(
+  "a valid piece reports nothing",
+  rowIssues({ length_mm: 1250, width_mm: 625 }, OFFCUT_PLATE, MIN).length === 0,
+);
+ok(
+  "too-big and too-small are independent, and a piece can be both",
+  JSON.stringify(rowIssues({ length_mm: 3000, width_mm: 100 }, OFFCUT_PLATE, MIN)) === '["tooBig"]' &&
+    JSON.stringify(rowIssues({ length_mm: 50, width_mm: 50 }, OFFCUT_PLATE, MIN)) === '["tooSmall"]' &&
+    JSON.stringify(rowIssues({ length_mm: 3000, width_mm: 50 }, OFFCUT_PLATE, MIN)) ===
+      '["tooBig","tooSmall"]',
+  "reporting only the first would hide the second; both change what the operator does",
+);
+// The shorter side is measured against the WIDTH minimum, as check_offcut_fits
+// does -- so a long thin sliver is judged on the right pair, not both against
+// the length.
+ok(
+  // check_offcut_fits: `longer, shorter = max, min`, then `shorter < min_width`
+  // OR `longer < min_length`. Each case below isolates ONE of those two rules.
+  // The first version of this asserted a 300x50 piece was legal against a 100mm
+  // minimum width. It is not -- its short side is 50. The legal sliver is 300x120.
+  "the minimum is judged shorter-vs-width and longer-vs-length, as the server does",
+  // width rule alone: short side 50 is under a 100 minimum
+  rowIssues({ length_mm: 300, width_mm: 50 }, OFFCUT_PLATE, MIN).includes("tooSmall") &&
+    // length rule alone: long side 300 is under a 400 minimum, short side clears
+    rowIssues({ length_mm: 300, width_mm: 60 }, OFFCUT_PLATE, {
+      length_mm: 400,
+      width_mm: 50,
+    }).includes("tooSmall") &&
+    // a legal sliver, and a comfortable piece
+    rowIssues({ length_mm: 300, width_mm: 120 }, OFFCUT_PLATE, MIN).length === 0 &&
+    rowIssues({ length_mm: 300, width_mm: 250 }, OFFCUT_PLATE, MIN).length === 0 &&
+    // The two cases that actually PIN the pairing -- without them the guard
+    // passed against an implementation that compared both sides to the LENGTH
+    // minimum, because every earlier case happened to agree either way.
+    // 500x200 against min 400x50: longer clears 400, shorter clears 50 -> legal.
+    rowIssues({ length_mm: 500, width_mm: 200 }, OFFCUT_PLATE, {
+      length_mm: 400,
+      width_mm: 50,
+    }).length === 0 &&
+    // 400x250 against min 100x300: shorter 250 is under the WIDTH minimum.
+    rowIssues({ length_mm: 400, width_mm: 250 }, OFFCUT_PLATE, {
+      length_mm: 100,
+      width_mm: 300,
+    }).includes("tooSmall"),
+  "comparing both sides to the length minimum would flag a legal 300x120 sliver",
+);
+// A zero minimum means "not configured". Reading it as zero would flag every
+// offcut on an unconfigured site, which is worse than flagging none.
+ok(
+  "an unconfigured minimum checks nothing",
+  rowIssues({ length_mm: 50, width_mm: 50 }, OFFCUT_PLATE, { length_mm: 0, width_mm: 0 }).length === 0,
+);
+// Without plate geometry `fits` is false for everything, so judging early
+// would light up every row the moment a plate was chosen.
+ok(
+  "no plate geometry yet means no false flags",
+  rowIssues({ length_mm: 800, width_mm: 400 }, { length_mm: 0, width_mm: 0 }, MIN).length === 0,
+);
+ok(
+  "isComplete is exactly 'both dimensions entered'",
+  isComplete({ length_mm: "800", width_mm: "" }) === false &&
+    isComplete({ length_mm: 800, width_mm: 400 }) === true &&
+    isComplete({ length_mm: 0, width_mm: 400 }) === false,
+);
+
+// Issues are keyed by _rid. A single shared message reported only the FIRST bad
+// row, so two wrong rows produced one complaint about the earlier one.
+ok(
+  "issues are keyed by _rid, never by row position",
+  /const liveIssues = useMemo/.test(offcutFormSrc) &&
+    /map\s*\.set\(\s*row\._rid,\s*issues,?\s*\)/.test(offcutFormSrc) &&
+    /liveIssues\s*\.get\(row\._rid\)/.test(offcutFormSrc) &&
+    /fieldErrors\.rows\?\.\[row\._rid\]/.test(offcutFormSrc),
+  "an index drifts the moment a row is inserted or removed",
+);
+ok(
+  "the message is rendered in the offending row's own span",
+  /<TableCell\s+colSpan=\{7\}/.test(offcutFormSrc) &&
+    /issues\s*\.map\(\(code\) => issueText\(row, code\)\)/.test(offcutFormSrc),
+  "a message under the table never told the operator WHICH row was wrong",
+);
+// The shared line above the table survives for "no rows at all", which has no
+// row to attach to. What must never come back is using it for an individual bad
+// row -- that is what reported only the first one.
+ok(
+  "the shared 'no rows' error is never reused for an individual row",
+  /if \(!rows\.length\) errors\.offcuts = /.test(offcutFormSrc) &&
+    (offcutFormSrc.match(/errors\.offcuts\s*=/g) || []).length === 1,
+  "assigning it per-row again would collapse every complaint onto the first bad row",
+);
+ok(
+  "gaps are judged on save, live issues only on a complete row",
+  /if \(!isComplete\(row\)\) continue;/.test(offcutFormSrc) &&
+    /errors\.rows\[row\._rid\] = \["missing"\]/.test(offcutFormSrc),
+  "a half-typed row is incomplete, not invalid -- otherwise passing through 25000 to reach 2500 flashes an error",
+);
+ok(
+  "both dimension inputs are marked, since either may be the wrong one",
+  (offcutFormSrc.match(/aria-invalid=\{issues\.length > 0\}/g) || []).length === 2,
+  "Input already styles aria-invalid, so setting the attribute is the whole job",
 );
 
 console.log(`  ${pass} passed, ${fail} failed`);

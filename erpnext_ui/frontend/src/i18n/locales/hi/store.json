@@ -644,7 +644,7 @@
       "overBy": "ऑफकट का वजन प्लेट से अधिक है — {{kg}} kg अधिक। फिट होने तक सेव नहीं हो सकेगा।",
       "errNoSerial": "जिस प्लेट को काट रहे हैं उसे चुनें।",
       "errNoOffcuts": "कम से कम एक ऑफकट जोड़ें।",
-      "errRowSize": "पंक्ति {{row}} में लंबाई और चौड़ाई दोनों चाहिए।",
+      "errRowSize": "लंबाई और चौड़ाई दोनों दर्ज करें।",
       "submittedReadOnly": "{{name}} सबमिट हो चुका है और बदला नहीं जा सकता।",
       "backToList": "सूची पर लौटें",
       "submitTitle": "यह ऑफकट सबमिट करें?",
@@ -687,7 +687,9 @@
       "someCannotCut_other": "{{count}} कटी नहीं जा सकतीं",
       "warehouseCount": "{{count}} गोदाम",
       "heatCount": "{{count}} हीट",
-      "someCannotCut": "{{count}} कटी नहीं जा सकतीं"
+      "someCannotCut": "{{count}} कटी नहीं जा सकतीं",
+      "errRowTooBig": "{{length}} x {{width}} mm, {{plate}} प्लेट में नहीं समा सकता।",
+      "errRowTooSmall": "{{length}} x {{width}} mm रखने के लिए बहुत छोटा है — यह स्क्रैप बन जाएगा।"
     }
   }
 }

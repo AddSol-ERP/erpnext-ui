@@ -644,7 +644,7 @@
       "overBy": "مجموع الأجزاء يتجاوز وزن اللوح بمقدار {{kg}} كجم. لا يمكن الحفظ حتى تتسع.",
       "errNoSerial": "اختر اللوح الذي تقطعه.",
       "errNoOffcuts": "أضف جزءًا واحدًا على الأقل.",
-      "errRowSize": "يحتاج الصف {{row}} إلى طول وعرض معًا.",
+      "errRowSize": "أدخل الطول والعرض معًا.",
       "submittedReadOnly": "{{name}} مُرسل ولا يمكن تعديله.",
       "backToList": "العودة إلى القائمة",
       "submitTitle": "إرسال هذه القطعة؟",
@@ -705,7 +705,9 @@
       "someCannotCut_other": "{{count}} لا يمكن تقطيعها",
       "warehouseCount": "{{count}} مستودع",
       "heatCount": "{{count}} رقم heat",
-      "someCannotCut": "{{count}} لا يمكن تقطيعها"
+      "someCannotCut": "{{count}} لا يمكن تقطيعها",
+      "errRowTooBig": "{{length}} x {{width}} مم لا يتسع داخل اللوح {{plate}}.",
+      "errRowTooSmall": "{{length}} x {{width}} مم أصغر من أن يُحتفظ به — وسيصبح خردة."
     }
   }
 }

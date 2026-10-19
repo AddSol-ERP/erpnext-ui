@@ -644,7 +644,7 @@
       "overBy": "The offcuts add up to more than the plate weighs — over by {{kg}} kg. It cannot be saved until they fit.",
       "errNoSerial": "Choose the plate you are cutting.",
       "errNoOffcuts": "Add at least one offcut.",
-      "errRowSize": "Row {{row}} needs both a length and a width.",
+      "errRowSize": "Enter both a length and a width.",
       "submittedReadOnly": "{{name}} is submitted and cannot be changed.",
       "backToList": "Back to list",
       "submitTitle": "Submit this offcut?",
@@ -687,7 +687,9 @@
       "someCannotCut_other": "{{count}} cannot be cut",
       "warehouseCount": "{{count}} warehouses",
       "heatCount": "{{count}} heats",
-      "someCannotCut": "{{count}} cannot be cut"
+      "someCannotCut": "{{count}} cannot be cut",
+      "errRowTooBig": "{{length}} x {{width}} mm does not fit inside the {{plate}} plate.",
+      "errRowTooSmall": "{{length}} x {{width}} mm is too small to keep — it becomes scrap."
     }
   }
 }

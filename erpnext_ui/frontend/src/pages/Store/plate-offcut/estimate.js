@@ -159,3 +159,19 @@ export function plateGeometry(payload) {
     thickness_mm: Number(payload?.source_thickness_mm) || 0,
   };
 }
+
+/**
+ * The smallest offcut this grade keeps, from the same `minimum_offcut()` the
+ * save calls, so the threshold shown on a row and the threshold enforced cannot
+ * drift apart.
+ *
+ * Zero on either side means the site has not configured one, which `rowIssues`
+ * reads as "no check" rather than "nothing may be kept" -- flagging every
+ * offcut on an unconfigured site would be worse than flagging none.
+ */
+export function minOffcut(payload) {
+  return {
+    length_mm: Number(payload?.min_offcut_length_mm) || 0,
+    width_mm: Number(payload?.min_offcut_width_mm) || 0,
+  };
+}
