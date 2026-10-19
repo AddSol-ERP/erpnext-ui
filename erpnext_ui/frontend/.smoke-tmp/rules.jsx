@@ -3615,5 +3615,61 @@ ok(
   "Input already styles aria-invalid, so setting the attribute is the whole job",
 );
 
+// ---------------------------------------------------------------------------
+// The dashboard tile grid. One column, four from xl up.
+// ---------------------------------------------------------------------------
+const moduleGridSrc = readSrc("../../src/components/dashboard/ModuleGrid.jsx");
+const actionTileSrc = readSrc("../../src/components/ActionTile.jsx");
+// ActionTile clamps its title AND its description with `truncate`, so a tile's
+// height comes from its icon block and padding, not its text. That is what makes
+// more columns a saving rather than a trade -- narrower clips the label instead
+// of wrapping it. Without it, four columns would make every row taller.
+ok(
+  "tiles have a fixed height, so narrowing a column saves rows rather than adding them",
+  /className="truncate font-semibold"/.test(actionTileSrc) &&
+    /className="mt-0\.5 truncate text-sm text-muted-foreground"/.test(actionTileSrc),
+  "if the description wrapped, four columns would make rows taller and the page scroll more",
+);
+ok(
+  "the grid is one column, four from xl",
+  /grid grid-cols-1 gap-4 xl:grid-cols-4"/.test(moduleGridSrc) &&
+    !/sm:grid-cols-2/.test(moduleGridSrc) &&
+    !/2xl:grid-cols-5/.test(moduleGridSrc),
+  "the intermediate steps were removed deliberately; 2xl emits no utility in this build",
+);
+// BREAKPOINTS is passed to `gridCorners`, which is a deliberate NO-OP. An array
+// nothing reads is exactly the thing that rots silently: the day corner rounding
+// is re-enabled it would compute for one density while the CSS used another.
+ok(
+  "ModuleGrid's BREAKPOINTS match its grid classes, step for step",
+  (() => {
+    // Read each entry's OWN `min`, never its position. Inferring the name from
+    // the index is wrong the moment the steps are not contiguous -- with only
+    // {base, xl} the second entry was being reported as `sm`, so the guard
+    // failed on correct code and would have passed on some wrong combinations.
+    const declared = [...moduleGridSrc.matchAll(/\{([^}]*cols:\s*\d+[^}]*)\}/g)].map((m) => {
+      const min = m[1].match(/min:\s*"([\w-]+)"/);
+      const cols = m[1].match(/cols:\s*(\d+)/);
+      return `${min ? min[1] : "base"}:${cols[1]}`;
+    });
+    const classes = [...moduleGridSrc.matchAll(/(?:([\w-]+):)?grid-cols-(\d+)/g)].map(
+      ([, bp, cols]) => `${bp || "base"}:${cols}`,
+    );
+    return declared.length > 0 && declared.join(",") === classes.join(",");
+  })(),
+  "gridCorners is a no-op today, so this array is unverified until it is not",
+);
+// `2xl` is a valid Tailwind breakpoint, so a class naming it LOOKS right. This
+// build emits no `2xl:` utility at all -- a pre-existing `2xl:col-span-*` in
+// ApprovalPreview is missing from the CSS too. Catching it by reading the
+// compiled stylesheet is the only way; the source is perfectly plausible.
+// Comment-stripped: the note in the file explaining WHY there is no 2xl step
+// names `2xl:` in prose, and an unstripped read flags the explanation.
+ok(
+  "the grid names no breakpoint that this build cannot emit",
+  !/\b2xl:/.test(stripComments(moduleGridSrc)),
+  "2xl is in the theme but generates no utility here, so such a class silently does nothing",
+);
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
