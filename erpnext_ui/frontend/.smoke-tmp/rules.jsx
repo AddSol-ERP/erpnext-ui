@@ -906,7 +906,7 @@ const walk = (dir, out = []) => {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const q = `${dir}/${e.name}`;
     if (e.isDirectory()) walk(q, out);
-    else if (e.name.endsWith(".jsx")) out.push(q);
+    else if (e.name.endsWith(".jsx") || e.name.endsWith(".js")) out.push(q);
   }
   return out;
 };
@@ -4245,6 +4245,67 @@ ok(
     /options=\{REFERENCE_TYPES\.map\(/.test(qiForm) &&
       /options=\{REFERENCE_TYPES\}/.test(qiForm) === false,
     "REFERENCE_TYPES is an array of strings; handing it straight to a mapper that expects tuples is what broke the labels",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// `/api/method/*` responses are wrapped: {"message": <return value>}.
+//
+// `get()` returns the RAW body. Reading properties straight off it silently
+// yields `undefined` for every one of them -- no throw, no console warning,
+// just an empty screen.
+//
+// Four call sites did it and every one rendered empty while the endpoint
+// returned rows: the Material Request list (`message.rows`), the Indent Queue
+// and the Stock Entry Get-Items modal (`message.requests`), and the production
+// BOM picker (`message.has_bom`). The variable was NAMED `message` in all four,
+// which is what makes it so easy to miss: the name says the unwrap already
+// happened.
+//
+// Guarded by scanning src/ rather than listing the known offenders, because the
+// fix is a shared `getMethod()` helper and the point is that nobody uses `get`
+// for a method call again.
+// ---------------------------------------------------------------------------
+{
+  const methodCall = /(?:const|let)\s+(\w+)\s*=\s*await\s+(get|getMethod)\(\s*[`"']method\/[^`"']+[`"']/gs;
+
+  const offenders = [];
+  // `walk` already exists (it powers the navigate() audit) and yields absolute
+  // paths, so reuse it rather than adding a second tree-walk.
+  for (const file of walk(new URL("../../src", import.meta.url).pathname)) {
+    const rel = file.split("/frontend/")[1] || file;
+    const text = readFileSync(file, "utf8");
+    for (const m of text.matchAll(methodCall)) {
+      const [, varName, fn] = m;
+      if (fn === "getMethod") continue;
+      // How is the variable consumed just after the call?
+      const tail = text.slice(m.index + m[0].length, m.index + m[0].length + 900);
+      const uses = [...tail.matchAll(new RegExp(`\\b${varName}\\??\\.(\\w+)`, "g"))].map(
+        (u) => u[1],
+      );
+      if (uses.length && !uses.includes("message")) {
+        offenders.push(`${rel}: ${varName}.${uses[0]}`);
+      }
+    }
+  }
+  ok(
+    "no page reads properties off a raw `get(\"method/\")` response",
+    offenders.length === 0,
+    `the body is {message: {...}}, so every property reads undefined and the page renders empty -- found: ${offenders.join(", ") || "none"}`,
+  );
+
+  const apiJsx = readSrc("../../src/services/api.jsx");
+  ok(
+    "getMethod exists and unwraps, so the correct call is easy",
+    /export async function getMethod/.test(apiJsx) &&
+      /return res\?\.message \?\? \{\}/.test(apiJsx),
+    "without a helper the only guard against this is remembering, which is how all four broke",
+  );
+  ok(
+    "get still returns the RAW body -- the distinction is the whole point",
+    /return request\("GET", url\)/.test(apiJsx) &&
+      !/function get\([\s\S]{0,400}return\s+\w+\.message/.test(apiJsx),
+    "silently changing get() to unwrap would silently break every frappe.* caller that already does res.message",
   );
 }
 

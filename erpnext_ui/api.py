@@ -1729,6 +1729,101 @@ def get_indent_list(
 
 
 @frappe.whitelist(allow_guest=False)
+def explain_indent_list_access():
+	"""Why `get_indent_list` returns nothing for the CALLING user.
+
+	Added because an empty list is indistinguishable across four very different
+	cases, and "the list is empty" sent the investigation after permissions when
+	the fault was in the query:
+
+	  1. no Material Request exists on this site at all
+	  2. rows exist, but this user's User Permissions exclude every one of them
+	  3. this user lacks doctype-level read on Material Request
+	  4. the query itself is wrong
+
+	`frappe.get_all` applies User Permissions on top of role permissions, and a
+	role may well have create rights on Material Request without having read
+	rights -- so a user can raise a request successfully and then be unable to
+	list any. Each count below is gathered with and without `ignore_permissions`
+	so the two can be told apart in a single response.
+
+	Permission model: reports only. It reads nothing the caller could not read
+	through `get_indent_list` itself, and every count it returns is already
+	permission-filtered except the one explicitly labelled `unfiltered_count`.
+	"""
+	user = frappe.session.user
+	errors = {}
+	result = {
+		"user": user,
+		"roles": sorted(frappe.get_roles(user)),
+		"user_permissions": [],
+	}
+
+	# Each probe is isolated. A diagnostic that dies partway through is the same
+	# dead end it exists to remove.
+	probes = {
+		# Does the doctype exist and hold anything on THIS site?
+		"unfiltered_count": lambda: frappe.db.count("Material Request"),
+		# What the list query itself returns -- the number that matters.
+		"permitted_count": lambda: frappe.db.count(
+			"Material Request", filters={"docstatus": ("!=", 2)}
+		),
+		# Role-level read, ignoring User Permissions (which restrict rows).
+		"role_read_count": lambda: len(
+			frappe.get_all(
+				"Material Request",
+				filters={"docstatus": ("!=", 2)},
+				pluck="name",
+				limit_page_length=0,
+				ignore_permissions=True,
+			)
+		),
+		"doctype_read": lambda: bool(frappe.has_permission("Material Request", "read")),
+	}
+	for name, probe in probes.items():
+		try:
+			result[name] = probe()
+		except Exception as e:  # surfaced, never swallowed -- see below
+			result[name] = None
+			errors[name] = f"{type(e).__name__}: {e}"
+			frappe.log_error(
+				title=f"explain_indent_list_access: {name} probe failed",
+				message=frappe.get_traceback(),
+			)
+
+	# User Permission rows are the usual reason rows vanish while the desk (or a
+	# direct link) still opens the document.
+	try:
+		result["user_permissions"] = frappe.get_all(
+			"User Permission",
+			filters={"user": user, "allow": ("=", 1)},
+			fields=["for_doctype", "for_value", "apply_to_all_doctypes"],
+			limit_page_length=0,
+			ignore_permissions=True,
+		)
+	except Exception as e:
+		errors["user_permissions"] = f"{type(e).__name__}: {e}"
+
+	result["errors"] = errors
+
+	# Read the three numbers against each other and name the cause, so the
+	# answer does not have to be re-derived by hand from four integers.
+	permitted, role_read = result.get("permitted_count"), result.get("role_read_count")
+	if errors:
+		result["likely_cause"] = "probe_failed"
+	elif not result.get("doctype_read"):
+		result["likely_cause"] = "no_doctype_read_permission"
+	elif role_read and not permitted:
+		result["likely_cause"] = "user_permission_excludes_rows"
+	elif not role_read:
+		result["likely_cause"] = "no_readable_material_requests"
+	else:
+		result["likely_cause"] = "unknown_permitted_but_not_listed"
+
+	return result
+
+
+@frappe.whitelist(allow_guest=False)
 def get_item_uom_options(item_code):
 	"""The UOMs an item may be transacted in, with their whole-number flags.
 

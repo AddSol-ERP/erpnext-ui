@@ -9,7 +9,7 @@ import ListLayout from "../../../../components/ListLayout";
 import { ListRow } from "../../../../components/List/ListRow";
 import DataTable from "../../../../components/List/DataTable";
 import { StatusBadge } from "../../../../components/List/StatusBadge";
-import { get } from "../../../../services/api";
+import { getMethod } from "../../../../services/api";
 
 /**
  * The single browse surface for requests — every purpose, split by whether the
@@ -99,7 +99,7 @@ export default function MaterialRequestList() {
     setLoading(true);
     setError(null);
     try {
-      const message = await get("method/erpnext_ui.api.get_indent_list", {
+      const message = await getMethod("method/erpnext_ui.api.get_indent_list", {
         scope,
         search: debouncedSearch || undefined,
         start: (page - 1) * PAGE_SIZE,

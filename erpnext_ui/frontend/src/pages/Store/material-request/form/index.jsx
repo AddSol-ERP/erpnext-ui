@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ClipboardList, Plus, Table2, Trash2, Info } from "lucide-react";
-import { get } from "../../../../services/api";
+import { get, getMethod } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
@@ -11,6 +11,7 @@ import FormSelect from "../../../../components/FormSelect";
 import { focusFirstError } from "../../../../lib/formValidation";
 import LinkField from "../../../../components/LinkField";
 import { useHeader } from "../../../../context/HeaderContext";
+import { useToast } from "../../../../context/ToastContext";
 import { requestPurpose } from "../../../../config/storePurposes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ export default function MaterialRequestForm() {
   const { name, purpose } = useParams();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const toast = useToast();
   const { t } = useTranslation();
 
   const isEdit = !!name;
@@ -162,7 +164,7 @@ export default function MaterialRequestForm() {
     }));
 
     try {
-      const message = await get("method/erpnext_ui.api.get_project_items", {
+      const message = await getMethod("method/erpnext_ui.api.get_project_items", {
         project,
       });
       setProjectItems((p) => ({
@@ -457,8 +459,16 @@ export default function MaterialRequestForm() {
       // /store/material-request/<type>/view/<name>, which nothing matched --
       // the user landed on a blank page after every successful save.
       navigate(`/store/material-request/${res.data.name}`);
-    } catch {
-      setError(t("common.saveFailed"));
+    } catch (e) {
+      // NOT `catch { setError(t("common.saveFailed")) }`. A bare catch throws
+      // away `e`, and `e.message` is the whole point of the work in
+      // services/api.jsx: it resolves the server's own wording out of
+      // `_server_messages`, with informational `alert: 1` entries filtered out.
+      // Replacing it with "Failed to save" means a MandatoryError naming four
+      // missing fields, or a LinkValidationError naming one, both arrive as the
+      // same four words -- so a failed save is indistinguishable from a network
+      // blip and the user has no idea what to change.
+      toast.error(e.message || t("common.saveFailed"));
     } finally {
       setLoading(false);
     }
@@ -473,8 +483,8 @@ export default function MaterialRequestForm() {
       // `frappe.client.submit` takes the whole document, not {doctype, name}.
       await submitDocument({ doctype: "Material Request", name });
       loadDoc();
-    } catch {
-      setError(t("common.submitFailed"));
+    } catch (e) {
+      toast.error(e.message || t("common.submitFailed"));
     } finally {
       setLoading(false);
     }

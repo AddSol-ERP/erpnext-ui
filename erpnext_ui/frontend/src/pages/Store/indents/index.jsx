@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, HandHelping } from "lucide-react";
 import { useHeader } from "../../../context/HeaderContext";
-import { get, post } from "../../../services/api";
+import { getMethod, post } from "../../../services/api";
 import { submitDocument } from "../../../lib/docTransition";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +57,7 @@ export default function IndentQueue() {
     setLoading(true);
     setError(null);
     try {
-      const message = await get("method/erpnext_ui.api.get_indent_queue");
+      const message = await getMethod("method/erpnext_ui.api.get_indent_queue");
       setData(message.requests || []);
     } catch (e) {
       setError(e);

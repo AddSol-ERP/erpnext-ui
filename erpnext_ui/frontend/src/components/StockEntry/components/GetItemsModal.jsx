@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ClipboardList, Factory, Search, Package } from "lucide-react";
 import AppModal from "../../AppModal";
-import { get } from "../../../services/api";
+import { get, getMethod } from "../../../services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "../../../context/ToastContext";
@@ -91,7 +91,7 @@ export default function GetItemsModal({
    */
   const listDocuments = useCallback(async (kind) => {
     if (kind === "indent") {
-      const message = await get("method/erpnext_ui.api.get_indent_queue");
+      const message = await getMethod("method/erpnext_ui.api.get_indent_queue");
       return (message.requests || []).map((r) => ({
         id: r.name,
         title: r.name,

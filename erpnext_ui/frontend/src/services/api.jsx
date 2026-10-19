@@ -239,6 +239,31 @@ export async function get(method, params = {}) {
   return request("GET", url);
 }
 
+/**
+ * GET a `/api/method/*` endpoint and return its UNWRAPPED `message`.
+ *
+ * Use this, not `get`, for any `/api/method/` call.
+ *
+ * `get` returns the RAW response body, which for `/api/method/*` is
+ * `{ "message": <the actual return value> }`. Reading properties straight off a
+ * `get` result silently yields `undefined` for every one of them -- no throw,
+ * no console warning, just an empty screen.
+ *
+ * That is not hypothetical: four call sites did it, and every one of them
+ * rendered empty while the endpoint itself returned rows. The Indent Queue
+ * (`message.requests`), the Material Request list (`message.rows`), the Stock
+ * Entry Get-Items modal, and the production BOM picker all read off the wrapper.
+ * The variable was even named `message`, which is what makes it so easy to
+ * miss -- the name says the unwrap already happened.
+ *
+ * Returns `{}` rather than undefined so `result.rows` is at least a defined
+ * value, letting `|| []` defaults do their job.
+ */
+export async function getMethod(method, params = {}) {
+  const res = await get(method, params);
+  return res?.message ?? {};
+}
+
 // 🔹 POST
 export async function post(method, data = {}) {
   return request("POST", method, data);
