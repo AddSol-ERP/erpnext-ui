@@ -453,18 +453,41 @@ export default function PlateOffcutForm() {
 
   const submitted = Boolean(doc?.docstatus);
   const pieces = pieceTotal(rows);
+
+  /*
+   * Save and Submit have OPPOSITE conditions, which is why they must not share
+   * one `if`.
+   *
+   *   - Save needs something to save: the form is dirty, OR nothing has been
+   *     stored yet (a brand-new form, where Save is what creates the draft).
+   *   - Submit acts on the STORED document, so unsaved changes must hide it
+   *     (invariant 6).
+   *
+   * Both used to be wrapped in a single `if (dirty)`, which made them mutually
+   * exclusive and inverted the invariant: Submit appeared exactly when there
+   * were unsaved changes, and vanished the instant a save succeeded. Since
+   * `dirty` starts false, a freshly-opened saved draft showed NO buttons at all
+   * -- so saving the document removed the only remaining action.
+   *
+   * Derived once here because the header and the in-form buttons are two entry
+   * points and their logic must not be able to drift.
+   */
+  const canSave = !submitted && (dirty || !isEdit);
+  const canSubmit = !submitted && !dirty;
   const over = num(estimate?.over_by_kg);
 
   /* --------------------------------------------------------------- header */
   useEffect(() => {
     const actions = [];
     if (!submitted) {
-      if (dirty) {
+      if (canSave) {
         actions.push({
           label: t("common.save"),
           variant: "btn-success",
           onClick: handleSave,
         });
+      }
+      if (canSubmit) {
         actions.push({
           label: t("common.submit"),
           variant: "btn-primary",
@@ -797,20 +820,24 @@ export default function PlateOffcutForm() {
             />
           </FormSection>
 
-          {!submitted && dirty ? (
+          {canSave || canSubmit ? (
             <div className="flex flex-wrap gap-2">
-              <Button onClick={handleSave} disabled={saving}>
-                <Save className="size-4" />
-                {t("common.save")}
-              </Button>
-              <Button
-                variant="btn-primary"
-                onClick={() => setConfirmSubmit(true)}
-                disabled={saving}
-              >
-                <Send className="size-4" />
-                {t("common.submit")}
-              </Button>
+              {canSave && (
+                <Button onClick={handleSave} disabled={saving}>
+                  <Save className="size-4" />
+                  {t("common.save")}
+                </Button>
+              )}
+              {canSubmit && (
+                <Button
+                  variant="btn-primary"
+                  onClick={() => setConfirmSubmit(true)}
+                  disabled={saving}
+                >
+                  <Send className="size-4" />
+                  {t("common.submit")}
+                </Button>
+              )}
             </div>
           ) : null}
         </div>

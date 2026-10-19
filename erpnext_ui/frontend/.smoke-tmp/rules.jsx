@@ -4075,5 +4075,60 @@ ok(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Plate Offcut: Save and Submit are mutually EXCLUSIVE if they share a gate.
+//
+// Both header actions were pushed inside a single `if (dirty)`. That inverts
+// invariant 6: Submit acts on the STORED document, so unsaved changes must hide
+// it -- yet it was offered exactly when there were unsaved changes, and removed
+// the instant a save succeeded. `dirty` starts false, so opening a saved draft
+// showed NO buttons at all, and "I just saved it and now I cannot submit it"
+// had no error and no explanation anywhere.
+// ---------------------------------------------------------------------------
+{
+  const offcutForm = readSrc("../../src/pages/Store/plate-offcut/form/index.jsx");
+
+  ok(
+    "Save and Submit are gated separately, not by one shared `if (dirty)`",
+    /const canSave = !submitted && \(dirty \|\| !isEdit\);/.test(offcutForm) &&
+      /const canSubmit = !submitted && !dirty;/.test(offcutForm) &&
+      !/if \(dirty\) \{\s*[\s\S]{0,300}common\.submit/.test(offcutForm),
+    "one gate makes them mutually exclusive, so saving removes Submit -- the only action left",
+  );
+  // The actual regression report: a saved, untouched draft must offer Submit.
+  // dirty === false there, which is precisely the state the old `if (dirty)`
+  // rendered as nothing at all.
+  ok(
+    "a clean saved draft still offers Submit",
+    /canSubmit = !submitted && !dirty/.test(offcutForm),
+    "with no unsaved changes the stored document is exactly what Submit acts on",
+  );
+  ok(
+    "unsaved changes still hide Submit (invariant 6)",
+    /canSubmit = !submitted && !dirty/.test(offcutForm) &&
+      /canSave = !submitted && \(dirty \|\| !isEdit\)/.test(offcutForm),
+    "Submit acts on the stored document, so it must not run against edits that were never saved",
+  );
+  // The header and the in-form buttons are two entry points for the same
+  // decision; the guards must not be able to drift apart.
+  ok(
+    "both the header actions and the in-form buttons use the shared gates",
+    /if \(canSave\)/.test(offcutForm) &&
+      /if \(canSubmit\)/.test(offcutForm) &&
+      /\{canSave && \(/.test(offcutForm) &&
+      /\{canSubmit && \(/.test(offcutForm),
+    "the two were written out separately once and had to be fixed twice",
+  );
+  // Plate Offcut was the only form with this shape -- the others gate on
+  // docstatus alone. Worth a guard so a copy-paste does not reintroduce it.
+  ok(
+    "no other form gates its Submit action on `dirty`",
+    !readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx")
+      .includes("if (dirty)") &&
+      !readSrc("../../src/pages/Store/delivery/form/index.jsx").includes("if (dirty)"),
+    "one form doing it differently is how the divergence started",
+  );
+}
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
