@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
+import { useToast } from "../../../../context/ToastContext";
 import { get } from "../../../../services/api";
 import { saveDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
@@ -28,12 +29,14 @@ export default function InspectionForm() {
     template: "",
     item_code: "",
   });
+  const [saving, setSaving] = useState(false);
 
   // Always points at the newest document. The Save button is registered into
   // the page toolbar by an effect that deliberately does not depend on `doc`
   // (re-running it per keystroke would thrash the toolbar), so the registered
   // handler closes over the document as of an early render -- validation and
   // the saved payload then used stale data. Handlers read through this ref.
+  const toast = useToast();
   const docRef = useRef(doc);
 
   // Synced in an effect, not during render: the React Compiler lint rule
@@ -185,13 +188,36 @@ export default function InspectionForm() {
       })),
     };
 
-    await saveDocument({
-      doctype: "Quality Inspection",
-      name: isEdit ? name : undefined,
-      doc: payload,
-    });
-
-    navigate("/quality/inspection");
+    // A failed save has to be LOUD. This used to call saveDocument bare, so the
+    // rejection escaped an async event handler, the only trace was an
+    // unhandled promise in the console, and the form sat there looking like it
+    // had worked -- because the navigate() below never ran either, so nothing
+    // on screen changed at all. Four missing mandatory fields produced exactly
+    // that: a button that does nothing.
+    setSaving(true);
+    try {
+      await saveDocument({
+        doctype: "Quality Inspection",
+        name: isEdit ? name : undefined,
+        doc: payload,
+      });
+      // Same shape as GenericForm: the raw doctype name, not a translated
+      // label, because that is what every other form in this app does.
+      toast.success(
+        isEdit
+          ? t("common.updatedSuccess", { name: "Quality Inspection" })
+          : t("common.createdSuccess", { name: "Quality Inspection" }),
+      );
+      navigate("/quality/inspection");
+    } catch (e) {
+      // e.message is already the server's own wording, resolved from
+      // _server_messages and with informational `alert: 1` entries filtered
+      // out -- so this names the field to fix rather than an unrelated notice
+      // that happened to be sent first.
+      toast.error(e.message || t("common.saveFailed"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* ================= HEADER ================= */
@@ -219,6 +245,10 @@ export default function InspectionForm() {
           label: t("common.save"),
           variant: "btn-success",
           onClick: handleSave,
+          // Stops a double-submit: two POSTs would create two Quality
+          // Inspections, and the second would collide on the naming series
+          // with an error the user cannot connect to the first click.
+          disabled: saving,
         },
 
         isEdit &&

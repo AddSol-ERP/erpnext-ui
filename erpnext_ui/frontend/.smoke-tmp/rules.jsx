@@ -3900,5 +3900,76 @@ ok(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Server error reporting.
+//
+// Frappe mixes informational messages into the SAME `_server_messages` array
+// as the failure that stopped the save. A Quality Inspection missing four
+// mandatory fields returns five entries and the FIRST is an alert:
+//
+//   {"message": "Status set to rejected as there are one or more rejected
+//                readings.", "alert": 1}
+//
+// Taking messages[0] as the headline therefore reported "Status set to
+// rejected" for a document rejected for having no Inspection Type -- naming
+// the wrong cause and burying the four fields the user has to fill in.
+// ---------------------------------------------------------------------------
+{
+  const apiJsx = readSrc("../../src/services/api.jsx");
+  // The real response shape, verbatim from QA on 2026-10-19.
+  const QA_MIXED = JSON.stringify([
+    {
+      message: "Status set to rejected as there are one or more rejected readings.",
+      title: "Message",
+      alert: 1,
+    },
+    { message: "Error: Value missing for Quality Inspection: Inspection Type", title: "Message" },
+    { message: "Error: Value missing for Quality Inspection: Reference Type", title: "Message" },
+  ]);
+
+  ok(
+    "an informational `alert: 1` entry cannot become the error headline",
+    /parsed\.errors\[0\] \|\| parsed\.messages\[0\]/.test(apiJsx) &&
+      !/return parsed\.messages\[0\] \|\|/.test(apiJsx),
+    "messages[0] is the alert, so the user is told the wrong cause and never learns which field to fix",
+  );
+  ok(
+    "the alert payload is the one that actually occurred",
+    QA_MIXED.includes('"alert":1') && /entry\?\.alert !== 1 && entry\?\.alert !== true/.test(apiJsx),
+    "Frappe sets alert to a JSON true on some code paths, so testing only === 1 would still let it through",
+  );
+  // ApiError.messages is indexed as a string[] by namedApprovers.js, so the
+  // fix must not have re-typed it.
+  ok(
+    "ApiError.messages stays string[] -- only the headline lookup changed",
+    /messages\.push\(message\);/.test(apiJsx) &&
+      !/messages\.push\(\{\s*text:/.test(apiJsx) &&
+      /e\?\.messages\?\.\[0\]/.test(
+        readSrc("../../src/lib/namedApprovers.js"),
+      ),
+    "namedApprovers.js indexes messages[0] and expects a string; re-typing the array would silently break it",
+  );
+  // A failed save has to be visible. An async event handler that does not
+  // catch produces an unhandled rejection and NO change on screen.
+  const qiForm = readSrc("../../src/pages/Quality/entry/InspectionForm/index.jsx");
+  ok(
+    "the Quality Inspection form reports a failed save instead of swallowing it",
+    /catch \(e\)[\s\S]{0,900}toast\.error\(e\.message \|\|/.test(qiForm),
+    "without this the rejection escaped the handler, navigate() never ran, and a Save that failed looked identical to one that did nothing",
+  );
+  ok(
+    "navigation happens only after a successful save",
+    /try \{[\s\S]{0,900}saveDocument[\s\S]{0,900}navigate\("\/quality\/inspection"\);[\s\S]{0,40}\} catch/.test(
+      qiForm,
+    ),
+    "navigating on failure hides the document the user still has to fix",
+  );
+  ok(
+    "the save button is disabled while a save is in flight",
+    /disabled: saving/.test(qiForm),
+    "two POSTs would create two inspections, the second colliding on the naming series with an error unrelated to the first click",
+  );
+}
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

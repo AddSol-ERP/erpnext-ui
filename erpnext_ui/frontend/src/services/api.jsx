@@ -83,19 +83,23 @@ function tryParseJson(value) {
 function parseServerMessages(json) {
   const raw = json?._server_messages;
 
-  if (!raw) return { fieldMessages: {}, messages: [] };
+  if (!raw) return { fieldMessages: {}, messages: [], errors: [] };
 
   let entries = raw;
   if (typeof raw === "string") {
     entries = tryParseJson(raw);
     // A non-JSON payload is still worth showing, just without a field.
-    if (entries === null) return { fieldMessages: {}, messages: [raw] };
+    if (entries === null) return { fieldMessages: {}, messages: [raw], errors: [raw] };
   }
 
-  if (!Array.isArray(entries)) return { fieldMessages: {}, messages: [] };
+  if (!Array.isArray(entries)) return { fieldMessages: {}, messages: [], errors: [] };
 
   const fieldMessages = {};
   const messages = [];
+  // Same strings, minus the informational ones. Kept separate rather than
+  // re-typed onto `messages` so `ApiError.messages` stays `string[]` for the
+  // consumers that already index into it.
+  const errors = [];
 
   for (let entry of entries) {
     // Frappe's msgprint sometimes emits each entry as a JSON *string* holding
@@ -108,13 +112,18 @@ function parseServerMessages(json) {
 
     if (typeof entry === "string") {
       messages.push(entry);
+      errors.push(entry);
       continue;
     }
 
     const message = entry?.message;
     if (!message) continue;
 
+    // `alert: 1` marks an INFORMATIONAL message that happened to ride along with
+    // a failure. It stays in `messages` so the existing consumers are
+    // unaffected, but it is kept OUT of `errors` -- see friendlyMessage.
     messages.push(message);
+    if (entry?.alert !== 1 && entry?.alert !== true) errors.push(message);
 
     // Frappe writes the field as e.g. "employee" or, for child tables,
     // "expenses[0].amount". Only top-level fields get mapped; the rest stay
@@ -125,13 +134,26 @@ function parseServerMessages(json) {
     }
   }
 
-  return { fieldMessages, messages };
+  return { fieldMessages, messages, errors };
 }
 
 function friendlyMessage(json, parsed, status) {
-  // Prefer the first concrete server message, then the exception type, then the
-  // HTTP status. A failure with no text at all should still say something useful.
-  return parsed.messages[0] || json.exc || `Request failed (${status})`;
+  // Prefer the first message that is an actual FAILURE, then the exception type,
+  // then the HTTP status.
+  //
+  // The "first concrete message" used to be messages[0], which is wrong whenever
+  // the server mixed an informational alert into a failure. A Quality Inspection
+  // save that is missing four mandatory fields returns FIVE entries, and the
+  // first is:
+  //
+  //   {"message": "Status set to rejected as there are one or more rejected
+  //               readings.", "alert": 1}
+  //
+  // Frappe marks an informational message with `alert: 1`; the real errors
+  // follow. Reading messages[0] therefore reported "Status set to rejected" for
+  // a document that was rejected for having no Inspection Type -- naming the
+  // wrong cause, and quietly burying the four fields the user has to fill.
+  return parsed.errors[0] || parsed.messages[0] || json.exc || `Request failed (${status})`;
 }
 
 // 🔹 Core request handler
