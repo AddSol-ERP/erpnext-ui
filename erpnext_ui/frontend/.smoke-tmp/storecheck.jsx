@@ -13,6 +13,7 @@ import IndentQueue from "@/pages/Store/indents/index.jsx";
 import PurchaseReceiptPicker from "@/pages/Store/purchase-receipt/index.jsx";
 import PurchaseReceiptForm from "@/pages/Store/purchase-receipt/form/index.jsx";
 import { AttachDialog } from "@/components/Attachments/index.jsx";
+import QualityInspectionForm from "@/pages/Quality/entry/InspectionForm/index.jsx";
 import StockEntryPage from "@/components/StockEntry/StockEntryPage.jsx";
 import ESSDashboard from "@/pages/ESS/index.jsx";
 import ReceiptItemWorkbench from "@/pages/Store/purchase-receipt/components/ReceiptItemWorkbench.jsx";
@@ -870,6 +871,63 @@ ok("attachments: the accept filter is built from the server config, not a litera
 ok("attachments: the file input is never rendered as a visible control",
    /hidden/.test(attachSrc) && /\.click\(\)/.test(attachSrc),
    "an always-open file input invites picking from anywhere on the form");
+
+
+/* =======================================================================
+   Quality Inspection header fields.
+
+   The form used to post only item_code, template, status and readings.
+   ERPNext marks four more fields `reqd`, so every save ended at
+   document.py:310 with:
+
+       MandatoryError: [Quality Inspection, ...]: inspection_type,
+       reference_type, reference_name, sample_size
+
+   Rendered to assert the four are actually on the page -- a field that is
+   validated but never rendered fails the same way as one that is missing.
+   ======================================================================= */
+
+globalThis.fetch = () => {
+  const body = JSON.stringify({ message: {}, data: {} });
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(body),
+    text: () => Promise.resolve(body),
+  });
+};
+
+const qiFormHtml = renderNode(<QualityInspectionForm />);
+
+for (const label of ["Inspection Type", "Reference Type", "Sample Size"]) {
+  ok(`QI form: renders the ${label} field`, qiFormHtml.includes(label));
+}
+
+// FormField renders its label even when the control is disabled, so what marks
+// this field is the PLACEHOLDER the LinkField shows while disabled.
+ok("QI form: the reference document field is present but gated on a type",
+   qiFormHtml.includes("Reference Document") &&
+     qiFormHtml.includes("Choose a reference type first"),
+   "an empty doctype would fire a link search against nothing");
+ok("QI form: no raw translation key leaks",
+   !/quality\.[a-zA-Z]/.test(qiFormHtml) && !/common\.[a-zA-Z]/.test(qiFormHtml),
+   "i18next returns the key itself when a namespace is missing");
+// Radix renders <SelectItem> inside a popover that is not open, so option text
+// is NOT in the SSR string and cannot be asserted here. The raw doctype names
+// are guarded character-for-character in the rules suite instead.
+// Radix renders neither a Select's placeholder nor its options while closed --
+// SelectValue defers to the open popover and SelectContent is not mounted -- so
+// nothing about the chosen value is assertable here. What IS observable is the
+// trigger existing, closed, and with no value text inside it, which is what
+// proves the reference type has not silently defaulted to something the user
+// never picked.
+const refTriggerAt = qiFormHtml.indexOf("Reference Type");
+const refTrigger = qiFormHtml.slice(refTriggerAt, refTriggerAt + 700);
+ok("QI form: the reference type trigger is present and closed, with no value chosen",
+   /role="combobox"/.test(refTrigger) && /aria-expanded="false"/.test(refTrigger) &&
+     !/Purchase Receipt|Purchase Invoice|Delivery Note/.test(refTrigger),
+   "a select that silently defaulted would post a reference the user never chose");
+ok("QI form: sample size defaults to 1",
+   /type="number"[^>]*value="1"/.test(qiFormHtml) || /value="1"[^>]*type="number"/.test(qiFormHtml));
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -14,6 +14,47 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { gridCorners } from "../../../../lib/gridCorners";
+import FormSelect from "../../../../components/FormSelect";
+import FormErrorSummary from "../../../../components/FormErrorSummary";
+import {
+  errorList,
+  focusFirstError,
+  requiredFields,
+} from "../../../../lib/formValidation";
+
+/*
+ * ERPNext option strings, copied verbatim from
+ * erpnext/stock/doctype/quality_inspection/quality_inspection.json.
+ *
+ * These are VALUES posted to the server, not display strings: a typo here is
+ * a Dynamic Link / Link validation failure naming the reference rather than
+ * the field, so they are deliberately not translated and deliberately not
+ * "tidied". The suite asserts them character for character against the
+ * doctype JSON.
+ *
+ * Inspection Type labels are reused from the list and report pages, which
+ * already translate them.
+ */
+const INSPECTION_TYPES = [
+  ["Incoming", "quality.typeIncoming"],
+  ["Outgoing", "quality.typeOutgoing"],
+  ["In Process", "quality.typeInProcess"],
+];
+
+const REFERENCE_TYPES = [
+  "Purchase Receipt",
+  "Purchase Invoice",
+  "Subcontracting Receipt",
+  "Delivery Note",
+  "Sales Invoice",
+  "Stock Entry",
+  "Job Card",
+];
+
+// ERPNext declares sample_size as Float with default "1". Coerced, because an
+// <input type="number"> hands back a string and a string would be stored as a
+// string in the posted JSON.
+const DEFAULT_SAMPLE_SIZE = 1;
 
 const PARAM_BP = [{ cols: 1 }, { min: "md", cols: 2 }, { min: "lg", cols: 3 }];
 
@@ -28,8 +69,18 @@ export default function InspectionForm() {
   const [doc, setDoc] = useState({
     template: "",
     item_code: "",
+    // ERPNext marks all four of these `reqd` on Quality Inspection. Without
+    // them every save dies in `_validate_mandatory`, which is reached only
+    // AFTER `_validate_links` -- so the failure arrives one stage later than
+    // it used to, and reports four fields at once.
+    inspection_type: "",
+    reference_type: "",
+    reference_name: "",
+    sample_size: DEFAULT_SAMPLE_SIZE,
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Always points at the newest document. The Save button is registered into
   // the page toolbar by an effect that deliberately does not depend on `doc`
@@ -90,14 +141,39 @@ export default function InspectionForm() {
     return "Accepted";
   })();
 
+  /* ================= REFERENCE ================= */
+
+  /**
+   * Changing the reference type MUST clear the reference name.
+   *
+   * `reference_name` is a Dynamic Link whose target doctype IS
+   * `reference_type`. Leaving a name behind sends e.g. MAT-PRE-00042 with
+   * reference_type "Delivery Note", and ERPNext reports that as
+   * "Could not find Reference Name: MAT-PRE-00042" -- naming the reference
+   * rather than the mismatch, so it reads as if the chosen document were
+   * deleted. It is the one field in this form that can silently become wrong.
+   */
+  const handleReferenceTypeChange = (reference_type) => {
+    setDoc({ ...doc, reference_type, reference_name: "" });
+    setFieldErrors((prev) => ({ ...prev, reference_type: "", reference_name: "" }));
+  };
+
   /* ================= LOAD ================= */
   const loadDoc = async () => {
     const res = await get(`resource/Quality Inspection/${name}`);
     const d = res.data;
 
+    // Every editable field is mapped back, or a re-save silently blanks it.
+    // These four were absent once, which is why an edit-and-save of an existing
+    // inspection would have failed mandatory validation on a document that was
+    // perfectly valid when it was loaded.
     setDoc({
       template: d.quality_inspection_template,
       item_code: d.item_code,
+      inspection_type: d.inspection_type || "",
+      reference_type: d.reference_type || "",
+      reference_name: d.reference_name || "",
+      sample_size: d.sample_size ?? DEFAULT_SAMPLE_SIZE,
     });
 
     const templateRes = await get(
@@ -178,6 +254,13 @@ export default function InspectionForm() {
     const payload = {
       item_code: current.item_code,
       quality_inspection_template: current.template,
+      // Mandatory on the doctype. Omitting them produced
+      // `MandatoryError: [Quality Inspection, ...]: inspection_type,
+      // reference_type, reference_name, sample_size`.
+      inspection_type: current.inspection_type,
+      reference_type: current.reference_type,
+      reference_name: current.reference_name,
+      sample_size: Number(current.sample_size) || DEFAULT_SAMPLE_SIZE,
       status: overallStatusRef.current,
       readings: parametersRef.current.map((p) => ({
         specification: p.parameter,
@@ -194,6 +277,29 @@ export default function InspectionForm() {
     // had worked -- because the navigate() below never ran either, so nothing
     // on screen changed at all. Four missing mandatory fields produced exactly
     // that: a button that does nothing.
+    // Checked here so the four fields are MARKED rather than merely refused.
+    // The server already reports all four at once, but only after the round
+    // trip, and only as one toast -- an inline error per field is what lets
+    // the user see what is missing while the form is still in front of them.
+    const errs = requiredFields(
+      current,
+      {
+        inspection_type: t("quality.inspectionType"),
+        reference_type: t("quality.referenceType"),
+        reference_name: t("quality.referenceName"),
+        sample_size: t("quality.sampleSize"),
+      },
+      t,
+    );
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      const list = errorList(errs);
+      setError(list.length > 1 ? t("common.fixErrors") : list[0]);
+      requestAnimationFrame(() => focusFirstError(errs));
+      return;
+    }
+    setError("");
+
     setSaving(true);
     try {
       await saveDocument({
@@ -284,7 +390,7 @@ export default function InspectionForm() {
         icon={ClipboardList}
         contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2"
       >
-          <FormField label={t("quality.template")}>
+          <FormField label={t("quality.template")} required>
             <LinkField
               doctype="Quality Inspection Template"
               value={doc.template}
@@ -293,14 +399,99 @@ export default function InspectionForm() {
             />
           </FormField>
 
-          <FormField label={t("quality.item")}>
+          <FormField
+            label={t("quality.item")}
+            error={fieldErrors.item_code}
+            required
+          >
             <LinkField
               doctype="Item"
               value={doc.item_code}
               onChange={(v) => setDoc({ ...doc, item_code: v })}
             />
           </FormField>
+
+          <FormField
+            label={t("quality.inspectionType")}
+            error={fieldErrors.inspection_type}
+            required
+          >
+            <FormSelect
+              value={doc.inspection_type}
+              onChange={(v) => {
+                setDoc({ ...doc, inspection_type: v });
+                setFieldErrors((p) => ({ ...p, inspection_type: "" }));
+              }}
+              placeholder={t("quality.selectType")}
+              options={INSPECTION_TYPES.map(([value, key]) => [value, t(key)])}
+            />
+          </FormField>
+
+          <FormField
+            label={t("quality.referenceType")}
+            error={fieldErrors.reference_type}
+            required
+          >
+            <FormSelect
+              value={doc.reference_type}
+              onChange={handleReferenceTypeChange}
+              placeholder={t("quality.selectType")}
+              // Raw ERPNext doctype names, untranslated on purpose: these double
+              // as the values posted to the server.
+              options={REFERENCE_TYPES}
+            />
+          </FormField>
+
+          <FormField
+            label={t("quality.referenceName")}
+            error={fieldErrors.reference_name}
+            hint={t("quality.referenceNameHint")}
+            required
+          >
+            <LinkField
+              // A Dynamic Link: the target doctype IS the reference type.
+              // Disabled until one is chosen, because an empty doctype would
+              // fire a link search against nothing.
+              doctype={doc.reference_type || undefined}
+              value={doc.reference_name}
+              onChange={(v) => {
+                setDoc({ ...doc, reference_name: v });
+                setFieldErrors((p) => ({ ...p, reference_name: "" }));
+              }}
+              disabled={!doc.reference_type}
+              placeholder={t(
+                doc.reference_type
+                  ? "quality.selectReference"
+                  : "quality.chooseReferenceTypeFirst",
+              )}
+              // Parent-level filter only. Filtering this list by `item_code`
+              // would resolve against the child's table and cross-join
+              // (invariant 14), returning every document with the item on any
+              // row and paginating wrongly.
+              filters={{ docstatus: ["<", 2] }}
+            />
+          </FormField>
+
+          <FormField
+            label={t("quality.sampleSize")}
+            error={fieldErrors.sample_size}
+            required
+          >
+            <Input
+              type="number"
+              min="1"
+              step="1"
+              className="h-8"
+              value={doc.sample_size}
+              onChange={(e) => {
+                setDoc({ ...doc, sample_size: e.target.value });
+                setFieldErrors((p) => ({ ...p, sample_size: "" }));
+              }}
+            />
+          </FormField>
       </FormSection>
+
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* PARAMETERS */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">

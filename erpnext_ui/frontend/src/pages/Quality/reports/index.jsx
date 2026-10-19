@@ -33,7 +33,7 @@ import {
   YAxis,
 } from "recharts";
 import DashboardShell from "../../../components/dashboard/DashboardShell";
-import { AttachDialog } from "@/components/attachments";
+import { AttachDialog } from "@/components/Attachments";
 import StatRow from "../../../components/dashboard/StatRow";
 import ChartPanel from "../../../components/dashboard/ChartPanel";
 import ChartGrid from "../../../components/dashboard/ChartGrid";

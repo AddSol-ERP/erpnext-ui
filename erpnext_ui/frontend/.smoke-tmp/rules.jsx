@@ -3971,5 +3971,109 @@ ok(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Quality Inspection header fields.
+//
+// The form posted item_code, template, status and readings. ERPNext marks four
+// more `reqd`, so every save died at document.py:310 `_validate_mandatory`
+// with:
+//   MandatoryError: [Quality Inspection, ...]: inspection_type,
+//   reference_type, reference_name, sample_size
+// ---------------------------------------------------------------------------
+{
+  const qiFormSrc = readSrc("../../src/pages/Quality/entry/InspectionForm/index.jsx");
+
+  // These strings are VALUES posted to the server, not labels. A typo is a
+  // Dynamic Link failure that names the reference document ("Could not find
+  // Reference Name: ...") rather than the field, so the mismatch is invisible
+  // from the message alone. Copied from quality_inspection.json and asserted
+  // here character for character.
+  const ERPNEXT_REFERENCE_TYPES = [
+    "Purchase Receipt",
+    "Purchase Invoice",
+    "Subcontracting Receipt",
+    "Delivery Note",
+    "Sales Invoice",
+    "Stock Entry",
+    "Job Card",
+  ];
+  const declared = (qiFormSrc.slice(
+    qiFormSrc.indexOf("const REFERENCE_TYPES"),
+    qiFormSrc.indexOf("const REFERENCE_TYPES") + 400,
+  ).match(/"([A-Z][A-Za-z ]+)"/g) || []).map((m) => m.replace(/"/g, ""));
+
+  ok(
+    "every reference_type option matches ERPNext's Dynamic Link options exactly",
+    declared.length === ERPNEXT_REFERENCE_TYPES.length &&
+      ERPNEXT_REFERENCE_TYPES.every((t, i) => declared[i] === t),
+    "these are posted as values, so a stray character is a link failure naming the document, not the field",
+  );
+
+  const saveBody = qiFormSrc.slice(
+    qiFormSrc.indexOf("const payload = {"),
+    qiFormSrc.indexOf("const payload = {") + 900,
+  );
+  ok(
+    "all four mandatory fields are in the save payload",
+    ["inspection_type:", "reference_type:", "reference_name:", "sample_size:"].every(
+      (f) => saveBody.includes(f),
+    ),
+    "omitting any one of them reproduces the MandatoryError above",
+  );
+  // A number input hands back a string; ERPNext declares sample_size as Float.
+  ok(
+    "sample_size is coerced to a number and defaulted",
+    /sample_size: Number\(current\.sample_size\) \|\| DEFAULT_SAMPLE_SIZE/.test(saveBody),
+    "the raw value is a string, and posting it stores a string into a Float field",
+  );
+
+  // THE field that can silently become wrong. reference_name is a Dynamic Link
+  // whose target doctype IS reference_type, so a stale name pairs a Purchase
+  // Receipt with a Delivery Note and ERPNext reports it as a missing document.
+  ok(
+    "changing the reference type clears the reference name",
+    /const handleReferenceTypeChange[\s\S]{0,400}setDoc\(\{ \.\.\.doc, reference_type, reference_name: "" \}\)/.test(
+      qiFormSrc,
+    ),
+    "a stale reference is reported as \"Could not find Reference Name\" -- naming the document, so it reads as if it were deleted",
+  );
+  ok(
+    "the reference name field is disabled until a type is chosen",
+    /disabled=\{!doc\.reference_type\}/.test(qiFormSrc),
+    "an empty doctype fires a link search against nothing",
+  );
+  // AGENTS.md invariant 14: a parent list filtered by a child-table field
+  // cross-joins in get_filter. Filtering the reference list by item_code would
+  // be exactly that.
+  ok(
+    "the reference list is filtered parent-level only, never by a child field",
+    /filters=\{\{ docstatus: \["<", 2\] \}\}/.test(qiFormSrc) &&
+      !/filters=\{\{[^}]*item_code/.test(qiFormSrc),
+    "filtering a parent list by a child's column is a cross join -- duplicates and wrong pagination, silently",
+  );
+
+  // An edit that maps only two of six fields blanks the rest on re-save.
+  // Anchored on `template:` because the first `setDoc({` in the file is the one
+  // inside handleReferenceTypeChange -- indexing on setDoc alone pointed this
+  // guard at the wrong block and it passed for the wrong reason.
+  const loadAt = qiFormSrc.indexOf("setDoc({\n      template:");
+  const loadBody = loadAt === -1 ? "" : qiFormSrc.slice(loadAt, loadAt + 800);
+  ok(
+    "loadDoc restores all four fields, so an edit-and-save does not blank them",
+    ["inspection_type: d.inspection_type", "reference_type: d.reference_type",
+     "reference_name: d.reference_name", "sample_size: d.sample_size"].every((f) =>
+      loadBody.includes(f),
+    ),
+    "an inspection that loads valid and then fails mandatory validation on save is indistinguishable from a broken server",
+  );
+  ok(
+    "the four fields are checked before the save is attempted",
+    /const errs = requiredFields\([\s\S]{0,300}inspection_type[\s\S]{0,300}reference_name[\s\S]{0,400}return;/.test(
+      qiFormSrc,
+    ),
+    "otherwise the server reports all four in one toast with no field marked",
+  );
+}
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
