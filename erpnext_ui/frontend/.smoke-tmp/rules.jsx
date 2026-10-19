@@ -51,6 +51,7 @@ import {
   visibleColumns,
 } from "../src/pages/Reports/custom-report/format.js";
 import { packPieces, pieceLabel } from "../src/pages/Store/plate-offcut/pack.js";
+import { toSelectItems } from "../src/lib/selectItems.js";
 import {
   aggregateEstimates,
   expandRows,
@@ -4127,6 +4128,91 @@ ok(
       .includes("if (dirty)") &&
       !readSrc("../../src/pages/Store/delivery/form/index.jsx").includes("if (dirty)"),
     "one form doing it differently is how the divergence started",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FormSelect option normalisation.
+//
+// The Reference Type dropdown shipped with seven BLANK options. The mapper was
+// `Array.isArray(opt) ? {value: opt[0], label: opt[1]} : opt`, so a bare string
+// fell through unchanged and the render read `opt.value` / `opt.label` off it
+// -- both undefined. Every item became `value="undefined"` with no text and a
+// duplicate React key.
+//
+// Worth a dedicated guard because this failure mode is invisible to every other
+// check in this repo: it does not throw, it does not log, and Radix renders
+// SelectItems only inside a closed popover, so an SSR render of the form sees
+// the trigger and nothing else. Lint cannot see it, and neither could a
+// render-based test.
+// ---------------------------------------------------------------------------
+{
+  // The exact regression: bare strings.
+  const fromStrings = toSelectItems([
+    "Purchase Receipt", "Purchase Invoice", "Subcontracting Receipt",
+    "Delivery Note", "Sales Invoice", "Stock Entry", "Job Card",
+  ]);
+  ok(
+    "bare strings become labelled options, not blank ones",
+    fromStrings.length === 7 &&
+      fromStrings.every((i) => i.label && i.value) &&
+      fromStrings[0].label === "Purchase Receipt" &&
+      fromStrings[6].value === "Job Card",
+    "the old mapper left the string as a string, so value and label were both undefined and every row rendered blank",
+  );
+  ok(
+    "no two options collapse onto the same value",
+    new Set(fromStrings.map((i) => i.value)).size === fromStrings.length,
+    "duplicate values make Radix select the wrong one and give React duplicate keys",
+  );
+  ok(
+    "none of them is the literal string \"undefined\"",
+    !fromStrings.some((i) => i.value === "undefined" || i.label === "undefined"),
+    "that is what a dropped .value reads as once it has been stringified",
+  );
+
+  // The shapes existing callers already use must be unchanged.
+  const tuples = toSelectItems([["numeric", "Range"], ["value", "Value"]]);
+  const objects = toSelectItems([{ value: "a", label: "A" }]);
+  const mixed = toSelectItems(["Raw", ["v", "V"], { value: "o", label: "O" }]);
+  ok(
+    "tuple and object shapes still work exactly as before",
+    tuples.length === 2 && tuples[0].value === "numeric" && tuples[0].label === "Range" &&
+      objects.length === 1 && objects[0].label === "A",
+    "existing callers pass tuples and objects; changing their output would break forms that work today",
+  );
+  ok(
+    "shapes may be mixed in one call",
+    mixed.length === 3 &&
+      mixed.map((i) => i.label).join(",") === "Raw,V,O",
+    "the mapper runs per item, so a mixed list must not fall apart",
+  );
+
+  // Defensive: these are what silently produced value="undefined" before.
+  ok(
+    "entries with no usable value are dropped, never stringified to \"undefined\"",
+    toSelectItems(["", null, undefined, ["", "x"], { label: "no value" }]).length === 0,
+    "Radix forbids an empty value, and keeping them would reintroduce duplicate keys",
+  );
+  ok(
+    "a missing label falls back to the value rather than rendering blank",
+    toSelectItems([["Job Card"]])[0].label === "Job Card",
+    "a blank row is indistinguishable from a rendering failure",
+  );
+  ok(
+    "non-array input yields no options rather than throwing",
+    toSelectItems(null).length === 0 && toSelectItems(undefined).length === 0,
+    "a form passing a possibly-undefined list should render an empty select, not crash the page",
+  );
+
+  // The call site must not regress to passing an object where the array is
+  // expected -- the shape the dropdown actually receives.
+  const qiForm = readSrc("../../src/pages/Quality/entry/InspectionForm/index.jsx");
+  ok(
+    "the Reference Type dropdown feeds FormSelect a list, not a map",
+    /options=\{REFERENCE_TYPES\.map\(/.test(qiForm) &&
+      /options=\{REFERENCE_TYPES\}/.test(qiForm) === false,
+    "REFERENCE_TYPES is an array of strings; handing it straight to a mapper that expects tuples is what broke the labels",
   );
 }
 

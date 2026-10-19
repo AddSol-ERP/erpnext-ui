@@ -437,8 +437,11 @@ export default function InspectionForm() {
               onChange={handleReferenceTypeChange}
               placeholder={t("quality.selectType")}
               // Raw ERPNext doctype names, untranslated on purpose: these double
-              // as the values posted to the server.
-              options={REFERENCE_TYPES}
+              // as the values posted to the server. Passed as [value, label]
+              // tuples -- FormSelect also accepts bare strings, but spelling the
+              // tuple out keeps value and label obviously identical here, which
+              // is the whole point of not translating them.
+              options={REFERENCE_TYPES.map((name) => [name, name])}
             />
           </FormField>
 

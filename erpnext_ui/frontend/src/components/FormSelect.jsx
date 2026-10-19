@@ -6,13 +6,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "cn";
+import { toSelectItems } from "../lib/selectItems";
 
 const EMPTY = "__all__";
 
 /**
  * Thin wrapper over shadcn/Radix Select for form usage.
  * - Controlled value (string); empty string maps to placeholder.
- * - options: [{ value, label }] | [string, string]
+ * - options: string[] | [string, string][] | {value, label}[]
+ *   (normalised by toSelectItems in lib/selectItems, which is unit-tested).
  * - Matches FormField controls (h-8 trigger, w-full).
  *
  * Note: Radix forbids value="" on SelectItem, so empty uses EMPTY sentinel.
@@ -27,9 +29,7 @@ export default function FormSelect({
   className,
   "aria-label": ariaLabel,
 }) {
-  const items = options.map((opt) =>
-    Array.isArray(opt) ? { value: opt[0], label: opt[1] } : opt,
-  );
+  const items = toSelectItems(options);
 
   const normalized = value === "" || value == null ? EMPTY : value;
 
@@ -53,7 +53,7 @@ export default function FormSelect({
           </SelectItem>
         )}
         {items.map((opt) => (
-          <SelectItem key={opt.value} value={String(opt.value)}>
+          <SelectItem key={opt.value} value={opt.value}>
             {opt.label}
           </SelectItem>
         ))}
