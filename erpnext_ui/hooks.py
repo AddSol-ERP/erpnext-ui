@@ -140,13 +140,15 @@ app_include_js = ["/assets/erpnext_ui/js/addsol_ui_nav.js"]
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	# Quality Inspection's `inspected_by` default is the literal string "user",
+	# which is not a User id, so a direct REST insert fails link validation. The
+	# desk hides this because `make_quality_inspection` overwrites it; we do not
+	# go through that mapper. See the comment on the handler for the full story.
+	"Quality Inspection": {
+		"before_validate": "erpnext_ui.api.repair_inspected_by"
+	}
+}
 
 # Scheduled Tasks
 # ---------------

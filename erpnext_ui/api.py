@@ -2956,3 +2956,49 @@ def get_custom_report_data(report_key, filters=None):
             for f in declared
         ],
     }
+
+
+# `inspected_by` is a Link to User carrying the literal string "user" as its
+# default -- an upstream ERPNext landmine, not ours.
+#
+# The doctype declares:
+#
+#     {"fieldname": "inspected_by", "fieldtype": "Link", "options": "User",
+#      "default": "user", "reqd": 1, "oldfieldtype": "Data"}
+#
+# It used to be free text and was converted to a Link without clearing the
+# default. Frappe evaluates `default` as a LITERAL, so every Quality Inspection
+# is born holding `inspected_by = "user"`, which is not a User id, and
+# `Document._validate_links` refuses the write with
+# `LinkValidationError: Could not find Inspected By: user`.
+#
+# ERPNext never sees it because the desk always builds the document through
+# `make_quality_inspection`, which overwrites the field with
+# `frappe.session.user` (erpnext/stock/doctype/quality_inspection/
+# quality_inspection.py:442). That is the ONLY place in the doctype that assigns
+# it -- there is no `before_insert` and `validate` never touches it -- so any
+# client that POSTs a Quality Inspection directly hits this. Ours does, via
+# `saveDocument` in pages/Quality/entry/InspectionForm.
+#
+# Repaired here rather than in the SPA, for two reasons. It is an identity
+# field, and the app's own rule is that the server owns identity -- a client
+# sending `inspected_by` would be asserting who did the work, which any caller
+# could claim. And the fix is one place for every REST client, where a
+# client-side change would leave curl, the mobile app and any future integration
+# broken on the same upstream default.
+def repair_inspected_by(doc, method=None):
+	"""Replace the bogus `inspected_by` default with the session user.
+
+	Only the broken values are replaced -- the literal `"user"`, a different
+	case of it, and empty. An `inspected_by` naming someone else is left alone,
+	because recording an inspection performed on another person's behalf is
+	legitimate and this must not quietly rewrite it to whoever saved last.
+
+	`before_validate`, not `before_insert`: a draft saved from the desk's
+	"Get Document" mapper already holds a good value, but a draft created
+	through any other path still carries `"user"`, and re-saving it runs the
+	link check again.
+	"""
+	current = (doc.inspected_by or "").strip()
+	if current.lower() in ("", "user"):
+		doc.inspected_by = frappe.session.user

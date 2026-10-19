@@ -3821,5 +3821,57 @@ ok(
   "this flow inserts and submits in one click; splitting it would leave a docstatus 0 entry behind",
 );
 
+// ---------------------------------------------------------------------------
+// Quality Inspection `inspected_by`.
+//
+// Stock ERPNext declares it Link-to-User with `default: "user"` -- left over
+// from when the field was free text. Frappe evaluates `default` literally, so
+// a document POSTed straight to the API is born holding a value that is not a
+// User id and dies in `_validate_links`. The desk never sees it because
+// `make_quality_inspection` overwrites it; the SPA does not use that mapper.
+// ---------------------------------------------------------------------------
+{
+  let hooksSource = "";
+  for (const rel of ["../../../hooks.py", "../../../../hooks.py"]) {
+    try {
+      hooksSource = readFileSync(new URL(rel, import.meta.url), "utf8");
+      break;
+    } catch {
+      /* try the next depth */
+    }
+  }
+  const repairSrc = apiSource.slice(
+    apiSource.indexOf("def repair_inspected_by"),
+    apiSource.indexOf("def repair_inspected_by") + 1400,
+  );
+
+  ok(
+    "the Quality Inspection repair is actually wired into doc_events",
+    /"Quality Inspection":\s*\{[\s\S]{0,120}"before_validate":\s*"erpnext_ui\.api\.repair_inspected_by"/.test(
+      hooksSource,
+    ),
+    "the handler existing is not the same as it running; nothing here would notice an unwired one",
+  );
+  ok(
+    "before_validate, not before_insert -- a draft already carrying \"user\" must be repairable too",
+    /"before_validate"/.test(hooksSource) && !/Quality Inspection[\s\S]{0,200}"before_insert"/.test(hooksSource),
+    "before_insert alone leaves an already-saved draft failing the same link check on every re-save",
+  );
+  // The overwrite has to be NARROW. Setting this unconditionally would quietly
+  // rewrite who performed the inspection to whoever last saved the document,
+  // which for an audit field is worse than the bug being fixed.
+  ok(
+    "the repair replaces only the broken value, never a real user",
+    /current\.lower\(\) in \("", "user"\)/.test(repairSrc) &&
+      /doc\.inspected_by = frappe\.session\.user/.test(repairSrc),
+    "an inspection done on someone else's behalf must survive; blanket-assigning session.user destroys that",
+  );
+  ok(
+    "identity comes from the session, never from the client",
+    /frappe\.session\.user/.test(repairSrc) && !/doc\.get\("inspected_by"\)|form_dict/.test(repairSrc),
+    "reading inspected_by off form_dict would let any caller assert who performed the inspection",
+  );
+}
+
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
