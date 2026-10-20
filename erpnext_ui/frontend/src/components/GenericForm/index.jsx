@@ -1083,6 +1083,7 @@ export default function GenericFormPage() {
         show={!isNew && showAttachments}
         doctype={decodedDoctype}
         docname={decodedName}
+        readOnly={isReadOnly}
         onClose={() => setShowAttachments(false)}
       />
 

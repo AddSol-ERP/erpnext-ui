@@ -628,10 +628,9 @@ export default function ExpenseClaimForm() {
           onClick: handleSave,
         },
 
-        // A saved draft only (see the state's comment): bills attach while the
-        // claim is still being assembled, not after approval has committed it.
-        isEdit &&
-          !isSubmitted && {
+        // Keep attachments available after submit for preview, while the dialog
+        // switches to read-only mode and hides upload/delete actions.
+        isEdit && {
             label: t("attachments.open"),
             variant: "btn-outline-primary",
             onClick: () => setShowAttach(true),
@@ -985,6 +984,7 @@ export default function ExpenseClaimForm() {
         show={isEdit && showAttach}
         doctype="Expense Claim"
         docname={name || ""}
+        readOnly={isSubmitted}
         onClose={() => setShowAttach(false)}
       />
     </div>

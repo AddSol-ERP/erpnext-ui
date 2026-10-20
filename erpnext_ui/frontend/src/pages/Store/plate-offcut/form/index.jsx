@@ -910,6 +910,7 @@ export default function PlateOffcutForm() {
         show={isEdit && showAttach}
         doctype="Plate Offcut"
         docname={name}
+        readOnly={submitted}
         onClose={closeAttach}
         onSubmit={
           attachForSubmit

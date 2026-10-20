@@ -126,7 +126,7 @@ export default function StockEntryPage() {
           // to open a dialog on an empty entry.
           disabled: !stock.canSubmit || !stock.selectedType,
         },
-        {
+        !stock.attachTarget && {
           label: t("attachments.open"),
           variant: "btn-outline-primary",
           onClick: () => setShowInitialAttachment(true),
@@ -322,6 +322,7 @@ export default function StockEntryPage() {
         show={stock.showAttach}
         doctype="Stock Entry"
         docname={stock.attachTarget || ""}
+        readOnly
         onClose={() => stock.setShowAttach(false)}
       />
     </>

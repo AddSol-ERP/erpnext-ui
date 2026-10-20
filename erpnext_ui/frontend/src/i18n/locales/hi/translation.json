@@ -236,7 +236,7 @@
     "requiredBeforeSave": "सहेजने से पहले दस्तावेज़ संलग्न करें।",
     "requiredBeforeSubmit": "इस दस्तावेज़ को सबमिट करने से पहले फ़ाइल संलग्न करें।",
     "saveAttachmentFailed": "क्लेम सहेजा गया, लेकिन उसका दस्तावेज़ संलग्न नहीं हो सका।",
-    "open": "संलग्न करें",
+    "open": "संलग्नक",
     "confirmDelete": "इस दस्तावेज़ से {label} हटाएँ?",
     "deleteConfirm": "{label} हटाएँ?"
   }

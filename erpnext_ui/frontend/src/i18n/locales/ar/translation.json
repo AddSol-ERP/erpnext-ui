@@ -236,7 +236,7 @@
     "requiredBeforeSave": "أرفق مستندًا قبل الحفظ.",
     "requiredBeforeSubmit": "أرفق مستندًا قبل إرسال هذا المستند.",
     "saveAttachmentFailed": "تم حفظ المطالبة، لكن تعذرت إضافة مرفقها.",
-    "open": "إرفاق",
+    "open": "المرفقات",
     "confirmDelete": "إزالة {label} من هذا المستند؟",
     "deleteConfirm": "إزالة {label}؟"
   }

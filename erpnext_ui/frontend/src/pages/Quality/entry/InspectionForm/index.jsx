@@ -768,6 +768,7 @@ export default function InspectionForm() {
         show={isEdit && showAttach}
         doctype="Quality Inspection"
         docname={name || ""}
+        readOnly={Boolean(doc.docstatus)}
         onClose={() => setShowAttach(false)}
       />
     </div>

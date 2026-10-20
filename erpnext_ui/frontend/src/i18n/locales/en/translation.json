@@ -236,7 +236,7 @@
     "requiredBeforeSave": "Attach a document before saving.",
     "requiredBeforeSubmit": "Attach a document before submitting this document.",
     "saveAttachmentFailed": "The claim was saved, but its attachment could not be added.",
-    "open": "Attach",
+    "open": "Attachments",
     "confirmDelete": "Remove {label} from this document?",
     "deleteConfirm": "Remove {label}?"
   }

@@ -141,7 +141,7 @@ export function AttachmentsPanel({
   };
 
   const confirmStaged = async () => {
-    if (!current || uploading) return;
+    if (!current || uploading || readOnly) return;
     setUploading(true);
     setError("");
     try {
@@ -182,7 +182,7 @@ export function AttachmentsPanel({
   };
 
   const handleDelete = async () => {
-    if (!pendingDelete) return;
+    if (!pendingDelete || readOnly) return;
     setError("");
     try {
       await deleteAttachment(pendingDelete.name);
@@ -273,7 +273,7 @@ export function AttachmentsPanel({
       )}
 
       {/* The staging row for the current file. Inline, never a second modal. */}
-      {current ? (
+      {current && !readOnly ? (
         <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-muted/30 p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="text-sm font-medium">
@@ -442,8 +442,9 @@ export function AttachmentsPanel({
  *     closes. Nothing here may submit from a dialog the user opened just to
  *     look at the files.
  */
-export function AttachDialog({ show, onClose, doctype, docname, onSubmit }) {
+export function AttachDialog({ show, onClose, doctype, docname, onSubmit, readOnly = false }) {
   const { t } = useTranslation();
+  const submitAction = !readOnly && onSubmit;
   return (
     <AppModal
       show={show}
@@ -451,7 +452,7 @@ export function AttachDialog({ show, onClose, doctype, docname, onSubmit }) {
       title={t("attachments.dialogTitle", { doctype })}
       width="lg"
       footer={
-        onSubmit ? (
+        submitAction ? (
           <>
             <Button variant="ghost" onClick={onClose}>
               {t("common.cancel")}
@@ -470,7 +471,7 @@ export function AttachDialog({ show, onClose, doctype, docname, onSubmit }) {
           upload could not attach at all because the document was already gone
           from this dialog. It is the panel's own state that needs refreshing,
           and it already does that itself, so the parent is told nothing. */}
-      <AttachmentsPanel doctype={doctype} docname={docname} />
+      <AttachmentsPanel doctype={doctype} docname={docname} readOnly={readOnly} />
     </AppModal>
   );
 }

@@ -939,6 +939,7 @@ export default function PurchaseReceiptForm() {
         show={isEdit && showAttach}
         doctype="Purchase Receipt"
         docname={name}
+        readOnly={Boolean(doc.docstatus)}
         onClose={closeAttach}
         onSubmit={
           attachForSubmit

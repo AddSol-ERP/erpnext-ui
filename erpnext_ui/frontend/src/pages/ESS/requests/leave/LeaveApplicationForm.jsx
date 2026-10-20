@@ -710,10 +710,9 @@ export default function LeaveApplicationForm() {
           onClick: handleSave,
         },
 
-        // A saved draft only (see the state's comment): leave proof attaches
-        // while the application is still moving, not after HR has committed it.
-        isEdit &&
-          !isSubmitted && {
+        // Keep files available for preview after submit; upload/delete are
+        // disabled in the read-only attachment dialog.
+        isEdit && {
             label: t("attachments.open"),
             variant: "btn-outline-primary",
             onClick: () => setShowAttach(true),
@@ -1091,6 +1090,7 @@ export default function LeaveApplicationForm() {
         show={isEdit && showAttach}
         doctype="Leave Application"
         docname={name || ""}
+        readOnly={isSubmitted}
         onClose={() => setShowAttach(false)}
       />
     </div>
