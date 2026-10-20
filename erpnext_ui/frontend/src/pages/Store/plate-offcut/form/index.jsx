@@ -107,10 +107,13 @@ export default function PlateOffcutForm() {
   const [saving, setSaving] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
 
-  // Attach step, shown after the Submit confirmation and before the submit
-  // itself. The draft is saved by then -- Submit only appears once `isEdit` --
-  // so the files have a document to hang from.
+  // Attach step. Two entry points: the Submit flow (attachForSubmit=true,
+  // dialog footer carries Submit), after the Submit confirmation and before
+  // the submit itself, and the header Attach action (browse mode, footer is
+  // just Done). The draft is saved by either -- both only appear once `isEdit`
+  // -- so the files have a document to hang from.
   const [showAttach, setShowAttach] = useState(false);
+  const [attachForSubmit, setAttachForSubmit] = useState(false);
 
   // `dirty` is event-based, never diff-based: only a row edit or a serial change
   // counts. The server's own derived fields arrive on load and must not be
@@ -401,12 +404,21 @@ export default function PlateOffcutForm() {
 
   const handleSubmit = useCallback(async () => {
     setConfirmSubmit(false);
+    // The dialog's Submit button closes AND submits; Cancel (or the X) returns
+    // to the draft untouched. The old footer's Done only CLOSED the dialog, so
+    // the flow looped: Submit -> confirm -> dialog -> Done -> draft -> again.
     if (isEdit && !docRef.current?.docstatus) {
+      setAttachForSubmit(true);
       setShowAttach(true);
       return;
     }
     submitNow();
   }, [isEdit, submitNow]);
+
+  const closeAttach = () => {
+    setShowAttach(false);
+    setAttachForSubmit(false);
+  };
 
 
 
@@ -499,6 +511,21 @@ export default function PlateOffcutForm() {
         label: t("store.plateOffcut.backToList"),
         variant: "btn-outline-primary",
         onClick: () => navigate("/store/plate-offcut"),
+      });
+    }
+
+    // Attach is available on any SAVED offcut, draft or submitted: the dialog
+    // used to be reachable only mid-Submit, so a receipt opened to check its
+    // cutting photos had no way to see them. The server's `_require_write` is
+    // the boundary, not this button.
+    if (isEdit) {
+      actions.push({
+        label: t("attachments.open"),
+        variant: "btn-outline-primary",
+        onClick: () => {
+          setAttachForSubmit(false);
+          setShowAttach(true);
+        },
       });
     }
 
@@ -846,17 +873,23 @@ export default function PlateOffcutForm() {
       {/* Submitting POSTS STOCK: it creates Items, a Batch and a reserved Serial
           No per offcut, then submits a Repack Stock Entry. It must not read as an
           ordinary save. */}
-      {/* Attach step. `onSkip` is the escape hatch that keeps a device with no
-          camera from being trapped: it closes AND submits. */}
+      {/* Attach step. In the Submit flow the footer is Cancel + Submit, so a
+          device with no camera is never trapped -- Submit with zero files is
+          the escape hatch. Opened from the header Attach action the footer is
+          a single Done: browsing files must not be able to submit anything. */}
       <AttachDialog
         show={showAttach}
         doctype="Plate Offcut"
         docname={name}
-        onClose={() => setShowAttach(false)}
-        onSkip={() => {
-          setShowAttach(false);
-          submitNow();
-        }}
+        onClose={closeAttach}
+        onSubmit={
+          attachForSubmit
+            ? () => {
+                closeAttach();
+                submitNow();
+              }
+            : undefined
+        }
       />
 
       <ConfirmDialog

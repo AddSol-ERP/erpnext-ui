@@ -228,7 +228,7 @@
     "deleteFailed": "Could not remove the document.",
     "saveFirst": "Save the document before attaching files to it.",
     "dialogTitle": "Attach documents",
-    "skip": "Submit without attaching",
+    "open": "Attach",
     "confirmDelete": "Remove {label} from this document?",
     "deleteConfirm": "Remove {label}?"
   }

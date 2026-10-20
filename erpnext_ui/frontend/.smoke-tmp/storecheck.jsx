@@ -838,12 +838,19 @@ globalThis.fetch = (url) => {
   });
 };
 
-const attachHtml = renderNode(
+const attachSubmitHtml = renderNode(
   <AttachDialog
     show
     doctype="Purchase Receipt"
     docname="MAT-PRE-00011"
-    onSkip={() => {}}
+    onSubmit={() => {}}
+  />,
+);
+const attachBrowseHtml = renderNode(
+  <AttachDialog
+    show
+    doctype="Purchase Receipt"
+    docname="MAT-PRE-00011"
   />,
 );
 
@@ -852,11 +859,21 @@ const attachHtml = renderNode(
 // frame worth asserting: it is the one that decides whether a half-loaded
 // panel flashes raw i18n keys at the operator.
 ok("attachments: no raw translation key leaks into the dialog",
-   !/attachments\.[a-zA-Z]/.test(attachHtml) && !/common\.[a-zA-Z]/.test(attachHtml),
+   !/attachments\.[a-zA-Z]/.test(attachSubmitHtml) && !/common\.[a-zA-Z]/.test(attachSubmitHtml),
    "i18next returns the key itself when a namespace is missing, so this is the assertion that catches an untranslated string");
-ok("attachments: the dialog offers a way past it, and the label is translated",
-   attachHtml.includes("Submit without attaching") && !/attachments\.skip/.test(attachHtml),
-   "this dialog sits in front of a submit; an operator on a phone with no camera must still be able to finish, and a raw key here means the escape hatch is both ugly and unreadable");
+// The pre-submit footer is Cancel + Submit. The OLD footer was Skip +
+// a prominent Done that only CLOSED the dialog, so Submit -> dialog -> Done ->
+// untouched draft -> Submit looped forever and only the ghost Skip submitted.
+ok("attachments: the pre-submit dialog offers Cancel and Submit, translated",
+   attachSubmitHtml.includes("Cancel") && attachSubmitHtml.includes("Submit") &&
+     !/Submit without attaching/.test(attachSubmitHtml),
+   "an operator on a phone with no camera must still be able to finish -- Submit with zero files is that escape hatch -- and a close that never submits is the loop this replaced");
+// Browse mode (header Attach action): a single Done, and nothing that could
+// submit the parent document from a dialog opened only to LOOK at files.
+ok("attachments: the browse dialog is Done-only and cannot submit",
+   attachBrowseHtml.includes("Done") &&
+     !attachBrowseHtml.includes("Cancel") && !attachBrowseHtml.includes("Submit"),
+   "browsing files must not be able to submit the document");
 
 // The ACCEPT attribute is the real contract with the server's extension list.
 const attachLibSrc = readFileSync(
@@ -871,6 +888,48 @@ ok("attachments: the accept filter is built from the server config, not a litera
 ok("attachments: the file input is never rendered as a visible control",
    /hidden/.test(attachSrc) && /\.click\(\)/.test(attachSrc),
    "an always-open file input invites picking from anywhere on the form");
+
+// `onSkip` is gone: with a Cancel+Submit footer in the pre-submit mode, Skip
+// and Submit would be the same button twice. No call site may resurrect it.
+const attachCallers = [
+  "../../src/pages/Store/purchase-receipt/form/index.jsx",
+  "../../src/pages/Store/plate-offcut/form/index.jsx",
+  "../../src/components/StockEntry/StockEntryPage.jsx",
+].map((p) => readFileSync(new URL(p, import.meta.url), "utf8"));
+ok("attachments: no call site still passes the removed onSkip prop",
+   !/onSkip/.test(attachSrc) && attachCallers.every((s) => !/onSkip/.test(s)));
+// The Purchase Receipt and Plate Offcut submit flows pass onSubmit -- the
+// regression this whole section exists for is a dialog in front of a submit
+// whose Done button does not submit.
+ok("attachments: the PR and Plate Offcut submit flows pass onSubmit",
+   /attachForSubmit/.test(attachCallers[0]) && /attachForSubmit/.test(attachCallers[1]) &&
+     /onSubmit=\{\s*attachForSubmit/.test(attachCallers[0]) &&
+     /onSubmit=\{\s*attachForSubmit/.test(attachCallers[1]));
+
+// The Quality Inspection form carries the attach dialog now; the report page
+// must not -- the "recent failures" rows navigate to the form instead.
+const qiFormSrc = readFileSync(
+  new URL("../../src/pages/Quality/entry/InspectionForm/index.jsx", import.meta.url), "utf8");
+const qiReportSrc = readFileSync(
+  new URL("../../src/pages/Quality/reports/index.jsx", import.meta.url), "utf8");
+ok("quality: the inspection form offers Attach on a saved document",
+   /AttachDialog/.test(qiFormSrc) && /isEdit &&\s*\{\s*label: t\("attachments\.open"\)/.test(qiFormSrc));
+ok("quality: the report page no longer hosts the attach dialog",
+   !/AttachDialog/.test(qiReportSrc) && !/setAttachTo/.test(qiReportSrc) &&
+     /navigate\(`\/quality\/inspection\/\$\{r\.name\}`\)/.test(qiReportSrc));
+
+// Leave Application and Expense Claim attachments: the header action must be
+// gated on a SAVED, UNSUBMITTED document -- an ESS user's write on their own
+// document ends at submit, so an ungated button can only fail at _require_write.
+const leaveFormSrc = readFileSync(
+  new URL("../../src/pages/ESS/requests/leave/LeaveApplicationForm.jsx", import.meta.url), "utf8");
+const expenseFormSrc = readFileSync(
+  new URL("../../src/pages/ESS/requests/expense/ExpenseClaimForm.jsx", import.meta.url), "utf8");
+ok("ess: leave and expense attach actions are draft-only",
+   /isEdit &&\s*!isSubmitted &&\s*\{\s*label: t\("attachments\.open"\)/.test(leaveFormSrc) &&
+     /isEdit &&\s*!isSubmitted &&\s*\{\s*label: t\("attachments\.open"\)/.test(expenseFormSrc) &&
+     /doctype="Leave Application"/.test(leaveFormSrc) &&
+     /doctype="Expense Claim"/.test(expenseFormSrc));
 
 
 /* =======================================================================

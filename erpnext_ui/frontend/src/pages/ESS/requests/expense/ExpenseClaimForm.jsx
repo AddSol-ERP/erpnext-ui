@@ -20,6 +20,7 @@ import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import FormSelect from "../../../../components/FormSelect";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { AttachDialog } from "../../../../components/Attachments";
 import { focusFirstError } from "../../../../lib/formValidation";
 import {
   applyEmployeeScope,
@@ -101,6 +102,13 @@ export default function ExpenseClaimForm() {
   // 1 (Submitted) does, and a flag set only when `docstatus === 1` would leave
   // a cancelled document editable and offering Submit.
   const isSubmitted = Number(doc.docstatus) > 0;
+
+  // Attach, from the header, on a SAVED draft only: an ESS user's write on
+  // their own Expense Claim ends at submit, so the action on a submitted
+  // document would be a button that can only fail at `_require_write`.
+  // Header-level (one panel per claim): the File model links to the document,
+  // not to a child-table row, and no row-linking exists to do it per expense.
+  const [showAttach, setShowAttach] = useState(false);
 
   // Which lifecycle buttons this document can offer. Centralised so this form,
   // the Leave form and the Attendance form cannot drift apart.
@@ -207,8 +215,8 @@ export default function ExpenseClaimForm() {
   }
 
   useEffect(() => {
-     
-     
+
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadScope();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -254,8 +262,8 @@ export default function ExpenseClaimForm() {
 
   useEffect(() => {
     if (isEdit) {
-       
-     
+
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
       loadDoc();
     }
@@ -548,6 +556,15 @@ export default function ExpenseClaimForm() {
           disabled: !canSave || submitting,
           onClick: handleSave,
         },
+
+        // A saved draft only (see the state's comment): bills attach while the
+        // claim is still being assembled, not after approval has committed it.
+        isEdit &&
+          !isSubmitted && {
+            label: t("attachments.open"),
+            variant: "btn-outline-primary",
+            onClick: () => setShowAttach(true),
+          },
 
         // Workflow transitions replace Submit entirely. Unrecognised action
         // names are shown verbatim, as the backend's Action Master has them.
@@ -853,6 +870,14 @@ export default function ExpenseClaimForm() {
           />
         </FormField>
       </FormSection>
+
+      {/* Browse mode: single Done footer, closing submits nothing. */}
+      <AttachDialog
+        show={showAttach}
+        doctype="Expense Claim"
+        docname={name || ""}
+        onClose={() => setShowAttach(false)}
+      />
     </div>
   );
 }

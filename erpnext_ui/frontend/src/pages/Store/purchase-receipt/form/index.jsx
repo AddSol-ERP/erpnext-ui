@@ -181,10 +181,12 @@ export default function PurchaseReceiptForm() {
   const [plateItems, setPlateItems] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // The attach step, shown immediately before Submit. A draft already exists by
-  // then -- Submit only appears when `isEdit` -- so the files have a document to
-  // hang from. Skippable: a device with no camera must still be able to finish.
+  // The attach step. Two entry points: the Submit flow (attachForSubmit=true,
+  // dialog footer carries Submit) and the header Attach action (browse mode,
+  // footer is just Done). A draft already exists by either -- both only appear
+  // when `isEdit` -- so the files have a document to hang from.
   const [showAttach, setShowAttach] = useState(false);
+  const [attachForSubmit, setAttachForSubmit] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const plateConfigRef = useRef(plateConfig);
 
@@ -719,13 +721,21 @@ export default function PurchaseReceiptForm() {
   };
 
   const handleSubmit = async () => {
-    // Attach first, submit second. Closing the dialog without skipping submits
-    // as before, so nothing here can strand a receipt that used to be savable.
+    // Attach first, submit second. The dialog's Submit button closes AND
+    // submits; Cancel (or the X) returns to the draft untouched. The old
+    // footer's Done only CLOSED the dialog, so the flow looped: Submit ->
+    // dialog -> Done -> draft -> Submit -> dialog ...
     if (isEdit && !doc?.docstatus) {
+      setAttachForSubmit(true);
       setShowAttach(true);
       return;
     }
     submitNow();
+  };
+
+  const closeAttach = () => {
+    setShowAttach(false);
+    setAttachForSubmit(false);
   };
 
   const submitNow = async () => {
@@ -784,6 +794,20 @@ export default function PurchaseReceiptForm() {
             variant: "btn-primary",
             onClick: handleSubmit,
           },
+        // Attach is available on any SAVED receipt, draft or submitted: the
+        // dialog used to be reachable only mid-Submit, so a receipt opened to
+        // check its weighbridge photos had no way to see them. Submitted too,
+        // because the photo usually arrives with the goods -- the server's
+        // `_require_write` (the same check Frappe's own private-File gate uses)
+        // is the boundary, not this button.
+        isEdit && {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => {
+            setAttachForSubmit(false);
+            setShowAttach(true);
+          },
+        },
         isEdit && doc.docstatus === 0 && {
           label: t("common.delete"),
           variant: "btn-destructive",
@@ -886,18 +910,23 @@ export default function PurchaseReceiptForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
-      {/* Attach step. `onSkip` is the escape hatch that keeps the flow usable on
-          a device with no camera: it closes AND submits, so the operator is
-          never trapped by a mandatory file. */}
+      {/* Attach step. In the Submit flow the footer is Cancel + Submit, so a
+          device with no camera is never trapped -- Submit with zero files is
+          the escape hatch. Opened from the header Attach action the footer is
+          a single Done: browsing files must not be able to submit anything. */}
       <AttachDialog
         show={showAttach}
         doctype="Purchase Receipt"
         docname={name}
-        onClose={() => setShowAttach(false)}
-        onSkip={() => {
-          setShowAttach(false);
-          submitNow();
-        }}
+        onClose={closeAttach}
+        onSubmit={
+          attachForSubmit
+            ? () => {
+                closeAttach();
+                submitNow();
+              }
+            : undefined
+        }
       />
 
       <ConfirmDialog

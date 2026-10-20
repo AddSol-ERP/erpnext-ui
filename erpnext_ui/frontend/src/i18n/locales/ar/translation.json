@@ -228,7 +228,7 @@
     "deleteFailed": "تعذّرت إزالة المستند.",
     "saveFirst": "احفظ المستند قبل إرفاق الملفات به.",
     "dialogTitle": "إرفاق مستندات",
-    "skip": "إرسال دون إرفاق",
+    "open": "إرفاق",
     "confirmDelete": "إزالة {label} من هذا المستند؟",
     "deleteConfirm": "إزالة {label}؟"
   }

@@ -3794,14 +3794,59 @@ ok(
   "there is no name to attach to before the save, and saving on their behalf is not ours to do",
 );
 // The attach step sits in front of a submit, so it must never be able to trap
-// an operator on a device with no camera.
+// an operator on a device with no camera -- and the button that finishes the
+// step must actually finish it. The OLD footer was Skip ("Submit without
+// attaching") + a prominent Done that only CLOSED the dialog, so the flow
+// looped: Submit -> dialog -> Done -> untouched draft -> Submit -> dialog.
 ok(
-  "the attach dialog is skippable, and skipping still submits",
-  /attachments\.skip/.test(attachPanelSrc) &&
+  "the pre-submit dialog submits via onSubmit, and Cancel is the way out",
+  /onSubmit \?/.test(attachPanelSrc) &&
+    /t\("common\.cancel"\)/.test(attachPanelSrc) &&
+    /t\("common\.submit"\)/.test(attachPanelSrc) &&
+    !/onSkip/.test(attachPanelSrc) &&
     /submitNow\(\);/.test(prFormSrc) &&
     /submitNow\(\);/.test(offcutFormSrc),
-  "a mandatory file would make a receipt unsubmittable from a phone with no gallery",
+  "a mandatory file would make a receipt unsubmittable from a phone with no gallery; a Done that only closes is the loop this replaced",
 );
+// The authorisation allow-list is also the UI contract: a doctype missing from
+// it is refused by BOTH get_attachment_config and upload_document, so the SPA
+// would offer a dialog the server then rejects. The two HR doctypes were added
+// when leave proof / expense bills became attachable; losing one here is a
+// silent regression on a surface nobody re-tests.
+ok(
+  "the authorisation allow-list covers every surface the SPA attaches from",
+  [
+    "Purchase Receipt",
+    "Quality Inspection",
+    "Stock Entry",
+    "Plate Offcut",
+    "Leave Application",
+    "Expense Claim",
+  ].every((dt) => uiDocsSrc.includes(`"${dt}": {`)),
+  "a doctype missing here is refused outright by upload_document and get_attachment_config",
+);
+// The same failure shipped three stock-balance endpoints in api.py ("is not
+// whitelisted") with this suite green, because the whitelist audit parsed
+// api.py ONLY. ui_documents.py is the other endpoint file the SPA calls, and
+// every one of its client-callable functions must be decorated.
+{
+  const docLines = uiDocsSrc.split("\n");
+  const docUndecorated = [];
+  for (let i = 0; i < docLines.length; i++) {
+    const m = docLines[i].match(/^def ((?:get|list|upload|delete|create)_\w+)\(/);
+    if (!m) continue;
+    let j = i - 1;
+    while (j >= 0 && (!docLines[j].trim() || docLines[j].trim().startsWith("#"))) j--;
+    if (!docLines[j].trim().startsWith("@frappe.whitelist")) {
+      docUndecorated.push(`${m[1]} (line ${i + 1})`);
+    }
+  }
+  ok(
+    "every client-callable endpoint in ui_documents.py carries @frappe.whitelist",
+    docUndecorated.length === 0 && uiDocsSrc.length > 5000,
+    `not whitelisted: ${docUndecorated.join(", ")} -- the SPA cannot call these`,
+  );
+}
 ok(
   "uploading an attachment never submits the document it hangs off",
   !/onChange={onSkip}/.test(attachPanelSrc),

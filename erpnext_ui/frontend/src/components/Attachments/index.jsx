@@ -246,11 +246,21 @@ export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange 
  * so what the dialog contains can be asserted at all. A Radix Sheet renders
  * through a Portal and would be an empty string under renderToString.
  *
- * The footer carries a Skip path on purpose. This appears immediately before a
- * submit, so making it mandatory would mean a device with no camera could not
- * complete the transaction at all.
+ * TWO modes, chosen by whether `onSubmit` is passed:
+ *
+ *   - `onSubmit` (pre-submit attach step, e.g. Purchase Receipt): the footer is
+ *     Cancel + Submit. The OLD footer was Skip ("Submit without attaching") +
+ *     a prominent Done that only CLOSED the dialog -- so attaching a weighbridge
+ *     ticket, clicking Done, and landing back on the untouched draft was the
+ *     designed behaviour, and Submit looped straight back into this dialog.
+ *     Cancel (and the X / Esc) is the deliberate "don't submit yet" exit;
+ *     Submit with zero files attached is the no-camera escape hatch that Skip
+ *     used to provide, so the two buttons collapsed into these two.
+ *   - no `onSubmit` (browse mode, e.g. the header Attach action): a single Done
+ *     closes. Nothing here may submit from a dialog the user opened just to
+ *     look at the files.
  */
-export function AttachDialog({ show, onClose, doctype, docname, onSkip }) {
+export function AttachDialog({ show, onClose, doctype, docname, onSubmit }) {
   const { t } = useTranslation();
   return (
     <AppModal
@@ -259,23 +269,25 @@ export function AttachDialog({ show, onClose, doctype, docname, onSkip }) {
       title={t("attachments.dialogTitle", { doctype })}
       width="lg"
       footer={
-        <>
-          {onSkip ? (
-            <Button variant="ghost" onClick={onSkip}>
-              {t("attachments.skip")}
+        onSubmit ? (
+          <>
+            <Button variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
             </Button>
-          ) : null}
+            <Button onClick={onSubmit}>{t("common.submit")}</Button>
+          </>
+        ) : (
           <Button onClick={onClose}>{t("common.done")}</Button>
-        </>
+        )
       }
     >
       {/* onChange is a "something changed, re-render me" signal, NOT "finish".
-          Passing onSkip here meant the first successful UPLOAD submitted the
-          parent document -- so attaching a weighbridge ticket on a Purchase
-          Receipt committed the receipt, while a second upload could not attach
-          at all because the document was already gone from this dialog. It is
-          the panel's own state that needs refreshing, and it already does that
-          itself, so the parent is told nothing. */}
+          Passing the dialog's submit callback here meant the first successful
+          UPLOAD submitted the parent document -- so attaching a weighbridge
+          ticket on a Purchase Receipt committed the receipt, while a second
+          upload could not attach at all because the document was already gone
+          from this dialog. It is the panel's own state that needs refreshing,
+          and it already does that itself, so the parent is told nothing. */}
       <AttachmentsPanel doctype={doctype} docname={docname} />
     </AppModal>
   );

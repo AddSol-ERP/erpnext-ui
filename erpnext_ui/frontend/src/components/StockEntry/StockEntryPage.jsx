@@ -124,7 +124,16 @@ export default function StockEntryPage() {
           // to open a dialog on an empty entry.
           disabled: !stock.canSubmit || !stock.selectedType,
         },
-      ],
+        // Re-open the attach dialog after a submit, while the submitted entry's
+        // name is still held in `attachTarget`. Without this, dismissing the
+        // post-submit dialog left no way back to the files -- the Stock Entry
+        // page has no edit mode, so the dialog was the only surface.
+        stock.attachTarget && {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => stock.setShowAttach(true),
+        },
+      ].filter(Boolean),
     });
 
     return () => setHeader({});
@@ -134,6 +143,7 @@ export default function StockEntryPage() {
     stock.fromWarehouse,
     stock.toWarehouse,
     stock.items.length,
+    stock.attachTarget,
   ]);
 
   const selectedTypeLabel = stock.selectedType
@@ -289,8 +299,10 @@ export default function StockEntryPage() {
     </div>
 
       {/* Attach step, opened after the entry has been saved AND submitted --
-          this flow has no draft stage to hang a file from. Skippable, and
-          closing it only closes it: the entry is already submitted. */}
+          this flow has no draft stage to hang a file from. Browse mode: the
+          footer is a single Done and closing it only closes it -- the entry is
+          already submitted. The header Attach action reopens this while
+          `attachTarget` is held. */}
       <AttachDialog
         show={stock.showAttach}
         doctype="Stock Entry"

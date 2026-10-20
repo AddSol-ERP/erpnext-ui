@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
 import { get } from "../../../services/api";
@@ -33,7 +34,6 @@ import {
   YAxis,
 } from "recharts";
 import DashboardShell from "../../../components/dashboard/DashboardShell";
-import { AttachDialog } from "@/components/Attachments";
 import StatRow from "../../../components/dashboard/StatRow";
 import ChartPanel from "../../../components/dashboard/ChartPanel";
 import ChartGrid from "../../../components/dashboard/ChartGrid";
@@ -56,14 +56,16 @@ const PIE_COLORS = ["var(--chart-1)", "var(--chart-4)", "var(--chart-3)", "var(-
 export default function QualityInspectionReport() {
   const { setHeader } = useHeader();
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Quality Inspection has NO form in the SPA -- only this list -- so the
-  // attach dialog is launched from a row here. The inspection always came off
-  // the server, so there is a saved document to attach to.
-  const [attachTo, setAttachTo] = useState(null);
+  // A recent failure drills into the inspection itself. The attach dialog that
+  // used to open from these rows has moved to the Quality Inspection form's
+  // header -- it was parked here because when it was written there was NO
+  // Quality Inspection form in the SPA, and the comment saying so outlived the
+  // form.
 
   const [filters, setFilters] = useState({
     from_date: "",
@@ -431,7 +433,7 @@ export default function QualityInspectionReport() {
                 <button
                   type="button"
                   key={r.name}
-                  onClick={() => setAttachTo(r)}
+                  onClick={() => navigate(`/quality/inspection/${r.name}`)}
                   className="flex w-full cursor-pointer items-center justify-between gap-2 border-b border-border py-2 text-start last:border-0 hover:bg-muted/40"
                 >
                   <div className="min-w-0">
@@ -460,13 +462,6 @@ export default function QualityInspectionReport() {
           {t("common.loading")}
         </p>
       ) : null}
-
-      <AttachDialog
-        show={Boolean(attachTo)}
-        doctype="Quality Inspection"
-        docname={attachTo?.name || ""}
-        onClose={() => setAttachTo(null)}
-      />
     </DashboardShell>
   );
 }

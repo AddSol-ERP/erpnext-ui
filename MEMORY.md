@@ -1746,6 +1746,51 @@ quantity, which is the worst kind of wrong. `conversionDriftSuspicious` warns at
 The boundary caught me: with `>` instead of `>=`, a clean doubling — the single
 most likely slip — sat exactly on the threshold and warned about nothing.
 
+### 9.8l The attach surfaces: a Done button that never submitted, and a dialog parked on the wrong page
+
+Three defects, one theme: the attachment feature existed but you could not see
+it or could not finish through it.
+
+**The pre-submit dialog looped.** `AttachDialog`'s footer was Skip ("Submit
+without attaching") + a prominent **Done** that only called `onClose` — while
+the comment above the call site asserted the opposite ("closing the dialog
+without skipping submits"). Purchase Receipt and Plate Offcut both opened the
+dialog from their Submit handlers, so the flow was: Submit → dialog → attach →
+Done → untouched draft → Submit → dialog, forever; only the ghost Skip
+submitted. The footer is now mode-driven: with `onSubmit` (the pre-submit
+paths) it is **Cancel + Submit** — Cancel/X/Esc abort the step, Submit with
+zero files is the no-camera escape hatch that Skip used to provide — and
+without `onSubmit` (browse mode) a single Done. `onSkip` is gone entirely; the
+suite asserts no call site can resurrect it.
+
+**Attach had no visible affordance.** It appeared only mid-Submit (PR/Plate),
+post-submit (Stock Entry), or — for Quality Inspection — nowhere a user would
+look. Every one of those forms now carries a header **Attach** action on a
+saved document (PR/Plate/QI: any saved doc, draft or submitted; Stock Entry:
+while the post-submit `attachTarget` is held, since that page has no edit
+mode). Leave Application and Expense Claim got the same action **gated
+`isEdit && !isSubmitted`**: an ESS user's write on their own document ends at
+submit, so an ungated button there can only fail at `_require_write`.
+
+**Quality Inspection's attach lived on the Quality *report* page**, launched by
+clicking a "recent failures" row, because the code it was written into carried
+the comment *"Quality Inspection has NO form in the SPA — only this list"* —
+and the comment outlived the form it justified (`/quality/inspection/:name`
+exists). The dialog is on the InspectionForm header now; the report's failure
+rows navigate to the inspection instead.
+
+**Leave Application and Expense Claim are now in
+`DOCUMENT_ATTACHMENT_CONFIG`** (`LEAVE_PROOF` / `EXPENSE_BILL`, pdf/jpg/png,
+5 MB) — that dict is the authorisation allow-list, so before this change
+`get_attachment_config` refused both doctypes outright. Attachments are
+doc-level (the `File` model links to the document, not a child-table row), so
+an Expense Claim gets one panel per claim, not a bill per expense row.
+
+**The whitelist audit now parses `ui_documents.py` too.** It covered `api.py`
+only, which is exactly how the "is not whitelisted" failure shipped with the
+suite green — the eight endpoints in `ui_documents.py` were decorated by hand,
+and nothing would have caught a ninth that was not.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second

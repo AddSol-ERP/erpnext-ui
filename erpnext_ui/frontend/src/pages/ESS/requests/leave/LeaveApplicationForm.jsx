@@ -29,6 +29,7 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { AttachDialog } from "../../../../components/Attachments";
 import FormSelect from "../../../../components/FormSelect";
 import { focusFirstError } from "../../../../lib/formValidation";
 import {
@@ -143,6 +144,11 @@ export default function LeaveApplicationForm() {
   // a cancelled document editable and offering Submit.
   const isSubmitted = Number(doc.docstatus) > 0;
 
+  // Attach, from the header, on a SAVED draft only: an ESS user's write on
+  // their own Leave Application ends at submit, so the action on a submitted
+  // document would be a button that can only fail at `_require_write`.
+  const [showAttach, setShowAttach] = useState(false);
+
   // Which lifecycle buttons this document can offer. Centralised so this form,
   // the Expense form and the Attendance form cannot drift apart.
   const { showBack, showCancel, showDelete } = resolveDocstatusActions({
@@ -195,7 +201,7 @@ export default function LeaveApplicationForm() {
   }
 
   useEffect(() => {
-     
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadScope();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -241,7 +247,7 @@ export default function LeaveApplicationForm() {
 
   useEffect(() => {
     if (isEdit) {
-       
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
       loadDoc();
     }
@@ -278,7 +284,7 @@ export default function LeaveApplicationForm() {
 
   useEffect(() => {
     if (doc.employee) {
-       
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchApprovers(doc.employee);
     }
@@ -313,7 +319,7 @@ export default function LeaveApplicationForm() {
 
   useEffect(() => {
     if (doc.employee && doc.from_date) {
-       
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchLeaveDetails();
     }
@@ -693,6 +699,15 @@ export default function LeaveApplicationForm() {
           onClick: handleSave,
         },
 
+        // A saved draft only (see the state's comment): leave proof attaches
+        // while the application is still moving, not after HR has committed it.
+        isEdit &&
+          !isSubmitted && {
+            label: t("attachments.open"),
+            variant: "btn-outline-primary",
+            onClick: () => setShowAttach(true),
+          },
+
         // Workflow transitions replace Submit entirely. Labels come from the
         // backend's Action Master; anything unrecognised is shown verbatim so an
         // admin-authored workflow is never mistranslated.
@@ -1043,6 +1058,14 @@ export default function LeaveApplicationForm() {
           />
         </FormField>
       </FormSection>
+
+      {/* Browse mode: single Done footer, closing submits nothing. */}
+      <AttachDialog
+        show={showAttach}
+        doctype="Leave Application"
+        docname={name || ""}
+        onClose={() => setShowAttach(false)}
+      />
     </div>
   );
 }

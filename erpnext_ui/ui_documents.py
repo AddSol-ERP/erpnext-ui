@@ -131,6 +131,18 @@ DOCUMENT_ATTACHMENT_CONFIG = {
         "AFTER_CUT": {"label": "After cut", "extensions": ["jpg", "jpeg", "png", "webp"], "max_size_mb": 8, "sort_order": 20},
         "CUT_DETAIL": {"label": "Cut detail", "extensions": ["jpg", "jpeg", "png", "webp"], "max_size_mb": 8, "sort_order": 30},
     },
+    # HR self-service: attachments are doc-level (the File model links to the
+    # document, not to a child-table row), so Expense Claim gets ONE panel per
+    # claim rather than a bill per expense row. Both surfaces gate the header
+    # Attach action on a SAVED draft -- an ESS user's write on their own
+    # document ends at submit, so offering it on a submitted one would be a
+    # button that can only fail at `_require_write`.
+    "Leave Application": {
+        "LEAVE_PROOF": {"label": "Leave proof", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 5, "sort_order": 10},
+    },
+    "Expense Claim": {
+        "EXPENSE_BILL": {"label": "Expense bill or receipt", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 5, "sort_order": 10},
+    },
 }
 
 

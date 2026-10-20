@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { gridCorners } from "../../../../lib/gridCorners";
 import FormSelect from "../../../../components/FormSelect";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
+import { AttachDialog } from "../../../../components/Attachments";
 import {
   errorList,
   focusFirstError,
@@ -98,6 +99,13 @@ export default function InspectionForm() {
   };
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Attach, from the header, on any SAVED inspection -- submitted included.
+  // The dialog used to live only on the Quality report page, launched by
+  // clicking a "recent failure" row, because at the time it was written there
+  // was no Quality Inspection form in the SPA at all (the comment that said so
+  // outlived the form itself). Attaching here is the same server call: the
+  // report's rows were docstatus 1, so submitted attach is the working case.
+  const [showAttach, setShowAttach] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
   // Always points at the newest document. The Save button is registered into
@@ -473,6 +481,15 @@ export default function InspectionForm() {
           onClick: handleSubmit,
           disabled: saving,
         },
+
+        // Any saved inspection, draft or submitted: a defect photo belongs with
+        // the inspection whether or not the readings are final, and submitted is
+        // the case the report page's attach used to serve.
+        isEdit && {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => setShowAttach(true),
+        },
       ].filter(Boolean),
     });
 
@@ -721,6 +738,14 @@ export default function InspectionForm() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Browse mode: single Done footer, closing submits nothing. */}
+      <AttachDialog
+        show={showAttach}
+        doctype="Quality Inspection"
+        docname={name || ""}
+        onClose={() => setShowAttach(false)}
+      />
     </div>
   );
 }
