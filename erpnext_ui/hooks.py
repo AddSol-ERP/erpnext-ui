@@ -252,5 +252,6 @@ override_doctype_class = {
 # }
 
 after_migrate = [
-    "erpnext_ui.setup.workflows.setup_workflows"
+    "erpnext_ui.setup.workflows.setup_workflows",
+    "erpnext_ui.setup.attachment_settings.setup_attachment_settings",
 ]

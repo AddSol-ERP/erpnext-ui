@@ -145,6 +145,38 @@ DOCUMENT_ATTACHMENT_CONFIG = {
     },
 }
 
+# A newly enabled doctype gets a safe general-purpose upload type. Existing
+# doctypes keep their narrower, named type lists above.
+DEFAULT_DOCUMENT_ATTACHMENT_TYPES = {
+	"SUPPORTING_DOCUMENT": {
+		"label": "Supporting document",
+		"extensions": ["pdf", "jpg", "jpeg", "png", "webp"],
+		"max_size_mb": 10,
+		"sort_order": 10,
+	}
+}
+
+def _attachment_policy(doctype):
+	"""Read the admin-managed policy row, failing closed when it is absent."""
+	if not frappe.db.exists("DocType", "UI Attachment Rule"):
+		return {"enabled": False, "required_on": []}
+	rule = frappe.db.get_value(
+		"UI Attachment Rule",
+		{"parent": "UI Attachment Settings", "parenttype": "UI Attachment Settings", "target_doctype": doctype},
+		["enabled", "require_on_save", "require_on_submit"],
+		as_dict=True,
+	)
+	if not rule:
+		return {"enabled": False, "required_on": []}
+	return {
+		"enabled": bool(rule.enabled),
+		"required_on": [
+			event
+			for event, required in (("save", rule.require_on_save), ("submit", rule.require_on_submit))
+			if required
+		],
+	}
+
 
 # ------------------------------------------------------------------
 # Internal helpers
@@ -559,7 +591,10 @@ def _attachment_types(doctype):
     Absent from DOCUMENT_ATTACHMENT_CONFIG means refused, which is the whole
     reason this dict is the authorisation allow-list and not just a UI hint.
     """
-    return DOCUMENT_ATTACHMENT_CONFIG.get(doctype)
+    policy = _attachment_policy(doctype)
+    if not policy.get("enabled"):
+        return None
+    return DOCUMENT_ATTACHMENT_CONFIG.get(doctype, DEFAULT_DOCUMENT_ATTACHMENT_TYPES)
 
 
 def _require_write(doctype, docname):
@@ -593,14 +628,15 @@ def get_attachment_config(doctype):
         doctype (str): e.g. "Purchase Receipt".
 
     Returns:
-        dict: {"doctype", "types": [{"type_key", "label", "extensions", "max_size_mb"}]}
+        dict: {"doctype", "enabled", "required_on", "types": [...]}
     """
-    types = _attachment_types(doctype)
-    if types is None:
-        frappe.throw(_("{0} does not support document attachments.").format(doctype))
+    policy = _attachment_policy(doctype)
+    types = _attachment_types(doctype) or {}
 
     return {
         "doctype": doctype,
+        "enabled": bool(policy.get("enabled")) and bool(types),
+        "required_on": policy.get("required_on", []) if policy.get("enabled") and types else [],
         "types": [
             {
                 "type_key": key,

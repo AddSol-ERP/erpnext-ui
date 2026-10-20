@@ -1,3 +1,5 @@
+import { validateRequiredAttachments } from "./attachments";
+
 /**
  * Document save / submit / cancel, with Workflow awareness.
  *
@@ -216,6 +218,10 @@ const resourcePath = (doctype, name) =>
  * @param {object} doc     the document payload
  */
 export async function saveDocument({ doctype, name, doc }) {
+  // A newly created record has no name/File parent until after its first save.
+  if (name) {
+    await validateRequiredAttachments({ doctype, docname: name, event: "save" });
+  }
   const payload = { ...doc, doctype };
 
   // PUT for updates. POST here is what produced `KeyError: 'run_method'`.
@@ -294,6 +300,7 @@ export async function fetchDocument(doctype, name) {
  *                         fall back to the plain doctype submit.
  */
 export async function submitDocument({ doctype, name, action, doc }) {
+  await validateRequiredAttachments({ doctype, docname: name, event: "submit" });
   const full = doc || (await fetchDocument(doctype, name));
 
   if (action) {

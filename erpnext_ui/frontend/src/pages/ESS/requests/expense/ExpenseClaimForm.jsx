@@ -11,6 +11,7 @@ import {
   saveDocument,
   submitDocument,
   cancelDocument,
+  deleteDocument,
   workflowActionLabelKey,
 } from "../../../../lib/docTransition";
 import { getApprovalMeta } from "../../../../lib/approvalMeta";
@@ -77,6 +78,9 @@ export default function ExpenseClaimForm() {
   });
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   /**
    * The single place the form's own fields change. Routing user input through
@@ -445,6 +449,24 @@ export default function ExpenseClaimForm() {
     };
   }, [name]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setCanDelete(false);
+    if (!name) return () => {};
+
+    get("method/erpnext_ui.api.can_delete_expense_claim", { name })
+      .then((res) => {
+        if (!cancelled) setCanDelete(Boolean(res?.message));
+      })
+      .catch(() => {
+        if (!cancelled) setCanDelete(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [name]);
+
   /**
    * Apply one Workflow transition, or a plain submit when `action` is null.
    *
@@ -495,6 +517,28 @@ export default function ExpenseClaimForm() {
       setSubmitting(false);
     }
   };
+
+  function handleDelete() {
+    if (!isEdit || !name || !canDelete) return;
+    setDeleteOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!isEdit || !name || !canDelete) return;
+    setDeleting(true);
+    try {
+      await deleteDocument({ doctype: "Expense Claim", name });
+      toast.success(t("common.deletedSuccess", { name: t("requests.expense.doctypeName") }));
+      navigate("/ess/expense-claim");
+    } catch (e) {
+      const message = e?.message || t("common.deleteFailed");
+      toast.error(message);
+      setError(message);
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  }
 
   /**
    * Open the confirmation for cancelling the stored document.
@@ -604,6 +648,13 @@ export default function ExpenseClaimForm() {
           disabled: loading || submitting || cancelling,
           onClick: handleCancel,
         },
+
+        canDelete && {
+          label: deleting ? t("common.deleting") : t("common.delete"),
+          variant: "btn-outline-danger",
+          disabled: loading || submitting || deleting,
+          onClick: handleDelete,
+        },
       ].filter(Boolean),
     });
 
@@ -627,6 +678,8 @@ export default function ExpenseClaimForm() {
     cancelling,
     showBack,
     showCancel,
+    canDelete,
+    deleting,
   ]);
 
   /* ================= UI ================= */
@@ -640,6 +693,19 @@ export default function ExpenseClaimForm() {
         }}
         onConfirm={confirmCancel}
         message={t("common.cancelConfirm", {
+          name: t("requests.expense.doctypeName"),
+        })}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        loading={deleting}
+        onCancel={() => {
+          if (!deleting) setDeleteOpen(false);
+        }}
+        onConfirm={confirmDelete}
+        title={t("common.deleteConfirmTitle")}
+        message={t("common.deleteConfirm", {
           name: t("requests.expense.doctypeName"),
         })}
       />

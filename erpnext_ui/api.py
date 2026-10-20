@@ -453,6 +453,16 @@ def get_csrf_token():
     return {"csrf_token": _get_csrf_token()}
 
 
+@frappe.whitelist(allow_guest=False)
+def can_delete_expense_claim(name):
+	"""Whether the current user may delete this draft or cancelled claim."""
+	try:
+		doc = frappe.get_doc("Expense Claim", name)
+		return bool(doc.docstatus in (0, 2) and frappe.has_permission("Expense Claim", "delete", doc))
+	except Exception:
+		return False
+
+
 # ============================================================
 # LEAVE BALANCE REPORT
 # ============================================================
@@ -3051,4 +3061,3 @@ def get_custom_report_data(report_key, filters=None):
             for f in declared
         ],
     }
-

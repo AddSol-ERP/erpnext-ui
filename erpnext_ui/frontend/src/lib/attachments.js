@@ -26,6 +26,20 @@ export async function fetchAttachmentConfig(doctype) {
   return res?.message || { doctype, types: [] };
 }
 
+/** Validate the configured attachment requirement for a save or submit event. */
+export async function validateRequiredAttachments({ doctype, docname, event }) {
+  const config = await fetchAttachmentConfig(doctype);
+  if (!config.enabled || !(config.required_on || []).includes(event)) return true;
+  if (!docname) {
+    throw new Error(`Save ${doctype} before adding the required attachments.`);
+  }
+  const files = await fetchAttachments(doctype, docname);
+  if (!files.length) {
+    throw new Error(`At least one attachment is required before ${event === "submit" ? "submitting" : "saving"} this ${doctype}.`);
+  }
+  return true;
+}
+
 /**
  * Every file already attached to one document, newest first.
  *

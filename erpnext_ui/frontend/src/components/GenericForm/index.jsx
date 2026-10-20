@@ -46,6 +46,8 @@ import {
 } from "./buildLayout";
 import { getFieldRenderer } from "./fieldTypes";
 import { getDoctypeConfig } from "../../config/doctypes";
+import { fetchAttachmentConfig } from "../../lib/attachments";
+import { AttachDialog } from "../Attachments";
 import { Spinner } from "@/components/ui/spinner";
 
 /** Extract the hub name from the first segment of the current path. */
@@ -111,6 +113,8 @@ export default function GenericFormPage() {
   }, [doc]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [attachmentsEnabled, setAttachmentsEnabled] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
   const [errors, setErrors] = useState({});
   const [summary, setSummary] = useState("");
   // Section keys the user manually expanded (errors always force-expand via FormSection).
@@ -126,6 +130,20 @@ export default function GenericFormPage() {
   const isNew = name === "new" || !name;
   const decodedDoctype = decodeURIComponent(doctype);
   const decodedName = isNew ? null : decodeURIComponent(name);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAttachmentConfig(decodedDoctype)
+      .then((config) => {
+        if (!cancelled) setAttachmentsEnabled(Boolean(config.enabled));
+      })
+      .catch(() => {
+        if (!cancelled) setAttachmentsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [decodedDoctype]);
 
   // Read-only lifecycle badge for the form header. Must sit after
   // `decodedDoctype` / `decodedName` are declared.
@@ -599,6 +617,15 @@ export default function GenericFormPage() {
       });
     }
 
+    if (!isNew && attachmentsEnabled) {
+      actions.push({
+        label: t("attachments.open"),
+        variant: "btn-outline-primary",
+        disabled: saving || loading,
+        onClick: () => setShowAttachments(true),
+      });
+    }
+
     if (!isReadOnly) {
       actions.push({
         label: saving ? t("common.saving") : t("common.save"),
@@ -693,6 +720,7 @@ export default function GenericFormPage() {
     errors,
     transitions,
     confirmDelete,
+    attachmentsEnabled,
     status,
     workflowChecked,
     dirty,
@@ -1037,6 +1065,13 @@ export default function GenericFormPage() {
         title={t("common.deleteConfirmTitle")}
         message={t("common.deleteConfirm", { name: decodedDoctype })}
         loading={saving}
+      />
+
+      <AttachDialog
+        show={showAttachments}
+        doctype={decodedDoctype}
+        docname={decodedName}
+        onClose={() => setShowAttachments(false)}
       />
 
   return (
