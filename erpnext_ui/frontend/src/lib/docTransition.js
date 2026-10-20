@@ -301,9 +301,15 @@ export async function getWorkflowActions({ doc }) {
     // object made valid actions disappear when the condition needed a stored
     // value (and the UI then offered plain Submit). Always evaluate against the
     // current server document when a name is available.
-    const workflowDoc = doc?.doctype && doc?.name
+    const storedDoc = doc?.doctype && doc?.name
       ? await fetchDocument(doc.doctype, doc.name)
       : doc;
+    // Frappe's resource response can omit the synthetic `doctype` key. Its
+    // workflow API reconstructs a Document from this JSON and requires both
+    // identity fields explicitly.
+    const workflowDoc = doc?.doctype && doc?.name
+      ? { ...storedDoc, doctype: doc.doctype, name: doc.name }
+      : storedDoc;
     const res = await post("method/frappe.model.workflow.get_transitions", {
       doc: JSON.stringify(workflowDoc),
     });
