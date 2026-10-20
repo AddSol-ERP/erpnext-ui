@@ -3960,12 +3960,27 @@ ok(
 // markup asks, since without it mobile offers "choose from Files" first. It
 // lives on a DEDICATED single-shot camera input, not on the multi-file one:
 // capture and multiple fight, and the two jobs are different buttons now.
-ok(
-  "photo types ask the browser for the camera",
-  /isImageType\(type\) \?\s*\(/.test(attachPanelSrc) &&
-    /capture="environment"/.test(attachPanelSrc),
-  "capture is a hint the browser may ignore, but omitting it puts a Files browser in front of every weighbridge photo",
-);
+//
+// The predicate is "accepts ANY image" (`.some`), NOT "all extensions are
+// images" (`.every`): the strict rule hid the camera from every type that also
+// allowed a PDF -- all of Purchase Receipt, Expense Claim and Leave proof,
+// which is exactly where a phone at the point of work takes the photo. The
+// `.some(` half of this assertion is what stops that regression, because the
+// button would simply vanish and nothing else in the suite would notice.
+{
+  const cameraPredicate = attachPanelSrc.match(
+    /function acceptsPhoto\(type\) \{[\s\S]*?\n\}/,
+  );
+  ok(
+    "photo-capable types ask the browser for the camera",
+    /acceptsPhoto\(type\) \?\s*\(/.test(attachPanelSrc) &&
+      /capture="environment"/.test(attachPanelSrc) &&
+      Boolean(cameraPredicate) &&
+      /\.some\(/.test(cameraPredicate[0]) &&
+      !/\.every\(/.test(cameraPredicate[0]),
+    "capture is a hint a browser may ignore, but omitting it puts a Files browser in front of every weighbridge photo -- and '.every' silently hides it wherever a PDF is also accepted",
+  );
+}
 ok(
   "Stock Entry attaches AFTER submit, never between insert and submit",
   /setShowAttach\(true\)/.test(stockHookSrc) &&

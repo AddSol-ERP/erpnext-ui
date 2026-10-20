@@ -1814,7 +1814,12 @@ confirmation. Three things forced this:
 - a custom file name is operator input that lands in a stored `File` name, and
   with a multi-select there is no single file "the name" could belong to;
 - `capture` and `multiple` **fight** on one input, so the camera is a separate
-  single-shot input (`capture="environment"`) beside the multi-file one;
+  single-shot input (`capture="environment"`) beside the multi-file one —
+  shown when the type accepts **any** image (`acceptsPhoto`, `.some`), not
+  only when every extension is one. The strict "all extensions are images"
+  rule hid the camera from every type that also allowed a PDF, which was all
+  of Purchase Receipt, Expense Claim and Leave proof: precisely the surfaces
+  where a phone at the point of work does the capturing;
 - nothing may upload on selection alone — the old instant-upload left the
   typed name with nowhere to go.
 

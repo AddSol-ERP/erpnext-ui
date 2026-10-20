@@ -52,13 +52,19 @@ import {
  * stem -- the prefix, sequence and extension stay server-owned because the
  * list and delete endpoints parse the prefix.
  */
-/** Image-only types are the ones a phone can capture at the point of work. */
-function isImageType(type) {
+/**
+ * Whether a type can be CAPTURED with a camera: true when the server accepts
+ * ANY image, not only when every extension is one. The old "all extensions
+ * are images" rule hid the camera from every type that also allowed a PDF --
+ * which was all of Purchase Receipt (goods photo, weighbridge ticket, even a
+ * photographed supplier invoice), Expense Claim and Leave proof, i.e. exactly
+ * the surfaces where a phone at the point of work does the capturing. The
+ * button's own input carries `acceptFor(type)`, so a PDF-capable type still
+ * filters correctly; the camera simply always returns an image.
+ */
+function acceptsPhoto(type) {
   const exts = (type?.extensions || []).map((e) => e.toLowerCase());
-  return (
-    exts.length > 0 &&
-    exts.every((e) => ["jpg", "jpeg", "png", "webp", "heic"].includes(e))
-  );
+  return exts.some((e) => ["jpg", "jpeg", "png", "webp", "heic"].includes(e));
 }
 
 /** The display name of a stored file: `[TYPE_KEY]3-Gate pass.jpg` reads as "Gate pass.jpg". */
@@ -363,7 +369,7 @@ export function AttachmentsPanel({
                 >
                   {t("attachments.addFiles")}
                 </Button>
-                {isImageType(type) ? (
+                {acceptsPhoto(type) ? (
                   <>
                     {/* A SEPARATE input for the camera: `capture` on the multi
                         input would fight `multiple`, and the whole point of the
