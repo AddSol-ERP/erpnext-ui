@@ -8,7 +8,7 @@ import { FormField } from "../../../../components/FormField";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
-import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -541,6 +541,12 @@ export default function PlateOffcutForm() {
           setShowAttach(true);
         },
       });
+    } else {
+      actions.push({
+        label: t("attachments.open"),
+        variant: "btn-outline-primary",
+        onClick: () => setShowAttach(true),
+      });
     }
 
     setHeader({
@@ -558,7 +564,7 @@ export default function PlateOffcutForm() {
     });
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, submitted, dirty, saving]);
+  }, [isEdit, name, submitted, dirty, saving, initialAttachment]);
 
   if (loading) {
     return (
@@ -887,21 +893,21 @@ export default function PlateOffcutForm() {
       {/* Submitting POSTS STOCK: it creates Items, a Batch and a reserved Serial
           No per offcut, then submits a Repack Stock Entry. It must not read as an
           ordinary save. */}
-      {!isEdit && (
-        <RequiredAttachmentInput
-          doctype={DOCTYPE}
-          value={initialAttachment}
-          onChange={setInitialAttachment}
-          disabled={saving}
-          events={["save", "submit"]}
-        />
-      )}
+      <RequiredAttachmentDialog
+        show={!isEdit && showAttach}
+        onClose={() => setShowAttach(false)}
+        doctype={DOCTYPE}
+        value={initialAttachment}
+        onChange={setInitialAttachment}
+        disabled={saving}
+        events={["save", "submit"]}
+      />
       {/* Attach step. In the Submit flow the footer is Cancel + Submit, so a
           device with no camera is never trapped -- Submit with zero files is
           the escape hatch. Opened from the header Attach action the footer is
           a single Done: browsing files must not be able to submit anything. */}
       <AttachDialog
-        show={showAttach}
+        show={isEdit && showAttach}
         doctype="Plate Offcut"
         docname={name}
         onClose={closeAttach}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Camera, FileText, Paperclip, Trash2 } from "lucide-react";
+import { Camera, FileText, Trash2 } from "lucide-react";
 // The roundabout path is deliberate and matches every other modal in this app
 // (`../../components/AppModal`). The smoke suite's SSR_MODAL_STUB alias matches on
 // the string "components/AppModal", so the short "../AppModal" resolves to the
@@ -485,7 +485,7 @@ export function RequiredAttachmentInput({
 }) {
   const { t } = useTranslation();
   const [config, setConfig] = useState(null);
-  const fileInputRef = useRef(null);
+  const inputs = useRef({});
 
   useEffect(() => {
     let cancelled = false;
@@ -508,54 +508,102 @@ export function RequiredAttachmentInput({
   if (!required) return null;
   const requiredBeforeSave = (config.required_on || []).includes("save") && events.includes("save");
 
-  const selectedType = types.find((type) => type.type_key === value?.typeKey) || types[0];
-  const update = (next) => onChange(next);
+  const stage = (type, fileList) => {
+    const picked = Array.from(fileList || []);
+    if (!picked.length) return;
+    const currentFiles = value?.files || (value?.file ? [{ file: value.file, typeKey: value.typeKey }] : []);
+    const nextFiles = [
+      ...currentFiles,
+      ...picked.map((file) => ({ file, typeKey: type.type_key })),
+    ];
+    onChange({ files: nextFiles, file: nextFiles[0]?.file, typeKey: nextFiles[0]?.typeKey });
+  };
 
   return (
     <div className="space-y-2 rounded-lg border border-border p-3">
       <label className="block text-sm font-medium">
         {t(requiredBeforeSave ? "attachments.requiredBeforeSave" : "attachments.requiredBeforeSubmit")}
       </label>
-      {types.length > 1 && (
-        <select
-          className="form-select w-full"
-          value={selectedType?.type_key || ""}
-          disabled={disabled}
-          onChange={(event) => update({ ...value, typeKey: event.target.value })}
-        >
-          {types.map((type) => (
-            <option key={type.type_key} value={type.type_key}>
-              {type.label}
-            </option>
-          ))}
-        </select>
-      )}
-      <input
-        ref={fileInputRef}
-        className="sr-only"
-        type="file"
-        accept={acceptFor(selectedType)}
-        disabled={disabled || !selectedType}
-        onChange={(event) => {
-          update({
-            file: event.target.files?.[0] || null,
-            typeKey: selectedType?.type_key,
-          });
-          // Allow selecting the same file again after replacing/removing it.
-          event.target.value = "";
-        }}
-      />
-      <Button
-        type="button"
-        variant="outline"
-        disabled={disabled || !selectedType}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <Paperclip className="size-4" />
-        {t("attachments.addFiles")}
-      </Button>
-      {value?.file && <p className="text-sm text-muted-foreground">{value.file.name}</p>}
+      {types.map((type) => (
+        <div key={type.type_key} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-2">
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-medium">{type.label}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {t("attachments.hint", { mb: type.max_size_mb, ext: type.extensions.join(", ") })}
+            </span>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <input
+              ref={(el) => { inputs.current[`${type.type_key}:files`] = el; }}
+              type="file"
+              multiple
+              className="hidden"
+              accept={acceptFor(type)}
+              disabled={disabled}
+              onChange={(event) => {
+                stage(type, event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => inputs.current[`${type.type_key}:files`]?.click()}>
+              {t("attachments.addFiles")}
+            </Button>
+            {acceptsPhoto(type) && (
+              <>
+                <input
+                  ref={(el) => { inputs.current[`${type.type_key}:camera`] = el; }}
+                  type="file"
+                  className="hidden"
+                  accept={acceptFor(type)}
+                  capture="environment"
+                  disabled={disabled}
+                  onChange={(event) => {
+                    stage(type, event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+                <Button type="button" size="sm" variant="outline" aria-label={t("attachments.camera")} disabled={disabled} onClick={() => inputs.current[`${type.type_key}:camera`]?.click()}>
+                  <Camera className="size-3.5" />
+                  {t("attachments.camera")}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+      {(value?.files || (value?.file ? [{ file: value.file }] : [])).map((item, index) => (
+        <p key={`${item.typeKey || "file"}-${index}`} className="truncate text-sm text-muted-foreground">{item.file.name}</p>
+      ))}
     </div>
+  );
+}
+
+/** Stage the first document attachment from the same action-bar Attach flow. */
+export function RequiredAttachmentDialog({
+  show,
+  onClose,
+  doctype,
+  value,
+  onChange,
+  disabled = false,
+  events = ["save"],
+}) {
+  const { t } = useTranslation();
+  return (
+    <AppModal
+      show={show}
+      onClose={onClose}
+      title={t("attachments.dialogTitle", { doctype })}
+      footer={<Button onClick={onClose}>{t("common.done")}</Button>}
+    >
+      <RequiredAttachmentInput
+        doctype={doctype}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        events={events}
+      />
+    </AppModal>
   );
 }
 

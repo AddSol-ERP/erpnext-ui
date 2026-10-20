@@ -8,7 +8,7 @@ import { useHeader } from "../../context/HeaderContext";
 import { stockPurposeForType } from "../../config/storePurposes";
 import StockEntryTypeSelector from "./components/StockEntryTypeSelector";
 import GetItemsModal from "./components/GetItemsModal";
-import { AttachDialog, RequiredAttachmentInput } from "@/components/Attachments";
+import { AttachDialog, RequiredAttachmentDialog } from "@/components/Attachments";
 import SubmitModal from "./components/SubmitModal";
 import StockFixModal from "./components/StockFixModal";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ const ENTRY_TYPE_LABEL_KEYS = {
 export default function StockEntryPage() {
   const stock = useStockEntry();
   const [initialAttachment, setInitialAttachment] = useState(null);
+  const [showInitialAttachment, setShowInitialAttachment] = useState(false);
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
@@ -125,6 +126,11 @@ export default function StockEntryPage() {
           // to open a dialog on an empty entry.
           disabled: !stock.canSubmit || !stock.selectedType,
         },
+        {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => setShowInitialAttachment(true),
+        },
         // Re-open the attach dialog after a submit, while the submitted entry's
         // name is still held in `attachTarget`. Without this, dismissing the
         // post-submit dialog left no way back to the files -- the Stock Entry
@@ -172,14 +178,15 @@ export default function StockEntryPage() {
         setProject={stock.setProject}
         workOrder={stock.workOrder}
         setWorkOrder={stock.setWorkOrder}
-      >
-        <RequiredAttachmentInput
-          doctype="Stock Entry"
-          value={initialAttachment}
-          onChange={setInitialAttachment}
-          events={["save", "submit"]}
-        />
-      </SubmitModal>
+      />
+      <RequiredAttachmentDialog
+        show={showInitialAttachment}
+        onClose={() => setShowInitialAttachment(false)}
+        doctype="Stock Entry"
+        value={initialAttachment}
+        onChange={setInitialAttachment}
+        events={["save", "submit"]}
+      />
       {/* Keyed on show + purpose: remounts the dialog so it opens with the
           right source options and no leftover state from a previous attempt. */}
       <GetItemsModal

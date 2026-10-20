@@ -364,28 +364,35 @@ export function useStockEntry() {
     }
 
     const payload = buildPayload();
+    const initialAttachments = initialAttachment?.files?.length
+      ? initialAttachment.files
+      : initialAttachment?.file
+        ? [{ file: initialAttachment.file, typeKey: initialAttachment.typeKey }]
+        : [];
 
     try {
       const attachmentConfig = await fetchAttachmentConfig("Stock Entry");
       const attachmentRequired =
         attachmentConfig.enabled &&
         (attachmentConfig.required_on || []).some((event) => ["save", "submit"].includes(event));
-      if (attachmentRequired && !initialAttachment?.file) {
+      if (attachmentRequired && !initialAttachments.length) {
         throw new Error("Attach a document before saving or submitting this Stock Entry.");
       }
-      if (attachmentRequired && !initialAttachment?.typeKey) {
+      if (attachmentRequired && initialAttachments.some((item) => !item.typeKey)) {
         throw new Error("Choose an attachment type before saving or submitting this Stock Entry.");
       }
 
       const res = await post("resource/Stock Entry", payload);
 
-      if (attachmentRequired) {
-        await uploadAttachment({
-          doctype: "Stock Entry",
-          docname: res.data.name,
-          typeKey: initialAttachment.typeKey,
-          file: initialAttachment.file,
-        });
+      if (initialAttachments.length && attachmentRequired) {
+        for (const attachment of initialAttachments) {
+          await uploadAttachment({
+            doctype: "Stock Entry",
+            docname: res.data.name,
+            typeKey: attachment.typeKey,
+            file: attachment.file,
+          });
+        }
       }
 
       // optional submit (docstatus = 1)

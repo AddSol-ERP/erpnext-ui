@@ -463,6 +463,17 @@ def can_delete_expense_claim(name):
 		return False
 
 
+@frappe.whitelist(allow_guest=False)
+def has_doctype_workflow(doctype):
+	"""Whether an active Workflow is configured for a readable DocType."""
+	if not frappe.has_permission(doctype, "read"):
+		frappe.throw(frappe._("Not permitted to inspect this DocType."), frappe.PermissionError)
+
+	from frappe.model import workflow as workflow_model
+
+	return bool(workflow_model.get_workflow_name(doctype))
+
+
 # ============================================================
 # LEAVE BALANCE REPORT
 # ============================================================

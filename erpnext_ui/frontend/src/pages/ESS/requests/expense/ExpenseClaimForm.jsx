@@ -13,15 +13,16 @@ import {
   cancelDocument,
   deleteDocument,
   workflowActionLabelKey,
+  hasConfiguredWorkflow,
 } from "../../../../lib/docTransition";
-import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import { useDocStatus } from "../../../../hooks/useDocStatus";
+import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import FormSelect from "../../../../components/FormSelect";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
-import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import { focusFirstError } from "../../../../lib/formValidation";
 import {
   applyEmployeeScope,
@@ -91,12 +92,18 @@ export default function ExpenseClaimForm() {
    */
   const updateField = (fieldname, value) => {
     setDirty(true);
-    setDoc((prev) => ({
-      ...prev,
+    const current = docRef.current;
+    const next = {
+      ...current,
       // Accepting an updater keeps callers from reading a stale `doc` when they
       // derive the next value from the current one.
-      [fieldname]: typeof value === "function" ? value(prev[fieldname]) : value,
-    }));
+      [fieldname]: typeof value === "function" ? value(current[fieldname]) : value,
+    };
+    // Save and Submit actions are registered in the shared header. Keep their
+    // source of truth current in this event, without waiting for a React effect
+    // to copy the newly selected value into the ref.
+    docRef.current = next;
+    setDoc(next);
   };
 
   const [loading, setLoading] = useState(false);
@@ -428,9 +435,12 @@ export default function ExpenseClaimForm() {
     let cancelled = false;
 
     (async () => {
-      const meta = await getApprovalMeta("Expense Claim");
+      const [meta, configuredWorkflow] = await Promise.all([
+        getApprovalMeta("Expense Claim"),
+        hasConfiguredWorkflow("Expense Claim"),
+      ]);
       if (cancelled) return;
-      setHasWorkflow(Boolean(meta?.hasWorkflow));
+      setHasWorkflow(Boolean(configuredWorkflow ?? meta?.hasWorkflow));
       // Until this resolves we cannot tell a Workflow doctype from a plain one,
       // and offering Submit on a Workflow doctype would bypass its first state.
       setWorkflowChecked(true);
@@ -447,11 +457,14 @@ export default function ExpenseClaimForm() {
     let cancelled = false;
 
     (async () => {
-      const { actions } = name
+      const result = name
         ? await getWorkflowActions({ doc: { doctype: "Expense Claim", name } })
         : { actions: [] };
 
-      if (!cancelled) setTransitions(actions);
+      if (!cancelled) {
+        setTransitions(result.actions);
+        if (result.hasWorkflow) setHasWorkflow(true);
+      }
     })();
 
     return () => {
@@ -623,6 +636,11 @@ export default function ExpenseClaimForm() {
             variant: "btn-outline-primary",
             onClick: () => setShowAttach(true),
           },
+        !isEdit && {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => setShowAttach(true),
+        },
 
         // Workflow transitions replace Submit entirely. Unrecognised action
         // names are shown verbatim, as the backend's Action Master has them.
@@ -694,6 +712,7 @@ export default function ExpenseClaimForm() {
     showCancel,
     canDelete,
     deleting,
+    initialAttachment,
   ]);
 
   /* ================= UI ================= */
@@ -951,19 +970,19 @@ export default function ExpenseClaimForm() {
         </FormField>
       </FormSection>
 
-      {!isEdit && (
-        <RequiredAttachmentInput
-          doctype="Expense Claim"
-          value={initialAttachment}
-          onChange={setInitialAttachment}
-          disabled={loading || submitting}
-          events={["save", "submit"]}
-        />
-      )}
+      <RequiredAttachmentDialog
+        show={!isEdit && showAttach}
+        onClose={() => setShowAttach(false)}
+        doctype="Expense Claim"
+        value={initialAttachment}
+        onChange={setInitialAttachment}
+        disabled={loading || submitting}
+        events={["save", "submit"]}
+      />
 
       {/* Browse mode: single Done footer, closing submits nothing. */}
       <AttachDialog
-        show={showAttach}
+        show={isEdit && showAttach}
         doctype="Expense Claim"
         docname={name || ""}
         onClose={() => setShowAttach(false)}

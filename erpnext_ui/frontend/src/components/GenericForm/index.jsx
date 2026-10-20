@@ -22,6 +22,7 @@ import {
   saveDocument,
   submitDocument,
   workflowActionLabelKey,
+  hasConfiguredWorkflow,
 } from "../../lib/docTransition";
 import { useDocStatus } from "../../hooks/useDocStatus";
 import { getApprovalMeta } from "../../lib/approvalMeta";
@@ -47,7 +48,7 @@ import {
 import { getFieldRenderer } from "./fieldTypes";
 import { getDoctypeConfig } from "../../config/doctypes";
 import { fetchAttachmentConfig } from "../../lib/attachments";
-import { AttachDialog, RequiredAttachmentInput } from "../Attachments";
+import { AttachDialog, RequiredAttachmentDialog } from "../Attachments";
 import { Spinner } from "@/components/ui/spinner";
 
 /** Extract the hub name from the first segment of the current path. */
@@ -403,9 +404,12 @@ export default function GenericFormPage() {
     let cancelled = false;
 
     (async () => {
-      const meta = await getApprovalMeta(decodedDoctype);
+      const [meta, configuredWorkflow] = await Promise.all([
+        getApprovalMeta(decodedDoctype),
+        hasConfiguredWorkflow(decodedDoctype),
+      ]);
       if (cancelled) return;
-      setHasWorkflow(Boolean(meta?.hasWorkflow));
+      setHasWorkflow(Boolean(configuredWorkflow ?? meta?.hasWorkflow));
       // Until this resolves we cannot tell a Workflow doctype from a plain one,
       // and offering Submit on a Workflow doctype would bypass its first state.
       setWorkflowChecked(true);
@@ -624,7 +628,7 @@ export default function GenericFormPage() {
       });
     }
 
-    if (!isNew && attachmentsEnabled) {
+    if (attachmentsEnabled) {
       actions.push({
         label: t("attachments.open"),
         variant: "btn-outline-primary",
@@ -731,6 +735,7 @@ export default function GenericFormPage() {
     status,
     workflowChecked,
     dirty,
+    initialAttachment,
   ]);
 
   /* ===============================
@@ -1075,7 +1080,7 @@ export default function GenericFormPage() {
       />
 
       <AttachDialog
-        show={showAttachments}
+        show={!isNew && showAttachments}
         doctype={decodedDoctype}
         docname={decodedName}
         onClose={() => setShowAttachments(false)}
@@ -1085,14 +1090,14 @@ export default function GenericFormPage() {
     <div className="mx-auto w-full max-w-[1100px]">
       <FormErrorSummary summary={summary} fieldErrors={errors} className="mb-4" />
 
-      {isNew && (
-        <RequiredAttachmentInput
-          doctype={decodedDoctype}
-          value={initialAttachment}
-          onChange={setInitialAttachment}
-          disabled={saving}
-        />
-      )}
+      <RequiredAttachmentDialog
+        show={isNew && showAttachments}
+        onClose={() => setShowAttachments(false)}
+        doctype={decodedDoctype}
+        value={initialAttachment}
+        onChange={setInitialAttachment}
+        disabled={saving}
+      />
 
       {body}
 

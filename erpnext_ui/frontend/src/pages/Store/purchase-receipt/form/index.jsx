@@ -20,7 +20,7 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
-import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import { focusFirstError } from "../../../../lib/formValidation";
 import { useHeader } from "../../../../context/HeaderContext";
 import { Button } from "@/components/ui/button";
@@ -815,6 +815,11 @@ export default function PurchaseReceiptForm() {
             setShowAttach(true);
           },
         },
+        !isEdit && {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => setShowAttach(true),
+        },
         isEdit && doc.docstatus === 0 && {
           label: t("common.delete"),
           variant: "btn-destructive",
@@ -825,7 +830,7 @@ export default function PurchaseReceiptForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, doc.docstatus, loading]);
+  }, [isEdit, name, doc.docstatus, loading, initialAttachment]);
 
   /* ================= MOUNT ================= */
 
@@ -917,21 +922,21 @@ export default function PurchaseReceiptForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
-      {!isEdit && (
-        <RequiredAttachmentInput
-          doctype="Purchase Receipt"
-          value={initialAttachment}
-          onChange={setInitialAttachment}
-          disabled={loading}
-          events={["save", "submit"]}
-        />
-      )}
+      <RequiredAttachmentDialog
+        show={!isEdit && showAttach}
+        onClose={() => setShowAttach(false)}
+        doctype="Purchase Receipt"
+        value={initialAttachment}
+        onChange={setInitialAttachment}
+        disabled={loading}
+        events={["save", "submit"]}
+      />
       {/* Attach step. In the Submit flow the footer is Cancel + Submit, so a
           device with no camera is never trapped -- Submit with zero files is
           the escape hatch. Opened from the header Attach action the footer is
           a single Done: browsing files must not be able to submit anything. */}
       <AttachDialog
-        show={showAttach}
+        show={isEdit && showAttach}
         doctype="Purchase Receipt"
         docname={name}
         onClose={closeAttach}

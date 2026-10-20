@@ -14,9 +14,10 @@ import {
   saveDocument,
   submitDocument,
   workflowActionLabelKey,
+  hasConfiguredWorkflow,
 } from "../../../../lib/docTransition";
-import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import { useDocStatus } from "../../../../hooks/useDocStatus";
+import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import { FormField } from "../../../../components/FormField";
 import { DocStatusField } from "../../../../components/DocStatusField";
 import FormSection from "../../../../components/FormSection";
@@ -439,9 +440,12 @@ export default function AttendanceRequestForm() {
     let cancelled = false;
 
     (async () => {
-      const meta = await getApprovalMeta("Attendance Request");
+      const [meta, configuredWorkflow] = await Promise.all([
+        getApprovalMeta("Attendance Request"),
+        hasConfiguredWorkflow("Attendance Request"),
+      ]);
       if (cancelled) return;
-      setHasWorkflow(Boolean(meta?.hasWorkflow));
+      setHasWorkflow(Boolean(configuredWorkflow ?? meta?.hasWorkflow));
       // Until this resolves we cannot tell a Workflow doctype from a plain one,
       // and offering Submit on a Workflow doctype would bypass its first state.
       setWorkflowChecked(true);

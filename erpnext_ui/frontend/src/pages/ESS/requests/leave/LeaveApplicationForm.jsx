@@ -15,9 +15,10 @@ import {
   submitDocument,
   cancelDocument,
   workflowActionLabelKey,
+  hasConfiguredWorkflow,
 } from "../../../../lib/docTransition";
-import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import { useRole } from "../../../../context/RoleContext";
+import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import {
   LEAVE_APPROVED,
   LEAVE_REJECTED,
@@ -29,7 +30,7 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
-import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import FormSelect from "../../../../components/FormSelect";
 import { focusFirstError } from "../../../../lib/formValidation";
 import {
@@ -500,9 +501,12 @@ export default function LeaveApplicationForm() {
     let cancelled = false;
 
     (async () => {
-      const meta = await getApprovalMeta("Leave Application");
+      const [meta, configuredWorkflow] = await Promise.all([
+        getApprovalMeta("Leave Application"),
+        hasConfiguredWorkflow("Leave Application"),
+      ]);
       if (cancelled) return;
-      setHasWorkflow(Boolean(meta?.hasWorkflow));
+      setHasWorkflow(Boolean(configuredWorkflow ?? meta?.hasWorkflow));
       // Until this resolves we cannot tell a Workflow doctype from a plain
       // one, and offering Submit on a Workflow doctype would bypass its first
       // state. `workflowChecked` gates the button so it never flashes.
@@ -714,6 +718,11 @@ export default function LeaveApplicationForm() {
             variant: "btn-outline-primary",
             onClick: () => setShowAttach(true),
           },
+        !isEdit && {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => setShowAttach(true),
+        },
 
         // Workflow transitions replace Submit entirely. Labels come from the
         // backend's Action Master; anything unrecognised is shown verbatim so an
@@ -811,6 +820,7 @@ export default function LeaveApplicationForm() {
     showCancel,
     showDelete,
     currentUser,
+    initialAttachment,
   ]);
 
   /* ================= UI ================= */
@@ -1066,19 +1076,19 @@ export default function LeaveApplicationForm() {
         </FormField>
       </FormSection>
 
-      {!isEdit && (
-        <RequiredAttachmentInput
-          doctype="Leave Application"
-          value={initialAttachment}
-          onChange={setInitialAttachment}
-          disabled={loading || submitting}
-          events={["save", "submit"]}
-        />
-      )}
+      <RequiredAttachmentDialog
+        show={!isEdit && showAttach}
+        onClose={() => setShowAttach(false)}
+        doctype="Leave Application"
+        value={initialAttachment}
+        onChange={setInitialAttachment}
+        disabled={loading || submitting}
+        events={["save", "submit"]}
+      />
 
       {/* Browse mode: single Done footer, closing submits nothing. */}
       <AttachDialog
-        show={showAttach}
+        show={isEdit && showAttach}
         doctype="Leave Application"
         docname={name || ""}
         onClose={() => setShowAttach(false)}

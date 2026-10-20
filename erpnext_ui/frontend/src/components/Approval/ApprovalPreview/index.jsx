@@ -18,6 +18,7 @@ import { getApprovalMeta, getApprovalStates } from "../../../lib/approvalMeta";
 import {
   canSubmitDocument,
   getWorkflowActions,
+  hasConfiguredWorkflow,
   saveDocument,
   submitDocument,
   workflowActionLabelKey,
@@ -100,6 +101,7 @@ export default function ApprovalPreview({
   const [mode, setMode] = useState("preview");
   const [loading, setLoading] = useState(false);
   const [workflowActions, setWorkflowActions] = useState([]);
+  const [workflowConfig, setWorkflowConfig] = useState({ doctype: null, active: false });
   const [states, setStates] = useState({
     source: "unknown",
     fieldname: null,
@@ -123,11 +125,9 @@ export default function ApprovalPreview({
     }
 
     try {
-      // get_transitions needs the full document, not the preview payload.
-      const full = await get(
-        `resource/${doctype}/${encodeURIComponent(doc.name)}`,
-      );
-      const { actions } = await getWorkflowActions({ doc: full?.data || doc });
+      const result = await getWorkflowActions({ doc });
+      if (result.hasWorkflow) setWorkflowConfig({ doctype, active: true });
+      const { actions } = result;
       setWorkflowActions(actions);
     } catch (e) {
       console.error("Failed to load workflow", e);
@@ -152,11 +152,18 @@ export default function ApprovalPreview({
     let cancelled = false;
 
     const loadStates = async () => {
-      const meta = await getApprovalMeta(doctype);
+      const [meta, configuredWorkflow] = await Promise.all([
+        getApprovalMeta(doctype),
+        hasConfiguredWorkflow(doctype),
+      ]);
       const resolved = getApprovalStates(meta);
       if (!cancelled) {
         setStates(resolved);
         setIsSubmittable(Boolean(meta?.isSubmittable));
+        setWorkflowConfig({
+          doctype,
+          active: Boolean(configuredWorkflow ?? meta?.hasWorkflow),
+        });
       }
     };
 
@@ -302,7 +309,10 @@ export default function ApprovalPreview({
   // A Workflow exists but this user simply has no transitions available, so we
   // must NOT fall back to raw document actions - respect the Workflow's
   // permissions and let the backend transitions stand.
-  const usesWorkflow = states.source === "workflow" || workflowActions.length > 0;
+  const usesWorkflow =
+    (workflowConfig.doctype === doctype && workflowConfig.active) ||
+    states.source === "workflow" ||
+    workflowActions.length > 0;
 
   const defaultActions =
     usesWorkflow || !isSubmittable

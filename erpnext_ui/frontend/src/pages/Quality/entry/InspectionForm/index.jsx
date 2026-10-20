@@ -16,7 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { gridCorners } from "../../../../lib/gridCorners";
 import FormSelect from "../../../../components/FormSelect";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
-import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import {
   errorList,
   focusFirstError,
@@ -499,12 +499,17 @@ export default function InspectionForm() {
           variant: "btn-outline-primary",
           onClick: () => setShowAttach(true),
         },
+        !isEdit && {
+          label: t("attachments.open"),
+          variant: "btn-outline-primary",
+          onClick: () => setShowAttach(true),
+        },
       ].filter(Boolean),
     });
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, doc]);
+  }, [isEdit, doc, initialAttachment]);
 
   /* ================= LOAD EFFECT ================= */
   useEffect(() => {
@@ -749,18 +754,18 @@ export default function InspectionForm() {
       </Card>
 
       {/* Browse mode: single Done footer, closing submits nothing. */}
-      {!isEdit && (
-        <RequiredAttachmentInput
-          doctype="Quality Inspection"
-          value={initialAttachment}
-          onChange={setInitialAttachment}
-          disabled={saving}
-          events={["save", "submit"]}
-        />
-      )}
+      <RequiredAttachmentDialog
+        show={!isEdit && showAttach}
+        onClose={() => setShowAttach(false)}
+        doctype="Quality Inspection"
+        value={initialAttachment}
+        onChange={setInitialAttachment}
+        disabled={saving}
+        events={["save", "submit"]}
+      />
 
       <AttachDialog
-        show={showAttach}
+        show={isEdit && showAttach}
         doctype="Quality Inspection"
         docname={name || ""}
         onClose={() => setShowAttach(false)}

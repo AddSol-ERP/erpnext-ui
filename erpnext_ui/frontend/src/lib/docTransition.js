@@ -210,6 +210,16 @@ const messageOf = (res) => res?.message;
 /** `/api/resource/*` answers under `data`. */
 const dataOf = (res) => res?.data;
 
+/** Check the active Workflow directly; DocType meta may omit its state field. */
+export async function hasConfiguredWorkflow(doctype) {
+  try {
+    const res = await get("method/erpnext_ui.api.has_doctype_workflow", { doctype });
+    return Boolean(messageOf(res));
+  } catch {
+    return null;
+  }
+}
+
 const resourcePath = (doctype, name) =>
   name
     ? `resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`
@@ -223,6 +233,11 @@ const resourcePath = (doctype, name) =>
  * @param {object} doc     the document payload
  */
 export async function saveDocument({ doctype, name, doc, initialAttachment }) {
+  const initialAttachments = initialAttachment?.files?.length
+    ? initialAttachment.files
+    : initialAttachment?.file
+      ? [{ file: initialAttachment.file, typeKey: initialAttachment.typeKey }]
+      : [];
   let attachmentConfig = null;
   // A newly created record has no name/File parent until after its first save.
   if (name) {
@@ -230,10 +245,10 @@ export async function saveDocument({ doctype, name, doc, initialAttachment }) {
   } else {
     attachmentConfig = await fetchAttachmentConfig(doctype);
     const requiredOnSave = attachmentConfig.enabled && (attachmentConfig.required_on || []).includes("save");
-    if (requiredOnSave && !initialAttachment?.file) {
+    if (requiredOnSave && !initialAttachments.length) {
       throw new Error(`Attach a document before saving this ${doctype}.`);
     }
-    if (requiredOnSave && !initialAttachment?.typeKey) {
+    if (requiredOnSave && initialAttachments.some((item) => !item.typeKey)) {
       throw new Error(`Choose an attachment type before saving this ${doctype}.`);
     }
   }
@@ -243,7 +258,7 @@ export async function saveDocument({ doctype, name, doc, initialAttachment }) {
   const result = name
     ? await put(resourcePath(doctype, name), payload)
     : await post(resourcePath(doctype), payload);
-  if (!name && initialAttachment?.file) {
+  if (!name && initialAttachments.length) {
     if (
       attachmentConfig?.enabled &&
       (attachmentConfig.required_on || []).some((event) => ["save", "submit"].includes(event))
@@ -251,12 +266,14 @@ export async function saveDocument({ doctype, name, doc, initialAttachment }) {
       const docname = result?.data?.name;
       if (!docname) throw new Error(`The ${doctype} was saved but its attachment could not be added.`);
       try {
-        await uploadAttachment({
-          doctype,
-          docname,
-          typeKey: initialAttachment.typeKey,
-          file: initialAttachment.file,
-        });
+        for (const attachment of initialAttachments) {
+          await uploadAttachment({
+            doctype,
+            docname,
+            typeKey: attachment.typeKey,
+            file: attachment.file,
+          });
+        }
       } catch (error) {
         error.savedDocName = docname;
         throw error;
@@ -279,8 +296,16 @@ export async function saveDocument({ doctype, name, doc, initialAttachment }) {
  */
 export async function getWorkflowActions({ doc }) {
   try {
+    // Workflow transition conditions can inspect arbitrary document fields.
+    // The forms commonly have only `{doctype, name}` here; sending that sparse
+    // object made valid actions disappear when the condition needed a stored
+    // value (and the UI then offered plain Submit). Always evaluate against the
+    // current server document when a name is available.
+    const workflowDoc = doc?.doctype && doc?.name
+      ? await fetchDocument(doc.doctype, doc.name)
+      : doc;
     const res = await post("method/frappe.model.workflow.get_transitions", {
-      doc: JSON.stringify(doc),
+      doc: JSON.stringify(workflowDoc),
     });
 
     const list = messageOf(res);
@@ -338,19 +363,26 @@ export async function fetchDocument(doctype, name) {
  *                         fall back to the plain doctype submit.
  */
 export async function submitDocument({ doctype, name, action, doc, initialAttachment }) {
-  if (initialAttachment?.file && name) {
+  const initialAttachments = initialAttachment?.files?.length
+    ? initialAttachment.files
+    : initialAttachment?.file
+      ? [{ file: initialAttachment.file, typeKey: initialAttachment.typeKey }]
+      : [];
+  if (initialAttachments.length && name) {
     const config = await fetchAttachmentConfig(doctype);
     const requiresSubmitAttachment =
       config.enabled && (config.required_on || []).includes("submit");
     if (requiresSubmitAttachment) {
       const files = await fetchAttachments(doctype, name);
       if (!files.length) {
-        await uploadAttachment({
-          doctype,
-          docname: name,
-          typeKey: initialAttachment.typeKey,
-          file: initialAttachment.file,
-        });
+        for (const attachment of initialAttachments) {
+          await uploadAttachment({
+            doctype,
+            docname: name,
+            typeKey: attachment.typeKey,
+            file: attachment.file,
+          });
+        }
       }
     }
   }
