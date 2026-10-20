@@ -301,9 +301,16 @@ export async function getWorkflowActions({ doc, doctype = doc?.doctype }) {
     // Transition conditions can depend on client-loaded values (including
     // __onload). Send the complete document while the server verifies access
     // to the saved record and checks the document identity.
-    const storedDoc = await fetchDocument(doctype, doc.name);
+    const loaded = await get("method/frappe.desk.form.load.getdoc", {
+      doctype,
+      name: doc.name,
+    });
+    const storedDoc = Array.isArray(loaded?.docs)
+      ? loaded.docs.find((entry) => entry?.doctype === doctype && entry?.name === doc.name)
+      : null;
+    const completeDoc = storedDoc || await fetchDocument(doctype, doc.name);
     const workflowDoc = {
-      ...storedDoc,
+      ...completeDoc,
       doctype,
       name: doc.name,
     };
