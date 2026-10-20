@@ -474,6 +474,24 @@ def has_doctype_workflow(doctype):
 	return bool(workflow_model.get_workflow_name(doctype))
 
 
+@frappe.whitelist(allow_guest=False)
+def get_doctype_workflow_transitions(doctype, name):
+	"""Return this user's active transitions for a readable saved document."""
+	if not frappe.has_permission(doctype, "read"):
+		frappe.throw(frappe._("Not permitted to inspect this document."), frappe.PermissionError)
+
+	doc = frappe.get_doc(doctype, name)
+	if not frappe.has_permission(doctype, "read", doc):
+		frappe.throw(frappe._("Not permitted to inspect this document."), frappe.PermissionError)
+
+	from frappe.model import workflow as workflow_model
+
+	document = doc.as_dict()
+	document["doctype"] = doctype
+	document["name"] = name
+	return workflow_model.get_transitions(frappe.as_json(document))
+
+
 # ============================================================
 # LEAVE BALANCE REPORT
 # ============================================================
