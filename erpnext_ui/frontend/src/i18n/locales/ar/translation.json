@@ -233,6 +233,8 @@
     "uploadFailed": "فشل الرفع.",
     "deleteFailed": "تعذّرت إزالة المستند.",
     "saveFirst": "احفظ المستند قبل إرفاق الملفات به.",
+    "requiredBeforeSave": "أرفق مستندًا قبل حفظ مطالبة المصروفات هذه.",
+    "saveAttachmentFailed": "تم حفظ المطالبة، لكن تعذرت إضافة مرفقها.",
     "open": "إرفاق",
     "confirmDelete": "إزالة {label} من هذا المستند؟",
     "deleteConfirm": "إزالة {label}؟"

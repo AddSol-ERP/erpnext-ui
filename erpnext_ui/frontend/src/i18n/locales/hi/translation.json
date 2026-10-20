@@ -233,6 +233,8 @@
     "uploadFailed": "अपलोड विफल।",
     "deleteFailed": "दस्तावेज़ हटाया नहीं जा सका।",
     "saveFirst": "दस्तावेज़ सहेजने के बाद ही फ़ाइलें संलग्न की जा सकती हैं।",
+    "requiredBeforeSave": "इस Expense Claim को सहेजने से पहले दस्तावेज़ संलग्न करें।",
+    "saveAttachmentFailed": "क्लेम सहेजा गया, लेकिन उसका दस्तावेज़ संलग्न नहीं हो सका।",
     "open": "संलग्न करें",
     "confirmDelete": "इस दस्तावेज़ से {label} हटाएँ?",
     "deleteConfirm": "{label} हटाएँ?"

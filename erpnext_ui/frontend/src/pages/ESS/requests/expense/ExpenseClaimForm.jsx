@@ -22,6 +22,7 @@ import FormErrorSummary from "../../../../components/FormErrorSummary";
 import FormSelect from "../../../../components/FormSelect";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import { AttachDialog } from "../../../../components/Attachments";
+import { acceptFor, fetchAttachmentConfig, uploadAttachment } from "../../../../lib/attachments";
 import { focusFirstError } from "../../../../lib/formValidation";
 import {
   applyEmployeeScope,
@@ -81,6 +82,10 @@ export default function ExpenseClaimForm() {
   const [canDelete, setCanDelete] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [attachmentConfig, setAttachmentConfig] = useState({ enabled: false, required_on: [], types: [] });
+  const [attachmentConfigLoaded, setAttachmentConfigLoaded] = useState(false);
+  const [attachmentConfigFailed, setAttachmentConfigFailed] = useState(false);
+  const [firstSaveFile, setFirstSaveFile] = useState(null);
 
   /**
    * The single place the form's own fields change. Routing user input through
@@ -106,6 +111,10 @@ export default function ExpenseClaimForm() {
   // 1 (Submitted) does, and a flag set only when `docstatus === 1` would leave
   // a cancelled document editable and offering Submit.
   const isSubmitted = Number(doc.docstatus) > 0;
+  const requiresSaveAttachment = Boolean(
+    attachmentConfig.enabled && attachmentConfig.required_on?.includes("save"),
+  );
+  const firstAttachmentType = attachmentConfig.types?.[0];
 
   // Attach, from the header, on a SAVED draft only: an ESS user's write on
   // their own Expense Claim ends at submit, so the action on a submitted
@@ -354,6 +363,15 @@ export default function ExpenseClaimForm() {
   async function handleSave() {
     const current = docRef.current;
 
+    if (!attachmentConfigLoaded || attachmentConfigFailed) {
+      setError(attachmentConfigFailed ? t("attachments.loadFailed") : t("common.loading"));
+      return;
+    }
+    if (!isEdit && requiresSaveAttachment && !firstSaveFile) {
+      setError(t("attachments.requiredBeforeSave"));
+      return;
+    }
+
     const result = validate(current);
     if (Object.keys(result.fieldErrors).length) {
       setError(result.summary);
@@ -361,6 +379,7 @@ export default function ExpenseClaimForm() {
       return;
     }
 
+    let createdName = null;
     try {
       setLoading(true);
       setError("");
@@ -370,6 +389,17 @@ export default function ExpenseClaimForm() {
         name: isEdit ? name : undefined,
         doc: current,
       });
+      createdName = res?.data?.name || null;
+
+      if (!isEdit && requiresSaveAttachment && firstSaveFile && firstAttachmentType) {
+        if (!createdName) throw new Error(t("attachments.saveAttachmentFailed"));
+        await uploadAttachment({
+          doctype: "Expense Claim",
+          docname: createdName,
+          typeKey: firstAttachmentType.type_key,
+          file: firstSaveFile,
+        });
+      }
 
       setDirty(false);
 
@@ -387,7 +417,12 @@ export default function ExpenseClaimForm() {
       if (Object.keys(serverFields).length) {
         setFieldErrors((prev) => ({ ...prev, ...serverFields }));
       }
-      setError(e?.message || t("common.saveFailed"));
+      if (createdName && !isEdit) {
+        toast.error(e?.message || t("attachments.uploadFailed"));
+        navigate(`/ess/expense-claim/${createdName}`);
+      } else {
+        setError(e?.message || t("common.saveFailed"));
+      }
     } finally {
       setLoading(false);
     }
@@ -467,6 +502,27 @@ export default function ExpenseClaimForm() {
     };
   }, [name]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchAttachmentConfig("Expense Claim")
+      .then((config) => {
+        if (!cancelled) {
+          setAttachmentConfig(config);
+          setAttachmentConfigLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAttachmentConfig({ enabled: false, required_on: [], types: [] });
+          setAttachmentConfigFailed(true);
+          setAttachmentConfigLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /**
    * Apply one Workflow transition, or a plain submit when `action` is null.
    *
@@ -475,6 +531,14 @@ export default function ExpenseClaimForm() {
    * mandatory-field validation, and `apply_workflow` reloads from the database.
    */
   const handleSubmit = async (action = null) => {
+    if (!attachmentConfigLoaded || attachmentConfigFailed) {
+      setError(attachmentConfigFailed ? t("attachments.loadFailed") : t("common.loading"));
+      return;
+    }
+    if (!name && requiresSaveAttachment && !firstSaveFile) {
+      setError(t("attachments.requiredBeforeSave"));
+      return;
+    }
     const result = validate(docRef.current);
     if (Object.keys(result.fieldErrors).length) {
       setError(result.summary);
@@ -497,6 +561,14 @@ export default function ExpenseClaimForm() {
       if (!docName) {
         const res = await saveDocument({ doctype: "Expense Claim", doc: docRef.current });
         docName = res?.data?.name;
+        if (requiresSaveAttachment && firstSaveFile && firstAttachmentType && docName) {
+          await uploadAttachment({
+            doctype: "Expense Claim",
+            docname: docName,
+            typeKey: firstAttachmentType.type_key,
+            file: firstSaveFile,
+          });
+        }
       }
 
       // With a Workflow the transition can only be chosen against a saved
@@ -936,6 +1008,22 @@ export default function ExpenseClaimForm() {
           />
         </FormField>
       </FormSection>
+
+      {!isEdit && requiresSaveAttachment && (
+        <FormSection title={t("attachments.dialogTitle", { doctype: "Expense Claim" })} icon={FileText}>
+          <FormField label={firstAttachmentType?.label || t("attachments.open")}>
+            <input
+              type="file"
+              accept={acceptFor(firstAttachmentType)}
+              disabled={!firstAttachmentType || loading}
+              onChange={(event) => setFirstSaveFile(event.target.files?.[0] || null)}
+            />
+          </FormField>
+          {firstSaveFile && (
+            <p className="text-sm text-muted-foreground">{firstSaveFile.name}</p>
+          )}
+        </FormSection>
+      )}
 
       {/* Browse mode: single Done footer, closing submits nothing. */}
       <AttachDialog

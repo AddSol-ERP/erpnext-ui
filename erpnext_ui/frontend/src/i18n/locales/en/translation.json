@@ -233,6 +233,8 @@
     "uploadFailed": "Upload failed.",
     "deleteFailed": "Could not remove the document.",
     "saveFirst": "Save the document before attaching files to it.",
+    "requiredBeforeSave": "Attach a document before saving this Expense Claim.",
+    "saveAttachmentFailed": "The claim was saved, but its attachment could not be added.",
     "open": "Attach",
     "confirmDelete": "Remove {label} from this document?",
     "deleteConfirm": "Remove {label}?"
