@@ -3888,16 +3888,37 @@ ok(
   /def upload_document\(doctype, docname, type_key, file_name=None, remark=None\)/.test(uiDocsSrc) &&
     /_safe_stem\(file_name, original_name, extension\)/.test(uiDocsSrc) &&
     /f"\[\{type_key\}\]\{sequence\}-\{stem\}.\{extension\}"/.test(uiDocsSrc) &&
-    /"description": \(remark or ""\)\.strip\(\)\[:140\] or None/.test(uiDocsSrc),
+    /remark_value = \(remark or ""\)\.strip\(\)\[:140\] or None/.test(uiDocsSrc) &&
+    /file_values\["ui_remark"\] = remark_value/.test(uiDocsSrc),
   "a user-supplied prefix or extension would orphan the file from the [KEY] list/delete contract",
 );
+// The remark lives on `File.ui_remark`, a Custom Field -- core File has NO
+// free-text column (the first version SELECTed File.description and every
+// list call died with OperationalError 1054 on the deployed site). Both
+// endpoints guard on the column's physical presence so a
+// deployed-but-not-migrated site degrades to "no remark" instead of 500ing.
 ok(
-  "the list endpoint surfaces the remark and the upload stores it",
-  /"remark": row\.description/.test(uiDocsSrc) &&
-    /"description", "creation"\]/.test(uiDocsSrc) &&
-    /"remark": file_doc\.description/.test(uiDocsSrc),
-  "a remark the panel cannot read back is a remark that was never stored",
+  "the remark rides the ui_remark Custom Field, guarded on the column",
+  (uiDocsSrc.match(/frappe\.db\.has_column\("File", "ui_remark"\)/g) || []).length >= 2 &&
+    /"remark": row\.get\("ui_remark"\) if has_remark else None/.test(uiDocsSrc) &&
+    /"remark": file_doc\.get\("ui_remark"\)/.test(uiDocsSrc) &&
+    /fields\.insert\(-1, "ui_remark"\)/.test(uiDocsSrc),
+  "SELECTing the column before the patch has run is the OperationalError 1054 that shipped",
 );
+// The Custom Field itself is created by a patch: unregistered, `bench migrate`
+// never makes the column and the has_column guards silently drop every remark
+// for ever -- a failure no endpoint call would ever surface.
+{
+  const patchesTxt = readSrc("../../../patches.txt");
+  const remarkPatchSrc = readSrc("../../../patches/v1_0/add_file_ui_remark_field.py");
+  ok(
+    "the ui_remark Custom Field patch exists and is registered",
+    patchesTxt.includes("erpnext_ui.patches.v1_0.add_file_ui_remark_field") &&
+      /"fieldname": "ui_remark"/.test(remarkPatchSrc) &&
+      /create_custom_fields\(\{"File": \[FILE_REMARK_FIELD\]\}\)/.test(remarkPatchSrc),
+    "an unregistered patch means migrate never creates the column and every remark is dropped",
+  );
+}
 // The staging flow: multi-pick and camera are SEPARATE inputs (capture on the
 // multi input would fight `multiple`), staging is inline (never a nested
 // modal -- the store module's exactly-one-dialog invariant), and nothing

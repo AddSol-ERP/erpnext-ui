@@ -680,8 +680,12 @@ def upload_document(doctype, docname, type_key, file_name=None, remark=None):
     because list_document_attachments and delete_document_attachment parse it
     to decide which feature a stored file belongs to.
 
-    `remark` is stored on File.description (a standard field -- this app adds
-    no custom DocTypes) and surfaced by the list endpoint on the card.
+    `remark` is stored on `File.ui_remark`, a Custom Field created by
+    patches/v1_0/add_file_ui_remark_field.py -- core File has NO free-text
+    column (the first version SELECTed File.description and every list call
+    died with OperationalError 1054). Guarded on the column's physical
+    presence: a deployed-but-not-migrated site attaches minus the remark
+    rather than 500ing.
 
     `is_private = 1` is deliberate, not cosmetic: File.has_permission returns
     True for any NON-private file to any authenticated user, so a public
@@ -736,25 +740,29 @@ def upload_document(doctype, docname, type_key, file_name=None, remark=None):
     stem = _safe_stem(file_name, original_name, extension)
     sequence = _next_sequence(doctype, docname, type_key)
 
+    remark_value = (remark or "").strip()[:140] or None
+
     # ignore_permissions is deliberately NOT set: Frappe then enforces write on
     # the attached document as well, so this endpoint cannot attach to somebody
     # else's record.
-    file_doc = frappe.get_doc(
-        {
-            "doctype": "File",
-            "file_name": f"[{type_key}]{sequence}-{stem}.{extension}",
-            "attached_to_doctype": doctype,
-            "attached_to_name": docname,
-            "attached_to_field": "attachments",
-            "file_url": "",
-            "is_private": 1,
-            "content": content,
-            "file_size": len(content),
-            # Standard File field, no custom DocType: the remark the operator
-            # typed next to the file name.
-            "description": (remark or "").strip()[:140] or None,
-        }
-    )
+    file_values = {
+        "doctype": "File",
+        "file_name": f"[{type_key}]{sequence}-{stem}.{extension}",
+        "attached_to_doctype": doctype,
+        "attached_to_name": docname,
+        "attached_to_field": "attachments",
+        "file_url": "",
+        "is_private": 1,
+        "content": content,
+        "file_size": len(content),
+    }
+    # ui_remark is a Custom Field (patches/v1_0/add_file_ui_remark_field.py);
+    # writing it before the patch has run would throw on every upload, so the
+    # remark is dropped (with the file kept) until `bench migrate` has created
+    # the column.
+    if remark_value and frappe.db.has_column("File", "ui_remark"):
+        file_values["ui_remark"] = remark_value
+    file_doc = frappe.get_doc(file_values)
     file_doc.save(ignore_permissions=False)
 
     return {
@@ -764,7 +772,9 @@ def upload_document(doctype, docname, type_key, file_name=None, remark=None):
         "is_image": _is_image(file_doc.file_name),
         "file_size": file_doc.file_size,
         "type_key": type_key,
-        "remark": file_doc.description,
+        # `.get`, not attribute access: the field is absent until the patch
+        # has run, and a missing remark must not fail the response.
+        "remark": file_doc.get("ui_remark"),
     }
 
 
@@ -793,10 +803,18 @@ def list_document_attachments(doctype, docname):
             frappe.PermissionError,
         )
 
+    # The remark column is a Custom Field that only exists after
+    # patches/v1_0/add_file_ui_remark_field.py has run; SELECTing it before
+    # then is the OperationalError 1054 this guard exists to prevent.
+    has_remark = frappe.db.has_column("File", "ui_remark")
+    fields = ["name", "file_name", "file_url", "file_size", "creation"]
+    if has_remark:
+        fields.insert(-1, "ui_remark")
+
     rows = frappe.get_all(
         "File",
         filters={"attached_to_doctype": doctype, "attached_to_name": docname},
-        fields=["name", "file_name", "file_url", "file_size", "description", "creation"],
+        fields=fields,
         order_by="creation desc",
         limit_page_length=200,
     )
@@ -819,9 +837,9 @@ def list_document_attachments(doctype, docname):
                 "is_image": _is_image(row.file_name),
                 "type_key": type_key,
                 "label": types[type_key]["label"],
-                # Standard File field the upload endpoint wrote the operator's
-                # remark into; the card shows it under the file name.
-                "remark": row.description,
+                # The operator's remark, written by upload_document; None
+                # until the Custom Field patch has run.
+                "remark": row.get("ui_remark") if has_remark else None,
                 "creation": row.creation,
             }
         )

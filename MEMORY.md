@@ -1825,12 +1825,25 @@ collision-proof sequence and the validated extension. The prefix is
 **never** user-settable — `list_document_attachments` and
 `delete_document_attachment` PARSE it (`DOCUMENT_KEY_PATTERN`) to decide which
 feature a stored file belongs to, so a user-supplied prefix would orphan a
-file from both. The remark rides the standard `File.description` field: this
-app adds no custom DocTypes, so there is nowhere else for it, and the list
-endpoint surfaces it back on the card. Display strips the `[KEY]N-` machinery
-(`displayName`); the raw `[LEAVE_PROOF]3-IMG_0001.jpg` is not something a user
-named. Staging is an **inline block, never a nested modal** — the store
-module's exactly-one-dialog invariant applies to this surface too.
+file from both. Display strips the `[KEY]N-` machinery (`displayName`); the
+raw `[LEAVE_PROOF]3-IMG_0001.jpg` is not something a user named. Staging is
+an **inline block, never a nested modal** — the store module's
+exactly-one-dialog invariant applies to this surface too.
+
+**Core `File` has no `description` column.** The remark first SELECTed one and
+every `list_document_attachments` call died on the deployed site with
+OperationalError 1054 (`Unknown column 'description' in 'SELECT'`) — the
+panel could not even list files. There is no free-text column on File to
+borrow and this app adds no custom DocTypes, so the remark rides a **Custom
+Field** (`ui_remark`, Data 140) created by
+`patches/v1_0/add_file_ui_remark_field.py`, registered under
+`[post_model_sync]`. Both endpoints guard on
+`frappe.db.has_column("File", "ui_remark")`: a site that has deployed the
+code but not yet run `bench migrate` attaches and lists **minus the remark**
+instead of 500ing — the guard's failure mode is a lost remark, never a dead
+panel. The rules suite asserts the patch registration, because an
+unregistered patch fails silently in the other direction: the column never
+appears and every remark is dropped for ever with no error anywhere.
 
 ### 9.9 Logic bugs
 

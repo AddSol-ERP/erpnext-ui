@@ -50,7 +50,8 @@ export async function fetchAttachments(doctype, docname) {
  * `fileName` is the operator's optional name for the STEM; the server keeps
  * the `[TYPE_KEY]` prefix, the collision-proof sequence and the validated
  * extension, so a custom name can never orphan a file from the list or delete
- * endpoints. `remark` is stored on the standard File.description field.
+ * endpoints. `remark` is stored on File.ui_remark, a Custom Field (core File
+ * has no free-text column).
  *
  * @returns {Promise<object>} the created File descriptor
  */
