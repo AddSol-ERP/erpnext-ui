@@ -47,14 +47,21 @@ export async function fetchAttachments(doctype, docname) {
  * to and the server refuses it. Callers are expected to save first rather than
  * having this quietly save on the operator's behalf.
  *
+ * `fileName` is the operator's optional name for the STEM; the server keeps
+ * the `[TYPE_KEY]` prefix, the collision-proof sequence and the validated
+ * extension, so a custom name can never orphan a file from the list or delete
+ * endpoints. `remark` is stored on the standard File.description field.
+ *
  * @returns {Promise<object>} the created File descriptor
  */
-export function uploadAttachment({ doctype, docname, typeKey, file }) {
+export function uploadAttachment({ doctype, docname, typeKey, file, fileName, remark }) {
   const formData = new FormData();
   formData.append("doctype", doctype);
   formData.append("docname", docname);
   formData.append("type_key", typeKey);
   formData.append("file", file);
+  if (fileName) formData.append("file_name", fileName);
+  if (remark) formData.append("remark", remark);
   return uploadFile(`method/${NS}.upload_document`, formData);
 }
 

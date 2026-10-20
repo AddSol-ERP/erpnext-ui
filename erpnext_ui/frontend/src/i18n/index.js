@@ -93,7 +93,17 @@ i18n
 		fallbackLng: DEFAULT_LANGUAGE,
 		nonExplicitSupportedLngs: true,
 		lowerCaseLng: true,
-		interpolation: { escapeValue: false },
+		// i18next's DEFAULT delimiters are DOUBLE braces (`{{var}}`), but this
+		// corpus was written with single braces everywhere -- so with the
+		// default config every placeholder rendered LITERALLY: the attach
+		// dialog showed "Documents — {doctype}" and "5 MB max · {ext}" to the
+		// operator. The corpus is the larger side and reads better in single
+		// braces, so the delimiters are narrowed to match it rather than the
+		// other way round. Every `{{var}}` in the locales was converted to
+		// `{var}` in the same change; the rules suite asserts both halves --
+		// this config AND that no `{{` survives -- because either half alone
+		// silently breaks every interpolated string in the app.
+		interpolation: { escapeValue: false, prefix: "{", suffix: "}" },
 		detection: {
 			order: ["localStorage", "navigator"],
 			caches: ["localStorage"],

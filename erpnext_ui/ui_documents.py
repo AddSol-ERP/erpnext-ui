@@ -638,17 +638,50 @@ def _next_sequence(doctype, docname, type_key):
     )
 
 
+def _safe_stem(file_name, original_name, extension):
+    """The stem a stored file will carry, from the operator or the upload.
+
+    `file_name` is operator input and reaches the filesystem via File.save, so
+    it is treated as a bare name and nothing else: basenamed again (a path
+    cannot survive), stripped of control characters and separators, whitespace
+    collapsed, capped at 80 chars. The EXTENSION is never taken from the
+    operator -- it comes from the validated upload -- and neither is the
+    `[TYPE_KEY]` prefix or the sequence, both of which are load-bearing for
+    the list and delete endpoints.
+
+    Falls back to the upload's own stem when nothing usable is left, which is
+    the pre-custom-name behaviour exactly.
+    """
+    stem = os.path.basename((file_name or "").strip())
+    if extension and stem.lower().endswith(f".{extension.lower()}"):
+        stem = stem[: -len(extension) - 1]
+    stem = re.sub(r'[\x00-\x1f\x7f\\/]', "", stem)
+    stem = re.sub(r"\s+", " ", stem).strip(" .")
+    stem = stem[:80]
+    if not stem:
+        stem = os.path.splitext(os.path.basename(original_name))[0][:80]
+    return stem
+
+
 @frappe.whitelist(allow_guest=False)
-def upload_document(doctype, docname, type_key):
+def upload_document(doctype, docname, type_key, file_name=None, remark=None):
     """Attach an uploaded file to a transaction, as a private `File`.
 
     The document must already be SAVED: a `File` is attached by name, and there
     is no name to attach to before the save. Callers surface that rather than
     saving on the operator's behalf.
 
-    Naming is `[{TYPE_KEY}]{sequence}-{original}` -- the existing marker, plus a
+    Naming is `[{TYPE_KEY}]{sequence}-{stem}.{ext}` -- the existing marker, plus a
     per-document sequence so two phone photos called IMG_0001.jpg cannot
-    collide, and so the list reads in capture order.
+    collide, and so the list reads in capture order. `file_name` optionally
+    replaces the STEM only: the operator naming a weighbridge ticket
+    "Delhi gate 12 Nov" keeps the sequence (collision-proof ordering) and the
+    server-known extension, and the `[TYPE_KEY]` prefix is NEVER user-settable
+    because list_document_attachments and delete_document_attachment parse it
+    to decide which feature a stored file belongs to.
+
+    `remark` is stored on File.description (a standard field -- this app adds
+    no custom DocTypes) and surfaced by the list endpoint on the card.
 
     `is_private = 1` is deliberate, not cosmetic: File.has_permission returns
     True for any NON-private file to any authenticated user, so a public
@@ -700,6 +733,7 @@ def upload_document(doctype, docname, type_key):
             _("{0} must be {1} MB or smaller.").format(config["label"], config["max_size_mb"])
         )
 
+    stem = _safe_stem(file_name, original_name, extension)
     sequence = _next_sequence(doctype, docname, type_key)
 
     # ignore_permissions is deliberately NOT set: Frappe then enforces write on
@@ -708,7 +742,7 @@ def upload_document(doctype, docname, type_key):
     file_doc = frappe.get_doc(
         {
             "doctype": "File",
-            "file_name": f"[{type_key}]{sequence}-{original_name}",
+            "file_name": f"[{type_key}]{sequence}-{stem}.{extension}",
             "attached_to_doctype": doctype,
             "attached_to_name": docname,
             "attached_to_field": "attachments",
@@ -716,6 +750,9 @@ def upload_document(doctype, docname, type_key):
             "is_private": 1,
             "content": content,
             "file_size": len(content),
+            # Standard File field, no custom DocType: the remark the operator
+            # typed next to the file name.
+            "description": (remark or "").strip()[:140] or None,
         }
     )
     file_doc.save(ignore_permissions=False)
@@ -727,6 +764,7 @@ def upload_document(doctype, docname, type_key):
         "is_image": _is_image(file_doc.file_name),
         "file_size": file_doc.file_size,
         "type_key": type_key,
+        "remark": file_doc.description,
     }
 
 
@@ -758,7 +796,7 @@ def list_document_attachments(doctype, docname):
     rows = frappe.get_all(
         "File",
         filters={"attached_to_doctype": doctype, "attached_to_name": docname},
-        fields=["name", "file_name", "file_url", "file_size", "creation"],
+        fields=["name", "file_name", "file_url", "file_size", "description", "creation"],
         order_by="creation desc",
         limit_page_length=200,
     )
@@ -781,6 +819,9 @@ def list_document_attachments(doctype, docname):
                 "is_image": _is_image(row.file_name),
                 "type_key": type_key,
                 "label": types[type_key]["label"],
+                # Standard File field the upload endpoint wrote the operator's
+                # remark into; the card shows it under the file name.
+                "remark": row.description,
                 "creation": row.creation,
             }
         )

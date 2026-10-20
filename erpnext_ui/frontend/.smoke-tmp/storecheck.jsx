@@ -874,6 +874,17 @@ ok("attachments: the browse dialog is Done-only and cannot submit",
    attachBrowseHtml.includes("Done") &&
      !attachBrowseHtml.includes("Cancel") && !attachBrowseHtml.includes("Submit"),
    "browsing files must not be able to submit the document");
+// The operator's original report was the title rendering as the LITERAL
+// "Documents — {doctype}": i18next's DEFAULT delimiters are {{double}} braces
+// while this corpus is single-brace, so every placeholder in the app was
+// dead. The title carries the doctype, so a rendered
+// "Documents — Purchase Receipt" is the end-to-end proof the delimiters now
+// match the corpus.
+ok("attachments: the dialog title interpolates the doctype",
+   attachSubmitHtml.includes("Documents — Purchase Receipt") &&
+     !/\{doctype\}/.test(attachSubmitHtml) &&
+     attachBrowseHtml.includes("Documents — Purchase Receipt"),
+   "the literal {doctype} is exactly what shipped to the operator before the delimiters were narrowed");
 
 // The ACCEPT attribute is the real contract with the server's extension list.
 const attachLibSrc = readFileSync(

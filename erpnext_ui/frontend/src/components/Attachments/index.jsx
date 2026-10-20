@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, Paperclip, Trash2 } from "lucide-react";
+import { Camera, FileText, Paperclip, Trash2 } from "lucide-react";
 // The roundabout path is deliberate and matches every other modal in this app
 // (`../../components/AppModal`). The smoke suite's SSR_MODAL_STUB alias matches on
 // the string "components/AppModal", so the short "../AppModal" resolves to the
@@ -22,10 +22,10 @@ import {
  * Attach supporting documents to a transaction.
  *
  * GLOBAL and doctype-agnostic on purpose: the same panel serves the Purchase
- * Receipt and Plate Offcut forms, Stock Entry, and the Quality Inspection list,
- * and it asks the server what may be attached rather than holding a list of its
- * own. The ERPNext desk script in addsol_nl_custom renders against the same four
- * endpoints.
+ * Receipt and Plate Offcut forms, Stock Entry, the Quality Inspection form,
+ * and the ESS leave/expense forms, and it asks the server what may be attached
+ * rather than holding a list of its own. The ERPNext desk script in
+ * addsol_nl_custom renders against the same four endpoints.
  *
  * Images preview from `file_url` directly. `thumbnail_url` is deliberately not
  * used: Frappe only fills it when `make_thumbnail()` is called explicitly and
@@ -36,24 +36,66 @@ import {
  * An UNSAVED document cannot be attached to -- a `File` is linked by name, so
  * there is no name to link to. The panel says so instead of offering a button
  * that is guaranteed to fail.
+ *
+ * PICKING IS TWO STEPS. Selecting files (the type's "Add files" button, which
+ * takes several at once, or its "Camera" button for image types, which takes
+ * one) only STAGES them; each staged file then shows its own name + remark row
+ * and is uploaded on confirmation. Nothing uploads on selection alone: the
+ * name the operator types must land on the file they typed it for, and with a
+ * multi-select there is no such thing as "the selected file". Staging is an
+ * INLINE block, never a nested modal -- the store module's invariant of
+ * exactly one dialog applies to this surface too.
+ *
+ * The file name is an optional OVERRIDE of the server's decided name
+ * (`[{TYPE_KEY}]{sequence}-{original}`): the draft is prefilled with the
+ * upload's own stem, and whatever the operator keeps or types is sent as the
+ * stem -- the prefix, sequence and extension stay server-owned because the
+ * list and delete endpoints parse the prefix.
  */
 /** Image-only types are the ones a phone can capture at the point of work. */
 function isImageType(type) {
   const exts = (type?.extensions || []).map((e) => e.toLowerCase());
-  return exts.length > 0 && exts.every((e) => ["jpg", "jpeg", "png", "webp", "heic"].includes(e));
+  return (
+    exts.length > 0 &&
+    exts.every((e) => ["jpg", "jpeg", "png", "webp", "heic"].includes(e))
+  );
 }
 
-export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange }) {
+/** The display name of a stored file: `[TYPE_KEY]3-Gate pass.jpg` reads as "Gate pass.jpg". */
+function displayName(storedName) {
+  return (storedName || "").replace(/^\[[A-Z0-9_]+\]\d+-/, "");
+}
+
+/** The stem the server would use if the operator does not override it. */
+function stemOf(file) {
+  return (file?.name || "").replace(/\.[^.]+$/, "");
+}
+
+export function AttachmentsPanel({
+  doctype,
+  docname,
+  readOnly = false,
+  onChange,
+}) {
   const { t } = useTranslation();
   const [config, setConfig] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [busyKey, setBusyKey] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [error, setError] = useState("");
   const inputs = useRef({});
 
+  // The staged batch and the drafts for its CURRENT file. The drafts live
+  // beside the queue rather than in it so advancing resets them without
+  // touching the staged File objects.
+  const [staged, setStaged] = useState([]);
+  const [stagedIndex, setStagedIndex] = useState(0);
+  const [nameDraft, setNameDraft] = useState("");
+  const [remarkDraft, setRemarkDraft] = useState("");
+  const [uploading, setUploading] = useState(false);
+
   const canAttach = Boolean(docname) && !readOnly;
+  const current = staged[stagedIndex] || null;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,24 +121,58 @@ export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange 
     load();
   }, [load]);
 
-  const handlePick = async (type, file) => {
-    if (!file) return;
-    setBusyKey(type.type_key);
+  const seedDrafts = (file) => {
+    setNameDraft(stemOf(file));
+    setRemarkDraft("");
+  };
+
+  const stage = (type, fileList) => {
+    const picked = Array.from(fileList || []);
+    if (!picked.length) return;
+    setStaged(picked.map((file) => ({ type, file })));
+    setStagedIndex(0);
+    seedDrafts(picked[0]);
+  };
+
+  const confirmStaged = async () => {
+    if (!current || uploading) return;
+    setUploading(true);
     setError("");
     try {
       await uploadAttachment({
         doctype,
         docname,
-        typeKey: type.type_key,
-        file,
+        typeKey: current.type.type_key,
+        file: current.file,
+        // A cleared input means "keep the decided name" -- the field is a
+        // deliberate override, never a required second name to invent.
+        fileName: nameDraft.trim() || undefined,
+        remark: remarkDraft.trim() || undefined,
       });
+      const rest = staged.filter((_, i) => i !== stagedIndex);
+      if (rest.length) {
+        setStaged(rest);
+        setStagedIndex(Math.min(stagedIndex, rest.length - 1));
+        seedDrafts(rest[Math.min(stagedIndex, rest.length - 1)].file);
+      } else {
+        setStaged([]);
+        setStagedIndex(0);
+      }
       await load();
       onChange?.();
     } catch (e) {
       setError(e?.message || t("attachments.uploadFailed"));
     } finally {
-      setBusyKey(null);
+      setUploading(false);
     }
+  };
+
+  const discardStaged = () => {
+    const rest = staged.filter((_, i) => i !== stagedIndex);
+    const nextIndex = Math.min(stagedIndex, rest.length - 1);
+    setStaged(rest);
+    setStagedIndex(rest.length ? nextIndex : 0);
+    if (rest.length) seedDrafts(rest[nextIndex].file);
   };
 
   const handleDelete = async () => {
@@ -112,15 +188,10 @@ export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange 
     }
   };
 
-  return (
-    <div className="flex flex-col gap-3" data-testid="attachments-panel">
-      <div className="flex flex-wrap items-center gap-2">
-        <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-        <span className="text-sm font-medium">
-          {t("attachments.title", { doctype })}
-        </span>
-      </div>
+  const inputKey = (typeKey, kind) => `${kind}:${typeKey}`;
 
+  return (
+    <div className="flex flex-col gap-3 py-3" data-testid="attachments-panel">
       {!docname ? (
         <p className="text-xs text-muted-foreground">
           {t("attachments.saveFirst")}
@@ -144,7 +215,7 @@ export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange 
                 <a href={file.file_url} target="_blank" rel="noreferrer">
                   <img
                     src={file.file_url}
-                    alt={file.label}
+                    alt={displayName(file.file_name)}
                     className="h-24 w-full object-cover"
                     loading="lazy"
                   />
@@ -157,14 +228,24 @@ export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange 
                   className="flex h-24 w-full flex-col items-center justify-center gap-1 p-2 text-center"
                 >
                   <FileText className="size-5 text-muted-foreground" />
-                  <span className="line-clamp-2 text-xs text-muted-foreground">
-                    {file.label}
-                  </span>
                 </a>
               )}
-              <span className="block truncate px-2 py-1 text-[11px] text-muted-foreground">
+              <span className="block px-2 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 {file.label}
               </span>
+              <span
+                className="block truncate px-2 text-xs"
+                title={displayName(file.file_name)}
+              >
+                {displayName(file.file_name)}
+              </span>
+              {file.remark ? (
+                <span className="block line-clamp-2 px-2 pb-1 text-[11px] text-muted-foreground">
+                  {file.remark}
+                </span>
+              ) : (
+                <span className="block pb-1" />
+              )}
               {!readOnly ? (
                 <Button
                   size="icon-sm"
@@ -185,45 +266,138 @@ export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange 
         </p>
       )}
 
-      {canAttach
-        ? config.map((type) => (
-            <div key={type.type_key} className="flex items-center gap-2">
-              <input
-                ref={(el) => {
-                  inputs.current[type.type_key] = el;
-                }}
-                type="file"
-                className="hidden"
-                accept={acceptFor(type)}
-                /* capture is a HINT, not a filter -- the browser may ignore it,
-                   and iOS honours it only where the OS offers a camera choice.
-                   It is set per-type rather than globally because offering a
-                   camera for "Weighbridge Ticket" is noise. Image-only types
-                   get it; a PDF ticket is picked from the gallery instead. */
-                capture={isImageType(type) ? "environment" : undefined}
-                onChange={(event) => {
-                  handlePick(type, event.target.files?.[0]);
-                  // Reset so re-picking the SAME file fires onChange again --
-                  // a second photo with the same phone name is the common case.
-                  event.target.value = "";
-                }}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busyKey === type.type_key}
-                onClick={() => inputs.current[type.type_key]?.click()}
-              >
-                {busyKey === type.type_key
-                  ? t("common.uploading")
-                  : t("attachments.add", { label: type.label })}
-              </Button>
-              <span className="truncate text-xs text-muted-foreground">
-                {t("attachments.hint", {
-                  mb: type.max_size_mb,
-                  ext: type.extensions.join(", "),
+      {/* The staging row for the current file. Inline, never a second modal. */}
+      {current ? (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-muted/30 p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-sm font-medium">
+              {t("attachments.upload")} — {current.type.label}
+            </span>
+            {staged.length > 1 ? (
+              <span className="text-xs text-muted-foreground">
+                {t("attachments.stagedOf", {
+                  current: stagedIndex + 1,
+                  total: staged.length,
                 })}
               </span>
+            ) : null}
+            <span className="w-full truncate text-xs text-muted-foreground">
+              {current.file.name}
+            </span>
+          </div>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {t("attachments.nameLabel")}
+            <input
+              type="text"
+              value={nameDraft}
+              maxLength={80}
+              onChange={(e) => setNameDraft(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {t("attachments.remarkLabel")}
+            <input
+              type="text"
+              value={remarkDraft}
+              maxLength={140}
+              onChange={(e) => setRemarkDraft(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={discardStaged}
+              disabled={uploading}
+            >
+              {t("attachments.discard")}
+            </Button>
+            <Button size="sm" onClick={confirmStaged} disabled={uploading}>
+              {uploading ? t("common.uploading") : t("attachments.upload")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {canAttach
+        ? config.map((type) => (
+            <div
+              key={type.type_key}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-2"
+            >
+              <div className="min-w-0">
+                <span className="block truncate text-sm font-medium">
+                  {type.label}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {t("attachments.hint", {
+                    mb: type.max_size_mb,
+                    ext: type.extensions.join(", "),
+                  })}
+                </span>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <input
+                  ref={(el) => {
+                    inputs.current[inputKey(type.type_key, "files")] = el;
+                  }}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept={acceptFor(type)}
+                  onChange={(event) => {
+                    stage(type, event.target.files);
+                    // Reset so re-picking the SAME files fires onChange again --
+                    // a second batch with the same phone names is the common case.
+                    event.target.value = "";
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    inputs.current[inputKey(type.type_key, "files")]?.click()
+                  }
+                >
+                  {t("attachments.addFiles")}
+                </Button>
+                {isImageType(type) ? (
+                  <>
+                    {/* A SEPARATE input for the camera: `capture` on the multi
+                        input would fight `multiple`, and the whole point of the
+                        camera button is one deliberate shot. `capture` remains
+                        a HINT the browser may ignore. */}
+                    <input
+                      ref={(el) => {
+                        inputs.current[inputKey(type.type_key, "camera")] = el;
+                      }}
+                      type="file"
+                      accept={acceptFor(type)}
+                      capture="environment"
+                      className="hidden"
+                      onChange={(event) => {
+                        stage(type, event.target.files);
+                        event.target.value = "";
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={t("attachments.camera")}
+                      onClick={() =>
+                        inputs.current[
+                          inputKey(type.type_key, "camera")
+                        ]?.click()
+                      }
+                    >
+                      <Camera className="size-3.5" />
+                      {t("attachments.camera")}
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </div>
           ))
         : null}
@@ -233,7 +407,9 @@ export function AttachmentsPanel({ doctype, docname, readOnly = false, onChange 
         onCancel={() => setPendingDelete(null)}
         onConfirm={handleDelete}
         title={t("common.deleteConfirmTitle")}
-        message={t("attachments.deleteConfirm", { label: pendingDelete?.label })}
+        message={t("attachments.deleteConfirm", {
+          label: pendingDelete?.label,
+        })}
       />
     </div>
   );

@@ -3723,10 +3723,12 @@ ok(
 
 // Phone photos are all named like IMG_0001.jpg, so the caller's own name is not
 // a key. Without the sequence two uploads collide on `file_name`; I could not
-// verify how Frappe handles that, so it is not relied on.
+// verify how Frappe handles that, so it is not relied on. The tail is the
+// operator's stem plus the SERVER's extension: a custom name replaces the
+// stem only, because the prefix and extension are parsed by list/delete.
 ok(
   "stored names carry the type key AND a per-document sequence",
-  /file_name.*\[{type_key}\]\{sequence\}-\{original_name\}/s.test(uiDocsSrc) &&
+  /\[\{type_key\}\]\{sequence\}-\{stem\}.\{extension\}/.test(uiDocsSrc) &&
     /def _next_sequence/.test(uiDocsSrc),
   "IMG_0001.jpg is not a unique name; the sequence is also what makes the list read in capture order",
 );
@@ -3847,6 +3849,86 @@ ok(
     `not whitelisted: ${docUndecorated.join(", ")} -- the SPA cannot call these`,
   );
 }
+// i18next's DEFAULT delimiters are DOUBLE braces; this corpus was written in
+// single braces throughout, so with the default config every placeholder
+// rendered literally -- the operator saw "Documents — {doctype}" and
+// "5 MB max · {ext}" in the attach dialog. The corpus was converted to a
+// single style and the delimiters narrowed to match; BOTH halves must hold,
+// because either one alone silently breaks every interpolated string in the
+// app and nothing else in this suite would notice.
+{
+  const i18nSrc = readSrc("../../src/i18n/index.js");
+  ok(
+    "the i18next delimiters are narrowed to the corpus's single braces",
+    /prefix:\s*"\{"/.test(i18nSrc) && /suffix:\s*"\}"/.test(i18nSrc),
+    "i18next's default {{var}} never matches this corpus's {var}; every placeholder renders literally",
+  );
+  const localeFiles = [];
+  (function walkDir(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walkDir(p);
+      else if (entry.name.endsWith(".json")) localeFiles.push(p);
+    }
+  })(new URL("../../src/i18n/locales", import.meta.url).pathname);
+  const doubles = localeFiles.filter((f) => /\{\{/.test(readFileSync(f, "utf8")));
+  ok(
+    "no locale file still uses double-brace placeholders",
+    doubles.length === 0 && localeFiles.length >= 18,
+    `with single-brace delimiters {{var}} would render as literal braces around the value: ${doubles.join(", ")}`,
+  );
+}
+// Custom file names are operator input that lands in a stored File name, so
+// the server must own the load-bearing parts -- the [TYPE_KEY] prefix (list
+// and delete PARSE it) and the extension (validated against the config) --
+// and sanitise the stem. The remark rides the standard File.description
+// field: this app adds no custom DocTypes, so there is nowhere else for it.
+ok(
+  "upload_document takes an optional name and remark, and keeps the prefix server-owned",
+  /def upload_document\(doctype, docname, type_key, file_name=None, remark=None\)/.test(uiDocsSrc) &&
+    /_safe_stem\(file_name, original_name, extension\)/.test(uiDocsSrc) &&
+    /f"\[\{type_key\}\]\{sequence\}-\{stem\}.\{extension\}"/.test(uiDocsSrc) &&
+    /"description": \(remark or ""\)\.strip\(\)\[:140\] or None/.test(uiDocsSrc),
+  "a user-supplied prefix or extension would orphan the file from the [KEY] list/delete contract",
+);
+ok(
+  "the list endpoint surfaces the remark and the upload stores it",
+  /"remark": row\.description/.test(uiDocsSrc) &&
+    /"description", "creation"\]/.test(uiDocsSrc) &&
+    /"remark": file_doc\.description/.test(uiDocsSrc),
+  "a remark the panel cannot read back is a remark that was never stored",
+);
+// The staging flow: multi-pick and camera are SEPARATE inputs (capture on the
+// multi input would fight `multiple`), staging is inline (never a nested
+// modal -- the store module's exactly-one-dialog invariant), and nothing
+// uploads on selection alone, because with a multi-select there is no single
+// file the name could belong to.
+ok(
+  "the panel stages picks for naming, and keeps the camera input separate",
+  /multiple/.test(attachPanelSrc) &&
+    /capture="environment"/.test(attachPanelSrc) &&
+    (attachPanelSrc.match(/capture="environment"/g) || []).length === 1 &&
+    /onChange=\{\(event\) => \{\s*stage\(type, event\.target\.files\);/.test(attachPanelSrc) &&
+    !/await uploadAttachment\(\{[^}]*event\.target\.files/s.test(attachPanelSrc),
+  "a capture attribute on the multi-file input would fight the multi-select, and uploading straight off selection leaves the typed name with nowhere to go",
+);
+ok(
+  "the staged file gets name and remark drafts before it uploads",
+  /attachments\.nameLabel/.test(attachPanelSrc) &&
+    /attachments\.remarkLabel/.test(attachPanelSrc) &&
+    /attachments\.stagedOf/.test(attachPanelSrc) &&
+    /fileName: nameDraft\.trim\(\) \|\| undefined/.test(attachPanelSrc) &&
+    /remark: remarkDraft\.trim\(\) \|\| undefined/.test(attachPanelSrc),
+  "a cleared name must fall back to the server's decided name, never send an empty override",
+);
+ok(
+  "stored file names are stripped of the [KEY] marker for display",
+  /function displayName\(storedName\)/.test(attachPanelSrc) &&
+    attachPanelSrc.includes('.replace(/^\\[[A-Z0-9_]+\\]\\d+-/, "")') &&
+    /\{file\.label\}/.test(attachPanelSrc) &&
+    /\{file\.remark\}/.test(attachPanelSrc),
+  "the raw [TYPE_KEY]3-IMG_0001.jpg is machinery, not something the operator named",
+);
 ok(
   "uploading an attachment never submits the document it hangs off",
   !/onChange={onSkip}/.test(attachPanelSrc),
@@ -3854,10 +3936,13 @@ ok(
 );
 // This dialog is the reason the feature exists on a shop floor. capture is a
 // hint a browser may ignore, so it cannot be asserted to work -- only that the
-// markup asks, since without it mobile offers "choose from Files" first.
+// markup asks, since without it mobile offers "choose from Files" first. It
+// lives on a DEDICATED single-shot camera input, not on the multi-file one:
+// capture and multiple fight, and the two jobs are different buttons now.
 ok(
   "photo types ask the browser for the camera",
-  /capture={isImageType\(type\)\s*\?\s*"environment"/.test(attachPanelSrc),
+  /isImageType\(type\) \?\s*\(/.test(attachPanelSrc) &&
+    /capture="environment"/.test(attachPanelSrc),
   "capture is a hint the browser may ignore, but omitting it puts a Files browser in front of every weighbridge photo",
 );
 ok(

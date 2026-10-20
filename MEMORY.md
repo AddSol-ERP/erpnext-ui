@@ -1791,6 +1791,47 @@ only, which is exactly how the "is not whitelisted" failure shipped with the
 suite green — the eight endpoints in `ui_documents.py` were decorated by hand,
 and nothing would have caught a ninth that was not.
 
+### 9.8m Every placeholder in the app was dead, and the attach flow became two-step
+
+**i18next's default delimiters are DOUBLE braces** (`{{var}}`); this corpus was
+written with single braces throughout (`{doctype}`, `{mb}`), and
+`i18n/index.js` only set `escapeValue: false` — never the delimiters. So every
+interpolated string in the app rendered its placeholders **literally**: the
+operator saw "Documents — {doctype}" and "5 MB max · {ext}" in the attach
+dialog. The `ops.json` module was the mirror image: its `{{var}}` strings DID
+interpolate, which is why the split was never noticed — half the corpus worked
+and half did not, and both looked plausible in code review. The fix narrows the
+delimiters to single braces (`prefix: "{", suffix: "}"`) and converts the 628
+`{{var}}` occurrences in the locales to `{var}`, so the corpus is now one
+style. The rules suite asserts **both halves** — the config AND that no `{{`
+survives in any locale file — because either half alone silently breaks every
+placeholder, and storecheck renders the dialog title end-to-end and asserts
+"Documents — Purchase Receipt" arrives interpolated.
+
+**The attach flow is now two-step: pick, then name.** Selecting files only
+STAGES them; each staged file shows an inline name + remark row and uploads on
+confirmation. Three things forced this:
+- a custom file name is operator input that lands in a stored `File` name, and
+  with a multi-select there is no single file "the name" could belong to;
+- `capture` and `multiple` **fight** on one input, so the camera is a separate
+  single-shot input (`capture="environment"`) beside the multi-file one;
+- nothing may upload on selection alone — the old instant-upload left the
+  typed name with nowhere to go.
+
+The name the operator keeps or types is sent as the STEM only:
+`upload_document` re-basenames it, strips control characters and separators,
+caps it at 80 chars and re-attaches the server-owned `[TYPE_KEY]` prefix, the
+collision-proof sequence and the validated extension. The prefix is
+**never** user-settable — `list_document_attachments` and
+`delete_document_attachment` PARSE it (`DOCUMENT_KEY_PATTERN`) to decide which
+feature a stored file belongs to, so a user-supplied prefix would orphan a
+file from both. The remark rides the standard `File.description` field: this
+app adds no custom DocTypes, so there is nowhere else for it, and the list
+endpoint surfaces it back on the card. Display strips the `[KEY]N-` machinery
+(`displayName`); the raw `[LEAVE_PROOF]3-IMG_0001.jpg` is not something a user
+named. Staging is an **inline block, never a nested modal** — the store
+module's exactly-one-dialog invariant applies to this surface too.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second
