@@ -8,7 +8,7 @@ import { FormField } from "../../../../components/FormField";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
-import { AttachDialog } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -113,6 +113,7 @@ export default function PlateOffcutForm() {
   // just Done). The draft is saved by either -- both only appear once `isEdit`
   // -- so the files have a document to hang from.
   const [showAttach, setShowAttach] = useState(false);
+  const [initialAttachment, setInitialAttachment] = useState(null);
   const [attachForSubmit, setAttachForSubmit] = useState(false);
 
   // `dirty` is event-based, never diff-based: only a row edit or a serial change
@@ -360,16 +361,22 @@ export default function PlateOffcutForm() {
         doctype: DOCTYPE,
         name: isEdit ? name : undefined,
         doc: buildPayload(),
+        initialAttachment: isEdit ? undefined : initialAttachment,
       });
       const saved = res.data.name;
       setDirty(false);
       navigate(`/store/plate-offcut/${encodeURIComponent(saved)}`);
     } catch (e) {
+      if (e?.savedDocName) {
+        setError(e.message || t("attachments.uploadFailed"));
+        navigate(`/store/plate-offcut/${encodeURIComponent(e.savedDocName)}`);
+        return;
+      }
       setError(e.message || t("common.saveFailed"));
     } finally {
       setSaving(false);
     }
-  }, [buildPayload, isEdit, name, navigate, t, validate]);
+  }, [buildPayload, initialAttachment, isEdit, name, navigate, t, validate]);
 
   /* ---------------------------------------------------------------- submit */
   const submitNow = useCallback(async () => {
@@ -387,20 +394,27 @@ export default function PlateOffcutForm() {
         doctype: DOCTYPE,
         name: isEdit ? name : undefined,
         doc: payload,
+        initialAttachment: isEdit ? undefined : initialAttachment,
       });
       await submitDocument({
         doctype: DOCTYPE,
         name: saved.data.name,
         doc: payload,
+        initialAttachment: isEdit ? undefined : initialAttachment,
       });
       setDirty(false);
       navigate(`/store/plate-offcut/${encodeURIComponent(saved.data.name)}`);
     } catch (e) {
+      if (e?.savedDocName) {
+        setError(e.message || t("attachments.uploadFailed"));
+        navigate(`/store/plate-offcut/${encodeURIComponent(e.savedDocName)}`);
+        return;
+      }
       setError(e.message || t("common.submitFailed"));
     } finally {
       setSaving(false);
     }
-  }, [buildPayload, isEdit, name, navigate, t, validate]);
+  }, [buildPayload, initialAttachment, isEdit, name, navigate, t, validate]);
 
   const handleSubmit = useCallback(async () => {
     setConfirmSubmit(false);
@@ -873,6 +887,15 @@ export default function PlateOffcutForm() {
       {/* Submitting POSTS STOCK: it creates Items, a Batch and a reserved Serial
           No per offcut, then submits a Repack Stock Entry. It must not read as an
           ordinary save. */}
+      {!isEdit && (
+        <RequiredAttachmentInput
+          doctype={DOCTYPE}
+          value={initialAttachment}
+          onChange={setInitialAttachment}
+          disabled={saving}
+          events={["save", "submit"]}
+        />
+      )}
       {/* Attach step. In the Submit flow the footer is Cancel + Submit, so a
           device with no camera is never trapped -- Submit with zero files is
           the escape hatch. Opened from the header Attach action the footer is

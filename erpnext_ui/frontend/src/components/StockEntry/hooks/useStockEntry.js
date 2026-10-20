@@ -5,6 +5,7 @@ import { get, post } from "../../../services/api";
 import { useToast } from "../../../context/ToastContext";
 import { localDateISO, localTimeHHMM } from "../../../utils/localDateTime";
 import { STOCK_ENTRY_PURPOSES, stockPurposeForType } from "../../../config/storePurposes";
+import { fetchAttachmentConfig, uploadAttachment } from "../../../lib/attachments";
 
 export function useStockEntry() {
   const toast = useToast();
@@ -352,7 +353,7 @@ export function useStockEntry() {
     });
   };
 
-  const submit = async () => {
+  const submit = async (initialAttachment) => {
     const invalid = getInvalidItems();
 
     if (invalid.length) {
@@ -365,7 +366,27 @@ export function useStockEntry() {
     const payload = buildPayload();
 
     try {
+      const attachmentConfig = await fetchAttachmentConfig("Stock Entry");
+      const attachmentRequired =
+        attachmentConfig.enabled &&
+        (attachmentConfig.required_on || []).some((event) => ["save", "submit"].includes(event));
+      if (attachmentRequired && !initialAttachment?.file) {
+        throw new Error("Attach a document before saving or submitting this Stock Entry.");
+      }
+      if (attachmentRequired && !initialAttachment?.typeKey) {
+        throw new Error("Choose an attachment type before saving or submitting this Stock Entry.");
+      }
+
       const res = await post("resource/Stock Entry", payload);
+
+      if (attachmentRequired) {
+        await uploadAttachment({
+          doctype: "Stock Entry",
+          docname: res.data.name,
+          typeKey: initialAttachment.typeKey,
+          file: initialAttachment.file,
+        });
+      }
 
       // optional submit (docstatus = 1)
       await post(`resource/Stock Entry/${res.data.name}`, {
@@ -386,8 +407,8 @@ export function useStockEntry() {
 
       setItems([]);
       closeSubmitModal();
-    } catch {
-      toast.error(t("store.entry.failedToast"));
+    } catch (error) {
+      toast.error(error?.message || t("store.entry.failedToast"));
     }
   };
 

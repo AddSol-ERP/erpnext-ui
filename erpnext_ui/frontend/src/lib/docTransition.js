@@ -1,4 +1,9 @@
-import { validateRequiredAttachments } from "./attachments";
+import {
+  fetchAttachmentConfig,
+  fetchAttachments,
+  uploadAttachment,
+  validateRequiredAttachments,
+} from "./attachments";
 
 /**
  * Document save / submit / cancel, with Workflow awareness.
@@ -217,15 +222,48 @@ const resourcePath = (doctype, name) =>
  * @param {string} [name]  omit for a new document
  * @param {object} doc     the document payload
  */
-export async function saveDocument({ doctype, name, doc }) {
+export async function saveDocument({ doctype, name, doc, initialAttachment }) {
+  let attachmentConfig = null;
   // A newly created record has no name/File parent until after its first save.
   if (name) {
     await validateRequiredAttachments({ doctype, docname: name, event: "save" });
+  } else {
+    attachmentConfig = await fetchAttachmentConfig(doctype);
+    const requiredOnSave = attachmentConfig.enabled && (attachmentConfig.required_on || []).includes("save");
+    if (requiredOnSave && !initialAttachment?.file) {
+      throw new Error(`Attach a document before saving this ${doctype}.`);
+    }
+    if (requiredOnSave && !initialAttachment?.typeKey) {
+      throw new Error(`Choose an attachment type before saving this ${doctype}.`);
+    }
   }
   const payload = { ...doc, doctype };
 
   // PUT for updates. POST here is what produced `KeyError: 'run_method'`.
-  return name ? put(resourcePath(doctype, name), payload) : post(resourcePath(doctype), payload);
+  const result = name
+    ? await put(resourcePath(doctype, name), payload)
+    : await post(resourcePath(doctype), payload);
+  if (!name && initialAttachment?.file) {
+    if (
+      attachmentConfig?.enabled &&
+      (attachmentConfig.required_on || []).some((event) => ["save", "submit"].includes(event))
+    ) {
+      const docname = result?.data?.name;
+      if (!docname) throw new Error(`The ${doctype} was saved but its attachment could not be added.`);
+      try {
+        await uploadAttachment({
+          doctype,
+          docname,
+          typeKey: initialAttachment.typeKey,
+          file: initialAttachment.file,
+        });
+      } catch (error) {
+        error.savedDocName = docname;
+        throw error;
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -299,7 +337,23 @@ export async function fetchDocument(doctype, name) {
  *                         the Workflow path (`apply_workflow`); when omitted we
  *                         fall back to the plain doctype submit.
  */
-export async function submitDocument({ doctype, name, action, doc }) {
+export async function submitDocument({ doctype, name, action, doc, initialAttachment }) {
+  if (initialAttachment?.file && name) {
+    const config = await fetchAttachmentConfig(doctype);
+    const requiresSubmitAttachment =
+      config.enabled && (config.required_on || []).includes("submit");
+    if (requiresSubmitAttachment) {
+      const files = await fetchAttachments(doctype, name);
+      if (!files.length) {
+        await uploadAttachment({
+          doctype,
+          docname: name,
+          typeKey: initialAttachment.typeKey,
+          file: initialAttachment.file,
+        });
+      }
+    }
+  }
   await validateRequiredAttachments({ doctype, docname: name, event: "submit" });
   const full = doc || (await fetchDocument(doctype, name));
 

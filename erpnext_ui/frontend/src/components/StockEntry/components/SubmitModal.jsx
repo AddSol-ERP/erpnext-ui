@@ -12,6 +12,7 @@ export default function SubmitModal({
   setProject,
   workOrder,
   setWorkOrder,
+  children,
 }) {
   const { t } = useTranslation();
 
@@ -47,6 +48,7 @@ export default function SubmitModal({
             placeholder={t("store.submitModal.searchWorkOrder")}
           />
         </FormField>
+        {children}
       </div>
     </AppModal>
   );

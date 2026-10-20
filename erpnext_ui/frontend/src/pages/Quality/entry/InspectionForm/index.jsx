@@ -16,7 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { gridCorners } from "../../../../lib/gridCorners";
 import FormSelect from "../../../../components/FormSelect";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
-import { AttachDialog } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
 import {
   errorList,
   focusFirstError,
@@ -106,6 +106,7 @@ export default function InspectionForm() {
   // outlived the form itself). Attaching here is the same server call: the
   // report's rows were docstatus 1, so submitted attach is the working case.
   const [showAttach, setShowAttach] = useState(false);
+  const [initialAttachment, setInitialAttachment] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
 
   // Always points at the newest document. The Save button is registered into
@@ -352,6 +353,7 @@ export default function InspectionForm() {
         doctype: "Quality Inspection",
         name: isEdit ? name : undefined,
         doc: payload,
+        initialAttachment: isEdit ? undefined : initialAttachment,
       });
       // Same shape as GenericForm: the raw doctype name, not a translated
       // label, because that is what every other form in this app does.
@@ -367,6 +369,7 @@ export default function InspectionForm() {
       // out -- so this names the field to fix rather than an unrelated notice
       // that happened to be sent first.
       toast.error(e.message || t("common.saveFailed"));
+      if (e?.savedDocName) navigate(`/quality/inspection/${encodeURIComponent(e.savedDocName)}`);
     } finally {
       setSaving(false);
     }
@@ -417,9 +420,14 @@ export default function InspectionForm() {
         doctype: "Quality Inspection",
         name: isEdit ? name : undefined,
         doc: payloadFrom(current),
+        initialAttachment: isEdit ? undefined : initialAttachment,
       });
       const savedName = saved.data.name;
-      await submitDocument({ doctype: "Quality Inspection", name: savedName });
+      await submitDocument({
+        doctype: "Quality Inspection",
+        name: savedName,
+        initialAttachment: isEdit ? undefined : initialAttachment,
+      });
       setDoc({ ...current, docstatus: 1, name: savedName });
       setDirty(false);
       toast.success(
@@ -428,6 +436,7 @@ export default function InspectionForm() {
       navigate("/quality/inspection");
     } catch (e) {
       toast.error(e.message || t("common.submitFailed"));
+      if (e?.savedDocName) navigate(`/quality/inspection/${encodeURIComponent(e.savedDocName)}`);
     } finally {
       setSaving(false);
     }
@@ -740,6 +749,16 @@ export default function InspectionForm() {
       </Card>
 
       {/* Browse mode: single Done footer, closing submits nothing. */}
+      {!isEdit && (
+        <RequiredAttachmentInput
+          doctype="Quality Inspection"
+          value={initialAttachment}
+          onChange={setInitialAttachment}
+          disabled={saving}
+          events={["save", "submit"]}
+        />
+      )}
+
       <AttachDialog
         show={showAttach}
         doctype="Quality Inspection"

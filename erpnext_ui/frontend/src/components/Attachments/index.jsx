@@ -475,4 +475,74 @@ export function AttachDialog({ show, onClose, doctype, docname, onSubmit }) {
   );
 }
 
+/** File staging for a new document whose attachment policy requires save. */
+export function RequiredAttachmentInput({
+  doctype,
+  value,
+  onChange,
+  disabled = false,
+  events = ["save"],
+}) {
+  const { t } = useTranslation();
+  const [config, setConfig] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAttachmentConfig(doctype)
+      .then((next) => {
+        if (!cancelled) setConfig(next);
+      })
+      .catch(() => {
+        if (!cancelled) setConfig({ enabled: false, required_on: [], types: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [doctype]);
+
+  const types = config?.types || [];
+  const required = Boolean(
+    config?.enabled && (config.required_on || []).some((event) => events.includes(event)),
+  );
+  if (!required) return null;
+  const requiredBeforeSave = (config.required_on || []).includes("save") && events.includes("save");
+
+  const selectedType = types.find((type) => type.type_key === value?.typeKey) || types[0];
+  const update = (next) => onChange(next);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <label className="block text-sm font-medium">
+        {t(requiredBeforeSave ? "attachments.requiredBeforeSave" : "attachments.requiredBeforeSubmit")}
+      </label>
+      {types.length > 1 && (
+        <select
+          className="form-select w-full"
+          value={selectedType?.type_key || ""}
+          disabled={disabled}
+          onChange={(event) => update({ ...value, typeKey: event.target.value })}
+        >
+          {types.map((type) => (
+            <option key={type.type_key} value={type.type_key}>
+              {type.label}
+            </option>
+          ))}
+        </select>
+      )}
+      <input
+        type="file"
+        accept={acceptFor(selectedType)}
+        disabled={disabled || !selectedType}
+        onChange={(event) =>
+          update({
+            file: event.target.files?.[0] || null,
+            typeKey: selectedType?.type_key,
+          })
+        }
+      />
+      {value?.file && <p className="text-sm text-muted-foreground">{value.file.name}</p>}
+    </div>
+  );
+}
+
 export default AttachmentsPanel;

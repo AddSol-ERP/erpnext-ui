@@ -20,7 +20,7 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
-import { AttachDialog } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
 import { focusFirstError } from "../../../../lib/formValidation";
 import { useHeader } from "../../../../context/HeaderContext";
 import { Button } from "@/components/ui/button";
@@ -186,6 +186,7 @@ export default function PurchaseReceiptForm() {
   // footer is just Done). A draft already exists by either -- both only appear
   // when `isEdit` -- so the files have a document to hang from.
   const [showAttach, setShowAttach] = useState(false);
+  const [initialAttachment, setInitialAttachment] = useState(null);
   const [attachForSubmit, setAttachForSubmit] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const plateConfigRef = useRef(plateConfig);
@@ -698,9 +699,15 @@ export default function PurchaseReceiptForm() {
         doctype: "Purchase Receipt",
         name: isEdit ? name : undefined,
         doc: toSavePayload(current),
+        initialAttachment: isEdit ? undefined : initialAttachment,
       });
       navigate(`/store/purchase-receipt/${res.data.name}`);
     } catch (e) {
+      if (e?.savedDocName) {
+        setError(e.message || t("attachments.uploadFailed"));
+        navigate(`/store/purchase-receipt/${encodeURIComponent(e.savedDocName)}`);
+        return;
+      }
       setError(e.message || t("common.saveFailed"));
     } finally {
       setLoading(false);
@@ -910,6 +917,15 @@ export default function PurchaseReceiptForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
+      {!isEdit && (
+        <RequiredAttachmentInput
+          doctype="Purchase Receipt"
+          value={initialAttachment}
+          onChange={setInitialAttachment}
+          disabled={loading}
+          events={["save", "submit"]}
+        />
+      )}
       {/* Attach step. In the Submit flow the footer is Cancel + Submit, so a
           device with no camera is never trapped -- Submit with zero files is
           the escape hatch. Opened from the header Attach action the footer is

@@ -29,7 +29,7 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
-import { AttachDialog } from "../../../../components/Attachments";
+import { AttachDialog, RequiredAttachmentInput } from "../../../../components/Attachments";
 import FormSelect from "../../../../components/FormSelect";
 import { focusFirstError } from "../../../../lib/formValidation";
 import {
@@ -148,6 +148,7 @@ export default function LeaveApplicationForm() {
   // their own Leave Application ends at submit, so the action on a submitted
   // document would be a button that can only fail at `_require_write`.
   const [showAttach, setShowAttach] = useState(false);
+  const [initialAttachment, setInitialAttachment] = useState(null);
 
   // Which lifecycle buttons this document can offer. Centralised so this form,
   // the Expense form and the Attendance form cannot drift apart.
@@ -427,6 +428,7 @@ export default function LeaveApplicationForm() {
         const res = await saveDocument({
           doctype: "Leave Application",
           doc: current,
+          initialAttachment,
         });
         setDirty(false);
         toast.success(t("requests.leave.createdSuccess"));
@@ -441,6 +443,11 @@ export default function LeaveApplicationForm() {
       const serverFields = e?.fieldMessages || {};
       if (Object.keys(serverFields).length) {
         setFieldErrors((prev) => ({ ...prev, ...serverFields }));
+      }
+      if (e?.savedDocName) {
+        toast.error(e?.message || t("attachments.uploadFailed"));
+        navigate(`/ess/leave/${e.savedDocName}`);
+        return;
       }
       setError(e?.message || t("common.saveFailed"));
     } finally {
@@ -1058,6 +1065,16 @@ export default function LeaveApplicationForm() {
           />
         </FormField>
       </FormSection>
+
+      {!isEdit && (
+        <RequiredAttachmentInput
+          doctype="Leave Application"
+          value={initialAttachment}
+          onChange={setInitialAttachment}
+          disabled={loading || submitting}
+          events={["save", "submit"]}
+        />
+      )}
 
       {/* Browse mode: single Done footer, closing submits nothing. */}
       <AttachDialog

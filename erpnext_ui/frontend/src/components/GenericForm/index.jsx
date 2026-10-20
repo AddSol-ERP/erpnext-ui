@@ -47,7 +47,7 @@ import {
 import { getFieldRenderer } from "./fieldTypes";
 import { getDoctypeConfig } from "../../config/doctypes";
 import { fetchAttachmentConfig } from "../../lib/attachments";
-import { AttachDialog } from "../Attachments";
+import { AttachDialog, RequiredAttachmentInput } from "../Attachments";
 import { Spinner } from "@/components/ui/spinner";
 
 /** Extract the hub name from the first segment of the current path. */
@@ -115,6 +115,7 @@ export default function GenericFormPage() {
   const [saving, setSaving] = useState(false);
   const [attachmentsEnabled, setAttachmentsEnabled] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [initialAttachment, setInitialAttachment] = useState(null);
   const [errors, setErrors] = useState({});
   const [summary, setSummary] = useState("");
   // Section keys the user manually expanded (errors always force-expand via FormSection).
@@ -362,6 +363,7 @@ export default function GenericFormPage() {
         doctype: decodedDoctype,
         name: isNew ? undefined : decodedName,
         doc: payload,
+        initialAttachment,
       });
 
       setDirty(false);
@@ -376,6 +378,11 @@ export default function GenericFormPage() {
     } catch (e) {
       console.error("Save failed:", e);
       toast.error(e.message || t("common.saveFailed"));
+      if (e.savedDocName) {
+        navigate(
+          `/${hub}/${encodeURIComponent(decodedDoctype)}/${encodeURIComponent(e.savedDocName)}`,
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -1077,6 +1084,15 @@ export default function GenericFormPage() {
   return (
     <div className="mx-auto w-full max-w-[1100px]">
       <FormErrorSummary summary={summary} fieldErrors={errors} className="mb-4" />
+
+      {isNew && (
+        <RequiredAttachmentInput
+          doctype={decodedDoctype}
+          value={initialAttachment}
+          onChange={setInitialAttachment}
+          disabled={saving}
+        />
+      )}
 
       {body}
 

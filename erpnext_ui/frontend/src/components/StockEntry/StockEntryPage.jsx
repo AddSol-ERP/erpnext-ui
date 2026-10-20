@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronUp, ChevronDown, PackageOpen } from "lucide-react";
 import ItemList from "./components/ItemList";
@@ -8,7 +8,7 @@ import { useHeader } from "../../context/HeaderContext";
 import { stockPurposeForType } from "../../config/storePurposes";
 import StockEntryTypeSelector from "./components/StockEntryTypeSelector";
 import GetItemsModal from "./components/GetItemsModal";
-import { AttachDialog } from "@/components/Attachments";
+import { AttachDialog, RequiredAttachmentInput } from "@/components/Attachments";
 import SubmitModal from "./components/SubmitModal";
 import StockFixModal from "./components/StockFixModal";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ const ENTRY_TYPE_LABEL_KEYS = {
 
 export default function StockEntryPage() {
   const stock = useStockEntry();
+  const [initialAttachment, setInitialAttachment] = useState(null);
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
@@ -166,12 +167,19 @@ export default function StockEntryPage() {
       <SubmitModal
         show={stock.showSubmit}
         onClose={stock.closeSubmitModal}
-        onSubmit={stock.submit}
+        onSubmit={() => stock.submit(initialAttachment)}
         project={stock.project}
         setProject={stock.setProject}
         workOrder={stock.workOrder}
         setWorkOrder={stock.setWorkOrder}
-      />
+      >
+        <RequiredAttachmentInput
+          doctype="Stock Entry"
+          value={initialAttachment}
+          onChange={setInitialAttachment}
+          events={["save", "submit"]}
+        />
+      </SubmitModal>
       {/* Keyed on show + purpose: remounts the dialog so it opens with the
           right source options and no leftover state from a previous attempt. */}
       <GetItemsModal
