@@ -647,14 +647,6 @@ export default function PlateOffcutForm() {
         <FormSection
           title={t("store.plateOffcut.offcutsTitle")}
           icon={Boxes}
-          action={
-            !submitted ? (
-              <Button size="sm" variant="outline" onClick={addRow}>
-                <Plus className="size-4" />
-                {t("common.addRow")}
-              </Button>
-            ) : null
-          }
         >
           {fieldErrors.offcuts ? (
             <p className="mb-2 text-xs text-destructive">{fieldErrors.offcuts}</p>
@@ -852,6 +844,15 @@ export default function PlateOffcutForm() {
               }
             />
           </div>
+
+          {!submitted ? (
+            <div className="sticky bottom-0 z-10 -mx-2 mt-3 flex justify-end bg-background/95 px-2 py-2 backdrop-blur">
+              <Button size="sm" variant="outline" onClick={addRow}>
+                <Plus className="size-4" />
+                {t("store.plateOffcut.addOffcut")}
+              </Button>
+            </div>
+          ) : null}
         </FormSection>
 
         <div className="space-y-3">

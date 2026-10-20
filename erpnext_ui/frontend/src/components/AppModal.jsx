@@ -44,6 +44,8 @@ export default function AppModal({
   children,
   footer,
   width = "md",
+  contentClassName,
+  bodyClassName,
 }) {
   return (
     <Dialog open={show} onOpenChange={(open) => !open && onClose?.()}>
@@ -52,6 +54,7 @@ export default function AppModal({
         className={cn(
           "flex max-h-[95vh] flex-col gap-0 overflow-hidden p-0",
           widthMap[width] || widthMap.md,
+          contentClassName,
         )}
       >
         {/* HEADER */}
@@ -71,7 +74,7 @@ export default function AppModal({
         </DialogHeader>
 
         {/* BODY */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4">
+        <div className={cn("min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4", bodyClassName)}>
           {children}
         </div>
 

@@ -8,14 +8,17 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import FormSelect from "../../../../components/FormSelect";
+import AppModal from "../../../../components/AppModal";
 import { focusFirstError } from "../../../../lib/formValidation";
 import LinkField from "../../../../components/LinkField";
 import { useHeader } from "../../../../context/HeaderContext";
+import { useRole } from "../../../../context/RoleContext";
 import { useToast } from "../../../../context/ToastContext";
 import { requestPurpose } from "../../../../config/storePurposes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { localDateISO } from "../../../../utils/localDateTime";
+import RequestSupplierQuotesDialog from "./RequestSupplierQuotesDialog";
 
 /**
  * Raise an indent (and the other four request purposes).
@@ -40,6 +43,7 @@ export default function MaterialRequestForm() {
   const { setHeader } = useHeader();
   const toast = useToast();
   const { t } = useTranslation();
+  const { userRoles = [] } = useRole();
 
   const isEdit = !!name;
   const cfg = purpose ? requestPurpose(purpose) : null;
@@ -47,6 +51,11 @@ export default function MaterialRequestForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [newItem, setNewItem] = useState(null);
+  const [newItemError, setNewItemError] = useState("");
+  const [defaultTargetWarehouse, setDefaultTargetWarehouse] = useState("");
+  const [showSupplierQuotes, setShowSupplierQuotes] = useState(false);
 
   const [doc, setDoc] = useState({
     // On edit the server value wins; on create the purpose supplies it.
@@ -87,11 +96,15 @@ export default function MaterialRequestForm() {
   const purposeTitle = cfg ? t(`store.purposes.${cfg.i18nKey}.title`) : t("store.mr.title");
   const isTransfer = doc.material_request_type === "Material Transfer";
   const isCustomerProvided = doc.material_request_type === "Customer Provided";
+  const isPurchase = doc.material_request_type === "Purchase";
   // A production indent is a bill of materials, so its project is a property of
   // the whole request rather than of one row. The other purposes mix
   // project-specific and free items on the same indent, which is why they keep
   // the per-row field.
   const isProjectDriven = purpose === "production" || purpose === "manufacture";
+  const canRequestSupplierQuotes = userRoles.some((role) =>
+    ["Purchase User", "Purchase Manager", "Store Manager", "Stock User", "Stock Manager", "Administrator"].includes(role),
+  );
 
   /* ================= HELPERS ================= */
 
@@ -143,6 +156,12 @@ export default function MaterialRequestForm() {
         })),
         docstatus: d.docstatus,
       });
+      const warehouses = (d.items || []).map((row) => row.warehouse || "");
+      setDefaultTargetWarehouse(
+        warehouses.length && warehouses.every((warehouse) => warehouse === warehouses[0])
+          ? warehouses[0]
+          : "",
+      );
     } catch {
       setError(t("common.failedToLoad", { name: t("store.mr.title") }));
     } finally {
@@ -181,24 +200,73 @@ export default function MaterialRequestForm() {
 
   /* ================= ITEMS ================= */
 
-  const addRow = () => {
-    setDoc((p) => ({
-      ...p,
-      items: [
-        ...p.items,
-        {
-          item_code: "",
-          qty: "",
-          uom: "",
-          stock_uom: "",
-          conversion_factor: 1,
-          schedule_date: p.schedule_date,
-          project: "",
-          from_warehouse: "",
-          warehouse: "",
-        },
-      ],
+  const emptyItemRow = (current) => ({
+    item_code: "",
+    qty: "",
+    uom: "",
+    stock_uom: "",
+    conversion_factor: 1,
+    schedule_date: current.schedule_date,
+    project: isProjectDriven ? current.project : "",
+    from_warehouse: "",
+    warehouse: defaultTargetWarehouse,
+    description: "",
+  });
+
+  const handleDefaultTargetWarehouseChange = (warehouse) => {
+    const next = warehouse || "";
+    setDefaultTargetWarehouse(next);
+    setDoc((current) => ({
+      ...current,
+      items: current.items.map((row) => ({ ...row, warehouse: next })),
     }));
+    setNewItem((row) => row ? { ...row, warehouse: next } : row);
+  };
+
+  const addRow = () => {
+    setNewItem(emptyItemRow(doc));
+    setNewItemError("");
+    setItemModalOpen(true);
+  };
+
+  const addNewItem = () => {
+    const row = newItem || emptyItemRow(doc);
+    if (!row.item_code || !row.qty || Number(row.qty) <= 0 || !row.uom || !row.warehouse ||
+      (isTransfer && !row.from_warehouse) || (isPurchase && !String(row.description || "").trim()) ||
+      (!isProjectDriven && row.project === undefined)) {
+      setNewItemError(t("store.validation.fillAllRows"));
+      return;
+    }
+    if (isTransfer && row.from_warehouse === row.warehouse) {
+      setNewItemError(t("store.validation.sameWarehouse"));
+      return;
+    }
+    setDoc((p) => ({ ...p, items: [...p.items, row] }));
+    setItemModalOpen(false);
+    setNewItem(null);
+    setNewItemError("");
+  };
+
+  const updateNewItem = (field, value) => {
+    setNewItem((row) => ({ ...row, [field]: value }));
+    setNewItemError("");
+  };
+
+  const handleNewItemChange = async (itemCode) => {
+    updateNewItem("item_code", itemCode || "");
+    if (!itemCode) return;
+    try {
+      const res = await get(`resource/Item/${encodeURIComponent(itemCode)}`);
+      const item = res.data;
+      setNewItem((row) => row ? ({
+        ...row,
+        uom: item.stock_uom || "",
+        stock_uom: item.stock_uom || "",
+        conversion_factor: 1,
+      }) : row);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const updateRow = (i, field, value) => {
@@ -268,7 +336,7 @@ export default function MaterialRequestForm() {
 
     setDoc((p) => {
       // Keep one spare empty row so the table never ends on a filled row.
-      const rows = p.items.length ? p.items : [{ item_code: "", qty: "", uom: "", stock_uom: "", conversion_factor: 1, schedule_date: p.schedule_date, project: "", from_warehouse: "", warehouse: "" }];
+      const rows = p.items.length ? p.items : [{ item_code: "", qty: "", uom: "", stock_uom: "", conversion_factor: 1, schedule_date: p.schedule_date, project: "", from_warehouse: "", warehouse: "", description: "" }];
       const withProject = rows.map((r) => ({ ...r, project: next }));
       const empties = withProject.filter((r) => !r.item_code);
       const filled = withProject.filter((r) => r.item_code);
@@ -297,6 +365,7 @@ export default function MaterialRequestForm() {
       schedule_date: scheduleDate || "",
       project,
       from_warehouse: "",
+      description: "",
     };
   };
 
@@ -400,6 +469,9 @@ export default function MaterialRequestForm() {
         if (parseFloat(row.qty) <= 0) {
           errs.items = t("store.validation.qtyGtZero");
           break;
+        }
+        if (d.material_request_type === "Purchase" && !String(row.description || "").trim()) {
+          errs[`item_description_${i}`] = t("store.validation.purchaseRemarkRequired");
         }
         // "Transfer" was never a valid material_request_type; the correct
         // value is "Material Transfer". Comparing against the wrong string
@@ -512,6 +584,14 @@ export default function MaterialRequestForm() {
       ],
 
       actions: [
+        isEdit &&
+          doc.docstatus === 1 &&
+          doc.material_request_type === "Purchase" &&
+          canRequestSupplierQuotes && {
+            label: t("store.mr.supplierEmail.action"),
+            variant: "btn-primary",
+            onClick: () => setShowSupplierQuotes(true),
+          },
         !doc.docstatus && {
           label: loading ? t("common.saving") : t("common.save"),
           variant: "btn-success",
@@ -529,7 +609,7 @@ export default function MaterialRequestForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, purpose, purposeTitle, doc.docstatus, loading]);
+  }, [isEdit, name, purpose, purposeTitle, doc.docstatus, doc.material_request_type, loading, canRequestSupplierQuotes]);
 
   /* ================= DEFAULT ================= */
 
@@ -622,6 +702,14 @@ export default function MaterialRequestForm() {
           />
         </FormField>
 
+        <FormField label={t("store.labels.targetWarehouseAll")}>
+          <LinkField
+            doctype="Warehouse"
+            value={defaultTargetWarehouse}
+            onChange={handleDefaultTargetWarehouseChange}
+          />
+        </FormField>
+
         {isCustomerProvided && (
           <FormField
             label={t("store.form.customer")}
@@ -667,14 +755,6 @@ export default function MaterialRequestForm() {
       <FormSection
         title={t("store.mr.form.items")}
         icon={Table2}
-        action={
-          !doc.docstatus ? (
-            <Button size="sm" onClick={addRow}>
-              <Plus />
-              {t("common.addRow")}
-            </Button>
-          ) : null
-        }
         contentClassName="flex flex-col gap-3"
       >
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
@@ -840,10 +920,127 @@ export default function MaterialRequestForm() {
                   </Button>
                 </div>
               )}
+
+              {isPurchase ? (
+                <div className="col-span-2 md:col-span-12">
+                  <FormField
+                    label={t("store.mr.form.remark")}
+                    name={`item_description_${i}`}
+                    required
+                    error={fieldErrors[`item_description_${i}`]}
+                  >
+                    <Input
+                      value={row.description || ""}
+                      onChange={(e) => updateRow(i, "description", e.target.value)}
+                    />
+                  </FormField>
+                </div>
+              ) : null}
             </div>
           );
         })}
+
+        {!doc.docstatus ? (
+          <div className="sticky bottom-0 z-10 -mx-2 flex justify-end bg-background/95 px-2 py-2 backdrop-blur">
+            <Button size="sm" variant="outline" onClick={addRow}>
+              <Plus />
+              {t("store.getItems.addItem")}
+            </Button>
+          </div>
+        ) : null}
       </FormSection>
+
+      <AppModal
+        show={itemModalOpen}
+        onClose={() => setItemModalOpen(false)}
+        title={t("store.getItems.addItem")}
+        width="lg"
+        contentClassName="max-h-[calc(100dvh-1rem)] sm:max-h-[92vh]"
+        bodyClassName="pb-12"
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setItemModalOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={addNewItem}>
+              <Plus />
+              {t("store.getItems.addItem")}
+            </Button>
+          </>
+        )}
+      >
+        {newItem ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {!isProjectDriven ? (
+              <FormField label={t("store.labels.projectOptional")}>
+                <LinkField
+                  doctype="Project"
+                  value={newItem.project || ""}
+                  onChange={(v) => updateNewItem("project", v || "")}
+                  placeholder={t("store.projectItems.chooseProject", { defaultValue: "Choose a project" })}
+                />
+              </FormField>
+            ) : null}
+            <FormField label={t("store.form.item")} required>
+              {newItem.project && bomOptionsFor(newItem.project).length ? (
+                <FormSelect
+                  value={newItem.item_code || ""}
+                  placeholder={t("store.projectItems.chooseBom", { defaultValue: "Choose an item" })}
+                  onChange={(code) => {
+                    const match = projectItems[newItem.project]?.items?.find((it) => it.item_code === code);
+                    if (!match) return;
+                    const outstanding = Number(match.outstanding_qty ?? 0);
+                    setNewItem((row) => ({
+                      ...row,
+                      item_code: match.item_code,
+                      item_name: match.item_name,
+                      uom: match.uom || match.stock_uom,
+                      stock_uom: match.stock_uom,
+                      conversion_factor: match.conversion_factor || 1,
+                      qty: String(outstanding > 0 ? outstanding : match.required_qty ?? ""),
+                      warehouse: row.warehouse || match.source_warehouse || "",
+                    }));
+                    setNewItemError("");
+                  }}
+                  options={bomOptionsFor(newItem.project)}
+                />
+              ) : (
+                <LinkField doctype="Item" value={newItem.item_code || ""} onChange={handleNewItemChange} />
+              )}
+            </FormField>
+            <FormField label={t("store.form.qty")} required>
+              <Input type="number" min="0" step="any" value={newItem.qty} onChange={(e) => updateNewItem("qty", e.target.value)} />
+            </FormField>
+            <FormField label={t("store.form.uom")} required>
+              <Input value={newItem.uom || ""} disabled />
+            </FormField>
+            {isTransfer ? (
+              <FormField label={t("store.labels.sourceWarehouse")} required>
+                <LinkField doctype="Warehouse" value={newItem.from_warehouse || ""} onChange={(v) => updateNewItem("from_warehouse", v || "")} />
+              </FormField>
+            ) : null}
+            <FormField label={t("store.labels.targetWarehouse")} required>
+              <LinkField doctype="Warehouse" value={newItem.warehouse || ""} onChange={(v) => updateNewItem("warehouse", v || "")} />
+            </FormField>
+            <FormField label={t("store.form.requiredBy")}>
+              <Input type="date" value={newItem.schedule_date || ""} onChange={(e) => updateNewItem("schedule_date", e.target.value)} />
+            </FormField>
+            {isPurchase ? (
+              <FormField label={t("store.mr.form.remark")} required className="sm:col-span-2">
+                <Input value={newItem.description || ""} onChange={(e) => updateNewItem("description", e.target.value)} />
+              </FormField>
+            ) : null}
+            {newItemError ? <p role="alert" className="text-sm text-destructive sm:col-span-2">{newItemError}</p> : null}
+          </div>
+        ) : null}
+      </AppModal>
+      {showSupplierQuotes ? (
+        <RequestSupplierQuotesDialog
+          show
+          onClose={() => setShowSupplierQuotes(false)}
+          materialRequestName={name}
+        />
+      ) : null}
     </div>
   );
 }

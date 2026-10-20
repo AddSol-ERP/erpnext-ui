@@ -1048,20 +1048,6 @@ export default function PurchaseReceiptForm() {
       <FormSection
         title={t("store.receipt.addedLines")}
         icon={ClipboardList}
-        action={
-          !doc.docstatus &&
-          (fromPo ? (
-            <Button size="sm" onClick={() => setPickerOpen(true)}>
-              <Plus />
-              {t("store.receipt.addFromPo")}
-            </Button>
-          ) : (
-            <Button size="sm" onClick={addFreeRow}>
-              <Plus />
-              {t("common.addRow")}
-            </Button>
-          ))
-        }
       >
         {/* Progress. A picker on its own removes the ability to tell a
             half-finished receipt from a finished one, which is the one thing a
@@ -1184,6 +1170,22 @@ export default function PurchaseReceiptForm() {
             })}
           </ul>
         )}
+
+        {!doc.docstatus ? (
+          <div className="sticky bottom-0 z-10 -mx-2 flex justify-end bg-background/95 px-2 py-2 backdrop-blur">
+            {fromPo ? (
+              <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                <Plus />
+                {t("store.receipt.addFromPo")}
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={addFreeRow}>
+                <Plus />
+                {t("store.getItems.addItem")}
+              </Button>
+            )}
+          </div>
+        ) : null}
       </FormSection>
 
       {/* ONE surface, two sections: the outstanding lines on the left, the line

@@ -287,12 +287,18 @@ export default function StockEntryPage() {
       {/* ITEMS */}
       <div className="rounded-none bg-card p-4 ring-1 ring-foreground/10">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
-          {/* LEFT */}
           <div className="text-xs font-semibold text-muted-foreground">
             {t("store.entry.items")}
           </div>
+        </div>
 
-          {/* RIGHT ACTIONS */}
+        <ItemList
+          items={stock.items}
+          updateQty={stock.updateQty}
+          removeItem={stock.removeItem}
+          updateUOM={stock.updateUOM}
+        />
+        <div className="sticky bottom-0 z-10 -mx-4 mt-3 flex justify-end bg-card/95 px-4 py-2 backdrop-blur">
           <Button
             variant="outline"
             size="sm"
@@ -303,13 +309,6 @@ export default function StockEntryPage() {
             {t("store.entry.actions.getItems")}
           </Button>
         </div>
-
-        <ItemList
-          items={stock.items}
-          updateQty={stock.updateQty}
-          removeItem={stock.removeItem}
-          updateUOM={stock.updateUOM}
-        />
       </div>
     </div>
 

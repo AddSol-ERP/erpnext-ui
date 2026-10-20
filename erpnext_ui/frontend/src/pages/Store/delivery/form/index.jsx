@@ -8,6 +8,7 @@ import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
+import AppModal from "../../../../components/AppModal";
 import { focusFirstError } from "../../../../lib/formValidation";
 import LinkField from "../../../../components/LinkField";
 import DeliveryNotePicker from "./DeliveryNotePicker";
@@ -21,6 +22,9 @@ export default function DeliveryNoteForm() {
   const { setHeader } = useHeader();
   const { t } = useTranslation();
   const [showSource, setShowSource] = useState(false);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [newItem, setNewItem] = useState(null);
+  const [newItemError, setNewItemError] = useState("");
   const isEdit = !!name;
 
   const [loading, setLoading] = useState(false);
@@ -102,18 +106,35 @@ export default function DeliveryNoteForm() {
 
   /* ================= ITEMS ================= */
   const addRow = () => {
-    setDoc((p) => ({
-      ...p,
-      items: [
-        ...p.items,
-        {
-          item_code: "",
-          qty: "",
-          uom: "",
-          warehouse: p.set_warehouse || "",
-        },
-      ],
-    }));
+    setNewItem({ item_code: "", qty: "", uom: "", warehouse: doc.set_warehouse || "" });
+    setNewItemError("");
+    setItemModalOpen(true);
+  };
+
+  const updateNewItem = (field, value) => {
+    setNewItem((row) => ({ ...row, [field]: value }));
+    setNewItemError("");
+  };
+
+  const handleNewItemChange = async (itemCode) => {
+    updateNewItem("item_code", itemCode || "");
+    if (!itemCode) return;
+    try {
+      const res = await get(`resource/Item/${encodeURIComponent(itemCode)}`);
+      setNewItem((row) => row ? ({ ...row, uom: res.data?.stock_uom || "" }) : row);
+    } catch (e) {
+      console.warn("Failed to fetch item details:", e);
+    }
+  };
+
+  const commitNewItem = () => {
+    if (!newItem?.item_code || !newItem.qty || Number(newItem.qty) <= 0 || !newItem.warehouse) {
+      setNewItemError(t("store.validation.fillItemRows"));
+      return;
+    }
+    setDoc((p) => ({ ...p, items: [...p.items, newItem] }));
+    setItemModalOpen(false);
+    setNewItem(null);
   };
 
   const updateRow = (i, field, value) => {
@@ -364,7 +385,13 @@ export default function DeliveryNoteForm() {
           <LinkField
             doctype="Warehouse"
             value={doc.set_warehouse}
-            onChange={(v) => setDoc({ ...doc, set_warehouse: v })}
+            onChange={(v) =>
+              setDoc((current) => ({
+                ...current,
+                set_warehouse: v || "",
+                items: current.items.map((row) => ({ ...row, warehouse: v || "" })),
+              }))
+            }
           />
         </FormField>
       </FormSection>
@@ -382,11 +409,6 @@ export default function DeliveryNoteForm() {
                 onClick={() => setShowSource(true)}
               >
                 {t("store.form.getItems")}
-              </Button>
-
-              <Button size="sm" onClick={addRow}>
-                <Plus />
-                {t("common.addRow")}
               </Button>
             </div>
           ) : null
@@ -459,7 +481,52 @@ export default function DeliveryNoteForm() {
             )}
           </div>
         ))}
+
+        {!doc.docstatus ? (
+          <div className="sticky bottom-0 z-10 -mx-2 flex justify-end bg-background/95 px-2 py-2 backdrop-blur">
+            <Button size="sm" variant="outline" onClick={addRow}>
+              <Plus />
+              {t("store.getItems.addItem")}
+            </Button>
+          </div>
+        ) : null}
       </FormSection>
+
+      <AppModal
+        show={itemModalOpen}
+        onClose={() => setItemModalOpen(false)}
+        title={t("store.getItems.addItem")}
+        width="md"
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setItemModalOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={commitNewItem}>
+              <Plus />
+              {t("store.getItems.addItem")}
+            </Button>
+          </>
+        )}
+      >
+        {newItem ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FormField label={t("store.form.item")} required>
+              <LinkField doctype="Item" value={newItem.item_code} onChange={handleNewItemChange} />
+            </FormField>
+            <FormField label={t("store.form.qty")} required>
+              <Input type="number" min="0" step="any" value={newItem.qty} onChange={(e) => updateNewItem("qty", e.target.value)} />
+            </FormField>
+            <FormField label={t("store.form.uom")}>
+              <Input value={newItem.uom} onChange={(e) => updateNewItem("uom", e.target.value)} />
+            </FormField>
+            <FormField label={t("store.form.warehouse")} required>
+              <LinkField doctype="Warehouse" value={newItem.warehouse} onChange={(v) => updateNewItem("warehouse", v || "")} />
+            </FormField>
+            {newItemError ? <p role="alert" className="text-sm text-destructive sm:col-span-2">{newItemError}</p> : null}
+          </div>
+        ) : null}
+      </AppModal>
 
       {/* DISPATCH */}
       <FormSection

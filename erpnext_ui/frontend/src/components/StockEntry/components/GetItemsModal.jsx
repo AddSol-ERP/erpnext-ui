@@ -5,6 +5,7 @@ import AppModal from "../../AppModal";
 import { get, getMethod } from "../../../services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormField } from "../../FormField";
 import { useToast } from "../../../context/ToastContext";
 
 /**
@@ -78,6 +79,7 @@ export default function GetItemsModal({
 
   // Self add
   const [code, setCode] = useState("");
+  const [qty, setQty] = useState("1");
   const [hits, setHits] = useState([]);
 
   const searchTimer = useRef(null);
@@ -264,12 +266,12 @@ export default function GetItemsModal({
   }, []);
 
   const addSelfItem = useCallback(async () => {
-    if (!code) return;
-    await addItemByCode(code);
+    if (!code || !Number(qty) || Number(qty) <= 0) return;
+    await addItemByCode(code, Number(qty));
     setCode("");
+    setQty("1");
     setHits([]);
-    onClose();
-  }, [code, addItemByCode, onClose]);
+  }, [code, qty, addItemByCode]);
 
   return (
     <AppModal
@@ -280,9 +282,9 @@ export default function GetItemsModal({
         source === "self" ? (
           <>
             <Button variant="outline" onClick={onClose}>
-              {t("common.cancel")}
+              {t("common.done")}
             </Button>
-            <Button onClick={addSelfItem} disabled={!code}>
+            <Button onClick={addSelfItem} disabled={!code || !Number(qty) || Number(qty) <= 0}>
               {t("store.getItems.addItem")}
             </Button>
           </>
@@ -369,6 +371,9 @@ export default function GetItemsModal({
             <p className="mt-1 text-xs text-muted-foreground">
               {t("store.getItems.selfHint")}
             </p>
+            <FormField label={t("store.form.qty")} required className="mt-3">
+              <Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} />
+            </FormField>
           </div>
         ) : (
           <>
