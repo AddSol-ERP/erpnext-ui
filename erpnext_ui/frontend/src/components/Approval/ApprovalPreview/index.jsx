@@ -125,7 +125,7 @@ export default function ApprovalPreview({
     }
 
     try {
-      const result = await getWorkflowActions({ doc });
+      const result = await getWorkflowActions({ doc, doctype });
       if (result.hasWorkflow) setWorkflowConfig({ doctype, active: true });
       const { actions } = result;
       setWorkflowActions(actions);

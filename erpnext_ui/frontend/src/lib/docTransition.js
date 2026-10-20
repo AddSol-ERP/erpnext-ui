@@ -294,22 +294,24 @@ export async function saveDocument({ doctype, name, doc, initialAttachment }) {
  * brand-new (unsaved) document -- `get_transitions` returns `[]` for
  * `doc.is_new()` because there is no state to transition from yet.
  */
-export async function getWorkflowActions({ doc }) {
+export async function getWorkflowActions({ doc, doctype = doc?.doctype }) {
   try {
     // Workflow transition conditions can inspect arbitrary document fields.
     // The forms commonly have only `{doctype, name}` here; sending that sparse
     // object made valid actions disappear when the condition needed a stored
     // value (and the UI then offered plain Submit). Always evaluate against the
     // current server document when a name is available.
-    const storedDoc = doc?.doctype && doc?.name
-      ? await fetchDocument(doc.doctype, doc.name)
+    const storedDoc = doctype && doc?.name
+      ? await fetchDocument(doctype, doc.name)
       : doc;
     // Frappe's resource response can omit the synthetic `doctype` key. Its
     // workflow API reconstructs a Document from this JSON and requires both
     // identity fields explicitly.
-    const workflowDoc = doc?.doctype && doc?.name
-      ? { ...storedDoc, doctype: doc.doctype, name: doc.name }
-      : storedDoc;
+    const workflowDoc = {
+      ...storedDoc,
+      ...(doctype ? { doctype } : {}),
+      ...(doc?.name ? { name: doc.name } : {}),
+    };
     const res = await post("method/frappe.model.workflow.get_transitions", {
       doc: JSON.stringify(workflowDoc),
     });
