@@ -298,12 +298,19 @@ export async function getWorkflowActions({ doc, doctype = doc?.doctype }) {
   if (!doctype || !doc?.name) return { hasWorkflow: false, actions: [] };
 
   try {
-    // Let the server load the saved Document so transition conditions always
-    // see its complete state and the API cannot receive a partial/malformed
-    // client copy without `doctype`.
+    // Transition conditions can depend on client-loaded values (including
+    // __onload). Send the complete document while the server verifies access
+    // to the saved record and checks the document identity.
+    const storedDoc = await fetchDocument(doctype, doc.name);
+    const workflowDoc = {
+      ...storedDoc,
+      doctype,
+      name: doc.name,
+    };
     const res = await get("method/erpnext_ui.api.get_doctype_workflow_transitions", {
       doctype,
       name: doc.name,
+      doc: JSON.stringify(workflowDoc),
     });
 
     const list = messageOf(res);
