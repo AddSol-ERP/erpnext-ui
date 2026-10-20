@@ -364,7 +364,7 @@
         "addSupplier": "Add Supplier",
         "selectedSuppliers": "Selected suppliers",
         "noSuppliers": "Add one or more suppliers to receive this request.",
-        "printFormat": "RFQ Print Format",
+        "printFormat": "Material Request Print Format",
         "preview": "Print Preview",
         "loadingPreview": "Loading preview…",
         "previewFailed": "Could not load the print preview.",

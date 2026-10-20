@@ -29,7 +29,7 @@ export default function RequestSupplierQuotesDialog({ show, onClose, materialReq
     if (!show) return;
     let cancelled = false;
     get("resource/Print Format", {
-      filters: JSON.stringify({ doc_type: "Request for Quotation", disabled: 0 }),
+      filters: JSON.stringify({ doc_type: "Material Request", disabled: 0 }),
       fields: JSON.stringify(["name"]),
       order_by: "name asc",
       limit_page_length: 100,

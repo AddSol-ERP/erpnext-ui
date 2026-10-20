@@ -364,7 +364,7 @@
         "addSupplier": "आपूर्तिकर्ता जोड़ें",
         "selectedSuppliers": "चुने गए आपूर्तिकर्ता",
         "noSuppliers": "इस अनुरोध को पाने के लिए एक या अधिक आपूर्तिकर्ता जोड़ें।",
-        "printFormat": "RFQ प्रिंट फॉर्मेट",
+        "printFormat": "Material Request प्रिंट फॉर्मेट",
         "preview": "प्रिंट प्रीव्यू",
         "loadingPreview": "प्रीव्यू लोड हो रहा है…",
         "previewFailed": "प्रिंट प्रीव्यू लोड नहीं हो सका।",

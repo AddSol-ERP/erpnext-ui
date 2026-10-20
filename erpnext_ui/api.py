@@ -385,9 +385,9 @@ def get_ui_access():
 
 @frappe.whitelist(allow_guest=False)
 def get_material_request_rfq_print_preview(
-    material_request_name, suppliers, print_format="Standard", subject=None, message=None
+    material_request_name, suppliers=None, print_format="Standard", subject=None, message=None
 ):
-    """Render an unsaved RFQ preview from a submitted purchase indent."""
+    """Render a submitted Purchase Material Request with the selected print format."""
     allowed_roles = {
         "Purchase User",
         "Purchase Manager",
@@ -403,56 +403,16 @@ def get_material_request_rfq_print_preview(
     material_request.check_permission("read")
     if material_request.docstatus != 1 or material_request.material_request_type != "Purchase":
         frappe.throw("Supplier quotation requests require a submitted Purchase Material Request.")
-    frappe.has_permission("Request for Quotation", "create", throw=True)
-
-    supplier_names = frappe.parse_json(suppliers) if isinstance(suppliers, str) else suppliers
-    supplier_names = list(dict.fromkeys(supplier_names or []))
-    if len(supplier_names) > 50:
-        frappe.throw("Select no more than 50 suppliers at a time.")
-    if subject and len(subject.strip()) > 140:
-        frappe.throw("Email subject cannot exceed 140 characters.")
-
     if print_format != "Standard":
         format_doc = frappe.get_doc("Print Format", print_format)
-        if format_doc.doc_type != "Request for Quotation" or format_doc.disabled:
-            frappe.throw("Select an enabled Request for Quotation print format.")
+        if format_doc.doc_type != "Material Request" or format_doc.disabled:
+            frappe.throw("Select an enabled Material Request print format.")
 
-    from frappe.contacts.doctype.contact.contact import get_default_contact
-    from erpnext.stock.doctype.material_request.material_request import make_request_for_quotation
-
-    rfq = make_request_for_quotation(material_request.name)
-    if not rfq.items:
-        frappe.throw("This Material Request has no outstanding items to quote.")
-    supplier_rows = []
-    for supplier_name in supplier_names:
-        if not frappe.db.exists("Supplier", supplier_name):
-            frappe.throw(f"Supplier {supplier_name} does not exist.")
-        contact = get_default_contact("Supplier", supplier_name)
-        email_id = frappe.db.get_value("Contact", contact, "email_id") if contact else None
-        if not email_id:
-            frappe.throw(f"Supplier {supplier_name} needs a default Contact with an email address.")
-        supplier_rows.append(
-            {
-                "doctype": "Request for Quotation Supplier",
-                "supplier": supplier_name,
-                "contact": contact,
-                "email_id": email_id,
-                "send_email": 0,
-            }
-        )
-
-    rfq.set("suppliers", supplier_rows)
-    if subject:
-        rfq.subject = subject.strip()
-    if message:
-        rfq.message_for_supplier = message.strip()
-    rfq.send_document_print = 0
-    if supplier_names:
-        rfq.update_supplier_part_no(supplier_names[0])
     from frappe.www.printview import get_html_and_style
 
     return get_html_and_style(
-        doc=frappe.as_json(rfq.as_dict()),
+        doc="Material Request",
+        name=material_request.name,
         print_format=print_format,
         no_letterhead=0,
     )
@@ -496,8 +456,8 @@ def create_and_email_material_request_rfq(
 
     if print_format != "Standard":
         format_doc = frappe.get_doc("Print Format", print_format)
-        if format_doc.doc_type != "Request for Quotation" or format_doc.disabled:
-            frappe.throw("Select an enabled Request for Quotation print format.")
+        if format_doc.doc_type != "Material Request" or format_doc.disabled:
+            frappe.throw("Select an enabled Material Request print format.")
 
     from frappe.contacts.doctype.contact.contact import get_default_contact
     from frappe.utils import escape_html
@@ -539,16 +499,14 @@ def create_and_email_material_request_rfq(
     failed = []
     for supplier_row in rfq.suppliers:
         try:
-            # ERPNext's RFQ controller also sets supplier-specific part numbers
-            # before printing; send a separate PDF and email to each supplier.
-            rfq.update_supplier_part_no(supplier_row.supplier)
+            # Attach the selected Material Request print format to each supplier email.
             attachment = frappe.attach_print(
-                "Request for Quotation",
-                rfq.name,
-                file_name=rfq.name,
+                "Material Request",
+                material_request.name,
+                file_name=material_request.name,
                 print_format=print_format,
-                doc=rfq,
-                letterhead=rfq.letter_head,
+                doc=material_request,
+                letterhead=material_request.letter_head,
             )
             frappe.sendmail(
                 recipients=[supplier_row.email_id],
