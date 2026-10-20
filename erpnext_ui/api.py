@@ -500,11 +500,11 @@ def create_and_email_material_request_rfq(
     for supplier_row in rfq.suppliers:
         try:
             # Attach the selected Material Request print format to each supplier email.
-            attachment = frappe.attach_print(
+            pdf_content = frappe.get_print(
                 "Material Request",
                 material_request.name,
-                file_name=material_request.name,
                 print_format=print_format,
+                as_pdf=True,
                 doc=material_request,
                 letterhead=material_request.letter_head,
             )
@@ -512,7 +512,12 @@ def create_and_email_material_request_rfq(
                 recipients=[supplier_row.email_id],
                 subject=subject.strip(),
                 message=email_message,
-                attachments=[attachment],
+                attachments=[
+                    {
+                        "fname": f"{material_request.name}.pdf",
+                        "fcontent": pdf_content,
+                    }
+                ],
                 reference_doctype="Request for Quotation",
                 reference_name=rfq.name,
             )
