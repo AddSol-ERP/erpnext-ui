@@ -485,6 +485,7 @@ export function RequiredAttachmentInput({
 }) {
   const { t } = useTranslation();
   const [config, setConfig] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -530,16 +531,29 @@ export function RequiredAttachmentInput({
         </select>
       )}
       <input
+        ref={fileInputRef}
+        className="sr-only"
         type="file"
         accept={acceptFor(selectedType)}
         disabled={disabled || !selectedType}
-        onChange={(event) =>
+        onChange={(event) => {
           update({
             file: event.target.files?.[0] || null,
             typeKey: selectedType?.type_key,
-          })
-        }
+          });
+          // Allow selecting the same file again after replacing/removing it.
+          event.target.value = "";
+        }}
       />
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled || !selectedType}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <Paperclip className="size-4" />
+        {t("attachments.addFiles")}
+      </Button>
       {value?.file && <p className="text-sm text-muted-foreground">{value.file.name}</p>}
     </div>
   );
