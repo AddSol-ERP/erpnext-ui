@@ -114,7 +114,7 @@ DOCUMENT_ATTACHMENT_CONFIG = {
         "RECEIPT_PHOTO": {"label": "Goods photo", "extensions": ["jpg", "jpeg", "png", "webp", "pdf"], "max_size_mb": 8, "sort_order": 10},
         "WEIGHBRIDGE_TICKET": {"label": "Weighbridge ticket", "extensions": ["jpg", "jpeg", "png", "webp", "pdf"], "max_size_mb": 8, "sort_order": 20},
         "INVOICE": {"label": "Supplier invoice", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 30},
-        "MTC": {"label": "Mill test certificate", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 40},
+        "MTC": {"label": "Quality certificate", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 40},
         "QUALITY_REPORT": {"label": "Quality report", "extensions": ["pdf", "jpg", "jpeg", "png"], "max_size_mb": 10, "sort_order": 50},
     },
     "Quality Inspection": {

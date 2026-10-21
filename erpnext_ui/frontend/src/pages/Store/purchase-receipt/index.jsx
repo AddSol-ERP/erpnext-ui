@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { PackagePlus, Trash2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, PackagePlus, Trash2 } from "lucide-react";
 import { useHeader } from "../../../context/HeaderContext";
 import ListLayout from "../../../components/ListLayout";
 import ActionBar from "../../../components/ActionBar";
@@ -13,6 +13,8 @@ import { get } from "../../../services/api";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { deleteDocument } from "../../../lib/docTransition";
 import LinkField from "../../../components/LinkField";
+import AppModal from "../../../components/AppModal";
+import { FormField } from "../../../components/FormField";
 
 /**
  * Pick a supplier, then a Purchase Order to receive against.
@@ -71,6 +73,8 @@ export default function PurchaseReceiptPicker() {
   // rather than offered and rejected on submit.
   const [poRequired, setPoRequired] = useState(false);
   const [supplier, setSupplier] = useState("");
+  const [supplierCandidate, setSupplierCandidate] = useState("");
+  const [supplierPickerOpen, setSupplierPickerOpen] = useState(false);
 
   const loadPoRequired = useCallback(async () => {
     try {
@@ -262,6 +266,19 @@ export default function PurchaseReceiptPicker() {
     [navigate],
   );
 
+  const openSupplierPicker = () => {
+    setSupplierCandidate(supplier);
+    setSupplierPickerOpen(true);
+  };
+
+  const applySupplier = () => {
+    if (!supplierCandidate) return;
+    setSupplier(supplierCandidate);
+    setDebouncedSearch("");
+    setPage(1);
+    setSupplierPickerOpen(false);
+  };
+
   useEffect(() => {
     setHeader({
       title: t("store.receipt.title"),
@@ -365,12 +382,30 @@ export default function PurchaseReceiptPicker() {
       onRetry={loadData}
       tabs={receiptTabs}
       actionBar={
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="w-full sm:max-w-sm">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t("store.receipt.supplier")}</label>
-            <LinkField doctype="Supplier" value={supplier} onChange={(value) => { setSupplier(value); setPage(1); }} placeholder={t("store.receipt.selectSupplier")} />
+        <div className="flex flex-col gap-3">
+          <div className="mx-3 my-3 flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-3 sm:mx-4 sm:my-4 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className={`flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${supplier ? "bg-emerald-500/10 text-emerald-700" : "bg-primary/10 text-primary"}`}>
+                {supplier ? <CheckCircle2 className="size-4" /> : "1"}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{supplier ? t("store.receipt.supplierSelected") : t("store.receipt.supplierStepTitle")}</p>
+                {supplier ? (
+                  <>
+                    <p className="truncate text-base font-medium">{supplier}</p>
+                    <p className="text-xs text-muted-foreground">{t("store.receipt.supplierSelectedHint")}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t("store.receipt.supplierStepHint")}</p>
+                )}
+              </div>
+            </div>
+            <Button type="button" onClick={openSupplierPicker} className="w-full shrink-0 sm:w-auto">
+              {supplier ? t("store.receipt.changeSupplier") : t("store.receipt.chooseSupplier")}
+              <ArrowRight className="size-4" />
+            </Button>
           </div>
-          <ActionBar onSearch={(value) => { setDebouncedSearch(value); setPage(1); }} resultCount={total} />
+          {supplier ? <ActionBar onSearch={(value) => { setDebouncedSearch(value); setPage(1); }} resultCount={total} /> : null}
         </div>
       }
       table={
@@ -416,6 +451,36 @@ export default function PurchaseReceiptPicker() {
         </div>
       ) : null}
     </ListLayout> : null}
+    <AppModal
+      show={supplierPickerOpen}
+      onClose={() => setSupplierPickerOpen(false)}
+      title={t("store.receipt.supplierPickerTitle")}
+      width="md"
+      footer={(
+        <>
+          <Button type="button" variant="outline" onClick={() => setSupplierPickerOpen(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="button" onClick={applySupplier} disabled={!supplierCandidate}>
+            {t("store.receipt.showPurchaseOrders")}
+            <ArrowRight className="size-4" />
+          </Button>
+        </>
+      )}
+    >
+      <div className="flex flex-col gap-3 pb-4">
+        <p className="text-sm text-muted-foreground">{t("store.receipt.supplierPickerHint")}</p>
+        <FormField label={t("store.receipt.supplier")} required>
+          <LinkField
+            doctype="Supplier"
+            value={supplierCandidate}
+            onChange={setSupplierCandidate}
+            filters={{ disabled: 0 }}
+            placeholder={t("store.receipt.supplierPickerPlaceholder")}
+          />
+        </FormField>
+      </div>
+    </AppModal>
     {activeTab === "drafts" ? <ListLayout
       contentMode="children"
       loading={draftLoading}

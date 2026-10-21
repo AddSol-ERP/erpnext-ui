@@ -9,6 +9,7 @@ import {
   Lock,
   Pencil,
   Scale,
+  Truck,
 } from "lucide-react";
 import { get } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
@@ -20,11 +21,13 @@ import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
+import AppModal from "../../../../components/AppModal";
 import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import { focusFirstError } from "../../../../lib/formValidation";
 import { useHeader } from "../../../../context/HeaderContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { localDateISO } from "../../../../utils/localDateTime";
 import {
   needsMeasuredTotal,
@@ -152,6 +155,15 @@ export default function PurchaseReceiptForm() {
    * reaches the saved payload.
    */
   const [available, setAvailable] = useState([]);
+  const [selectedPurchaseOrders, setSelectedPurchaseOrders] = useState([]);
+  const hasPurchaseOrders = fromPo || selectedPurchaseOrders.length > 0;
+  const [purchaseOrderDrafts, setPurchaseOrderDrafts] = useState({});
+  const [purchaseOrderSourceValues, setPurchaseOrderSourceValues] = useState({});
+  const [createdReceipts, setCreatedReceipts] = useState([]);
+  const [purchaseOrderPickerOpen, setPurchaseOrderPickerOpen] = useState(false);
+  const [purchaseOrderCandidate, setPurchaseOrderCandidate] = useState("");
+  const [purchaseOrderPickerError, setPurchaseOrderPickerError] = useState("");
+  const [addingPurchaseOrder, setAddingPurchaseOrder] = useState(false);
 
   /**
    * _rid -> { stock_uom, uoms: [{uom, must_be_whole_number}], error }
@@ -220,24 +232,29 @@ export default function PurchaseReceiptForm() {
 
   const loadRatePolicy = useCallback(async () => {
     try {
-      const res = await get("method/frappe.client.get_list", {
-        doctype: "Buying Settings",
-        fields: JSON.stringify([
+      // Buying Settings is a Single DocType and has no `tabBuying Settings`
+      // table. Read its values through the Single DocType API instead of
+      // frappe.client.get_list, which raises a missing-table error.
+      const [maintainSameRate, action, overrideRole] = await Promise.all(
+        [
           "maintain_same_rate",
           "maintain_same_rate_action",
           "role_to_override_stop_action",
-        ]),
-        limit_page_length: 1,
-      });
-      const s = res.message?.[0] || {};
+        ].map((field) =>
+          get("method/frappe.client.get_single_value", {
+            doctype: "Buying Settings",
+            field,
+          }).then((res) => res.message),
+        ),
+      );
       // Mirrors ERPNext: transaction_base.py:165-172 only blocks when the flag
       // is on, the action is "Stop", and the user's roles exclude the override.
       // We do not have the user's roles here, so we take the conservative
       // reading: editable only when the flag is off, or an override role is
       // configured (in which case RoleContext can grant it per-user).
       const blocked =
-        !!s.maintain_same_rate && s.maintain_same_rate_action === "Stop";
-      setRateEditable(!blocked || !!s.role_to_override_stop_action);
+        !!maintainSameRate && action === "Stop";
+      setRateEditable(!blocked || !!overrideRole);
     } catch {
       setRateEditable(false);
     }
@@ -344,6 +361,9 @@ export default function PurchaseReceiptForm() {
         items,
         docstatus: d.docstatus,
       });
+      setSelectedPurchaseOrders(
+        [...new Set(items.map((row) => row.purchase_order).filter(Boolean))],
+      );
 
       // Warm the UOM cache so an existing receipt shows its unit data.
       await Promise.all(items.map(async (r) => {
@@ -418,6 +438,73 @@ export default function PurchaseReceiptForm() {
       return next;
     });
     setAvailable((p) => p);
+  };
+
+  const addPurchaseOrder = async () => {
+    const sourceName = purchaseOrderCandidate;
+    if (!sourceName || addingPurchaseOrder) return;
+    if (selectedPurchaseOrders.includes(sourceName)) {
+      setPurchaseOrderPickerError(t("store.receipt.purchaseOrderAlreadyAdded", { po: sourceName }));
+      return;
+    }
+
+    setAddingPurchaseOrder(true);
+    setPurchaseOrderPickerError("");
+    setError("");
+    try {
+      const res = await get(
+        "method/erpnext.buying.doctype.purchase_order.purchase_order.make_purchase_receipt",
+        { source_name: sourceName },
+      );
+      const draft = Array.isArray(res.message) ? res.message[0] : res.message;
+      if (!draft) throw new Error(t("store.receipt.purchaseOrderHasNoOutstandingItems", { po: sourceName }));
+
+      const catalogue = (draft.items || []).map((row) => ({
+        ...row,
+        item_code: row.item_code,
+        item_name: row.item_name || "",
+        project: row.project || "",
+        qty: row.qty ?? "",
+        uom: row.uom || "",
+        stock_uom: row.stock_uom || "",
+        rate: row.rate ?? "",
+        conversion_factor: row.conversion_factor ?? "",
+        warehouse: row.warehouse || draft.set_warehouse || "",
+        purchase_order: row.purchase_order || sourceName,
+        purchase_order_item: row.purchase_order_item || "",
+        pending_qty: row.qty,
+      }));
+      if (!catalogue.length) {
+        throw new Error(t("store.receipt.purchaseOrderHasNoOutstandingItems", { po: sourceName }));
+      }
+
+      const existingKeys = new Set([
+        ...docRef.current.items,
+        ...available,
+      ].map((row) => row.purchase_order_item || `${row.purchase_order}:${row.item_code}`));
+      const additions = catalogue.filter((row) =>
+        !existingKeys.has(row.purchase_order_item || `${row.purchase_order}:${row.item_code}`),
+      );
+      if (!additions.length) {
+        throw new Error(t("store.receipt.purchaseOrderAlreadyAdded", { po: sourceName }));
+      }
+
+      const orderResult = await get(`resource/Purchase Order/${encodeURIComponent(sourceName)}`);
+      const orderData = orderResult?.data;
+      if (!orderData) throw new Error(t("store.receipt.purchaseOrderAddFailed"));
+
+      setAvailable((current) => [...current, ...additions]);
+      setSelectedPurchaseOrders((current) => [...current, sourceName]);
+      setPurchaseOrderDrafts((current) => ({ ...current, [sourceName]: draft }));
+      setPurchaseOrderSourceValues((current) => ({ ...current, [sourceName]: orderData }));
+      setPurchaseOrderCandidate("");
+      setPurchaseOrderPickerError("");
+      setPurchaseOrderPickerOpen(false);
+    } catch (e) {
+      setPurchaseOrderPickerError(e.message || t("store.receipt.purchaseOrderAddFailed"));
+    } finally {
+      setAddingPurchaseOrder(false);
+    }
   };
 
   const allocateTruckWeight = () => {
@@ -715,8 +802,32 @@ export default function PurchaseReceiptForm() {
 
   const handleSave = async () => {
     const current = docRef.current;
+    const creatingFromPurchaseOrders = !isEdit && hasPurchaseOrders;
+    if (creatingFromPurchaseOrders) {
+      const selectionErrors = {};
+      if (!current.items.length) {
+        selectionErrors.items = t("store.receipt.validation.addItem");
+      }
+      for (const row of current.items) {
+        const qty = Number(row.qty);
+        const pending = Number(row.pending_qty);
+        if (!row.purchase_order || !row.purchase_order_item) {
+          selectionErrors.items = t("store.receipt.validation.pickItem");
+          break;
+        }
+        if (!Number.isFinite(qty) || qty <= 0 || qty > pending) {
+          selectionErrors.items = t("store.receipt.receivedQtyMustBeWithinPending", { pending, uom: row.uom });
+          break;
+        }
+      }
+      setFieldErrors(selectionErrors);
+      if (Object.keys(selectionErrors).length) {
+        setError(Object.values(selectionErrors)[0]);
+        return;
+      }
+    }
     let checkedPlateItems = plateItems;
-    if (plateConfig.enabled) {
+    if (!creatingFromPurchaseOrders && plateConfig.enabled) {
       const statusRows = await Promise.all(
         current.items.map(async (row) => [
           row._rid,
@@ -728,16 +839,84 @@ export default function PurchaseReceiptForm() {
         ...Object.fromEntries(statusRows),
       };
     }
-    const result = validate(current, false, checkedPlateItems);
-    if (Object.keys(result.fieldErrors).length) {
-      setError(result.summary);
-      requestAnimationFrame(() => focusFirstError(result.fieldErrors));
-      return;
+    if (!creatingFromPurchaseOrders) {
+      const result = validate(current, false, checkedPlateItems);
+      if (Object.keys(result.fieldErrors).length) {
+        setError(result.summary);
+        requestAnimationFrame(() => focusFirstError(result.fieldErrors));
+        return;
+      }
     }
 
     try {
       setLoading(true);
       setError("");
+      if (creatingFromPurchaseOrders) {
+        const groupedItems = current.items.reduce((groups, row) => {
+          if (!row.purchase_order) return groups;
+          (groups[row.purchase_order] ||= []).push(row);
+          return groups;
+        }, {});
+        const created = [];
+        const failures = [];
+        for (const [purchaseOrder, items] of Object.entries(groupedItems)) {
+          try {
+            const source = purchaseOrderDrafts[purchaseOrder];
+            if (!source) throw new Error(t("store.receipt.purchaseOrderDataMissing", { po: purchaseOrder }));
+            const receipt = {
+              ...source,
+              supplier_delivery_note: current.supplier_delivery_note || source.supplier_delivery_note || "",
+              transporter_name: current.transporter_name || source.transporter_name || "",
+              lr_no: current.lr_no || source.lr_no || "",
+              remarks: current.remarks || source.remarks || "",
+              items: items.map((row) => ({ ...row })),
+              docstatus: 0,
+            };
+            const sourceOrder = purchaseOrderSourceValues[purchaseOrder];
+            const fullOrderNet = Number(sourceOrder?.net_total) || (sourceOrder?.items || []).reduce(
+              (sum, row) => sum + (Number(row.net_amount) || Number(row.qty) * Number(row.net_rate || row.rate || 0)),
+              0,
+            );
+            const selectedNet = items.reduce((sum, row) => {
+              const mapped = source.items.find((sourceRow) => sourceRow.purchase_order_item === row.purchase_order_item);
+              const netRate = Number(mapped?.net_rate ?? mapped?.rate ?? row.rate) || 0;
+              return sum + Number(row.qty) * netRate;
+            }, 0);
+            if (fullOrderNet > 0 && selectedNet >= 0) {
+              const share = selectedNet / fullOrderNet;
+              receipt.taxes = (receipt.taxes || []).map((tax) => {
+                if (tax.charge_type !== "Actual") return tax;
+                const sourceTax = (sourceOrder?.taxes || []).find((row) =>
+                  row.idx === tax.idx && row.account_head === tax.account_head,
+                );
+                const fullTaxAmount = Number(sourceTax?.tax_amount ?? tax.tax_amount);
+                return Number.isFinite(fullTaxAmount)
+                  ? { ...tax, tax_amount: fullTaxAmount * share }
+                  : tax;
+              });
+            }
+            const result = await saveDocument({
+              doctype: "Purchase Receipt",
+              doc: toSavePayload(receipt),
+              initialAttachment,
+            });
+            const receiptName = result?.data?.name;
+            if (!receiptName) throw new Error(t("store.receipt.purchaseReceiptCreateFailed", { po: purchaseOrder }));
+            created.push({ name: receiptName, purchaseOrder });
+          } catch (createError) {
+            if (createError?.savedDocName) {
+              created.push({ name: createError.savedDocName, purchaseOrder });
+            }
+            failures.push(`${purchaseOrder}: ${createError.message || t("common.saveFailed")}`);
+          }
+        }
+        if (created.length) {
+          setCreatedReceipts(created);
+          if (failures.length) setError(failures.join("\n"));
+          return;
+        }
+        if (failures.length) throw new Error(failures.join("\n"));
+      }
       const res = await saveDocument({
         doctype: "Purchase Receipt",
         name: isEdit ? name : undefined,
@@ -747,6 +926,12 @@ export default function PurchaseReceiptForm() {
       navigate(`/store/purchase-receipt/${res.data.name}`);
     } catch (e) {
       if (e?.savedDocName) {
+        setCreatedReceipts((currentReceipts) => [
+          ...currentReceipts,
+          { name: e.savedDocName, purchaseOrder: "" },
+        ]);
+      }
+      if (e?.savedDocName && !creatingFromPurchaseOrders) {
         setError(e.message || t("attachments.uploadFailed"));
         navigate(`/store/purchase-receipt/${encodeURIComponent(e.savedDocName)}`);
         return;
@@ -832,7 +1017,13 @@ export default function PurchaseReceiptForm() {
         { label: t("store.receipt.title"), path: "/store/purchase-receipt" },
         { label: isEdit ? name : t("common.new") },
       ],
-      actions: [
+      actions: createdReceipts.length
+        ? [{
+            label: t("store.receipt.backToReceipts"),
+            variant: "btn-outline-primary",
+            onClick: () => navigate("/store/purchase-receipt"),
+          }]
+        : [
         !doc.docstatus && {
           label: loading ? t("common.saving") : t("common.save"),
           variant: "btn-success",
@@ -873,7 +1064,7 @@ export default function PurchaseReceiptForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, doc.docstatus, loading, initialAttachment]);
+  }, [isEdit, name, doc.docstatus, loading, initialAttachment, createdReceipts.length]);
 
   /* ================= MOUNT ================= */
 
@@ -905,6 +1096,9 @@ export default function PurchaseReceiptForm() {
             : res.message;
           if (!draft || cancelled) return;
 
+          const orderResult = await get(`resource/Purchase Order/${encodeURIComponent(poName)}`);
+          if (!orderResult?.data || cancelled) return;
+
           const catalogue = (draft.items || []).map((r) => ({
             ...r,
             item_code: r.item_code,
@@ -924,6 +1118,9 @@ export default function PurchaseReceiptForm() {
           }));
 
           setAvailable(catalogue);
+          setSelectedPurchaseOrders([poName]);
+          setPurchaseOrderDrafts({ [poName]: draft });
+          setPurchaseOrderSourceValues({ [poName]: orderResult.data });
 
           setDoc({
             ...draft,
@@ -961,7 +1158,35 @@ export default function PurchaseReceiptForm() {
     ? rows.find((r) => r._rid === editing) || null
     : null;
   const pickedKeys = rows.map((r) => r.purchase_order_item || r.item_code);
-  const outstanding = fromPo ? available.length : null;
+  const outstanding = hasPurchaseOrders ? available.length : null;
+
+  if (createdReceipts.length) {
+    return (
+      <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:px-6">
+        <div>
+          <h1 className="text-xl font-semibold">{t("store.receipt.createdReceiptsTitle")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("store.receipt.createdReceiptsHint")}</p>
+          {error ? <p role="alert" className="mt-3 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+        </div>
+        <ul className="flex flex-col gap-2">
+          {createdReceipts.map((receipt) => (
+            <li key={receipt.name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+              <div>
+                <p className="font-medium">{receipt.name}</p>
+                {receipt.purchaseOrder ? <p className="text-xs text-muted-foreground">{t("store.receipt.receiptForPurchaseOrder", { po: receipt.purchaseOrder })}</p> : null}
+              </div>
+              <Button variant="outline" onClick={() => navigate(`/store/purchase-receipt/${encodeURIComponent(receipt.name)}`)}>
+                {t("store.receipt.openReceipt")}
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <div>
+          <Button onClick={() => navigate("/store/purchase-receipt")}>{t("store.receipt.backToReceipts")}</Button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
@@ -1002,6 +1227,53 @@ export default function PurchaseReceiptForm() {
         onCancel={() => { if (!deleting) setConfirmDelete(false); }}
         onConfirm={handleDelete}
       />
+      <AppModal
+        show={purchaseOrderPickerOpen}
+        onClose={() => {
+          if (!addingPurchaseOrder) {
+            setPurchaseOrderPickerOpen(false);
+            setPurchaseOrderPickerError("");
+          }
+        }}
+        title={t("store.receipt.purchaseOrderPickerTitle")}
+        width="md"
+        bodyClassName="px-6 py-5 sm:px-8 sm:py-6"
+        footer={(
+          <>
+            <Button type="button" variant="outline" disabled={addingPurchaseOrder} onClick={() => { setPurchaseOrderPickerOpen(false); setPurchaseOrderPickerError(""); }}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" disabled={!purchaseOrderCandidate || addingPurchaseOrder} onClick={addPurchaseOrder}>
+              {addingPurchaseOrder ? t("store.receipt.addingPurchaseOrder") : t("store.receipt.addPurchaseOrder")}
+            </Button>
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">{t("store.receipt.purchaseOrderPickerHint")}</p>
+          {purchaseOrderPickerError ? (
+            <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {purchaseOrderPickerError}
+            </p>
+          ) : null}
+          <FormField label={t("store.receipt.purchaseOrder")} required>
+            <LinkField
+              doctype="Purchase Order"
+              value={purchaseOrderCandidate}
+              onChange={(value) => { setPurchaseOrderCandidate(value); setPurchaseOrderPickerError(""); }}
+              placeholder={t("store.receipt.purchaseOrderPickerPlaceholder")}
+              filters={{
+                supplier: doc.supplier,
+                docstatus: 1,
+                // Match the receipt queue: only submitted POs whose ERPNext
+                // status still indicates unreceived items are selectable.
+                status: ["in", ["To Receive and Bill", "To Receive"]],
+              }}
+              disabled={addingPurchaseOrder}
+            />
+          </FormField>
+        </div>
+      </AppModal>
       <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {doc.docstatus === 1 ? (
@@ -1014,15 +1286,30 @@ export default function PurchaseReceiptForm() {
         </section>
       ) : null}
 
-      {fromPo ? (
-        <p className="flex items-center gap-2 rounded border border-border/70 bg-card px-3 py-2 text-xs text-muted-foreground">
-          <Lock className="size-3.5 shrink-0" />
-          {t("store.receipt.lockedFromPo", { po: poName })}
-        </p>
+      {hasPurchaseOrders ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="flex min-w-0 items-start gap-2 text-sm">
+            <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="font-medium">{t("store.receipt.purchaseOrdersInReceipt")}</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {selectedPurchaseOrders.map((po) => (
+                  <span key={po} className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{po}</span>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{t("store.receipt.lockedFromPo")}</p>
+            </div>
+          </div>
+          {!isEdit && !doc.docstatus ? (
+            <Button type="button" variant="outline" className="shrink-0" onClick={() => { setPurchaseOrderCandidate(""); setPurchaseOrderPickerError(""); setPurchaseOrderPickerOpen(true); }}>
+              <Plus /> {t("store.receipt.addPurchaseOrder")}
+            </Button>
+          ) : null}
+        </section>
       ) : null}
 
       {/* HEADER */}
-      <FormSection
+      {!hasPurchaseOrders ? <FormSection
         title={t("store.form.basics")}
         icon={ClipboardList}
         contentClassName="grid grid-cols-1 gap-3 md:grid-cols-4"
@@ -1037,7 +1324,7 @@ export default function PurchaseReceiptForm() {
             doctype="Supplier"
             value={doc.supplier}
             onChange={(v) => setDoc((p) => ({ ...p, supplier: v || "" }))}
-            disabled={fromPo || isEdit || !!doc.docstatus}
+            disabled={hasPurchaseOrders || isEdit || !!doc.docstatus}
           />
         </FormField>
 
@@ -1102,6 +1389,46 @@ export default function PurchaseReceiptForm() {
             </div>
           </FormField>
         ) : null}
+      </FormSection> : null}
+
+      <FormSection
+        title={t("store.receipt.transportDetails")}
+        icon={Truck}
+        contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2"
+      >
+        <FormField label={t("store.receipt.deliveryChallanNo")} name="supplier_delivery_note">
+          <Input
+            value={doc.supplier_delivery_note || ""}
+            disabled={!!doc.docstatus}
+            onChange={(e) => setDoc((p) => ({ ...p, supplier_delivery_note: e.target.value }))}
+          />
+        </FormField>
+        <FormField label={t("store.receipt.transporterName")} name="transporter_name">
+          <Input
+            value={doc.transporter_name || ""}
+            disabled={!!doc.docstatus}
+            onChange={(e) => setDoc((p) => ({ ...p, transporter_name: e.target.value }))}
+          />
+        </FormField>
+        <FormField label={t("store.receipt.vehicleNumber")} name="lr_no">
+          <Input
+            value={doc.lr_no || ""}
+            disabled={!!doc.docstatus}
+            onChange={(e) => setDoc((p) => ({ ...p, lr_no: e.target.value }))}
+          />
+        </FormField>
+        <FormField
+          label={t("store.receipt.invoiceDriverRemarks")}
+          name="remarks"
+          hint={t("store.receipt.invoiceDriverRemarksHint")}
+        >
+          <Textarea
+            value={doc.remarks || ""}
+            disabled={!!doc.docstatus}
+            rows={3}
+            onChange={(e) => setDoc((p) => ({ ...p, remarks: e.target.value }))}
+          />
+        </FormField>
       </FormSection>
 
       {/* ITEMS */}
@@ -1112,7 +1439,7 @@ export default function PurchaseReceiptForm() {
         {/* Progress. A picker on its own removes the ability to tell a
             half-finished receipt from a finished one, which is the one thing a
             shopfloor user needs at a glance. */}
-        {fromPo && rows.length + (outstanding || 0) > 0 ? (
+        {hasPurchaseOrders && rows.length + (outstanding || 0) > 0 ? (
           <p className="mb-1 text-xs text-muted-foreground">
             {t("store.receipt.progress", {
               picked: rows.length,
@@ -1158,7 +1485,7 @@ export default function PurchaseReceiptForm() {
                       <span>
                         {row.qty} {row.uom}
                       </span>
-                      {looksWeighed ? (
+                      {!hasPurchaseOrders && looksWeighed ? (
                         <span className="flex items-center gap-1">
                           <Scale className="size-3" />
                           {row.stock_qty === "" || row.stock_qty === undefined
@@ -1166,13 +1493,13 @@ export default function PurchaseReceiptForm() {
                             : `${row.stock_qty} ${row.stock_uom}`}
                         </span>
                       ) : null}
-                      {row.warehouse ? <span>{row.warehouse}</span> : null}
-                      {row.rate !== "" && row.rate !== undefined ? (
+                      {!hasPurchaseOrders && row.warehouse ? <span>{row.warehouse}</span> : null}
+                      {!hasPurchaseOrders && row.rate !== "" && row.rate !== undefined ? (
                         <span>
                           {t("store.receipt.rate")}: {row.rate}
                         </span>
                       ) : null}
-                      {plateItems[row._rid] || row.custom_is_plate ? (
+                      {!hasPurchaseOrders && (plateItems[row._rid] || row.custom_is_plate) ? (
                         <>
                           {row.custom_supplier_weight_kg ? (
                             <span>
@@ -1204,7 +1531,10 @@ export default function PurchaseReceiptForm() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setEditing(row._rid)}
+                        onClick={() => {
+                          setEditing(row._rid);
+                          if (hasPurchaseOrders && !isEdit) setPickerOpen(true);
+                        }}
                         aria-label={t("store.receipt.editLine")}
                       >
                         <Pencil className="size-3.5" />
@@ -1227,7 +1557,7 @@ export default function PurchaseReceiptForm() {
 
         {!doc.docstatus ? (
           <div className="sticky bottom-0 z-10 -mx-2 flex justify-end bg-background/95 px-2 py-2 backdrop-blur">
-            {fromPo ? (
+            {hasPurchaseOrders && !isEdit ? (
               <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
                 <Plus />
                 {t("store.receipt.addFromPo")}
@@ -1247,7 +1577,7 @@ export default function PurchaseReceiptForm() {
           This used to be `ReceiptItemPicker` opening `ReceiptLineDialog` on top
           of itself. The tray's Edit button still opens the dialog -- that row is
           already on the receipt and has no picker behind it. */}
-      {fromPo ? (
+      {hasPurchaseOrders && !isEdit ? (
         <ReceiptItemWorkbench
           show={pickerOpen}
           onClose={() => setPickerOpen(false)}
@@ -1263,6 +1593,7 @@ export default function PurchaseReceiptForm() {
           plateConfig={plateConfig}
           onItemChange={handleItemChange}
           onSave={(next) => patchById(next._rid, next)}
+          selectionOnly={!isEdit}
         />
       ) : null}
 

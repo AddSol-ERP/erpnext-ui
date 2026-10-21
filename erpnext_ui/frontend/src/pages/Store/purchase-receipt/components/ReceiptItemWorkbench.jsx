@@ -61,6 +61,7 @@ export default function ReceiptItemWorkbench({
   plateConfig,
   onItemChange,
   onSave,
+  selectionOnly = false,
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
@@ -226,7 +227,31 @@ export default function ReceiptItemWorkbench({
           </h3>
         </div>
 
-        {row ? (
+        {row && selectionOnly ? (
+          <div className="flex flex-col gap-3">
+            <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
+              <p className="font-medium">{row.item_name || row.item_code}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{row.purchase_order} · {row.pending_qty ?? row.qty} {row.uom}</p>
+            </div>
+            <FormField label={t("store.receipt.receivedQty")} required>
+              <Input
+                type="number"
+                min="0"
+                max={row.pending_qty}
+                step="any"
+                value={row.qty ?? ""}
+                onChange={(event) => {
+                  const qty = event.target.value;
+                  const factor = Number(row.conversion_factor) || 1;
+                  onSave({ ...row, qty, stock_qty: Number(qty) * factor });
+                }}
+              />
+            </FormField>
+            <FormField label={t("store.receipt.uom")}>
+              <Input value={row.uom || ""} readOnly disabled />
+            </FormField>
+          </div>
+        ) : row ? (
           <ReceiptLineForm
             row={row}
             info={info}
