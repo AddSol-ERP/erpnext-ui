@@ -1209,17 +1209,23 @@ List filters on **both** `docstatus != 2` **and** `status not in ["Cancelled"]`
 
 ### 7.8 Quality
 
-- **Inspection Parameter / Template** — template child rows use a **three-mode**
-  model (`formula` > `numeric` > `value`) projected onto the single `mode` field;
-  `preparePayload` (`:122-151`) translates back to ERPNext's
-  `numeric`/`formula_based_criteria` booleans. Switching mode clears the
-  irrelevant inputs.
-- **InspectionForm** — the QC engine. `updateReading` (`:49-77`):
-  `avg = mean(readings)`, `target = (min+max)/2`,
-  `deviation = |(avg-target)/target| * 100`, `status = deviation <= tolerance`.
-  `overallStatus` (`:80-88`) is **worst-status-wins, short-circuiting on Pending
-  first**. Only `reading_1/2/3` are persisted, so a 4th reading the UI allows is
-  **silently dropped**.
+- **Inspection Parameter / Template** — response types are stored as versioned
+  JSON in `custom_response_config` on the existing parameter master, template
+  child row, and inspection reading. `qualityResponse.js` defines presets for
+  numeric ranges, Yes/No, OK/Not OK, Pass/Failed, configurable choices, free
+  text with a manual decision, numeric/text formulas, and exact values. The
+  migration patch `add_quality_response_configuration` adds these fields and
+  per-reading remarks to existing ERPNext doctypes; run `bench migrate` after
+  deploying. Template criteria map onto ERPNext's existing
+  `numeric`/`formula_based_criteria`/`manual_inspection`, `min_value`, `max_value`,
+  `value`, `acceptance_formula`, and `reading_value` fields.
+- **InspectionForm** — ERPNext recalculates formula and numeric statuses on
+  save; numeric checks validate every populated reading against the configured
+  bounds. The UI mirrors range/choice/exact-value outcomes and leaves formula
+  outcomes pending until the server evaluates them. It saves all ten native
+  reading fields, snapshots response configuration on each reading, records
+  parameter remarks, and requires every parameter to be complete before submit.
+  Evidence attachments remain available from the inspection action bar.
 - **Reports** — the only place in the app using `docstatus = 1` rather than
   `!= 2`; filters by **`creation`**, not `report_date`; client-side aggregation,
   no `get_count`.
@@ -1855,9 +1861,9 @@ appears and every remark is dropped for ever with no error anywhere.
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second
    Save (`:224-229`). The `!doc.docstatus` guard is meaningless because `doc` is
    initialised as `{template, item_code}` and `loadDoc` never sets `docstatus`.
-2. **`Quality/entry` filter offers `PASS`/`FAIL`** but `Quality Inspection.status`
-   stores `Accepted`/`Rejected`/`Pending` — filtering by those values returns
-   nothing. The badge below reads them correctly.
+2. ~~**`Quality/entry` filter offers `PASS`/`FAIL`**~~ — **fixed 2026-10-21.**
+   The filter now submits ERPNext's stored `Accepted`/`Rejected` values while
+   badges keep their friendly labels.
 3. **`ExpenseClaimList.getStatus` compares `status` to `Approved`/`Rejected`**,
    which live on `approval_status`, not `status` — so approved claims render as
    "Draft". The *form* correctly uses `approval_status`.

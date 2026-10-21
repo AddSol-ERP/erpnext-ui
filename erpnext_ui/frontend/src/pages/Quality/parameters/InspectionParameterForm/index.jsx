@@ -13,6 +13,12 @@ import { focusFirstError } from "../../../../lib/formValidation";
 import LinkField from "../../../../components/LinkField";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import ResponseConfigEditor from "../../components/ResponseConfigEditor";
+import {
+  defaultResponseConfig,
+  parseResponseConfig,
+  serializeResponseConfig,
+} from "../../../../lib/qualityResponse";
 
 export default function InspectionParameterForm() {
   const { name } = useParams();
@@ -29,6 +35,7 @@ export default function InspectionParameterForm() {
     parameter: "",
     parameter_group: "",
     description: "",
+    responseConfig: defaultResponseConfig(),
   });
 
   // Always points at the newest document. The Save button is registered into
@@ -55,6 +62,7 @@ export default function InspectionParameterForm() {
         parameter: res.data.parameter || "",
         parameter_group: res.data.parameter_group || "",
         description: res.data.description || "",
+        responseConfig: parseResponseConfig(res.data.custom_response_config),
       });
     } catch (e) {
       console.error(e);
@@ -87,7 +95,12 @@ export default function InspectionParameterForm() {
       await saveDocument({
         doctype: "Quality Inspection Parameter",
         name: name || undefined,
-        doc: current,
+        doc: {
+          parameter: current.parameter,
+          parameter_group: current.parameter_group,
+          description: current.description,
+          custom_response_config: serializeResponseConfig(current.responseConfig),
+        },
       });
 
       toast.success(t("quality.savedSuccess"));
@@ -175,6 +188,13 @@ export default function InspectionParameterForm() {
             />
           </FormField>
         </div>
+      </FormSection>
+
+      <FormSection title={t("quality.defaultResponseType")} icon={ClipboardList}>
+        <ResponseConfigEditor
+          value={doc.responseConfig}
+          onChange={(responseConfig) => setDoc((current) => ({ ...current, responseConfig }))}
+        />
       </FormSection>
 
       {/* DESCRIPTION */}

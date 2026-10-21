@@ -61,7 +61,8 @@ export default function InspectionList() {
         label: t("quality.result"),
         field: "status",
         type: "select",
-        options: ["PASS", "FAIL"],
+        // ERPNext stores Accepted/Rejected; PASS/FAIL are only display labels.
+        options: ["Accepted", "Rejected"],
       },
       {
         label: t("quality.template"),

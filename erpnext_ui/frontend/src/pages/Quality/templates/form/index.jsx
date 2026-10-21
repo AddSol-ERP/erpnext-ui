@@ -10,11 +10,19 @@ import LinkField from "../../../../components/LinkField";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
-import FormSelect from "../../../../components/FormSelect";
 import { focusFirstError } from "../../../../lib/formValidation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import ResponseConfigEditor from "../../components/ResponseConfigEditor";
+import {
+  defaultResponseConfig,
+  formulaForChoices,
+  isFormulaResponse,
+  isNumericResponse,
+  parseResponseConfig,
+  serializeResponseConfig,
+} from "../../../../lib/qualityResponse";
 
 export default function QualityTemplateForm() {
   const navigate = useNavigate();
@@ -48,11 +56,10 @@ export default function QualityTemplateForm() {
 
   /* ================= LOAD ================= */
 
-  const mapRowFromERP = (r) => {
-    if (r.formula_based_criteria) return { ...r, mode: "formula" };
-    if (r.numeric) return { ...r, mode: "numeric" };
-    return { ...r, mode: "value" };
-  };
+  const mapRowFromERP = (r) => ({
+    ...r,
+    responseConfig: parseResponseConfig(r.custom_response_config, r),
+  });
 
   const loadDoc = async () => {
     try {
@@ -85,7 +92,7 @@ export default function QualityTemplateForm() {
         ...prev.item_quality_inspection_parameter,
         {
           specification: "",
-          mode: "numeric",
+          responseConfig: defaultResponseConfig(),
           value: "",
           min_value: "",
           max_value: "",
@@ -96,17 +103,21 @@ export default function QualityTemplateForm() {
   };
 
   const updateRow = (i, field, value) => {
-    const rows = [...doc.item_quality_inspection_parameter];
-    rows[i][field] = value;
-
-    if (field === "mode") {
-      rows[i].value = "";
-      rows[i].min_value = "";
-      rows[i].max_value = "";
-      rows[i].acceptance_formula = "";
-    }
-
-    setDoc({ ...doc, item_quality_inspection_parameter: rows });
+    setDoc((current) => {
+      const rows = current.item_quality_inspection_parameter.map((row, index) =>
+        index === i ? { ...row, [field]: value } : row,
+      );
+      if (field === "responseConfig") {
+        rows[i] = {
+          ...rows[i],
+          value: "",
+          min_value: "",
+          max_value: "",
+          acceptance_formula: "",
+        };
+      }
+      return { ...current, item_quality_inspection_parameter: rows };
+    });
   };
 
   const removeRow = (i) => {
@@ -124,23 +135,37 @@ export default function QualityTemplateForm() {
       quality_inspection_template_name: d.quality_inspection_template_name,
       item_quality_inspection_parameter:
         d.item_quality_inspection_parameter.map((r) => {
+          const config = parseResponseConfig(r.responseConfig, r);
           let row = {
             doctype: "Item Quality Inspection Parameter",
             specification: r.specification,
+            custom_response_config: serializeResponseConfig(config),
           };
 
-          if (r.mode === "numeric") {
+          if (config.type === "numeric_range") {
             row.numeric = 1;
             row.min_value = r.min_value;
             row.max_value = r.max_value;
           }
 
-          if (r.mode === "value") {
+          if (config.type === "exact_value") {
             row.numeric = 0;
             row.value = r.value;
           }
 
-          if (r.mode === "formula") {
+          if (["yes_no", "ok_not_ok", "pass_fail", "choices"].includes(config.type)) {
+            row.numeric = 0;
+            row.formula_based_criteria = 1;
+            row.acceptance_formula = formulaForChoices(config);
+          }
+
+          if (config.type === "free_text") {
+            row.numeric = 0;
+            row.value = "";
+          }
+
+          if (isFormulaResponse(config)) {
+            row.numeric = isNumericResponse(config) ? 1 : 0;
             row.formula_based_criteria = 1;
             row.acceptance_formula = r.acceptance_formula;
           }
@@ -163,6 +188,40 @@ export default function QualityTemplateForm() {
       errs.item_quality_inspection_parameter = t(
         "quality.addOneParameter",
       );
+    }
+    for (const row of current.item_quality_inspection_parameter) {
+      const config = parseResponseConfig(row.responseConfig, row);
+      if (!row.specification) {
+        errs.item_quality_inspection_parameter = t("quality.parameterRequired");
+        break;
+      }
+      if (config.type === "numeric_range") {
+        const min = Number(row.min_value);
+        const max = Number(row.max_value);
+        if (row.min_value === "" || row.max_value === "" || !Number.isFinite(min) || !Number.isFinite(max) || min > max) {
+          errs.item_quality_inspection_parameter = t("quality.validRangeRequired");
+          break;
+        }
+      }
+      if (config.type === "exact_value" && !String(row.value || "").trim()) {
+        errs.item_quality_inspection_parameter = t("quality.expectedValueRequired");
+        break;
+      }
+      if (isFormulaResponse(config) && !String(row.acceptance_formula || "").trim()) {
+        errs.item_quality_inspection_parameter = t("quality.formulaRequired");
+        break;
+      }
+      if (config.type === "choices") {
+        const choices = (config.choices || []).filter((choice) => choice.value.trim());
+        if (!choices.length) {
+          errs.item_quality_inspection_parameter = t("quality.choiceRequired");
+          break;
+        }
+        if (!choices.some((choice) => choice.result === "Accepted")) {
+          errs.item_quality_inspection_parameter = t("quality.acceptedChoiceRequired");
+          break;
+        }
+      }
     }
 
     setFieldErrors(errs);
@@ -298,22 +357,26 @@ export default function QualityTemplateForm() {
                 <LinkField
                   doctype="Quality Inspection Parameter"
                   value={row.specification}
-                  onChange={(v) => updateRow(idx, "specification", v)}
+                  onChange={async (v) => {
+                    updateRow(idx, "specification", v);
+                    if (!v) return;
+                    try {
+                      const result = await get(`resource/Quality Inspection Parameter/${encodeURIComponent(v)}`);
+                      const masterConfig = parseResponseConfig(result.data?.custom_response_config);
+                      updateRow(idx, "responseConfig", masterConfig);
+                    } catch {
+                      // Older sites may not have migrated the response field yet.
+                    }
+                  }}
                 />
               </FormField>
 
-              {/* MODE */}
-              <FormField label={t("quality.type")}>
-                <FormSelect
-                  value={row.mode}
-                  onChange={(v) => updateRow(idx, "mode", v)}
-                  options={[
-                    ["numeric", t("quality.typeRange")],
-                    ["value", t("quality.typeValue")],
-                    ["formula", t("quality.typeFormula")],
-                  ]}
+              <div className="md:col-span-2">
+                <ResponseConfigEditor
+                  value={row.responseConfig}
+                  onChange={(responseConfig) => updateRow(idx, "responseConfig", responseConfig)}
                 />
-              </FormField>
+              </div>
 
               {/* REMOVE */}
               <div className="flex items-end justify-end">
@@ -330,7 +393,7 @@ export default function QualityTemplateForm() {
 
             {/* VALUE INPUTS */}
             <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {row.mode === "numeric" && (
+              {row.responseConfig?.type === "numeric_range" && (
                 <>
                   <FormField label={t("quality.min")}>
                     <Input
@@ -352,7 +415,7 @@ export default function QualityTemplateForm() {
                 </>
               )}
 
-              {row.mode === "value" && (
+              {row.responseConfig?.type === "exact_value" && (
                 <FormField label={t("quality.value")}>
                   <Input
                     value={row.value || ""}
@@ -361,7 +424,7 @@ export default function QualityTemplateForm() {
                 </FormField>
               )}
 
-              {row.mode === "formula" && (
+              {isFormulaResponse(row.responseConfig) && (
                 <div className="md:col-span-2">
                   <FormField label={t("quality.formula")}>
                     <Textarea
@@ -372,6 +435,12 @@ export default function QualityTemplateForm() {
                     />
                   </FormField>
                 </div>
+              )}
+
+              {row.responseConfig?.type === "free_text" && (
+                <p className="text-sm text-muted-foreground md:col-span-2">
+                  {t("quality.freeTextTemplateHint")}
+                </p>
               )}
             </div>
           </div>

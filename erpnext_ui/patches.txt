@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 erpnext_ui.patches.v1_0.create_salary_slip_print_format
 erpnext_ui.patches.v1_0.add_file_ui_remark_field
+erpnext_ui.patches.v1_0.add_quality_response_configuration

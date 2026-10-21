@@ -10,6 +10,7 @@ import FormSection from "../../../../components/FormSection";
 import { ClipboardList } from "lucide-react";
 import LinkField from "../../../../components/LinkField";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,15 @@ import {
   focusFirstError,
   requiredFields,
 } from "../../../../lib/formValidation";
+import {
+  choiceResult,
+  formulaForChoices,
+  isFormulaResponse,
+  isManualResponse,
+  isNumericResponse,
+  parseResponseConfig,
+  serializeResponseConfig,
+} from "../../../../lib/qualityResponse";
 
 /*
  * ERPNext option strings, copied verbatim from
@@ -78,6 +88,7 @@ export default function InspectionForm() {
     reference_type: "",
     reference_name: "",
     sample_size: DEFAULT_SAMPLE_SIZE,
+    remarks: "",
     // ERPNext makes a submitted Quality Inspection read-only. It was never
     // tracked here, so `!doc.docstatus` was ALWAYS true -- the header had no
     // way to tell a draft from a submitted document.
@@ -127,46 +138,76 @@ export default function InspectionForm() {
   const [parameters, setParameters] = useState([]);
 
   /* ================= CALC ================= */
+  const calculatedParameterStatus = (parameter) => {
+    const config = parameter.responseConfig;
+    if (config?.type === "numeric_range") {
+      const values = (parameter.values || []).filter((value) => value !== "" && value != null);
+      if (!values.length || parameter.min_value === "" || parameter.max_value === "") return "Pending";
+      const numbers = values.map(Number);
+      if (numbers.some((value) => !Number.isFinite(value))) return "Pending";
+      return numbers.every((value) => value >= Number(parameter.min_value) && value <= Number(parameter.max_value))
+        ? "Accepted"
+        : "Rejected";
+    }
+    if (config?.type === "formula_numeric" || config?.type === "formula_text") return parameter.status || "Pending";
+    if (config?.type === "free_text") return parameter.manualStatus || "Pending";
+    if (["yes_no", "ok_not_ok", "pass_fail", "choices"].includes(config?.type)) {
+      return parameter.readingValue ? (choiceResult(config, parameter.readingValue) || "Pending") : "Pending";
+    }
+    if (config?.type === "exact_value") {
+      return parameter.readingValue !== ""
+        ? (parameter.readingValue === String(parameter.value ?? "") ? "Accepted" : "Rejected")
+        : "Pending";
+    }
+    return "Pending";
+  };
+
   const updateReading = (pi, vi, value) => {
-    // A reading is an edit. Without this, filling in the numbers that decide
-    // the inspection's status left the document clean and Save hidden.
     setDirty(true);
-    const updated = [...parameters];
-    const p = updated[pi];
+    setParameters((current) => current.map((parameter, index) => {
+      if (index !== pi) return parameter;
+      const next = { ...parameter, values: [...parameter.values] };
+      next.values[vi] = value;
+      next.status = isFormulaResponse(next.responseConfig)
+        ? "Pending"
+        : calculatedParameterStatus(next);
+      return next;
+    }));
+  };
 
-    p.values[vi] = value;
+  const updateReadingValue = (pi, readingValue) => {
+    setDirty(true);
+    setParameters((current) => current.map((parameter, index) => {
+      if (index !== pi) return parameter;
+      const next = { ...parameter, readingValue };
+      next.status = isFormulaResponse(next.responseConfig)
+        ? "Pending"
+        : calculatedParameterStatus(next);
+      return next;
+    }));
+  };
 
-    const nums = p.values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
+  const updateParameterRemark = (pi, remark) => {
+    setDirty(true);
+    setParameters((current) => current.map((parameter, index) =>
+      index === pi ? { ...parameter, remark } : parameter,
+    ));
+  };
 
-    if (nums.length === 0) {
-      p.status = "Pending";
-      setParameters(updated);
-      return;
-    }
-
-    const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
-    const target = (p.min_value + p.max_value) / 2;
-    const deviation = Math.abs((avg - target) / target) * 100;
-
-    p.avg = avg.toFixed(2);
-    p.deviation = deviation.toFixed(2);
-
-    if (deviation <= p.tolerance) {
-      p.status = "PASS";
-    } else {
-      p.status = "FAIL";
-    }
-
-    setParameters(updated);
+  const setManualStatus = (pi, status) => {
+    setDirty(true);
+    setParameters((current) => current.map((parameter, index) =>
+      index === pi ? { ...parameter, manualStatus: status, status } : parameter,
+    ));
   };
 
   /* ================= RESULT ================= */
   const overallStatus = (() => {
     if (!parameters.length) return "";
 
-    if (parameters.some((p) => p.status === "Pending")) return "Pending";
+    if (parameters.some((p) => calculatedParameterStatus(p) === "Pending")) return "Pending";
 
-    if (parameters.some((p) => p.status === "FAIL")) return "Rejected";
+    if (parameters.some((p) => calculatedParameterStatus(p) === "Rejected")) return "Rejected";
 
     return "Accepted";
   })();
@@ -204,6 +245,7 @@ export default function InspectionForm() {
       reference_type: d.reference_type || "",
       reference_name: d.reference_name || "",
       sample_size: d.sample_size ?? DEFAULT_SAMPLE_SIZE,
+      remarks: d.remarks || "",
       docstatus: d.docstatus ?? 0,
     });
 
@@ -221,22 +263,41 @@ export default function InspectionForm() {
 
     const merged = templateParams.map((t) => {
       const existing = readingsMap[t.specification];
+      const responseConfig = parseResponseConfig(
+        existing?.custom_response_config || t.custom_response_config,
+        existing || t,
+      );
+      const allValues = Array.from({ length: 10 }, (_, index) => {
+        const value = existing?.[`reading_${index + 1}`];
+        return value == null ? "" : String(value);
+      });
+      const lastValueIndex = allValues.reduce(
+        (last, value, index) => value !== "" ? index : last,
+        -1,
+      );
+      const values = allValues.slice(0, Math.max(lastValueIndex + 1, 1));
 
-      return {
+      const parameter = {
         parameter: t.specification,
-        numeric: t.numeric,
-        min_value: t.min_value,
-        max_value: t.max_value,
-        tolerance: 5, // default %
-        values: [
-          existing?.reading_1,
-          existing?.reading_2,
-          existing?.reading_3,
-        ].filter((v) => v) || [""],
+        responseConfig,
+        numeric: existing?.numeric ?? t.numeric,
+        min_value: existing?.min_value ?? t.min_value ?? "",
+        max_value: existing?.max_value ?? t.max_value ?? "",
+        value: existing?.value ?? t.value ?? "",
+        acceptance_formula: existing?.acceptance_formula ?? t.acceptance_formula ?? "",
+        values,
+        readingValue: existing?.reading_value == null ? "" : String(existing.reading_value),
+        remark: existing?.custom_parameter_remarks || "",
+        manualStatus: existing?.status === "Accepted" || existing?.status === "Rejected"
+          ? existing.status
+          : "",
         status: existing?.status || "Pending",
-        avg: 0,
-        deviation: 0,
       };
+      parameter.status = calculatedParameterStatus(parameter);
+      if (isFormulaResponse(responseConfig)) {
+        parameter.status = existing?.status || "Pending";
+      }
+      return parameter;
     });
 
     setParameters(merged);
@@ -252,14 +313,17 @@ export default function InspectionForm() {
 
     const mapped = rows.map((r) => ({
       parameter: r.specification,
+      responseConfig: parseResponseConfig(r.custom_response_config, r),
       numeric: r.numeric,
-      min_value: r.min_value,
-      max_value: r.max_value,
-      tolerance: 5,
+      min_value: r.min_value ?? "",
+      max_value: r.max_value ?? "",
+      value: r.value ?? "",
+      acceptance_formula: r.acceptance_formula || "",
       values: [""],
+      readingValue: "",
+      remark: "",
+      manualStatus: "",
       status: "Pending",
-      avg: 0,
-      deviation: 0,
     }));
 
     setParameters(mapped);
@@ -279,6 +343,33 @@ export default function InspectionForm() {
     overallStatusRef.current = overallStatus;
     parametersRef.current = parameters;
   });
+
+  const isParameterComplete = (parameter) => {
+    const type = parameter.responseConfig?.type;
+    if (type === "numeric_range") {
+      return parameter.values.some((value) => value !== "")
+        && parameter.min_value !== ""
+        && parameter.max_value !== "";
+    }
+    if (type === "formula_numeric") {
+      return !!parameter.acceptance_formula.trim()
+        && parameter.values.some((value) => value !== "");
+    }
+    if (type === "formula_text") {
+      return !!parameter.acceptance_formula.trim() && !!parameter.readingValue.trim();
+    }
+    if (type === "free_text") {
+      return !!parameter.readingValue.trim()
+        && ["Accepted", "Rejected"].includes(parameter.manualStatus);
+    }
+    if (type === "exact_value") return !!parameter.readingValue;
+    return !!parameter.readingValue
+      && (parameter.responseConfig?.choices || []).some(
+        (choice) => choice.value === parameter.readingValue,
+      );
+  };
+
+  const getIncompleteParameters = () => parametersRef.current.filter((parameter) => !isParameterComplete(parameter));
 
   /*
    * Save and Submit have OPPOSITE conditions and must not share one `if` --
@@ -304,14 +395,40 @@ export default function InspectionForm() {
     reference_type: current.reference_type,
     reference_name: current.reference_name,
     sample_size: Number(current.sample_size) || DEFAULT_SAMPLE_SIZE,
-    status: overallStatusRef.current,
-    readings: parametersRef.current.map((p) => ({
-      specification: p.parameter,
-      reading_1: p.values[0] || "",
-      reading_2: p.values[1] || "",
-      reading_3: p.values[2] || "",
-      status: p.status,
-    })),
+    remarks: current.remarks || "",
+    // ERPNext's status field accepts Accepted/Rejected; Pending is represented
+    // by incomplete reading rows while the document is still a draft.
+    status: overallStatusRef.current === "Rejected" ? "Rejected" : "Accepted",
+    readings: parametersRef.current.map((p) => {
+      const config = parseResponseConfig(p.responseConfig);
+      const complete = isParameterComplete(p);
+      const numeric = isNumericResponse(config);
+      const formula = isFormulaResponse(config)
+        || ["yes_no", "ok_not_ok", "pass_fail", "choices"].includes(config.type);
+      const manual = isManualResponse(config) || !complete;
+      const row = {
+        specification: p.parameter,
+        custom_response_config: serializeResponseConfig(config),
+        custom_parameter_remarks: p.remark || "",
+        numeric: numeric ? 1 : 0,
+        formula_based_criteria: formula ? 1 : 0,
+        manual_inspection: manual ? 1 : 0,
+        min_value: p.min_value ?? "",
+        max_value: p.max_value ?? "",
+        value: p.value ?? "",
+        acceptance_formula: ["yes_no", "ok_not_ok", "pass_fail", "choices"].includes(config.type)
+          ? formulaForChoices(config)
+          : p.acceptance_formula || "",
+        reading_value: p.readingValue ?? "",
+        status: manual
+          ? (isManualResponse(config) ? p.manualStatus || "" : "")
+          : p.status,
+      };
+      for (let index = 0; index < 10; index += 1) {
+        row[`reading_${index + 1}`] = p.values?.[index] ?? "";
+      }
+      return row;
+    }),
   });
 
   const handleSave = async () => {
@@ -392,6 +509,11 @@ export default function InspectionForm() {
    */
   const handleSubmit = async () => {
     const current = docRef.current;
+
+    if (getIncompleteParameters().length) {
+      setError(t("quality.completeAllParameters"));
+      return;
+    }
 
     const errs = requiredFields(
       current,
@@ -549,6 +671,7 @@ export default function InspectionForm() {
               doctype="Item"
               value={doc.item_code}
               onChange={(v) => updateDoc({ item_code: v })}
+              disabled={Boolean(doc.docstatus)}
             />
           </FormField>
 
@@ -559,6 +682,7 @@ export default function InspectionForm() {
           >
             <FormSelect
               value={doc.inspection_type}
+              disabled={Boolean(doc.docstatus)}
               onChange={(v) => {
                 updateDoc({ inspection_type: v });
                 setFieldErrors((p) => ({ ...p, inspection_type: "" }));
@@ -575,6 +699,7 @@ export default function InspectionForm() {
           >
             <FormSelect
               value={doc.reference_type}
+              disabled={Boolean(doc.docstatus)}
               onChange={handleReferenceTypeChange}
               placeholder={t("quality.selectType")}
               // Raw ERPNext doctype names, untranslated on purpose: these double
@@ -602,7 +727,7 @@ export default function InspectionForm() {
                 updateDoc({ reference_name: v });
                 setFieldErrors((p) => ({ ...p, reference_name: "" }));
               }}
-              disabled={!doc.reference_type}
+              disabled={Boolean(doc.docstatus) || !doc.reference_type}
               placeholder={t(
                 doc.reference_type
                   ? "quality.selectReference"
@@ -627,6 +752,7 @@ export default function InspectionForm() {
               step="1"
               className="h-8"
               value={doc.sample_size}
+              disabled={Boolean(doc.docstatus)}
               onChange={(e) => {
                 updateDoc({ sample_size: e.target.value });
                 setFieldErrors((p) => ({ ...p, sample_size: "" }));
@@ -639,102 +765,158 @@ export default function InspectionForm() {
 
       {/* PARAMETERS */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {parameters.map((p, i) => (
-          <Card
-            key={i}
-            className={gridCorners({
-              breakpoints: PARAM_BP,
-              index: i,
-              count: parameters.length,
-            })}
-          >
-            <CardContent className="p-4">
-              <div className="text-center font-bold">{p.parameter}</div>
+        {parameters.map((p, i) => {
+          const result = calculatedParameterStatus(p);
+          const responseType = p.responseConfig?.type || "numeric_range";
+          return (
+            <Card
+              key={i}
+              className={gridCorners({
+                breakpoints: PARAM_BP,
+                index: i,
+                count: parameters.length,
+              })}
+            >
+              <CardContent className="p-4">
+                <div className="text-center font-bold">{p.parameter}</div>
+                <p className="mb-3 mt-1 text-center text-xs text-muted-foreground">
+                  {t(`quality.responseTypes.${responseType}`)}
+                  {responseType === "numeric_range" ? ` · ${p.min_value} – ${p.max_value}` : ""}
+                  {responseType === "exact_value" ? ` · ${t("quality.expectedValue")}: ${p.value}` : ""}
+                </p>
 
-              <div className="mb-2 text-center text-sm text-muted-foreground">
-                {t("quality.rangeTolerance", {
-                  min: p.min_value,
-                  max: p.max_value,
-                  tol: p.tolerance,
-                })}
-              </div>
-
-              {/* INPUTS */}
-              {p.values.map((val, vi) => (
-                <Input
-                  key={vi}
-                  className="mb-2 text-center"
-                  type="number"
-                  value={val}
-                  placeholder={t("quality.reading", { n: vi + 1 })}
-                  onChange={(e) => updateReading(i, vi, e.target.value)}
-                />
-              ))}
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => {
-                  const updated = [...parameters];
-                  updated[i].values.push("");
-                  setParameters(updated);
-                }}
-              >
-                + {t("quality.addReading")}
-              </Button>
-
-              {/* METRICS */}
-              {p.avg > 0 && (
-                <div className="mt-3 text-center text-sm">
-                  <div>
-                    {t("quality.avg")}: <b>{p.avg}</b>
+                {isNumericResponse(p.responseConfig) ? (
+                  <div className="space-y-2">
+                    {responseType === "formula_numeric" ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("quality.formula")}: {p.acceptance_formula || t("quality.formulaShownOnTemplate")}
+                      </p>
+                    ) : null}
+                    {p.values.map((value, index) => (
+                      <Input
+                        key={index}
+                        className="text-center"
+                        type="number"
+                        value={value}
+                        disabled={Boolean(doc.docstatus)}
+                        placeholder={t("quality.reading", { n: index + 1 })}
+                        onChange={(event) => updateReading(i, index, event.target.value)}
+                      />
+                    ))}
+                    {p.values.length < 10 && !doc.docstatus ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setParameters((current) => current.map((parameter, index) =>
+                          index === i ? { ...parameter, values: [...parameter.values, ""] } : parameter,
+                        ))}
+                      >
+                        + {t("quality.addReading")}
+                      </Button>
+                    ) : null}
                   </div>
-                  <div>
-                    {t("quality.dev")}:{" "}
-                    <b
-                      className={
-                        p.deviation > p.tolerance
-                          ? "text-destructive"
-                          : "text-emerald-600"
-                      }
-                    >
-                      {p.deviation}%
-                    </b>
+                ) : (
+                  <div className="space-y-3">
+                    {responseType === "formula_text" ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("quality.formula")}: {p.acceptance_formula || t("quality.formulaShownOnTemplate")}
+                      </p>
+                    ) : null}
+                    {responseType === "free_text" ? (
+                      <Textarea
+                        rows={3}
+                        value={p.readingValue}
+                        disabled={Boolean(doc.docstatus)}
+                        placeholder={t("quality.enterObservation")}
+                        onChange={(event) => updateReadingValue(i, event.target.value)}
+                      />
+                    ) : (
+                      <FormField label={t("quality.readingValue")}>
+                        {responseType === "formula_text" || responseType === "exact_value" ? (
+                          <Input
+                            value={p.readingValue}
+                            disabled={Boolean(doc.docstatus)}
+                            placeholder={t("quality.enterResult")}
+                            onChange={(event) => updateReadingValue(i, event.target.value)}
+                          />
+                        ) : (
+                          <FormSelect
+                            value={p.readingValue}
+                            disabled={Boolean(doc.docstatus)}
+                            placeholder={t("quality.chooseResult")}
+                            onChange={(value) => updateReadingValue(i, value)}
+                            options={(p.responseConfig?.choices || []).map((choice) => [choice.value, choice.value])}
+                          />
+                        )}
+                      </FormField>
+                    )}
+
+                    {responseType === "free_text" ? (
+                      <FormField label={t("quality.manualDecision")}>
+                        <FormSelect
+                          value={p.manualStatus}
+                          disabled={Boolean(doc.docstatus)}
+                          placeholder={t("quality.chooseResult")}
+                          onChange={(value) => setManualStatus(i, value)}
+                          options={[
+                            ["Accepted", t("quality.statusAccepted")],
+                            ["Rejected", t("quality.statusRejected")],
+                          ]}
+                        />
+                      </FormField>
+                    ) : null}
                   </div>
+                )}
+
+                <FormField className="mt-3" label={t("quality.parameterRemarks")}>
+                  <Textarea
+                    rows={2}
+                    value={p.remark || ""}
+                    disabled={Boolean(doc.docstatus)}
+                    placeholder={t("quality.parameterRemarksHint")}
+                    onChange={(event) => updateParameterRemark(i, event.target.value)}
+                  />
+                </FormField>
+
+                <div className="mt-3 text-center">
+                  <Badge
+                    variant="outline"
+                    className={
+                      result === "Accepted"
+                        ? "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30"
+                        : result === "Rejected"
+                          ? "bg-destructive/15 text-destructive ring-destructive/30"
+                          : "bg-muted text-muted-foreground ring-border"
+                    }
+                  >
+                    {result === "Accepted"
+                      ? t("quality.statusAccepted")
+                      : result === "Rejected"
+                        ? t("quality.statusRejected")
+                        : t("quality.statusPending")}
+                  </Badge>
                 </div>
-              )}
-
-              {/* STATUS */}
-              <div className="mt-2 text-center">
-                <Badge
-                  variant="outline"
-                  className={
-                    p.status === "PASS"
-                      ? "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30"
-                      : p.status === "FAIL"
-                        ? "bg-destructive/15 text-destructive ring-destructive/30"
-                        : "bg-muted text-muted-foreground ring-border"
-                  }
-                >
-                  {p.status === "PASS"
-                    ? t("quality.statusPass")
-                    : p.status === "FAIL"
-                      ? t("quality.statusFail")
-                      : t("quality.statusPending")}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
+
+      <FormSection title={t("quality.inspectionRemarks")} icon={ClipboardList}>
+        <Textarea
+          rows={3}
+          value={doc.remarks || ""}
+          disabled={Boolean(doc.docstatus)}
+          onChange={(event) => updateDoc({ remarks: event.target.value })}
+        />
+      </FormSection>
 
       {/* FINAL RESULT */}
       <Card className="mt-3">
         <CardContent className="p-4 text-center">
-          <div className="text-sm text-muted-foreground">
-            {t("quality.finalResult")}
-          </div>
+          <div className="text-sm text-muted-foreground">{t("quality.finalResult")}</div>
           <div
             className={`text-2xl font-bold ${
               overallStatus === "Accepted"
