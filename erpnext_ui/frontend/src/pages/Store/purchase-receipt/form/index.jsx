@@ -245,10 +245,8 @@ export default function PurchaseReceiptForm() {
 
   const loadPlateConfig = useCallback(async () => {
     try {
-      const res = await get(
-        "method/addsol_nl_custom.addsol_nl_custom.plates.api.get_plate_settings",
-      );
-      const settings = res.message || {};
+      const res = await get("method/erpnext_ui.api.get_purchase_receipt_capabilities");
+      const settings = res.message?.weight_based || {};
       const next = {
         ...settings,
         enabled: !!settings.enable_weight_based_purchasing,
@@ -273,10 +271,10 @@ export default function PurchaseReceiptForm() {
     }
     try {
       const res = await get(
-        "method/addsol_nl_custom.addsol_nl_custom.plates.api.is_weight_managed_item",
+        "method/erpnext_ui.api.get_purchase_receipt_item_capabilities",
         { item_code: itemCode },
       );
-      const isPlate = !!res.message;
+      const isPlate = !!res.message?.weight_managed;
       setPlateItems((p) => ({ ...p, [rid]: isPlate }));
       return isPlate;
     } catch {
@@ -420,6 +418,41 @@ export default function PurchaseReceiptForm() {
       return next;
     });
     setAvailable((p) => p);
+  };
+
+  const allocateTruckWeight = () => {
+    const current = docRef.current;
+    const total = Number(Number(current.custom_truck_net_weight_kg).toFixed(3));
+    const weighedRows = current.items.filter((row) => plateItems[row._rid] || row.custom_is_plate);
+    const estimates = weighedRows.map((row) => Number(row.custom_est_weight_kg) ||
+      Number(row.qty) * Number(row.custom_unit_weight_kg || row.item_weight_per_unit || row.weight_per_unit));
+    const estimateTotal = estimates.reduce((sum, value) => sum + (value > 0 ? value : 0), 0);
+    if (!(total > 0) || !weighedRows.length || !(estimateTotal > 0) || estimates.some((value) => !(value > 0))) {
+      setError(t("store.receipt.truckWeightAllocationError"));
+      return;
+    }
+    let allocated = 0;
+    const updates = new Map();
+    weighedRows.forEach((row, index) => {
+      const weight = index === weighedRows.length - 1
+        ? Number((total - allocated).toFixed(3))
+        : Number((total * estimates[index] / estimateTotal).toFixed(3));
+      allocated += weight;
+      const variance = estimates[index] > 0 ? Math.abs((weight - estimates[index]) / estimates[index] * 100) : 0;
+      updates.set(row._rid, {
+        custom_weighbridge_weight_kg: weight,
+        custom_weight_decision: variance > Number(plateConfig.weight_tolerance_pct || 0) && plateConfig.can_decide_weight
+          ? "Accept Weighbridge Weight"
+          : "",
+      });
+    });
+    setDoc((previous) => ({
+      ...previous,
+      items: previous.items.map((row) => updates.has(row._rid)
+        ? { ...row, ...updates.get(row._rid) }
+        : row),
+    }));
+    setError("");
   };
 
   /** Add a catalogue line to the receipt. */
@@ -618,12 +651,11 @@ export default function PurchaseReceiptForm() {
       }
 
       if (forSubmit && isPlate) {
-        if (!(Number(row.custom_supplier_weight_kg) > 0)) {
+        const supplierWeight = Number(row.custom_supplier_weight_kg) || 0;
+        const weighbridgeWeight = Number(row.custom_weighbridge_weight_kg) || 0;
+        const truckWeightAllocated = Number(d.custom_truck_net_weight_kg) > 0 && weighbridgeWeight > 0;
+        if (!(supplierWeight > 0) && !truckWeightAllocated) {
           errs.items = t("store.receipt.validation.plateSupplierWeightRequired");
-          break;
-        }
-        if (!row.custom_heat_number) {
-          errs.items = t("store.receipt.validation.plateHeatRequired");
           break;
         }
         if (!(Number(row.custom_rate_per_kg) > 0)) {
@@ -635,15 +667,18 @@ export default function PurchaseReceiptForm() {
           Number(
             row.custom_unit_weight_kg || row.item_weight_per_unit || row.weight_per_unit,
           );
+        const measuredWeight = supplierWeight || weighbridgeWeight;
         const variance = estimate > 0
-          ? Number(
-              (((Number(row.custom_supplier_weight_kg) - estimate) / estimate) * 100).toFixed(2),
-            )
+          ? Number((((measuredWeight - estimate) / estimate) * 100).toFixed(2))
           : 0;
         const outsideTolerance =
           Math.abs(variance) > Number(plateConfig.weight_tolerance_pct || 0);
         if (outsideTolerance && !row.custom_weight_decision) {
           errs.items = t("store.receipt.validation.plateDecisionRequired");
+          break;
+        }
+        if (row.custom_weight_decision === "Accept Supplier Weight" && !(supplierWeight > 0)) {
+          errs.items = t("store.receipt.validation.plateSupplierWeightRequired");
           break;
         }
         if (outsideTolerance && !plateConfig.can_decide_weight) {
@@ -657,6 +692,14 @@ export default function PurchaseReceiptForm() {
           errs.items = t("store.receipt.validation.plateWeighbridgeRequired");
           break;
         }
+      }
+    }
+
+    if (forSubmit && Number(d.custom_truck_net_weight_kg) > 0) {
+      const weighedRows = d.items.filter((row) => plateStatus[row._rid] || row.custom_is_plate);
+      const allocated = weighedRows.reduce((sum, row) => sum + (Number(row.custom_weighbridge_weight_kg) || 0), 0);
+      if (!weighedRows.length || Math.abs(allocated - Number(d.custom_truck_net_weight_kg)) > 0.002) {
+        errs.items = t("store.receipt.truckWeightAllocationMismatch");
       }
     }
 
@@ -1042,6 +1085,23 @@ export default function PurchaseReceiptForm() {
             }}
           />
         </FormField>
+        {plateConfig.enabled ? (
+          <FormField label={t("store.receipt.truckNetWeight")} hint={t("store.receipt.truckNetWeightHint")}>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                value={doc.custom_truck_net_weight_kg ?? ""}
+                disabled={!!doc.docstatus}
+                onChange={(e) => setDoc((previous) => ({ ...previous, custom_truck_net_weight_kg: e.target.value }))}
+              />
+              <Button type="button" variant="outline" onClick={allocateTruckWeight} disabled={!!doc.docstatus || !rows.length}>
+                {t("store.receipt.allocateTruckWeight")}
+              </Button>
+            </div>
+          </FormField>
+        ) : null}
       </FormSection>
 
       {/* ITEMS */}
@@ -1127,12 +1187,6 @@ export default function PurchaseReceiptForm() {
                           ) : null}
                           {row.custom_weighbridge_weight_kg ? (
                             <span>{t("store.receipt.weighbridgeWeight")}: {row.custom_weighbridge_weight_kg} Kg</span>
-                          ) : null}
-                          {row.custom_heat_number ? (
-                            <span>{t("store.receipt.heatNumber")}: {row.custom_heat_number}</span>
-                          ) : null}
-                          {row.custom_mtc_no ? (
-                            <span>{t("store.receipt.mtcNumber")}: {row.custom_mtc_no}</span>
                           ) : null}
                           {row.custom_rate_per_kg ? (
                             <span>{t("store.receipt.ratePerKg")}: {row.custom_rate_per_kg}</span>

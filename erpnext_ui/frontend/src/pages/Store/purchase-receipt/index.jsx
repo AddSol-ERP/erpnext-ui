@@ -12,14 +12,14 @@ import { Button } from "@/components/ui/button";
 import { get } from "../../../services/api";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { deleteDocument } from "../../../lib/docTransition";
+import LinkField from "../../../components/LinkField";
 
 /**
- * Pick a Purchase Order to receive against.
+ * Pick a supplier, then a Purchase Order to receive against.
  *
- * PO-first because every receipt this site has ever posted is PO-linked (all 8
- * item rows in the sample data carry a `purchase_order`), and because
- * ERPNext's mapper hands back supplier, currency, warehouse, taxes and every
- * outstanding line already priced and converted.
+ * Starting with a supplier narrows the receiving queue to the supplier the
+ * truck belongs to. ERPNext's Purchase Receipt mapper still supplies currency,
+ * warehouse, taxes and every outstanding line already priced and converted.
  *
  * The filter is derived from ERPNext's own status rules rather than guessed --
  * a PO only has something to receive while `per_received < 100`
@@ -70,6 +70,7 @@ export default function PurchaseReceiptPicker() {
   // the "receive without a PO" path cannot save, so it is not offered at all
   // rather than offered and rejected on submit.
   const [poRequired, setPoRequired] = useState(false);
+  const [supplier, setSupplier] = useState("");
 
   const loadPoRequired = useCallback(async () => {
     try {
@@ -94,6 +95,7 @@ export default function PurchaseReceiptPicker() {
       const filters = JSON.stringify([
         ["docstatus", "=", 1],
         ["status", "in", RECEIVABLE_STATUSES],
+        ...(supplier ? [["supplier", "=", supplier]] : []),
       ]);
 
       const params = {
@@ -124,6 +126,12 @@ export default function PurchaseReceiptPicker() {
       const countParams = { doctype: "Purchase Order", filters };
       if (orFilters) countParams.or_filters = orFilters;
 
+      if (!supplier) {
+        setRows([]);
+        setTotal(0);
+        setLoading(false);
+        return;
+      }
       const [listRes, countRes] = await Promise.all([
         get("resource/Purchase Order", params),
         get("method/frappe.client.get_count", countParams),
@@ -138,7 +146,7 @@ export default function PurchaseReceiptPicker() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, page]);
+  }, [debouncedSearch, page, supplier]);
 
   const loadSubmitted = useCallback(async () => {
     setSubmittedLoading(true);
@@ -357,7 +365,13 @@ export default function PurchaseReceiptPicker() {
       onRetry={loadData}
       tabs={receiptTabs}
       actionBar={
-        <ActionBar onSearch={setDebouncedSearch} resultCount={total} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="w-full sm:max-w-sm">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t("store.receipt.supplier")}</label>
+            <LinkField doctype="Supplier" value={supplier} onChange={(value) => { setSupplier(value); setPage(1); }} placeholder={t("store.receipt.selectSupplier")} />
+          </div>
+          <ActionBar onSearch={(value) => { setDebouncedSearch(value); setPage(1); }} resultCount={total} />
+        </div>
       }
       table={
         <DataTable
@@ -380,7 +394,7 @@ export default function PurchaseReceiptPicker() {
         />
       }
       isEmpty={!loading && rows.length === 0}
-      emptyTitle={t("store.receipt.noOrders")}
+      emptyTitle={supplier ? t("store.receipt.noOrders") : t("store.receipt.selectSupplier")}
     >
       {!loading && rows.length === 0 && !poRequired ? (
         <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">

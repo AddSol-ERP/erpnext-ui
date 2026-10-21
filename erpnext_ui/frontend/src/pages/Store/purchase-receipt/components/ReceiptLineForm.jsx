@@ -118,16 +118,18 @@ export default function ReceiptLineForm({
       ? plateQty * unitWeight
       : 0;
   const supplierWeight = Number(row?.custom_supplier_weight_kg);
+  const weighbridgeWeight = Number(row?.custom_weighbridge_weight_kg);
+  const measuredWeight = supplierWeight > 0 ? supplierWeight : weighbridgeWeight;
   const variancePct =
-    estimatedWeight > 0 && Number.isFinite(supplierWeight) && supplierWeight > 0
-      ? Number((((supplierWeight - estimatedWeight) / estimatedWeight) * 100).toFixed(2))
+    estimatedWeight > 0 && Number.isFinite(measuredWeight) && measuredWeight > 0
+      ? Number((((measuredWeight - estimatedWeight) / estimatedWeight) * 100).toFixed(2))
       : null;
   const needsWeightDecision =
     variancePct !== null &&
     Math.abs(variancePct) > Number(plateConfig.weight_tolerance_pct || 0);
   const acceptedWeight = !needsWeightDecision
-    ? supplierWeight > 0
-      ? supplierWeight
+    ? measuredWeight > 0
+      ? measuredWeight
       : null
     : row?.custom_weight_decision === "Accept Supplier Weight"
       ? supplierWeight
@@ -397,7 +399,7 @@ export default function ReceiptLineForm({
       {isPlate ? (
         <section className="flex flex-col gap-3 rounded-md border border-border p-3">
           <h4 className="text-sm font-semibold">{t("store.receipt.plateDetails")}</h4>
-          <FormField label={t("store.receipt.supplierWeight")} required>
+          <FormField label={t("store.receipt.supplierWeight")} hint={t("store.receipt.supplierWeightOptional")}>
             <Input
               type="number"
               min="0"
@@ -479,7 +481,9 @@ export default function ReceiptLineForm({
                       value={row.custom_weight_decision || ""}
                       placeholder={t("store.receipt.chooseWeightDecision")}
                       options={[
-                        { value: "Accept Supplier Weight", label: t("store.receipt.acceptSupplierWeight") },
+                        ...(supplierWeight > 0
+                          ? [{ value: "Accept Supplier Weight", label: t("store.receipt.acceptSupplierWeight") }]
+                          : []),
                         { value: "Accept Estimated Weight", label: t("store.receipt.acceptEstimatedWeight") },
                         { value: "Accept Weighbridge Weight", label: t("store.receipt.acceptWeighbridgeWeight") },
                       ]}
@@ -507,20 +511,6 @@ export default function ReceiptLineForm({
               onChange={(e) =>
                 onSave({ ...row, custom_rate_per_kg: e.target.value })
               }
-            />
-          </FormField>
-          <FormField label={t("store.receipt.heatNumber")} required>
-            <Input
-              value={row.custom_heat_number || ""}
-              onChange={(e) =>
-                onSave({ ...row, custom_heat_number: e.target.value })
-              }
-            />
-          </FormField>
-          <FormField label={t("store.receipt.mtcNumber")}>
-            <Input
-              value={row.custom_mtc_no || ""}
-              onChange={(e) => onSave({ ...row, custom_mtc_no: e.target.value })}
             />
           </FormField>
         </section>

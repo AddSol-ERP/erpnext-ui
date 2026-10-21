@@ -2014,6 +2014,43 @@ def explain_indent_list_access():
 
 
 @frappe.whitelist(allow_guest=False)
+def get_purchase_receipt_capabilities():
+	"""Return optional receipt features contributed by installed apps.
+
+	ERPNext UI owns the endpoint; customer apps opt into the documented hook
+	contract `purchase_receipt_capabilities`. Missing providers produce an empty
+	configuration, so sites without extensions retain standard receipts.
+	"""
+	capabilities = {}
+	for provider in frappe.get_hooks("purchase_receipt_capabilities") or []:
+		try:
+			value = frappe.get_attr(provider)()
+			if isinstance(value, dict):
+				capabilities.update(value)
+		except Exception:
+			frappe.log_error(title="Purchase Receipt capability provider failed")
+	return capabilities
+
+
+@frappe.whitelist(allow_guest=False)
+def get_purchase_receipt_item_capabilities(item_code):
+	"""Return optional per-item receipt metadata via installed-app hooks."""
+	if not item_code:
+		return {}
+	if not frappe.has_permission("Item", "read", item_code):
+		frappe.throw("You do not have permission to view this item.", frappe.PermissionError)
+	result = {}
+	for provider in frappe.get_hooks("purchase_receipt_item_capabilities") or []:
+		try:
+			value = frappe.get_attr(provider)(item_code)
+			if isinstance(value, dict):
+				result.update(value)
+		except Exception:
+			frappe.log_error(title="Purchase Receipt item capability provider failed")
+	return result
+
+
+@frappe.whitelist(allow_guest=False)
 def get_item_uom_options(item_code):
 	"""The UOMs an item may be transacted in, with their whole-number flags.
 

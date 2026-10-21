@@ -2554,28 +2554,45 @@ survived because nothing called the endpoint, while this one did not.
 
 ## 18. NL-specific Purchase Receipt workflow (2026-10-15)
 
-The Store Purchase Receipt flow now has an optional NL plate path while leaving
-the generic receipt path available. It calls
-`addsol_nl_custom.addsol_nl_custom.plates.api.get_plate_settings`; when that
-app or the feature flag is unavailable, the form stays generic. When enabled,
-it checks each selected item through `is_weight_managed_item` and fails closed
-on submit if eligibility could not be confirmed.
+The Store Purchase Receipt queue starts with a supplier, then lists that
+supplier's submitted POs with outstanding quantities. ERPNext's
+`make_purchase_receipt` mapper still supplies the selected PO's supplier,
+currency, warehouse, taxes and outstanding item rows.
 
-Plate rows capture supplier weight and heat number, with optional MTC and
-weighbridge weight. Estimated/variance and accepted weight are shown; the
-approver-only decision is exposed according to `can_decide_weight` from the
-settings API. A PO-derived per-kg rate is displayed as sourced and locked in
-the receipt, while a non-PO receipt can enter or edit the rate. The server
-continues to validate the submitted values and permissions. Drafts can be
-saved with incomplete plate fields and completed later.
+Optional item-specific receipt features use the `erpnext_ui` hook contract:
+`purchase_receipt_capabilities` contributes a dict from a dotted provider path,
+and `purchase_receipt_item_capabilities` contributes per-item data. The
+`erpnext_ui.api.get_purchase_receipt_capabilities` and
+`get_purchase_receipt_item_capabilities` endpoints return merged results.
+Missing providers mean an ordinary ERPNext receipt; the UI must not call a
+customer app by name. Each provider is responsible for its own feature flag and
+eligibility rules. The NL plate app contributes its existing weight settings
+and weighed-item classifier through these hooks.
+
+Weighed receipt rows capture supplier weight and optional weighbridge weight.
+When a truck net weight is entered, the UI allocates it proportionally across
+only the eligible weighed lines using their estimated weights, rounds each line
+to three decimals and puts the rounding remainder on the last line. It stores
+those allocations as weighbridge measurements, never as supplier weights. The
+backend checks the allocation sum and resolves accepted/billable weights. The
+approver-only decision remains governed by the app's setting and server role
+check. A PO-derived per-kg rate is displayed as sourced and locked; a non-PO
+receipt can enter or edit it. Drafts can be saved with incomplete weight data.
+
+Heat Number and MTC belong to Quality Inspection, not Purchase Receipt. For
+the NL weight feature, a submitted inspection of a weighed item requires a Heat
+Number. A submitted QI stamps its batch or serial; Purchase Receipt submission
+also applies already-submitted QI metadata, covering either inspection timing.
+Existing PR Item values are copied to inventory records by an idempotent
+migration before those Custom Fields are deleted.
 
 The plate detail summary should expose the full receipt calculation: theoretical
 weight per plate, estimated total weight, variance, accepted weight, accepted
 weight per plate, standard per-plate `rate` in INR, and line `amount` in INR.
 The latter two are previews derived from accepted weight × rate per kg when a
 weight has been accepted. `custom_unit_weight_kg`, supplier/weighbridge weights,
-`custom_rate_per_kg`, heat, and MTC remain the stored or editable inputs as
-appropriate. The regular editable rate input stays hidden for plate lines; show
+`custom_rate_per_kg` remain the stored or editable inputs as appropriate. Heat
+and MTC are entered on QI. The regular editable rate input stays hidden for plate lines; show
 the ERPNext rate as a read-only derived value.
 
 Both draft Save and Submit must refresh plate classification for every current
@@ -2592,15 +2609,16 @@ child fields and PO mapper fields must survive loading and saving; strip only
 UI-only helper keys from payloads. The receipt landing page lists recent drafts
 so users can resume them.
 
-The feature is restricted to the Store UI and is driven by the NL app's setting
-and per-item API result. Do not enable these fields for the generic purchase
-form or treat frontend visibility as backend enforcement. The backend API also
-returns `can_decide_weight`; if role behavior changes, update the response and
-UI contract together.
+The feature is restricted to the Store UI and is driven by optional provider
+settings and per-item eligibility. Do not treat frontend visibility as backend
+enforcement. A different app can implement the same hook contract without
+changing the UI. The capability response includes `can_decide_weight`; if role
+behavior changes, update the provider and UI contract together.
 
 The frontend production build writes hashed files and a manifest into
 `erpnext_ui/public/erp_ui/`; rebuild after source changes. Targeted ESLint and
 build succeeded for this receipt implementation. At that time full lint still
-reported existing issues in `.smoke-tmp/rules.jsx` and
-`.smoke-tmp/storecheck.jsx`; avoid changing those unless the task is to fix
-their lint errors.
+reported existing issues in `.smoke-tmp/rules.jsx`, `.smoke-tmp/storecheck.jsx`,
+`.smoke-tmp/domShim.js`, `.smoke-tmp/entry.jsx`, and
+`src/pages/ESS/requests/expense/ExpenseClaimForm.jsx`; avoid changing those
+unless the task is to fix their lint errors.
