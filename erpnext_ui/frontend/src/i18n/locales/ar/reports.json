@@ -112,6 +112,8 @@
 		"attendanceRate": "نسبة الحضور حسب الموظف",
 		"plateStockRegister": "سجل مخزون الألواح",
 		"plateStockRegisterDesc": "مخزون الألواح حسب الصنف والمستودع ورقم الفرن",
+		"plateOffcutRegister": "سجل قطع الألواح",
+		"plateOffcutRegisterDesc": "مخزون القطع حسب المقاس والمستودع ورقم الفرن",
 		"applyFilters": "تطبيق عوامل التصفية",
 		"noRows": "لا توجد صفوف لعوامل التصفية هذه.",
 		"loadFailedTitle": "تعذر تحميل التقرير",

@@ -47,6 +47,9 @@ SPA_REPORT_DOCTYPES = {
 # no tile, no sidebar entry, and the route guard denies it.
 SPA_CUSTOM_REPORTS = {
     "plate-stock-register": ("Plate Stock Register", "addsol_nl_custom"),
+    # The offcut pieces are a separate report, not a filter on the plate one:
+    # one report per population, so no figure is counted in two places.
+    "plate-offcut-register": ("Plate Offcut Register", "addsol_nl_custom"),
     "plate-receipt-weight-variance": (
         "Plate Receipt Weight Variance",
         "addsol_nl_custom",
@@ -3021,11 +3024,12 @@ def get_checkin_logs(employee=None, date=None, limit=100):
 # ============================================================
 #
 # Why this exists rather than a hand-built page per report: these reports are
-# authored in another app and their COLUMN SET IS NOT KNOWN HERE. `Plate Stock
-# Register` appends a column at runtime (`execute()` adds a hidden "Offcuts"
-# column whenever `include_offcuts` is falsy), so a SPA table built from a
-# hardcoded field list would silently drop or misplace a column depending on a
-# filter the user toggled. The report's own `columns` list is the only truth.
+# authored in another app and their COLUMN SET IS NOT KNOWN HERE. A Script
+# Report may append a column at runtime -- `Plate Stock Register` used to add a
+# hidden "Offcuts" column whenever `include_offcuts` was falsy, before the
+# offcuts moved to their own report -- so a SPA table built from a hardcoded
+# field list would silently drop or misplace a column depending on a filter
+# the user toggled. The report's own `columns` list is the only truth.
 #
 # The same reasoning drives the filter bar: `Report.filters` is a `Report
 # Filter` CHILD TABLE (frappe/core/doctype/report/report.json), so the fieldname,
@@ -3135,8 +3139,8 @@ def _sanitise_report_filters(raw, declared):
         if f.fieldtype == "Check":
             # Frappe's own report front-end sends "1"/"0"; a real Python bool is
             # equally likely from a JSON client. Collapse both, because the
-            # report tests `filters.get("include_offcuts")` for TRUTHINESS --
-            # the string "0" is truthy and would silently invert the filter.
+            # report tests `filters.get("above_tolerance_only")` for TRUTHINESS
+            # -- the string "0" is truthy and would silently invert the filter.
             clean[name] = 1 if cint(value) else 0
         elif f.fieldtype in ("Date", "Datetime"):
             # Defensive: a relative value could still arrive from a client that

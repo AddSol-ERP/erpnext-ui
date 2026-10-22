@@ -19,10 +19,14 @@ const PAGE_SIZE = 10;
 const FIELDS = [
   "name",
   "source_item",
+  "project",
   "warehouse",
   "heat_number",
   "total_offcut_weight_kg",
   "total_offcut_value",
+  "scrap_weight_kg",
+  "consumed_weight_kg",
+  "consumed_value",
   "creation",
   "modified",
   "docstatus",
@@ -111,6 +115,12 @@ export default function CuttingJobs({ tabs }) {
         cell: (row) => <span className="truncate text-sm">{row.warehouse || "—"}</span>,
       },
       {
+        id: "project",
+        header: t("store.plateOffcut.project"),
+        hideBelow: "md",
+        cell: (row) => <span className="truncate text-sm">{row.project || "—"}</span>,
+      },
+      {
         id: "heat_number",
         header: t("store.plateOffcut.heatNumber"),
         hideBelow: "lg",
@@ -138,6 +148,18 @@ export default function CuttingJobs({ tabs }) {
               : "—"}
           </span>
         ),
+      },
+      {
+        id: "scrap_weight_kg",
+        header: t("store.plateOffcut.scrapWeight"),
+        hideBelow: "lg",
+        cell: (row) => <span className="text-end tabular-nums">{row.scrap_weight_kg != null ? `${row.scrap_weight_kg} Kg` : "—"}</span>,
+      },
+      {
+        id: "consumed_weight_kg",
+        header: t("store.plateOffcut.projectRemainderWeight"),
+        hideBelow: "xl",
+        cell: (row) => <span className="text-end tabular-nums">{row.consumed_weight_kg != null ? `${row.consumed_weight_kg} Kg` : "—"}</span>,
       },
       {
         id: "status",

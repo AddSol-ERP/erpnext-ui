@@ -64,11 +64,13 @@ export function formatCell(value, col) {
 /**
  * Columns to actually render.
  *
- * A report drops a column from DISPLAY without dropping it from the row dict by
- * setting `hidden` — `Plate Stock Register`'s execute() appends a hidden
- * "Offcuts" column whenever `include_offcuts` is falsy. Filtering here is what
- * keeps that from shifting every later value one column to the left, since the
- * row dict still carries the field.
+ * A report drops a column from DISPLAY without dropping it from the row dict
+ * by setting `hidden` — `Plate Stock Register`'s execute() used to append a
+ * hidden "Offcuts" column whenever `include_offcuts` was falsy, before the
+ * offcuts moved to their own report. Filtering here is what keeps that from
+ * shifting every later value one column to the left, since the row dict still
+ * carries the field, and it is why the page renders the report's own column
+ * list rather than a hardcoded one.
  */
 export function visibleColumns(columns) {
   return (columns || []).filter((c) => !c.hidden);
@@ -78,7 +80,7 @@ export function visibleColumns(columns) {
  * Seed a filter value from the report's declared `default`.
  *
  * `Report Filter.default` is Small Text, so a Check's default arrives as the
- * STRING "1"/"0". The report tests `filters.get("include_offcuts")` for
+ * STRING "1"/"0". The report tests `filters.get("above_tolerance_only")` for
  * TRUTHINESS, and the string "0" is truthy in Python — so passing it through
  * un-normalised would silently invert the filter.
  */

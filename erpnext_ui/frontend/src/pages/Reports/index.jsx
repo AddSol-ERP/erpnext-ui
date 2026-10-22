@@ -18,6 +18,7 @@ import {
   PieChart,
   Ruler,
   Scale,
+  Scissors,
 } from "lucide-react";
 
 export default function ReportDashboard() {
@@ -80,6 +81,16 @@ export default function ReportDashboard() {
       description: t("reports.plateStockRegisterDesc"),
       icon: Ruler,
       route: "/reports/plate-stock-register",
+    },
+    {
+      // The offcut pieces, in their own report. Defined in addsol_nl_custom.
+      // Hidden automatically on any site without that app — see
+      // SPA_CUSTOM_REPORTS.
+      key: "plate-offcut-register",
+      title: t("reports.plateOffcutRegister"),
+      description: t("reports.plateOffcutRegisterDesc"),
+      icon: Scissors,
+      route: "/reports/plate-offcut-register",
     },
     {
       // Defined in addsol_nl_custom. Hidden automatically on any site without

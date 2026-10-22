@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
@@ -10,21 +10,16 @@ import FormSection from "../../../../components/FormSection";
 import { ClipboardList } from "lucide-react";
 import LinkField from "../../../../components/LinkField";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { gridCorners } from "../../../../lib/gridCorners";
 import FormSelect from "../../../../components/FormSelect";
-import FormErrorSummary from "../../../../components/FormErrorSummary";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
 import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import {
-  errorList,
+  countErrors,
   focusFirstError,
   requiredFields,
 } from "../../../../lib/formValidation";
 import {
-  choiceResult,
   formulaForChoices,
   isFormulaResponse,
   isManualResponse,
@@ -32,6 +27,23 @@ import {
   parseResponseConfig,
   serializeResponseConfig,
 } from "../../../../lib/qualityResponse";
+import {
+  incompleteParameters,
+  isParameterComplete,
+  overallStatus as computeOverallStatus,
+  parameterStatus,
+  summariseInspection,
+} from "../../../../lib/inspectionProgress";
+import { questionStates } from "../../../../lib/inspectionPaper";
+import { INSPECTION_TYPES, REFERENCE_TYPES } from "../../../../lib/inspectionTypes";
+import {
+  clearInspectionDraft,
+  getInspectionDraft,
+  setInspectionDraft,
+} from "../../../../lib/inspectionDraft";
+import QuestionRail from "./QuestionRail";
+import InspectionQuestion from "./InspectionQuestion";
+import InspectionReview from "./InspectionReview";
 
 /*
  * ERPNext option strings, copied verbatim from
@@ -43,31 +55,19 @@ import {
  * "tidied". The suite asserts them character for character against the
  * doctype JSON.
  *
+ * They live in the shared module, because the inspection list, its filter and
+ * the hub's tiles need the same strings -- and a fix to one copy has to
+ * reach the others.
+ *
  * Inspection Type labels are reused from the list and report pages, which
  * already translate them.
  */
-const INSPECTION_TYPES = [
-  ["Incoming", "quality.typeIncoming"],
-  ["Outgoing", "quality.typeOutgoing"],
-  ["In Process", "quality.typeInProcess"],
-];
-
-const REFERENCE_TYPES = [
-  "Purchase Receipt",
-  "Purchase Invoice",
-  "Subcontracting Receipt",
-  "Delivery Note",
-  "Sales Invoice",
-  "Stock Entry",
-  "Job Card",
-];
 
 // ERPNext declares sample_size as Float with default "1". Coerced, because an
 // <input type="number"> hands back a string and a string would be stored as a
 // string in the posted JSON.
 const DEFAULT_SAMPLE_SIZE = 1;
 
-const PARAM_BP = [{ cols: 1 }, { min: "md", cols: 2 }, { min: "lg", cols: 3 }];
 
 export default function InspectionForm() {
   const { name } = useParams();
@@ -109,7 +109,6 @@ export default function InspectionForm() {
     setDirty(true);
   };
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   // Attach, from the header, on any SAVED inspection -- submitted included.
   // The dialog used to live only on the Quality report page, launched by
   // clicking a "recent failure" row, because at the time it was written there
@@ -137,31 +136,85 @@ export default function InspectionForm() {
 
   const [parameters, setParameters] = useState([]);
 
-  /* ================= CALC ================= */
-  const calculatedParameterStatus = (parameter) => {
-    const config = parameter.responseConfig;
-    if (config?.type === "numeric_range") {
-      const values = (parameter.values || []).filter((value) => value !== "" && value != null);
-      if (!values.length || parameter.min_value === "" || parameter.max_value === "") return "Pending";
-      const numbers = values.map(Number);
-      if (numbers.some((value) => !Number.isFinite(value))) return "Pending";
-      return numbers.every((value) => value >= Number(parameter.min_value) && value <= Number(parameter.max_value))
-        ? "Accepted"
-        : "Rejected";
-    }
-    if (config?.type === "formula_numeric" || config?.type === "formula_text") return parameter.status || "Pending";
-    if (config?.type === "free_text") return parameter.manualStatus || "Pending";
-    if (["yes_no", "ok_not_ok", "pass_fail", "choices"].includes(config?.type)) {
-      return parameter.readingValue ? (choiceResult(config, parameter.readingValue) || "Pending") : "Pending";
-    }
-    if (config?.type === "exact_value") {
-      return parameter.readingValue !== ""
-        ? (parameter.readingValue === String(parameter.value ?? "") ? "Accepted" : "Rejected")
-        : "Pending";
-    }
-    return "Pending";
+  /**
+   * Where the user is in the paper.
+   *
+   * 0 .. parameters.length - 1  ->  a question
+   * parameters.length            ->  the review (the position AFTER the last
+   *                                 question -- not a separate screen)
+   */
+  const [questionIndex, setQuestionIndex] = useState(0);
+
+  /**
+   * Is the details strip open?
+   *
+   * It is a COLLAPSIBLE strip at the top of the one surface, and it stays
+   * OPEN until every required detail is filled. The header is the FIRST part
+   * of the job, not a preamble to it: the item and the reference are what
+   * the readings are about, and until they are there the inspection cannot
+   * be saved at all. So the strip collapses exactly when the details are
+   * complete -- and that collapse is the hand-off to the inspection.
+   *
+   * It used to collapse as soon as a TEMPLATE was picked, which closed it
+   * with the item, the type and the reference still empty -- so the user was
+   * left answering readings against an inspection that could not be saved,
+   * and had to re-open the header to fix it.
+   *
+   * An EXISTING inspection starts CLOSED: the document already says what it
+   * is, so the strip is there for the user who needs to change something --
+   * not something to read on the way in.
+   *
+   * `FormSection` force-opens it when `errorCount` is set, so a failed Save
+   * shows the field that is missing rather than leaving the user with a
+   * message they cannot act on.
+   */
+  const [detailsOpen, setDetailsOpen] = useState(() => !isEdit);
+
+  /** The rail, so a question change can scroll back to the top of it. */
+  const railRef = useRef(null);
+
+  /**
+   * Which questions have their remark box open.
+   *
+   * A remark is the exception, not the rule -- one textarea per question
+   * added a full extra block to every card, and on a phone that was most of
+   * the scrolling. So the box is behind a button.
+   *
+   * The state is a MAP, not a list: an entry of `false` means "explicitly
+   * closed", which is different from "never touched" -- the latter falls
+   * back to "open when the parameter already carries a remark", so a remark
+   * saved on the server is never hidden.
+   */
+  const [remarkState, setRemarkState] = useState({});
+
+  const toggleRemark = (index) =>
+    setRemarkState((current) => ({
+      ...current,
+      [index]: !current[index],
+    }));
+
+  const changeRemark = (index, remark) => {
+    setDirty(true);
+    setParameters((current) => current.map((parameter, i) =>
+      i === index ? { ...parameter, remark } : parameter,
+    ));
   };
 
+  /**
+   * Confirming a template change.
+   *
+   * Changing the template replaces the whole question set, so every answer
+   * entered against the old one is thrown away. The user is asked first --
+   * silently discarding fifteen readings would be unforgivable.
+   */
+  const [confirmTemplate, setConfirmTemplate] = useState(null);
+
+  /* ================= CALC ================= */
+  // `parameterStatus`, `isParameterComplete` and `overallStatus` live in
+  // lib/inspectionProgress.js. They are business rules that fail SILENTLY --
+  // a user who has filled in every reading taps Submit and nothing happens
+  // except a message several screens above the button -- so the rules suite
+  // asserts them there, and the form has one source of truth for them.
   const updateReading = (pi, vi, value) => {
     setDirty(true);
     setParameters((current) => current.map((parameter, index) => {
@@ -170,7 +223,7 @@ export default function InspectionForm() {
       next.values[vi] = value;
       next.status = isFormulaResponse(next.responseConfig)
         ? "Pending"
-        : calculatedParameterStatus(next);
+        : parameterStatus(next);
       return next;
     }));
   };
@@ -182,16 +235,9 @@ export default function InspectionForm() {
       const next = { ...parameter, readingValue };
       next.status = isFormulaResponse(next.responseConfig)
         ? "Pending"
-        : calculatedParameterStatus(next);
+        : parameterStatus(next);
       return next;
     }));
-  };
-
-  const updateParameterRemark = (pi, remark) => {
-    setDirty(true);
-    setParameters((current) => current.map((parameter, index) =>
-      index === pi ? { ...parameter, remark } : parameter,
-    ));
   };
 
   const setManualStatus = (pi, status) => {
@@ -202,15 +248,131 @@ export default function InspectionForm() {
   };
 
   /* ================= RESULT ================= */
-  const overallStatus = (() => {
-    if (!parameters.length) return "";
+  const overallStatus = computeOverallStatus(parameters);
 
-    if (parameters.some((p) => calculatedParameterStatus(p) === "Pending")) return "Pending";
+  /**
+   * Are the inspection's details complete?
+   *
+   * These are the fields ERPNext marks `reqd` on the doctype
+   * (`quality_inspection.json`: item_code, inspection_type, reference_type,
+   * reference_name, sample_size) plus the template, which the SPA requires.
+   *
+   * Until they are all there the inspection cannot be saved, and the
+   * readings cannot be judged -- the item and the reference are what the
+   * readings are about. So the paper WAITS: the details strip holds the
+   * screen until the header is done, and only then does the inspection
+   * become the work.
+   */
+  /**
+   * The details that are still missing.
+   *
+   * `requiredFields` is the same helper the Save button uses, so "Start
+   * inspection" and Save agree on what complete means. These are the fields
+   * ERPNext marks `reqd` on the doctype (`quality_inspection.json`:
+   * item_code, inspection_type, reference_type, reference_name, sample_size)
+   * plus the template, which the SPA requires.
+   */
+  const detailsErrors = useMemo(
+    () =>
+      requiredFields(
+        doc,
+        {
+          template: t("quality.template"),
+          item_code: t("quality.item"),
+          inspection_type: t("quality.inspectionType"),
+          reference_type: t("quality.referenceType"),
+          reference_name: t("quality.referenceName"),
+          sample_size: t("quality.sampleSize"),
+        },
+        t,
+      ),
+    [doc, t],
+  );
 
-    if (parameters.some((p) => calculatedParameterStatus(p) === "Rejected")) return "Rejected";
+  /**
+   * Are the details complete?
+   *
+   * Until they are, the inspection cannot be saved, and the readings cannot
+   * be judged -- the item and the reference are what the readings are about.
+   * So the paper WAITS: the details strip holds the screen until the header
+   * is done, and only then does the inspection become the work.
+   */
+  const detailsComplete = Object.keys(detailsErrors).length === 0;
 
-    return "Accepted";
-  })();
+  /**
+   * An EXISTING inspection closes its details by itself.
+   *
+   * It was started when it was created, and the strip is there for the user
+   * who needs to change something -- so when the details are complete again
+   * it steps aside on its own.
+   *
+   * A NEW inspection does NOT: that one is closed BY HAND, with the "Start
+   * inspection" button. The last field being filled is not the user saying
+   * "the header is done" -- and a strip that vanishes under them mid-edit is
+   * worse than one they close themselves.
+   */
+  useEffect(() => {
+    if (!isEdit) return;
+    if (!detailsComplete) return;
+    // The documented "reset state when a prop changes" case: the details
+    // becoming complete is what closes an EXISTING inspection's strip.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDetailsOpen(false);
+  }, [detailsComplete, isEdit]);
+
+  /**
+   * Begin the inspection.
+   *
+   * If the details are not complete, the missing ones are marked and the
+   * first is focused -- the same thing Save does, rather than a button that
+   * silently does nothing.
+   */
+  const startInspection = () => {
+    const missing = Object.keys(detailsErrors);
+    if (missing.length) {
+      setFieldErrors((prev) => ({ ...prev, ...detailsErrors }));
+      // The summary states the SITUATION; the field carries the message.
+      // Repeating "Template is required" in the banner AND under the field
+      // says the same sentence twice on the same screen.
+      requestAnimationFrame(() => focusFirstError(detailsErrors));
+      return;
+    }
+    setFieldErrors({});
+    setDetailsOpen(false);
+  };
+
+
+  /**
+   * The counts the rail shows, and the state of every question.
+   */
+  const progress = useMemo(() => summariseInspection(parameters), [parameters]);
+  const states = useMemo(() => questionStates(parameters), [parameters]);
+
+  /* ================= THE WALK ================= */
+
+  /**
+   * Go to a question (or to the review, which is `parameters.length`).
+   *
+   * The page scrolls back to the rail so the next question is the first thing
+   * on screen. `scrollIntoView` on the rail -- NOT `window.scrollTo`: the
+   * scroll container is the app's `<main>`, not the window, so a
+   * `window.scrollTo` would do nothing at all.
+   */
+  const goTo = (index) => {
+    setQuestionIndex(index);
+    requestAnimationFrame(() => {
+      railRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const goToNext = () => {
+    if (questionIndex < parameters.length - 1) goTo(questionIndex + 1);
+    else goTo(parameters.length);
+  };
+
+  const goToPrevious = () => {
+    if (questionIndex > 0) goTo(questionIndex - 1);
+  };
 
   /* ================= REFERENCE ================= */
 
@@ -293,7 +455,7 @@ export default function InspectionForm() {
           : "",
         status: existing?.status || "Pending",
       };
-      parameter.status = calculatedParameterStatus(parameter);
+      parameter.status = parameterStatus(parameter);
       if (isFormulaResponse(responseConfig)) {
         parameter.status = existing?.status || "Pending";
       }
@@ -304,7 +466,15 @@ export default function InspectionForm() {
   };
 
   /* ================= TEMPLATE LOAD ================= */
-  const handleTemplateChange = async (template) => {
+
+  /**
+   * Load a template's questions.
+   *
+   * Separated from the change handler because the change handler may ASK
+   * first: picking a template replaces the whole question set, so every
+   * answer entered against the old one goes with it.
+   */
+  const loadTemplate = async (template) => {
     updateDoc({ template });
 
     const res = await get(`resource/Quality Inspection Template/${template}`);
@@ -327,6 +497,33 @@ export default function InspectionForm() {
     }));
 
     setParameters(mapped);
+    setQuestionIndex(0);
+    setRemarkState({});
+    // The strip does NOT close here. Picking a template is one of five
+    // details, not the hand-off -- the strip closes when they are ALL filled
+    // (see the hand-off effect), because until then the inspection cannot be
+    // saved and the readings would be answers to a half-configured document.
+  };
+
+  const handleTemplateChange = (template) => {
+    if (!template) {
+      updateDoc({ template: "" });
+      setParameters([]);
+      setQuestionIndex(0);
+      return;
+    }
+    // Only ask when there is something to lose.
+    if (parameters.length && parameters.some((p) => isParameterComplete(p))) {
+      setConfirmTemplate(template);
+      return;
+    }
+    loadTemplate(template);
+  };
+
+  const applyTemplateChange = async () => {
+    const template = confirmTemplate;
+    setConfirmTemplate(null);
+    if (template) await loadTemplate(template);
   };
 
   /* ================= SAVE ================= */
@@ -344,39 +541,18 @@ export default function InspectionForm() {
     parametersRef.current = parameters;
   });
 
-  const isParameterComplete = (parameter) => {
-    const type = parameter.responseConfig?.type;
-    if (type === "numeric_range") {
-      return parameter.values.some((value) => value !== "")
-        && parameter.min_value !== ""
-        && parameter.max_value !== "";
-    }
-    if (type === "formula_numeric") {
-      return !!parameter.acceptance_formula.trim()
-        && parameter.values.some((value) => value !== "");
-    }
-    if (type === "formula_text") {
-      return !!parameter.acceptance_formula.trim() && !!parameter.readingValue.trim();
-    }
-    if (type === "free_text") {
-      return !!parameter.readingValue.trim()
-        && ["Accepted", "Rejected"].includes(parameter.manualStatus);
-    }
-    if (type === "exact_value") return !!parameter.readingValue;
-    return !!parameter.readingValue
-      && (parameter.responseConfig?.choices || []).some(
-        (choice) => choice.value === parameter.readingValue,
-      );
-  };
-
-  const getIncompleteParameters = () => parametersRef.current.filter((parameter) => !isParameterComplete(parameter));
+  const getIncompleteParameters = () =>
+    incompleteParameters(parametersRef.current);
 
   /*
    * Save and Submit have OPPOSITE conditions and must not share one `if` --
    * the same correction made on the Plate Offcut form.
    */
   const canSave = !doc.docstatus && (dirty || !isEdit);
-  const canSubmit = !doc.docstatus && !dirty && isEdit;
+  // Submit is offered once there is a paper to submit. An inspection with no
+  // questions is not an inspection, and `handleSubmit` would happily create
+  // one.
+  const canSubmit = !doc.docstatus && parameters.length > 0;
 
   /**
    * The posted document. One builder, shared by Save and Submit.
@@ -457,12 +633,11 @@ export default function InspectionForm() {
     );
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
-      const list = errorList(errs);
-      setError(list.length > 1 ? t("common.fixErrors") : list[0]);
+      // No banner under the fields: the message is already on the field, and
+      // the strip force-opens on the error count so it is right there.
       requestAnimationFrame(() => focusFirstError(errs));
       return;
     }
-    setError("");
 
     setSaving(true);
     try {
@@ -479,6 +654,9 @@ export default function InspectionForm() {
           ? t("common.updatedSuccess", { name: "Quality Inspection" })
           : t("common.createdSuccess", { name: "Quality Inspection" }),
       );
+      // The document is on the server now, so the in-progress paper is no
+      // longer the place to come back to.
+      clearInspectionDraft();
       navigate("/quality/inspection");
     } catch (e) {
       // e.message is already the server's own wording, resolved from
@@ -511,7 +689,17 @@ export default function InspectionForm() {
     const current = docRef.current;
 
     if (getIncompleteParameters().length) {
-      setError(t("quality.completeAllParameters"));
+      // A TOAST, not a banner: the Submit button is in the fixed bottom
+      // toolbar, so the toast appears where the user just pressed, and the
+      // jump takes them to the reading that is actually missing. A message
+      // at the top of the page would be several screens above the button --
+      // "nothing happened" is exactly what they would see.
+      toast.error(t("quality.completeAllParameters"));
+      const list = parametersRef.current;
+      const firstIncomplete = list.findIndex(
+        (parameter) => !isParameterComplete(parameter),
+      );
+      if (firstIncomplete >= 0) goTo(firstIncomplete);
       return;
     }
 
@@ -527,12 +715,11 @@ export default function InspectionForm() {
     );
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
-      const list = errorList(errs);
-      setError(list.length > 1 ? t("common.fixErrors") : list[0]);
+      // No banner under the fields: the message is already on the field, and
+      // the strip force-opens on the error count so it is right there.
       requestAnimationFrame(() => focusFirstError(errs));
       return;
     }
-    setError("");
 
     setSaving(true);
     try {
@@ -555,6 +742,7 @@ export default function InspectionForm() {
       toast.success(
         t("common.submittedSuccess", { name: "Quality Inspection" }),
       );
+      clearInspectionDraft();
       navigate("/quality/inspection");
     } catch (e) {
       toast.error(e.message || t("common.submitFailed"));
@@ -566,6 +754,27 @@ export default function InspectionForm() {
 
   /* ================= HEADER ================= */
   useEffect(() => {
+    // The verdict, in the top bar, so it is visible from anywhere on the page.
+    // The tone follows the app's document-badge convention, while the
+    // READINGS use the module's own (a pending reading is a normal state, and
+    // is deliberately not amber).
+    const status = overallStatus
+      ? {
+          label:
+            overallStatus === "Accepted"
+              ? t("quality.statusAccepted")
+              : overallStatus === "Rejected"
+                ? t("quality.statusRejected")
+                : t("quality.statusPending"),
+          tone:
+            overallStatus === "Accepted"
+              ? "complete"
+              : overallStatus === "Rejected"
+                ? "danger"
+                : "open",
+        }
+      : null;
+
     setHeader({
       title: isEdit
         ? t("quality.inspectionTitle", { name: doc.name || "" })
@@ -584,15 +793,26 @@ export default function InspectionForm() {
         },
       ],
 
+      status,
+
       // A submitted Quality Inspection is READ-ONLY in ERPNext (docstatus 1,
       // allow_on_submit is not set on any editable field here). Offering Save
       // and Submit on one is not just misleading -- Save would be rejected by
       // the server, and the user would have no way to tell that from a real
       // save.
       //
-      // Save is also gated on `dirty`, and Submit on `!dirty`: they are
-      // opposite conditions, since Submit acts on the STORED document and must
-      // not run against edits that were never saved.
+      // SUBMIT IS IN THE TOOLBAR, not only in the review's content.
+      //
+      // The toolbar is a FIXED bottom bar, so an action in it cannot be
+      // scrolled away -- and on a phone a button at the bottom of a long
+      // page is exactly the one that goes missing. The review also offers
+      // Submit in its content, because that is the obvious next step on a
+      // desk, but the toolbar is the GUARANTEE: it is reachable from any
+      // scroll position, on any screen.
+      //
+      // `handleSubmit` saves first and then submits, so it is safe to offer
+      // while the document still has unsaved changes -- and it refuses (and
+      // jumps to the first missing reading) when the paper is incomplete.
       actions: [
         canSave && {
           label: t("common.save"),
@@ -607,8 +827,6 @@ export default function InspectionForm() {
         canSubmit && {
           label: t("common.submit"),
           variant: "btn-primary",
-          // Was `handleSave`, so "Submit" saved a second time and toasted
-          // "created successfully" while leaving the document at docstatus 0.
           onClick: handleSubmit,
           disabled: saving,
         },
@@ -616,6 +834,11 @@ export default function InspectionForm() {
         // Any saved inspection, draft or submitted: a defect photo belongs with
         // the inspection whether or not the readings are final, and submitted is
         // the case the report page's attach used to serve.
+        //
+        // Two branches, because the DIALOG differs: a document that has never
+        // been saved has no name to attach to yet, so it opens the
+        // "required attachment" dialog and the file is uploaded with the
+        // first save; a saved one opens the normal attach dialog.
         isEdit && {
           label: t("attachments.open"),
           variant: "btn-outline-primary",
@@ -631,7 +854,7 @@ export default function InspectionForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, doc, initialAttachment]);
+  }, [isEdit, doc, initialAttachment, overallStatus, parameters.length]);
 
   /* ================= LOAD EFFECT ================= */
   useEffect(() => {
@@ -643,14 +866,81 @@ export default function InspectionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
+  /* ================= THE DRAFT ================= */
+  // The in-progress paper, kept outside React so it survives the user walking
+  // away to the list and coming back. See lib/inspectionDraft.js for why it
+  // is not a context.
+
+  useEffect(() => {
+    // A saved document is the server's business; only an UNSAVED paper is
+    // worth keeping.
+    if (isEdit) return;
+    // Nothing started yet -- there is no paper to come back to.
+    if (!parameters.length && !doc.template) return;
+
+    setInspectionDraft({
+      doc: { ...doc },
+      parameters,
+      questionIndex,
+      savedAt: Date.now(),
+    });
+  }, [doc, parameters, questionIndex, isEdit]);
+
+  useEffect(() => {
+    // Restore the paper, ONCE, on a new inspection.
+    //
+    // This runs BEFORE the effect above, so the draft is never briefly
+    // overwritten with an empty one: the guard there ("nothing started yet")
+    // stops it writing at all until the template is back in place.
+    if (isEdit) return;
+    const draft = getInspectionDraft();
+    if (!draft) return;
+
+    // This is the "sync with an external system" case the rule is about:
+    // the draft store is outside React, and reading it back in is a one-off
+    // on mount, not a cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDoc((current) => ({ ...current, ...draft.doc }));
+    setParameters(draft.parameters || []);
+    setQuestionIndex(draft.questionIndex ?? 0);
+    // The strip is NOT closed here: the hand-off effect closes it when the
+    // restored details are complete, and a restored paper whose details are
+    // NOT complete should show them, not hide them.
+    setDirty(true);
+  }, [isEdit]);
+
   /* ================= UI ================= */
   return (
     <div className="mx-auto w-full max-w-[1100px]">
-      {/* BASIC */}
+      {/* THE DETAILS
+          A collapsible strip, not a screen. It stays OPEN until every
+          required detail is filled, and that collapse IS the hand-off to the
+          inspection -- there is no "Start" button to press and no other page
+          to move to.
+
+          `errorCount` force-opens it, so a Save that failed on a missing
+          reference shows the field that is missing rather than leaving the
+          user with a message they cannot act on. */}
       <FormSection
         className="mb-3"
-        title={t("quality.basicInfo")}
+        title={t("quality.inspectionDetails")}
         icon={ClipboardList}
+        collapsible
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        errorCount={countErrors(fieldErrors)}
+        action={
+          !detailsOpen ? (
+            <span className="truncate text-xs text-muted-foreground">
+              {/* The summary says what is still missing, not what happens to
+                  be filled in -- a collapsed strip showing an item while the
+                  type and the reference are empty reads as "done". */}
+              {detailsComplete
+                ? [doc.item_code, doc.reference_name].filter(Boolean).join(" · ")
+                : t("quality.detailsNeeded")}
+            </span>
+          ) : null
+        }
         contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2"
       >
           <FormField label={t("quality.template")} required>
@@ -688,7 +978,7 @@ export default function InspectionForm() {
                 setFieldErrors((p) => ({ ...p, inspection_type: "" }));
               }}
               placeholder={t("quality.selectType")}
-              options={INSPECTION_TYPES.map(([value, key]) => [value, t(key)])}
+              options={INSPECTION_TYPES.map((it) => [it.value, t(it.labelKey)])}
             />
           </FormField>
 
@@ -759,181 +1049,100 @@ export default function InspectionForm() {
               }}
             />
           </FormField>
+
+          {/* START INSPECTION
+              A NEW inspection is closed BY HAND. The last field being filled
+              is not the user saying "the header is done" -- and a strip that
+              vanishes under them mid-edit is worse than one they close
+              themselves. So the button is the hand-off.
+
+              Clicking it with a detail still missing marks the missing ones
+              and focuses the first, exactly as Save does, rather than
+              silently doing nothing. */}
+          {!isEdit ? (
+            <div className="flex justify-end md:col-span-2">
+              <Button
+                type="button"
+                variant="default"
+                onClick={startInspection}
+                disabled={Boolean(doc.docstatus)}
+              >
+                {t("quality.startInspection")}
+              </Button>
+            </div>
+          ) : null}
       </FormSection>
 
-      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
-      {/* PARAMETERS */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {parameters.map((p, i) => {
-          const result = calculatedParameterStatus(p);
-          const responseType = p.responseConfig?.type || "numeric_range";
-          return (
-            <Card
-              key={i}
-              className={gridCorners({
-                breakpoints: PARAM_BP,
-                index: i,
-                count: parameters.length,
-              })}
-            >
-              <CardContent className="p-4">
-                <div className="text-center font-bold">{p.parameter}</div>
-                <p className="mb-3 mt-1 text-center text-xs text-muted-foreground">
-                  {t(`quality.responseTypes.${responseType}`)}
-                  {responseType === "numeric_range" ? ` · ${p.min_value} – ${p.max_value}` : ""}
-                  {responseType === "exact_value" ? ` · ${t("quality.expectedValue")}: ${p.value}` : ""}
-                </p>
+      {/* THE RAIL
+          One chip per question, plus one for the review. The whole point is
+          that the user never has to scroll to find their place, and that
+          every question is one tap away.
 
-                {isNumericResponse(p.responseConfig) ? (
-                  <div className="space-y-2">
-                    {responseType === "formula_numeric" ? (
-                      <p className="text-xs text-muted-foreground">
-                        {t("quality.formula")}: {p.acceptance_formula || t("quality.formulaShownOnTemplate")}
-                      </p>
-                    ) : null}
-                    {p.values.map((value, index) => (
-                      <Input
-                        key={index}
-                        className="text-center"
-                        type="number"
-                        value={value}
-                        disabled={Boolean(doc.docstatus)}
-                        placeholder={t("quality.reading", { n: index + 1 })}
-                        onChange={(event) => updateReading(i, index, event.target.value)}
-                      />
-                    ))}
-                    {p.values.length < 10 && !doc.docstatus ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => setParameters((current) => current.map((parameter, index) =>
-                          index === i ? { ...parameter, values: [...parameter.values, ""] } : parameter,
-                        ))}
-                      >
-                        + {t("quality.addReading")}
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {responseType === "formula_text" ? (
-                      <p className="text-xs text-muted-foreground">
-                        {t("quality.formula")}: {p.acceptance_formula || t("quality.formulaShownOnTemplate")}
-                      </p>
-                    ) : null}
-                    {responseType === "free_text" ? (
-                      <Textarea
-                        rows={3}
-                        value={p.readingValue}
-                        disabled={Boolean(doc.docstatus)}
-                        placeholder={t("quality.enterObservation")}
-                        onChange={(event) => updateReadingValue(i, event.target.value)}
-                      />
-                    ) : (
-                      <FormField label={t("quality.readingValue")}>
-                        {responseType === "formula_text" || responseType === "exact_value" ? (
-                          <Input
-                            value={p.readingValue}
-                            disabled={Boolean(doc.docstatus)}
-                            placeholder={t("quality.enterResult")}
-                            onChange={(event) => updateReadingValue(i, event.target.value)}
-                          />
-                        ) : (
-                          <FormSelect
-                            value={p.readingValue}
-                            disabled={Boolean(doc.docstatus)}
-                            placeholder={t("quality.chooseResult")}
-                            onChange={(value) => updateReadingValue(i, value)}
-                            options={(p.responseConfig?.choices || []).map((choice) => [choice.value, choice.value])}
-                          />
-                        )}
-                      </FormField>
-                    )}
-
-                    {responseType === "free_text" ? (
-                      <FormField label={t("quality.manualDecision")}>
-                        <FormSelect
-                          value={p.manualStatus}
-                          disabled={Boolean(doc.docstatus)}
-                          placeholder={t("quality.chooseResult")}
-                          onChange={(value) => setManualStatus(i, value)}
-                          options={[
-                            ["Accepted", t("quality.statusAccepted")],
-                            ["Rejected", t("quality.statusRejected")],
-                          ]}
-                        />
-                      </FormField>
-                    ) : null}
-                  </div>
-                )}
-
-                <FormField className="mt-3" label={t("quality.parameterRemarks")}>
-                  <Textarea
-                    rows={2}
-                    value={p.remark || ""}
-                    disabled={Boolean(doc.docstatus)}
-                    placeholder={t("quality.parameterRemarksHint")}
-                    onChange={(event) => updateParameterRemark(i, event.target.value)}
-                  />
-                </FormField>
-
-                <div className="mt-3 text-center">
-                  <Badge
-                    variant="outline"
-                    className={
-                      result === "Accepted"
-                        ? "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30"
-                        : result === "Rejected"
-                          ? "bg-destructive/15 text-destructive ring-destructive/30"
-                          : "bg-muted text-muted-foreground ring-border"
-                    }
-                  >
-                    {result === "Accepted"
-                      ? t("quality.statusAccepted")
-                      : result === "Rejected"
-                        ? t("quality.statusRejected")
-                        : t("quality.statusPending")}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <FormSection title={t("quality.inspectionRemarks")} icon={ClipboardList}>
-        <Textarea
-          rows={3}
-          value={doc.remarks || ""}
-          disabled={Boolean(doc.docstatus)}
-          onChange={(event) => updateDoc({ remarks: event.target.value })}
+          It waits for the details: the rail is the paper's navigation, and
+          the paper is not the work until the header is done. */}
+      {detailsComplete && parameters.length > 0 && (
+        <QuestionRail
+          railRef={railRef}
+          parameters={parameters}
+          states={states}
+          current={questionIndex}
+          remaining={progress.remaining}
+          onSelect={goTo}
         />
-      </FormSection>
+      )}
 
-      {/* FINAL RESULT */}
-      <Card className="mt-3">
-        <CardContent className="p-4 text-center">
-          <div className="text-sm text-muted-foreground">{t("quality.finalResult")}</div>
-          <div
-            className={`text-2xl font-bold ${
-              overallStatus === "Accepted"
-                ? "text-emerald-600"
-                : overallStatus === "Rejected"
-                  ? "text-destructive"
-                  : "text-muted-foreground"
-            }`}
-          >
-            {overallStatus === "Accepted"
-              ? t("quality.statusAccepted")
-              : overallStatus === "Rejected"
-                ? t("quality.statusRejected")
-                : t("quality.statusPending")}
-          </div>
-        </CardContent>
-      </Card>
+      {/* THE PAPER
+          One question at a time, or the review -- the position AFTER the
+          last question, not a separate screen.
+
+          It waits for the details. The header is not a preamble: the item
+          and the reference are what the readings are about, and until they
+          are there the inspection cannot be saved at all. So the details
+          hold the screen, and the paper arrives with the hand-off. */}
+      {!detailsComplete ? (
+        <p className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          {doc.template
+            ? t("quality.completeDetailsFirst")
+            : t("quality.noParametersYet")}
+        </p>
+      ) : parameters.length === 0 ? (
+        <p className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          {t("quality.noParametersYet")}
+        </p>
+      ) : questionIndex >= parameters.length ? (
+        <InspectionReview
+          parameters={parameters}
+          states={states}
+          progress={progress}
+          overallStatus={overallStatus}
+          remarks={doc.remarks}
+          onRemarksChange={(remarks) => updateDoc({ remarks })}
+          onJump={goTo}
+          onBack={() => goTo(parameters.length - 1)}
+          onSubmit={handleSubmit}
+          saving={saving}
+          disabled={Boolean(doc.docstatus)}
+        />
+      ) : (
+        <InspectionQuestion
+          key={questionIndex}
+          parameter={parameters[questionIndex]}
+          index={questionIndex}
+          status={parameterStatus(parameters[questionIndex])}
+          disabled={Boolean(doc.docstatus)}
+          remarkOpen={remarkState[questionIndex] ?? Boolean(parameters[questionIndex].remark)}
+          onToggleRemark={() => toggleRemark(questionIndex)}
+          onRemarkChange={(remark) => changeRemark(questionIndex, remark)}
+          onReadingChange={(vi, value) => updateReading(questionIndex, vi, value)}
+          onReadingValueChange={(value) => updateReadingValue(questionIndex, value)}
+          onManualStatusChange={(status) => setManualStatus(questionIndex, status)}
+          onNext={goToNext}
+          onPrevious={goToPrevious}
+          isFirst={questionIndex === 0}
+          isLast={questionIndex === parameters.length - 1}
+        />
+      )}
 
       {/* Browse mode: single Done footer, closing submits nothing. */}
       <RequiredAttachmentDialog
@@ -952,6 +1161,19 @@ export default function InspectionForm() {
         docname={name || ""}
         readOnly={Boolean(doc.docstatus)}
         onClose={() => setShowAttach(false)}
+      />
+
+      {/* Changing the template throws away every answer entered against the
+          old one. The user is asked first -- silently discarding fifteen
+          readings would be unforgivable. */}
+      <ConfirmDialog
+        open={Boolean(confirmTemplate)}
+        onCancel={() => setConfirmTemplate(null)}
+        onConfirm={applyTemplateChange}
+        variant="default"
+        title={t("quality.changeTemplateTitle")}
+        message={t("quality.changeTemplateWarning")}
+        confirmLabel={t("quality.changeTemplateAnyway")}
       />
     </div>
   );

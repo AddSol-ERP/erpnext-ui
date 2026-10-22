@@ -332,32 +332,60 @@ export const DOCTYPE_CONFIG = {
   // ============================
   // QUALITY MODULE (enhancements)
   // ============================
+  // The parameter-group master is served by its own screens
+  // (`/quality/parameter-groups`), but the generic `/quality/:doctype` routes
+  // also resolve it -- and a doctype with no entry here falls back to
+  // `titleField: "name"`, which for this doctype is the same string as
+  // `group_name` anyway. Declared so the fallback is deliberate rather than
+  // accidental.
+  "Quality Inspection Parameter Group": {
+    list: {
+      titleField: "group_name",
+      subtitleField: "",
+      metaField: "modified",
+      statusField: "",
+    },
+    searchFields: ["group_name", "name"],
+  },
   "Non Conformance": {
     list: {
       titleField: "subject",
       subtitleField: "name",
-      metaField: "date",
+      // The doctype has NO `date` field -- it was named here, and a field the
+      // doctype lacks fails the WHOLE query, so this list was dead too.
+      // `modified` is a standard field and always exists.
+      metaField: "modified",
       statusField: "status",
     },
     searchFields: ["subject", "name"],
   },
-  "Corrective Action": {
+  "Quality Action": {
     list: {
+      // ERPNext's CAPA doctype. It has no title field -- the name
+      // (QA-ACT-00001) IS the label -- and `corrective_preventive` is what
+      // says which half of the CAPA a row is.
+      //
+      // This entry used to be "Corrective Action", which is a FIELD on
+      // "Non Conformance" and not a doctype at all: the tile asked ERPNext for
+      // `resource/Corrective Action` and was answered "DocType Corrective
+      // Action not found".
       titleField: "name",
-      subtitleField: "status",
+      subtitleField: "corrective_preventive",
       metaField: "date",
       statusField: "status",
     },
-    searchFields: ["name"],
+    searchFields: ["name", "goal"],
   },
   "Quality Procedure": {
     list: {
-      titleField: "name",
-      subtitleField: "procedure_scope",
+      titleField: "quality_procedure_name",
+      subtitleField: "process_owner_full_name",
       metaField: "",
-      statusField: "is_active",
+      // `procedure_scope` and `is_active` were named here; NEITHER exists on
+      // the doctype, and a field the doctype lacks fails the whole query.
+      statusField: "",
     },
-    searchFields: ["name"],
+    searchFields: ["quality_procedure_name"],
   },
 };
 

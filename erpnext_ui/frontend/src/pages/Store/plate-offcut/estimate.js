@@ -1,4 +1,4 @@
-import { get } from "../../../services/api";
+import { post } from "../../../services/api";
 
 /**
  * Live offcut estimates from addsol_nl_custom.
@@ -7,7 +7,7 @@ import { get } from "../../../services/api";
  * admin-authored formula on the Item Group using L/W/T/MF and THROWS rather than
  * guessing (`plates/weight.py`), so there is nothing for this module to work out.
  * It asks `estimate_offcut_weights`, which runs the same functions the save runs
- * (`get_offcut_details`, `compute_offcut`, `auto_scrap_weight`, `offcut_totals`)
+ * (`get_offcut_details`, `compute_offcut`, `offcut_totals`)
  * -- which is exactly why the preview and the save cannot disagree, provided the
  * request we send describes the same rows the save will contain.
  */
@@ -28,8 +28,8 @@ export const OFFCUT_ESTIMATE_METHOD =
  * If they diverged, the preview would total six pieces while the save wrote one
  * -- the totals would look right and the stock would be wrong.
  *
- * @param {Array<{_rid: string, length_mm: any, width_mm: any, pieces?: any}>} rows
- * @returns {Array<{name: string, length_mm: any, width_mm: any}>}
+ * @param {Array<{_rid: string, shape?: string, length_mm: any, width_mm: any, diameter_mm: any, pieces?: any}>} rows
+ * @returns {Array<{name: string, shape: string, length_mm?: any, width_mm?: any, diameter_mm?: any}>}
  */
 export function expandRows(rows) {
   const out = [];
@@ -41,8 +41,10 @@ export function expandRows(rows) {
         // untouched. Matching replies on this rather than on an index is what
         // stops a slow answer landing on the wrong row.
         name: `${row._rid}#${i}`,
-        length_mm: row.length_mm,
-        width_mm: row.width_mm,
+        shape: row.shape || "Rectangle",
+        ...(row.shape === "Circle"
+          ? { diameter_mm: row.diameter_mm }
+          : { length_mm: row.length_mm, width_mm: row.width_mm }),
       });
     }
   }
@@ -129,10 +131,11 @@ export function serverReason(err) {
  * @throws  whatever the server raised -- the caller decides whether to clear the
  *          numbers or surface the message
  */
-export async function fetchEstimate(sourceSerialNo, rows) {
-  const res = await get(`method/${OFFCUT_ESTIMATE_METHOD}`, {
+export async function fetchEstimate(sourceSerialNo, rows, scrapWeightKg = 0) {
+  const res = await post(`method/${OFFCUT_ESTIMATE_METHOD}`, {
     source_serial_no: sourceSerialNo,
     rows: JSON.stringify(expandRows(rows)),
+    scrap_weight_kg: scrapWeightKg,
   });
   const payload = res?.message || {};
   return {

@@ -4,7 +4,7 @@ import { FormField } from "../../../components/FormField";
 import FormSelect from "../../../components/FormSelect";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { defaultResponseConfig, updateConfigType } from "../../../lib/qualityResponse";
+import { defaultResponseConfig, responseTypeHintKey, updateConfigType } from "../../../lib/qualityResponse";
 
 const TYPE_KEYS = [
   "numeric_range",
@@ -23,9 +23,15 @@ export default function ResponseConfigEditor({ value, onChange, disabled = false
   const config = value || defaultResponseConfig();
   const setChoices = (choices) => onChange({ ...config, choices });
 
+  // What the selected type asks the INSPECTOR for. Without it, "Formula
+  // using text result" is a label and nothing more -- the person configuring
+  // it has no way to tell that they will have to write a Python expression
+  // over a single value.
+  const hintKey = responseTypeHintKey(config.type);
+
   return (
     <div className="space-y-3">
-      <FormField label={t("quality.responseType")}>
+      <FormField label={t("quality.responseType")} hint={hintKey ? t(hintKey) : undefined}>
         <FormSelect
           value={config.type}
           disabled={disabled}
@@ -51,7 +57,24 @@ export default function ResponseConfigEditor({ value, onChange, disabled = false
             ) : null}
           </div>
           {(config.choices || []).map((choice, index) => (
-            <div key={`${index}-${choice.value}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,10rem)_auto] gap-2">
+            // The key MUST NOT depend on `choice.value`.
+            //
+            // A React key that changes between renders makes React unmount
+            // the old element and mount a new one. The row's own <input> is
+            // inside it, so the DOM node -- and the caret with it -- is
+            // destroyed and rebuilt on every keystroke: the user types, the
+            // field loses focus after the first character, and the second
+            // character goes to nothing. It reads as a frozen field, not as
+            // a remount.
+            //
+            // The index is the right key here: rows are only APPENDED and
+            // DELETED, never reordered or filtered, and the children are
+            // controlled and stateless, so nothing is carried across rows.
+            // React reuses the DOM nodes when a row is deleted (only the
+            // last one goes away), so the delete does not remount anything
+            // either. This matches the sibling template form, which keys its
+            // own rows by index.
+            <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,10rem)_auto] gap-2">
               <Input
                 aria-label={t("quality.choiceValue", { n: index + 1 })}
                 value={choice.value}

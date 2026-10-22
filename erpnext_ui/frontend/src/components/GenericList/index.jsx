@@ -116,6 +116,31 @@ export default function GenericListPage({ doctypeOverride }) {
   const fieldsCache = useRef({});
   const decodedDoctype = decodeURIComponent(doctype);
 
+  /**
+   * The doctype's meta, fetched ONCE per doctype and SHARED.
+   *
+   * Two things need it: the filter chips need the whole field list, and the
+   * query needs to know which configured columns actually exist. Sharing one
+   * promise means the second use costs no extra request.
+   *
+   * Keyed by doctype, so a route change to another doctype fetches its own
+   * meta rather than reusing the previous one's.
+   *
+   * A FAILED fetch resolves to null, which means "unknown" -- and unknown
+   * must NOT be treated as "this doctype has no fields", or a permission
+   * blip would silently strip every configured column.
+   */
+  const metaCache = useRef({});
+  const doctypeMeta = useCallback(() => {
+    const cached = metaCache.current[decodedDoctype];
+    if (cached) return cached;
+    const promise = get(`resource/DocType/${decodedDoctype}`)
+      .then((res) => res.data || null)
+      .catch(() => null);
+    metaCache.current[decodedDoctype] = promise;
+    return promise;
+  }, [decodedDoctype]);
+
   const filterUi = useMemo(
     () => listFilterHandlers(setSelectedFilters, resetPage),
     [resetPage],
@@ -220,10 +245,35 @@ export default function GenericListPage({ doctypeOverride }) {
     if (cfg.metaField) customFields.push(cfg.metaField);
     if (cfg.statusField) customFields.push(cfg.statusField);
 
-    const fields = [...BASE_FIELDS, ...customFields];
+    // Drop any column the doctype does not have.
+    //
+    // `GenericList` does NOT meta-validate the configured fields, and a field
+    // the doctype lacks fails the WHOLE query -- so one wrong name in
+    // config/doctypes.js takes the entire list down, with an error naming a
+    // column rather than the config entry that is wrong. Three such entries
+    // existed and had killed the "Non Conformance", "Quality Procedure" and
+    // "Corrective Action" lists.
+    //
+    // The doctype's meta is fetched anyway, for the filter chips, so this
+    // costs one shared request rather than an extra one.
+    const meta = await doctypeMeta();
+    const real = meta?.fields?.map((f) => f.fieldname) || null;
+    const usable = real
+      ? customFields.filter((field) => real.includes(field))
+      : customFields;
+    if (real) {
+      const dropped = customFields.filter((field) => !real.includes(field));
+      if (dropped.length) {
+        console.warn(
+          `[GenericList] ${decodedDoctype}: config names fields the doctype does not have -- ${dropped.join(", ")}`,
+        );
+      }
+    }
+
+    const fields = [...BASE_FIELDS, ...usable];
     fieldsCache.current[decodedDoctype] = fields;
     return fields;
-  }, [decodedDoctype, config]);
+  }, [decodedDoctype, config, doctypeMeta]);
 
   const buildFilters = useCallback(() => {
     const filters = [];
@@ -248,19 +298,28 @@ export default function GenericListPage({ doctypeOverride }) {
     return filters;
   }, [selectedFilters, config]);
 
-  const buildOrFilters = useCallback(() => {
-    if (!search) return [];
-    const fields = config.searchFields || ["name"];
-    return fields.map((f) => [f, "like", `%${search}%`]);
-  }, [search, config]);
+  const buildOrFilters = useCallback(
+    (realFields) => {
+      const fields = config.searchFields || ["name"];
+      // Same reasoning as the list's columns: a search field the doctype does
+      // not have fails the whole query, so it is dropped rather than fatal.
+      const usable = realFields
+        ? fields.filter((f) => realFields.includes(f))
+        : fields;
+      return usable.map((f) => [f, "like", `%${search}%`]);
+    },
+    [search, config],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const meta = await doctypeMeta();
+      const real = meta?.fields?.map((f) => f.fieldname) || null;
       const fields = await getFields();
       const filters = buildFilters();
-      const orFilters = buildOrFilters();
+      const orFilters = buildOrFilters(real);
 
       const params = {
         fields: JSON.stringify(fields),
@@ -294,6 +353,7 @@ export default function GenericListPage({ doctypeOverride }) {
     }
   }, [
     decodedDoctype,
+    doctypeMeta,
     getFields,
     buildFilters,
     buildOrFilters,
@@ -346,13 +406,9 @@ export default function GenericListPage({ doctypeOverride }) {
 
   useEffect(() => {
     const loadFilters = async () => {
-      try {
-        const res = await get(`resource/DocType/${decodedDoctype}`);
-        const fields = res.data?.fields || [];
-        setFilterConfig(buildFilterConfig(fields));
-      } catch {
-        setFilterConfig({ filters: [] });
-      }
+      // The SAME promise the query uses -- one request for both.
+      const meta = await doctypeMeta();
+      setFilterConfig(buildFilterConfig(meta?.fields || []));
     };
     loadFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps

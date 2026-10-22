@@ -112,6 +112,8 @@
 		"attendanceRate": "Attendance rate by employee",
 		"plateStockRegister": "Plate Stock Register",
 		"plateStockRegisterDesc": "Plate stock by item, warehouse & heat number",
+		"plateOffcutRegister": "Plate Offcut Register",
+		"plateOffcutRegisterDesc": "Offcut stock by size, warehouse & heat number",
 		"applyFilters": "Apply Filters",
 		"noRows": "No rows for these filters.",
 		"loadFailedTitle": "Could not load the report",

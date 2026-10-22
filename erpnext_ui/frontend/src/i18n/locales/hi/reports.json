@@ -112,6 +112,8 @@
 		"attendanceRate": "कर्मचारी के अनुसार उपस्थिति दर",
 		"plateStockRegister": "प्लेट स्टॉक रजिस्टर",
 		"plateStockRegisterDesc": "आइटम, वेयरहाउस और हीट नंबर के अनुसार प्लेट स्टॉक",
+		"plateOffcutRegister": "प्लेट ऑफकट रजिस्टर",
+		"plateOffcutRegisterDesc": "आकार, वेयरहाउस और हीट नंबर के अनुसार ऑफकट स्टॉक",
 		"applyFilters": "फ़िल्टर लागू करें",
 		"noRows": "इन फ़िल्टरों के लिए कोई पंक्ति नहीं।",
 		"loadFailedTitle": "रिपोर्ट लोड नहीं हो सकी",

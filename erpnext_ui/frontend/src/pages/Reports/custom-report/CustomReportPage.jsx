@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/empty";
 import { cn } from "cn";
 import FilterBar from "./FilterBar";
+import { REPORT_PAGES } from "./reportPages";
 import {
   formatCell,
   isNumericColumn,
@@ -34,11 +35,12 @@ import { groupRows, isBlankCell } from "./group";
  * A report defined in another app, rendered from the report's own metadata.
  *
  * Why this is generic rather than a hand-built page per report: the column set
- * is NOT knowable here. `Plate Stock Register`'s execute() appends a column at
- * runtime — a hidden "Offcuts" column whenever `include_offcuts` is falsy — so a
- * hardcoded field list would drop or misplace a column depending on a filter the
- * user just toggled. The server returns the report's own `columns`; we render
- * exactly those.
+ * is NOT knowable here. A Script Report may append a column at runtime —
+ * `Plate Stock Register`'s execute() used to add a hidden "Offcuts" column
+ * whenever `include_offcuts` was falsy, before the offcuts moved to their own
+ * report — so a hardcoded field list would drop or misplace a column depending
+ * on a filter the user just toggled. The server returns the report's own
+ * `columns`; we render exactly those.
  *
  * The same applies to the filter bar. `Report.filters` is a `Report Filter` CHILD
  * TABLE, so fieldname / fieldtype / options / default are read off the Report
@@ -51,79 +53,11 @@ import { groupRows, isBlankCell } from "./group";
  */
 
 /**
- * Per-report page chrome plus its grouping contract. The report name and its app
- * stay server-side: a caller who can edit this bundle must not be able to point
- * the key at a different report.
- *
- * `groupBy`/`sum`/`ratio`/`constant`/`mixed` declare how the report's own
- * columns behave once its flat rows are grouped. The report returns one row per
- * (item, warehouse, batch) and sorts by that same triple, so grouping by `item`
- * needs no client-side sort -- and grouping children by `warehouse, batch` means
- * heat number (which is read off the Batch record, so it is 1:1 with a batch)
- * lands on the child row where it belongs.
+ * Per-report page chrome plus each report's grouping contract live in
+ * `./reportPages` -- a module of their own, because the contract is where a
+ * wrong number reaches a storekeeper and the rules suite asserts it against
+ * REAL rows.
  */
-const REPORT_PAGES = {
-  "plate-stock-register": {
-    titleKey: "reports.plateStockRegister",
-    subtitleKey: "reports.plateStockRegisterDesc",
-    // Filters shown inline; everything else folds into the FilterBar popover.
-    // Item, warehouse and grade are what a storekeeper reaches for to answer
-    // "how much of this plate do we hold, and where" -- batch, heat number and
-    // thickness are traceability lookups. Declared here rather than hardcoded in
-    // the bar so the bar stays generic.
-    primaryFilters: ["item", "warehouse", "grade"],
-    grouping: {
-      groupBy: ["item"],
-      childKey: ["warehouse", "batch"],
-      sum: ["plates", "total_weight", "stock_value"],
-      // Recomputed on the parent as numerator/denominator -- never added. See
-      // group.js for why summing a per-batch average is silently wrong.
-      ratio: {
-        weight_per_plate: ["total_weight", "plates"],
-        value_per_kg: ["stock_value", "total_weight"],
-      },
-      // Item-master attributes: identical on every child, so shown once.
-      constant: ["thickness", "length", "width"],
-      // `grade` is `batch.custom_grade or item.item_group`, so it can disagree
-      // between two batches of the same item. Shown when unanimous, "Mixed"
-      // when not -- never the first child's value.
-      mixed: ["grade"],
-      countFields: [
-        { field: "batch", labelKey: "reports.batchCount" },
-        { field: "warehouse", labelKey: "reports.warehouseCount" },
-      ],
-    },
-  },
-
-  "plate-receipt-weight-variance": {
-    titleKey: "reports.plateWeightVariance",
-    subtitleKey: "reports.plateWeightVarianceDesc",
-    // A date range is the question this report answers ("what came in short
-    // weight over the last 30 days"), so both dates and the tolerance switch sit
-    // inline; supplier and item group are the narrower lookups.
-    primaryFilters: [
-      "from_date",
-      "to_date",
-      "supplier",
-      "above_tolerance_only",
-    ],
-    grouping: {
-      // One parent per Purchase Receipt, its lines beneath: a receipt is the
-      // transaction, so its weights and amount total meaningfully.
-      groupBy: ["receipt"],
-      childKey: ["item"],
-      sum: ["plates", "estimated_kg", "supplier_kg", "accepted_kg", "amount"],
-      // `variance_pct` is deliberately absent from both sum and ratio. It is a
-      // per-row percentage, and the correct aggregate is
-      // (Σsupplier_kg - Σestimated_kg) / Σestimated_kg -- a SUBTRACTIVE ratio,
-      // which group.js's {col: [num, den]} cannot express. Summing the rows'
-      // percentages would be meaningless, so the parent shows no percentage at
-      // all rather than a wrong one. `decision` and `above_tolerance` are
-      // per-row flags for the same reason.
-      countFields: [{ field: "item", labelKey: "reports.itemCount" }],
-    },
-  },
-};
 
 export default function CustomReportPage({ reportKey }) {
   const { t } = useTranslation();
@@ -162,9 +96,9 @@ export default function CustomReportPage({ reportKey }) {
         setTotalRow(payload.total_row || null);
 
         // Seed the bar from the report's declared defaults on the first load,
-        // so e.g. `include_offcuts` starts checked as the report intends rather
-        // than off. Only unseeded keys are filled — a filter the user already
-        // cleared must not be re-defaulted on the next fetch.
+        // so e.g. `above_tolerance_only` starts unchecked as the report intends
+        // rather than on. Only unseeded keys are filled — a filter the user
+        // already cleared must not be re-defaulted on the next fetch.
         if (payload.filters?.length) {
           setDeclaredFilters(payload.filters);
           setFilters((prev) => {
@@ -221,7 +155,8 @@ export default function CustomReportPage({ reportKey }) {
   }, [fetchReport]);
 
   // `hidden` is how a report removes a column from display without removing it
-  // from the row dict — Plate Stock Register's Offcuts column does exactly this.
+  // from the row dict. A report that appends one at runtime must not shift
+  // every later value one column to the left.
   const visibleColumns = useMemo(
     () => visibleColumnsOf(columns),
     [columns],

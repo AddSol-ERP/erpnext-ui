@@ -162,8 +162,10 @@ functions: `has_app_permission` and `boot_session` are called by a boot hook and
 legitimately have no decorator.
 
 **When you change `lib/stockBalance.js`, `lib/docTransition.js`, `lib/leaveApproval.js`,
-`lib/profileFlags.js`, `LinkField/searchTerm.js`, `config/storePurposes.js` or
-`lib/receiptConversion.js`, add a case to `.smoke-tmp/rules.jsx`.** Those files encode ERPNext invariants
+`lib/profileFlags.js`, `LinkField/searchTerm.js`, `config/storePurposes.js`,
+`lib/receiptConversion.js`, `lib/qualityResponse.js`, `lib/inspectionProgress.js`,
+`lib/inspectionPaper.js`, `lib/inspectionTypes.js`, `lib/inspectionDraft.js` or
+`lib/qualityParameterGroup.js`, add a case to `.smoke-tmp/rules.jsx`.** Those files encode ERPNext invariants
 that fail *silently* in the browser, so the assertions are the only guard.
 `storePurposes.js` in particular guards doctype strings that ERPNext rejects
 outright, and that a wrong value surfaces as a bare `417` with no field name.
@@ -493,3 +495,57 @@ ordered rate, treat a weight as an override, and show which basis is live.
     `compare_fields` (`purchase_receipt.py:315`) — so a UOM selector there would
     only offer a choice ERPNext rejects at save. The lock hint says so, and that
     the fix is to raise the PO in the unit you want to count in.
+
+21. **A doctype whose name IS a field cannot be edited — it can only be
+    renamed.** `Quality Inspection Parameter Group` declares one field,
+    `group_name`, and `"autoname": "field:group_name"`, so `name === group_name`.
+    Frappe then overwrites the field with the stored name on **every** save:
+    `frappe/model/base_document.py:1027-1033` (`_sync_autoname_field`, called
+    from `_validate_data_fields` inside `validate()`) does
+    `self.set(fieldname, self.name)`.
+
+    A `PUT /resource/<dt>/<name>` carrying an edited `group_name` therefore
+    answers **200 "saved" and keeps the old value**. The edit is discarded
+    with a green toast — no error, no log line, nothing.
+
+    So the name is rendered **read-only** and changed through a RENAME:
+    `frappe.client.rename_doc` (`frappe/client.py:266-273`) takes `doctype` /
+    `old_name` / `new_name`. **Not** `old` / `new` — those are the internal
+    `frappe.model.rename_doc.rename_doc` spellings, and sending them to the
+    whitelisted wrapper sends `old=None` and returns a `TypeError` about
+    missing arguments instead of a rename. Frappe rewrites every Link that
+    pointed at the old name (`frappe/model/rename_doc.py:169-170`,
+    `update_link_field_values`), so a rename cannot orphan a reference.
+
+    Deleting a document that is still linked is refused by Frappe
+    (`check_if_doc_is_linked` → `LinkExistsError`), so **count the references
+    first and disable Delete** rather than offering a button that can only
+    fail — the same rule `resolveDocstatusActions` follows for a submitted
+    document. A count that could not be established is **"in use"**: fail
+    closed. See `lib/qualityParameterGroup.js` and the 33 assertions in
+    `.smoke-tmp/rules.jsx`.
+
+22. **A React `key` must not change when the row's own editable value
+    changes.** A key that differs between two renders makes React **unmount
+    the old element and mount a new one**. When the row contains an `<input>`
+    the user is typing into, the DOM node — and the caret with it — is
+    destroyed and rebuilt on every keystroke. The symptom is a field that
+    takes the first character and then loses focus, so the rest of the word
+    never arrives: it reads as a frozen field, not as a remount.
+
+    `pages/Quality/components/ResponseConfigEditor.jsx` had exactly this: the
+    choice rows were keyed `` `${index}-${choice.value}` ``, and
+    `choice.value` is the field that row's own input writes to. Every
+    character changed the key, so every character remounted the row.
+
+    The dangerous shape is a key that mixes the row's **index** with the
+    value its input writes to — it *looks* stable because it carries the
+    index, which is why it survived review. A key built only from a dropdown
+    option's value (`key={opt.value}`) is a different thing: the option list
+    is replaced wholesale on selection and no text is typed into it.
+
+    Key an editable row by its **index**. Rows here are only appended and
+    deleted, never reordered or filtered, and the children are controlled and
+    stateless, so nothing is carried across rows — and React reuses the DOM
+    nodes on delete, so that does not remount either. The rules suite scans
+    `src/` for the index-plus-value shape and fails the build on one.

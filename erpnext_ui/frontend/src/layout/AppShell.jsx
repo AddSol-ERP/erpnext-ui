@@ -31,6 +31,7 @@ import {
   FileSearch,
   ChartNoAxesCombined,
   Banknote,
+  FolderTree,
 } from "lucide-react";
 import {
   Sidebar,
@@ -135,6 +136,12 @@ const NAV_SECTIONS = [
         icon: ShieldCheck,
         moduleKey: "Quality",
         children: [
+          {
+            key: "quality-parameter-groups",
+            labelKey: "nav.qualityParameterGroups",
+            to: "/quality/parameter-groups",
+            icon: FolderTree,
+          },
           {
             key: "quality-templates",
             labelKey: "nav.qualityTemplates",
@@ -316,6 +323,16 @@ const NAV_SECTIONS = [
             to: "/reports/plate-stock-register",
             icon: Ruler,
             reportKey: "plate-stock-register",
+          },
+          {
+            // The offcut pieces, in their own report. Defined in
+            // addsol_nl_custom; the sidebar child is filtered out by the
+            // canReadReport check below when that app is absent.
+            key: "report-plate-offcut-register",
+            labelKey: "nav.reportPlateOffcut",
+            to: "/reports/plate-offcut-register",
+            icon: Scissors,
+            reportKey: "plate-offcut-register",
           },
           {
             // Defined in addsol_nl_custom; the sidebar child is filtered out by

@@ -8,7 +8,6 @@ import { get } from "../../../../services/api";
 import { saveDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
-import FormErrorSummary from "../../../../components/FormErrorSummary";
 import { focusFirstError } from "../../../../lib/formValidation";
 import LinkField from "../../../../components/LinkField";
 import { Input } from "@/components/ui/input";
@@ -20,6 +19,8 @@ import {
   serializeResponseConfig,
 } from "../../../../lib/qualityResponse";
 
+
+
 export default function InspectionParameterForm() {
   const { name } = useParams();
   const navigate = useNavigate();
@@ -28,7 +29,6 @@ export default function InspectionParameterForm() {
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
   const [doc, setDoc] = useState({
@@ -82,13 +82,12 @@ export default function InspectionParameterForm() {
 
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
-      const list = Object.values(errs);
-      setError(list.length > 1 ? t("common.fixErrors") : list[0]);
+      // The banner states the SITUATION; the field carries the message. Both
+      // are on screen at once here, so repeating the sentence says it twice.
       requestAnimationFrame(() => focusFirstError(errs));
       return;
     }
 
-    setError("");
     try {
       setLoading(true);
 
@@ -163,7 +162,6 @@ export default function InspectionParameterForm() {
   /* ================= UI ================= */
   return (
     <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 pt-4">
-      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* BASIC */}
       <FormSection title={t("quality.basicDetails")} icon={ClipboardList}>

@@ -7,6 +7,7 @@ import FormSection from "../../../../components/FormSection";
 import { FormField } from "../../../../components/FormField";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import LinkField from "../../../../components/LinkField";
+import FormSelect from "../../../../components/FormSelect";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
 import { Button } from "@/components/ui/button";
@@ -96,12 +97,14 @@ export default function PlateOffcutForm() {
       : {
           doctype: DOCTYPE,
           docstatus: 0,
+          project: "",
+          scrap_weight_kg: 0,
           offcuts: [],
           ...(prefillSerial ? { source_serial_no: prefillSerial } : {}),
         },
   );
   const [rows, setRows] = useState(() =>
-    isEdit ? [] : [{ _rid: nextRid(), length_mm: "", width_mm: "", pieces: 1 }],
+    isEdit ? [] : [{ _rid: nextRid(), shape: "Rectangle", length_mm: "", width_mm: "", diameter_mm: "", pieces: 1 }],
   );
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -138,9 +141,11 @@ export default function PlateOffcutForm() {
           // without touching a field first.
           setRows(
             (full.offcuts || []).map((row) => ({
-              _rid: nextRid(),
-              length_mm: row.length_mm ?? "",
-              width_mm: row.width_mm ?? "",
+            _rid: nextRid(),
+            shape: row.shape || "Rectangle",
+            length_mm: row.length_mm ?? "",
+            width_mm: row.width_mm ?? "",
+            diameter_mm: row.diameter_mm ?? "",
               pieces: 1,
               weight_kg: row.weight_kg,
               theoretical_weight_kg: row.theoretical_weight_kg,
@@ -154,6 +159,8 @@ export default function PlateOffcutForm() {
             total_offcut_value: full.total_offcut_value,
             scrap_weight_kg: full.scrap_weight_kg,
             scrap_value: full.scrap_value,
+            consumed_weight_kg: full.consumed_weight_kg,
+            consumed_value: full.consumed_value,
             over_by_kg: 0,
             perRow: new Map(),
             geometry: {
@@ -161,6 +168,8 @@ export default function PlateOffcutForm() {
               width_mm: num(full.source_width_mm),
               thickness_mm: num(full.thickness_mm),
             },
+            min_offcut_length_mm: full.min_offcut_length_mm,
+            min_offcut_width_mm: full.min_offcut_width_mm,
           });
         } else if (!cancelled) {
           // A new offcut is a blank draft; the only field the operator supplies is
@@ -168,6 +177,8 @@ export default function PlateOffcutForm() {
           setDoc({
             doctype: DOCTYPE,
             docstatus: 0,
+            project: "",
+            scrap_weight_kg: 0,
             offcuts: [],
             ...(prefillSerial ? { source_serial_no: prefillSerial } : {}),
           });
@@ -175,7 +186,7 @@ export default function PlateOffcutForm() {
           // One blank row, so a prefilled plate opens onto something to type
           // sizes into rather than an empty table with an Add button.
           if (prefillSerial) {
-            setRows([{ _rid: nextRid(), length_mm: "", width_mm: "", pieces: 1 }]);
+            setRows([{ _rid: nextRid(), shape: "Rectangle", length_mm: "", width_mm: "", diameter_mm: "", pieces: 1 }]);
             setDirty(true);
           }
         }
@@ -197,7 +208,7 @@ export default function PlateOffcutForm() {
 
   /* -------------------------------------------------------------- estimate */
   const requestEstimate = useCallback(
-    (serialNo, currentRows) => {
+    (serialNo, currentRows, scrapWeightKg = 0) => {
       if (!serialNo) return;
       if (docRef.current?.docstatus) return; // a submitted doc holds its own numbers
 
@@ -206,7 +217,7 @@ export default function PlateOffcutForm() {
       debounceTimer.current = setTimeout(() => {
         // A slow earlier reply must never overwrite a newer answer.
         const seq = ++estimateSeq.current;
-        fetchEstimate(serialNo, currentRows)
+        fetchEstimate(serialNo, currentRows, scrapWeightKg)
           .then((payload) => {
             if (seq !== estimateSeq.current) return;
             setPlateNotice("");
@@ -238,7 +249,7 @@ export default function PlateOffcutForm() {
   }, []);
 
   const addRow = useCallback(() => {
-    setRows((prev) => [...prev, { _rid: nextRid(), length_mm: "", width_mm: "", pieces: 1 }]);
+    setRows((prev) => [...prev, { _rid: nextRid(), shape: "Rectangle", length_mm: "", width_mm: "", diameter_mm: "", pieces: 1 }]);
     setDirty(true);
   }, []);
 
@@ -254,10 +265,20 @@ export default function PlateOffcutForm() {
       // Choosing a plate invalidates every number from the previous one.
       setEstimate(null);
       setPlateNotice("");
-      if (serial) requestEstimate(serial, rows);
+      if (serial) requestEstimate(serial, rows, docRef.current?.scrap_weight_kg || 0);
     },
     [rows, requestEstimate],
   );
+
+  const onScrapWeightChange = useCallback((value) => {
+    setDoc((prev) => ({ ...prev, scrap_weight_kg: value }));
+    setDirty(true);
+    requestEstimate(
+      docRef.current?.source_serial_no,
+      rows,
+      value === "" ? 0 : Number(value),
+    );
+  }, [requestEstimate, rows]);
 
   /* ------------------------------------------------------------ validation */
   // The plate's real size, from the estimate. Declared here rather than in the
@@ -296,14 +317,27 @@ export default function PlateOffcutForm() {
         : "";
       switch (code) {
         case "missing":
-          return t("store.plateOffcut.errRowSize");
+          return row?.shape === "Circle"
+            ? t("store.plateOffcut.errCircleDiameter")
+            : t("store.plateOffcut.errRowSize");
         case "tooBig":
+          if (row?.shape === "Circle") {
+            return t("store.plateOffcut.errCircleTooBig", {
+              diameter: num(row.diameter_mm),
+              plate,
+            });
+          }
           return t("store.plateOffcut.errRowTooBig", {
             length: l,
             width: w,
             plate,
           });
         case "tooSmall":
+          if (row?.shape === "Circle") {
+            return t("store.plateOffcut.errCircleTooSmall", {
+              diameter: num(row.diameter_mm),
+            });
+          }
           return t("store.plateOffcut.errRowTooSmall", {
             length: l,
             width: w,
@@ -318,6 +352,11 @@ export default function PlateOffcutForm() {
   const validate = useCallback(() => {
     const errors = {};
     if (!doc?.source_serial_no) errors.source_serial_no = t("store.plateOffcut.errNoSerial");
+    if (!doc?.project) errors.project = t("store.plateOffcut.errNoProject");
+    const scrapWeight = doc?.scrap_weight_kg === "" ? 0 : Number(doc?.scrap_weight_kg ?? 0);
+    if (!Number.isFinite(scrapWeight) || scrapWeight < 0) {
+      errors.scrap_weight_kg = t("store.plateOffcut.errScrapNegative");
+    }
     if (!rows.length) errors.offcuts = t("store.plateOffcut.errNoOffcuts");
     // Save is where incompleteness is judged: before that, an empty row is
     // simply a row being filled in.
@@ -338,10 +377,22 @@ export default function PlateOffcutForm() {
     return errors;
   }, [doc, rows, liveIssues, t]);
 
+  const updateRowAndEstimate = (rid, changes) => {
+    const updatedRows = rows.map((row) => row._rid === rid ? { ...row, ...changes } : row);
+    patchRow(rid, changes);
+    requestEstimate(
+      docRef.current?.source_serial_no,
+      updatedRows,
+      docRef.current?.scrap_weight_kg || 0,
+    );
+  };
+
   /* ------------------------------------------------------------------ save */
   const buildPayload = useCallback(() => {
     const out = stripSystemFields(doc || {});
     out.doctype = DOCTYPE;
+    out.project = doc?.project || "";
+    out.scrap_weight_kg = num(doc?.scrap_weight_kg);
     // `pieces` becomes real child rows. Nothing client-only survives: the server
     // recomputes offcut_item / theoretical_weight_kg / weight_kg / value in
     // validate(), so posting them back would be stale at best.
@@ -447,8 +498,10 @@ export default function PlateOffcutForm() {
     () =>
       rows.map((r) => ({
         id: r._rid,
+        shape: r.shape || "Rectangle",
         length_mm: r.length_mm,
         width_mm: r.width_mm,
+        diameter_mm: r.diameter_mm,
         count: r.pieces,
       })),
     [rows],
@@ -606,6 +659,40 @@ export default function PlateOffcutForm() {
           />
         </FormField>
 
+        <FormField
+          label={t("store.plateOffcut.project")}
+          required
+          name="project"
+          error={fieldErrors.project}
+        >
+          <LinkField
+            doctype="Project"
+            value={doc?.project || ""}
+            onChange={(project) => {
+              setDoc((prev) => ({ ...prev, project: project || "" }));
+              setDirty(true);
+            }}
+            placeholder={t("store.plateOffcut.project")}
+            disabled={submitted}
+          />
+        </FormField>
+
+        <FormField
+          label={t("store.plateOffcut.scrapWeight")}
+          error={fieldErrors.scrap_weight_kg}
+          hint={t("store.plateOffcut.scrapHint")}
+          name="scrap_weight_kg"
+        >
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            value={doc?.scrap_weight_kg ?? 0}
+            disabled={submitted}
+            onChange={(event) => onScrapWeightChange(event.target.value)}
+          />
+        </FormField>
+
         {/* Everything below is DERIVED by the server from the serial
             (PlateOffcut.set_source) and is shown only to confirm what is about
             to be cut. It was six labelled fields in a three-column grid -- three
@@ -661,8 +748,8 @@ export default function PlateOffcutForm() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t("store.plateOffcut.length")}</TableHead>
-                    <TableHead>{t("store.plateOffcut.width")}</TableHead>
+                    <TableHead>{t("store.plateOffcut.shape")}</TableHead>
+                    <TableHead>{t("store.plateOffcut.dimensions")}</TableHead>
                     <TableHead className="text-end">
                       {t("store.plateOffcut.pieces")}
                     </TableHead>
@@ -705,42 +792,62 @@ export default function PlateOffcutForm() {
                         onMouseLeave={() => setHighlight(null)}
                       >
                         <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="any"
-                            className="h-8"
-                            value={row.length_mm ?? ""}
+                          <FormSelect
+                            value={row.shape || "Rectangle"}
                             disabled={submitted}
-                            aria-label={t("store.plateOffcut.length")}
-                            aria-invalid={issues.length > 0}
-                            onChange={(e) => {
-                              patchRow(row._rid, { length_mm: e.target.value });
-                              requestEstimate(docRef.current?.source_serial_no, [
-                                ...rows.filter((r) => r._rid !== row._rid),
-                                { ...row, length_mm: e.target.value },
-                              ]);
-                            }}
+                            onChange={(shape) => updateRowAndEstimate(row._rid, {
+                              shape,
+                              length_mm: "",
+                              width_mm: "",
+                              diameter_mm: "",
+                            })}
+                            options={[
+                              ["Rectangle", t("store.plateOffcut.shapeRectangle")],
+                              ["Circle", t("store.plateOffcut.shapeCircle")],
+                            ]}
                           />
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="any"
-                            className="h-8"
-                            value={row.width_mm ?? ""}
-                            disabled={submitted}
-                            aria-label={t("store.plateOffcut.width")}
-                            aria-invalid={issues.length > 0}
-                            onChange={(e) => {
-                              patchRow(row._rid, { width_mm: e.target.value });
-                              requestEstimate(docRef.current?.source_serial_no, [
-                                ...rows.filter((r) => r._rid !== row._rid),
-                                { ...row, width_mm: e.target.value },
-                              ]);
-                            }}
-                          />
+                          {row.shape === "Circle" ? (
+                            <Input
+                              type="number"
+                              min="0"
+                              step="any"
+                              className="h-8 min-w-24"
+                              value={row.diameter_mm ?? ""}
+                              disabled={submitted}
+                              aria-label={t("store.plateOffcut.diameter")}
+                              aria-invalid={issues.length > 0}
+                              onChange={(event) => updateRowAndEstimate(row._rid, { diameter_mm: event.target.value })}
+                            />
+                          ) : (
+                            <div className="grid min-w-48 grid-cols-2 gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="any"
+                                className="h-8"
+                                value={row.length_mm ?? ""}
+                                disabled={submitted}
+                                aria-label={t("store.plateOffcut.length")}
+                                aria-invalid={issues.length > 0}
+                                placeholder={t("store.plateOffcut.lengthShort")}
+                                onChange={(event) => updateRowAndEstimate(row._rid, { length_mm: event.target.value })}
+                              />
+                              <Input
+                                type="number"
+                                min="0"
+                                step="any"
+                                className="h-8"
+                                value={row.width_mm ?? ""}
+                                disabled={submitted}
+                                aria-label={t("store.plateOffcut.width")}
+                                aria-invalid={issues.length > 0}
+                                placeholder={t("store.plateOffcut.widthShort")}
+                                onChange={(event) => updateRowAndEstimate(row._rid, { width_mm: event.target.value })}
+                              />
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-end">
                           <Input
@@ -752,11 +859,7 @@ export default function PlateOffcutForm() {
                             disabled={submitted}
                             aria-label={t("store.plateOffcut.pieces")}
                             onChange={(e) => {
-                              patchRow(row._rid, { pieces: e.target.value });
-                              requestEstimate(docRef.current?.source_serial_no, [
-                                ...rows.filter((r) => r._rid !== row._rid),
-                                { ...row, pieces: e.target.value },
-                              ]);
+                              updateRowAndEstimate(row._rid, { pieces: e.target.value });
                             }}
                           />
                         </TableCell>
@@ -813,8 +916,8 @@ export default function PlateOffcutForm() {
             </div>
           )}
 
-          {/* TOTALS -- all four come from the server. */}
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          {/* Totals and remaining stock values are returned by the server. */}
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-4">
             <Total
               label={t("store.plateOffcut.totalPieces")}
               value={String(pieces)}
@@ -842,6 +945,18 @@ export default function PlateOffcutForm() {
                   ? `${estimate.scrap_weight_kg} Kg`
                   : "—"
               }
+            />
+            <Total
+              label={t("store.plateOffcut.scrapValue")}
+              value={estimate?.scrap_value !== undefined ? Number(estimate.scrap_value).toFixed(2) : "—"}
+            />
+            <Total
+              label={t("store.plateOffcut.projectRemainderWeight")}
+              value={estimate?.consumed_weight_kg !== undefined ? `${estimate.consumed_weight_kg} Kg` : "—"}
+            />
+            <Total
+              label={t("store.plateOffcut.projectRemainderValue")}
+              value={estimate?.consumed_value !== undefined ? Number(estimate.consumed_value).toFixed(2) : "—"}
             />
           </div>
 
@@ -930,6 +1045,7 @@ export default function PlateOffcutForm() {
         message={t("store.plateOffcut.submitMessage", {
           pieces,
           scrap: estimate?.scrap_weight_kg ?? 0,
+          project: doc?.project || "",
         })}
         onCancel={() => setConfirmSubmit(false)}
         onConfirm={handleSubmit}
@@ -950,7 +1066,9 @@ function expandForSave(row) {
   const count = Math.max(1, Math.floor(num(row.pieces) || 1));
   const out = [];
   for (let i = 0; i < count; i += 1) {
-    const child = { length_mm: row.length_mm, width_mm: row.width_mm };
+    const child = row.shape === "Circle"
+      ? { shape: "Circle", diameter_mm: row.diameter_mm }
+      : { shape: "Rectangle", length_mm: row.length_mm, width_mm: row.width_mm };
     if (i === 0 && row.saved_name) child.name = row.saved_name;
     out.push(child);
   }

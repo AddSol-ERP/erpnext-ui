@@ -9,7 +9,6 @@ import { useToast } from "../../../../context/ToastContext";
 import LinkField from "../../../../components/LinkField";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
-import FormErrorSummary from "../../../../components/FormErrorSummary";
 import { focusFirstError } from "../../../../lib/formValidation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,12 +16,18 @@ import { Button } from "@/components/ui/button";
 import ResponseConfigEditor from "../../components/ResponseConfigEditor";
 import {
   defaultResponseConfig,
+  formulaExampleKey,
   formulaForChoices,
+  formulaHintKey,
+  formulaUnknownVariables,
+  formulaWarningKey,
   isFormulaResponse,
   isNumericResponse,
   parseResponseConfig,
   serializeResponseConfig,
 } from "../../../../lib/qualityResponse";
+
+
 
 export default function QualityTemplateForm() {
   const navigate = useNavigate();
@@ -32,7 +37,6 @@ export default function QualityTemplateForm() {
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
   const [doc, setDoc] = useState({
@@ -226,13 +230,12 @@ export default function QualityTemplateForm() {
 
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
-      const list = Object.values(errs);
-      setError(list.length > 1 ? t("common.fixErrors") : list[0]);
+      // The banner states the SITUATION; the field carries the message. Both
+      // are on screen at once here, so repeating the sentence says it twice.
       requestAnimationFrame(() => focusFirstError(errs));
       return;
     }
 
-    setError("");
     try {
       setLoading(true);
 
@@ -304,7 +307,6 @@ export default function QualityTemplateForm() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 pt-4">
-      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {/* BASIC */}
       <FormSection title={t("quality.basicInfo")} icon={ClipboardList}>
@@ -425,15 +427,62 @@ export default function QualityTemplateForm() {
               )}
 
               {isFormulaResponse(row.responseConfig) && (
-                <div className="md:col-span-2">
-                  <FormField label={t("quality.formula")}>
+                <div className="md:col-span-2 space-y-2">
+                  <FormField
+                    label={t("quality.formula")}
+                    // The field is a bare Python expression, and the
+                    // variables it may use are NOT the obvious ones: the
+                    // numeric and the text formula see DISJOINT sets of
+                    // names (lib/qualityResponse.js -> formulaVariables).
+                    // Without this, the only way to find out is to save a
+                    // template and then fail an inspection with "reading_1
+                    // is not a valid reading field".
+                    hint={
+                      formulaHintKey(row.responseConfig?.type)
+                        ? t(formulaHintKey(row.responseConfig?.type))
+                        : undefined
+                    }
+                  >
                     <Textarea
+                      rows={3}
+                      className="font-mono"
                       value={row.acceptance_formula || ""}
                       onChange={(e) =>
                         updateRow(idx, "acceptance_formula", e.target.value)
                       }
+                      placeholder={
+                        formulaExampleKey(row.responseConfig?.type)
+                          ? t(formulaExampleKey(row.responseConfig?.type))
+                          : undefined
+                      }
                     />
                   </FormField>
+
+                  {formulaExampleKey(row.responseConfig?.type) && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("quality.formulaExample")}{" "}
+                      <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                        {t(formulaExampleKey(row.responseConfig?.type))}
+                      </code>
+                    </p>
+                  )}
+
+                  {formulaUnknownVariables(
+                    row.responseConfig?.type,
+                    row.acceptance_formula,
+                  ).length > 0 && (
+                    <p
+                      role="alert"
+                      className="text-xs font-medium text-destructive"
+                    >
+                      {t(formulaWarningKey(row.responseConfig?.type), {
+                        names: formulaUnknownVariables(
+                          row.responseConfig?.type,
+                          row.acceptance_formula,
+                        ).join(", "),
+                      })}
+                    </p>
+                  )}
                 </div>
               )}
 

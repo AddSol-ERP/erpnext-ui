@@ -99,20 +99,36 @@ export default function PlateCanvas({
           const stroke = Math.max(plateL, plateW) / 220;
           return (
             <g key={`${piece.id}#${piece.index}`}>
-              <rect
-                x={piece.x}
-                y={piece.y}
-                width={piece.w}
-                height={piece.h}
-                className={
-                  highlighted
-                    ? "fill-primary/30 stroke-primary"
-                    : "fill-primary/10 stroke-primary/50"
-                }
-                strokeWidth={stroke}
-                onMouseEnter={() => onHighlightRow?.(piece.id)}
-                onMouseLeave={() => onHighlightRow?.(null)}
-              />
+              {piece.shape === "Circle" ? (
+                <circle
+                  cx={piece.x + piece.w / 2}
+                  cy={piece.y + piece.h / 2}
+                  r={Math.min(piece.w, piece.h) / 2}
+                  className={
+                    highlighted
+                      ? "fill-primary/30 stroke-primary"
+                      : "fill-primary/10 stroke-primary/50"
+                  }
+                  strokeWidth={stroke}
+                  onMouseEnter={() => onHighlightRow?.(piece.id)}
+                  onMouseLeave={() => onHighlightRow?.(null)}
+                />
+              ) : (
+                <rect
+                  x={piece.x}
+                  y={piece.y}
+                  width={piece.w}
+                  height={piece.h}
+                  className={
+                    highlighted
+                      ? "fill-primary/30 stroke-primary"
+                      : "fill-primary/10 stroke-primary/50"
+                  }
+                  strokeWidth={stroke}
+                  onMouseEnter={() => onHighlightRow?.(piece.id)}
+                  onMouseLeave={() => onHighlightRow?.(null)}
+                />
+              )}
               {/* Only label a piece big enough to hold the text, otherwise the
                   label is wider than the rectangle it describes. */}
               {piece.w > plateL / 9 && piece.h > plateW / 9 ? (

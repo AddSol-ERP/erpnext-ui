@@ -49,12 +49,31 @@ export function fits(offcutLength, offcutWidth, plateLength, plateWidth) {
  * 3000 x 200 piece is wider than the plate and narrower than the minimum --
  * and the operator should be told both rather than the first one found.
  *
- * @param {object} row      - the form's row: `{ length_mm, width_mm }`
+ * @param {object} row      - the form's row: rectangle dimensions or circle diameter
  * @param {object} plate    - `{ length_mm, width_mm }` from the estimate
  * @param {object} [min]    - `{ length_mm, width_mm }` from the estimate
  * @returns {string[]} issue codes, in the order they should be shown
  */
 export function rowIssues(row, plate, min) {
+  if (row?.shape === "Circle") {
+    const diameter = num(row?.diameter_mm);
+    if (!(diameter > 0)) return ["missing"];
+
+    const plateLength = num(plate?.length_mm);
+    const plateWidth = num(plate?.width_mm);
+    const issues = [];
+    if (plateLength > 0 && plateWidth > 0 && (diameter > plateLength || diameter > plateWidth)) {
+      issues.push("tooBig");
+    }
+
+    const minLength = num(min?.length_mm);
+    const minWidth = num(min?.width_mm);
+    if ((minLength > 0 && diameter < minLength) || (minWidth > 0 && diameter < minWidth)) {
+      issues.push("tooSmall");
+    }
+    return issues;
+  }
+
   const length = num(row?.length_mm);
   const width = num(row?.width_mm);
   const issues = [];
@@ -90,5 +109,6 @@ export function rowIssues(row, plate, min) {
 
 /** Whether a row is complete enough to be measured against the plate. */
 export function isComplete(row) {
+  if (row?.shape === "Circle") return num(row?.diameter_mm) > 0;
   return num(row?.length_mm) > 0 && num(row?.width_mm) > 0;
 }

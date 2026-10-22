@@ -24,6 +24,8 @@ import QualityTemplateList from "./pages/Quality/templates";
 import QualityTemplateForm from "./pages/Quality/templates/form";
 import InspectionParameterList from "./pages/Quality/parameters";
 import InspectionParameterForm from "./pages/Quality/parameters/InspectionParameterForm";
+import ParameterGroupList from "./pages/Quality/parameter-groups";
+import ParameterGroupForm from "./pages/Quality/parameter-groups/ParameterGroupForm";
 import InspectionList from "./pages/Quality/entry";
 import InspectionForm from "./pages/Quality/entry/InspectionForm";
 import AttendanceRequestList from "./pages/ESS/requests/attendance/AttendanceRequestList";
@@ -102,6 +104,23 @@ export default function App() {
           <Route
             path="/quality/parameters/:name"
             element={<InspectionParameterForm />}
+          />
+          {/* Parameter groups are the master behind
+              `Quality Inspection Parameter.parameter_group`. Their route is a
+              slug, not the doctype name, so the URL reads
+              /quality/parameter-groups rather than
+              "/quality/Quality Inspection Parameter Group". */}
+          <Route
+            path="/quality/parameter-groups"
+            element={<ParameterGroupList />}
+          />
+          <Route
+            path="/quality/parameter-groups/new"
+            element={<ParameterGroupForm />}
+          />
+          <Route
+            path="/quality/parameter-groups/:name"
+            element={<ParameterGroupForm />}
           />
           <Route
             path="/quality/templates/new"
@@ -354,6 +373,19 @@ export default function App() {
               <RequireReportAccess reportKey="plate-stock-register">
                 <Suspense fallback={null}>
                   <CustomReportPage reportKey="plate-stock-register" />
+                </Suspense>
+              </RequireReportAccess>
+            }
+          />
+          {/* The offcut pieces, in their own report. A separate KEY and a
+              separate route, not a filter on the plate register: the two hold
+              different stock, so no figure is ever counted in two places. */}
+          <Route
+            path="/reports/plate-offcut-register"
+            element={
+              <RequireReportAccess reportKey="plate-offcut-register">
+                <Suspense fallback={null}>
+                  <CustomReportPage reportKey="plate-offcut-register" />
                 </Suspense>
               </RequireReportAccess>
             }

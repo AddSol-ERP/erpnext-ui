@@ -517,10 +517,20 @@ filters on status and the form renders a "nothing outstanding" state.
 
 ### 3.8 Cross-app Script Reports (added 2026-10-16)
 
-`Plate Stock Register` lives in `addsol_nl_custom` and is now rendered inside the
-SPA's Reports module. `SPA_CUSTOM_REPORTS` (`api.py:33-48`) maps a key to
+`Plate Stock Register` and `Plate Offcut Register` live in `addsol_nl_custom`
+and are now rendered inside the SPA's Reports module. `SPA_CUSTOM_REPORTS`
+(`api.py:33-51`) maps a key to
 `(report name, owning app)`, `get_custom_report_data(report_key, filters)`
 (`:2526`) runs it.
+
+**The plate register and the offcut register are TWO POPULATIONS, not two views
+of one.** The plate register holds whole plates and the remainder a cutting
+leaves behind; the offcut register holds the pieces a cutting produced. They
+were one report until 2026-10-22, behind an `include_offcuts` checkbox that
+defaulted to ON — so offcut rows sat inside the plate figures, distinguishable
+only by a flag nobody was looking at. The filter is gone; each report owns one
+population, so no figure is ever counted in two places. Adding a filter back to
+merge them would undo the split.
 
 **Auto-detection is entirely server-side, and it splits VISIBILITY from the
 BOUNDARY.** Those two are different gates and conflating them shipped a bug.
@@ -576,17 +586,26 @@ TOTAL ROW, and under `run()` it lands in **`chart`**. Calling `run()` and readin
 that row-level security pass and `get_report_result()` does not, so skipping it
 would show rows the desk hides.
 
-**The column set is not knowable in the SPA.** `execute()` appends a column at
-runtime — a `hidden` "Offcuts" column whenever `include_offcuts` is falsy — so a
-hardcoded field list drops or shifts a column depending on a filter the user
-toggled. The page renders whatever `columns` the report returns
+**The column set is not knowable in the SPA.** A report may append a column at
+runtime — `Plate Stock Register` used to append a `hidden` "Offcuts" column
+whenever `include_offcuts` was falsy, before the offcuts moved to their own
+report — so a hardcoded field list drops or shifts a column depending on a
+filter the user toggled. The page renders whatever `columns` the report returns
 (`pages/Reports/custom-report/format.js:visibleColumns`). The same applies to the
 filter bar: `Report.filters` is a **`Report Filter` child table**, not JSON, so
 fieldname/fieldtype/options/default are read off the Report record per call.
 `Report Filter.default` is Small Text, so a Check's default arrives as the string
 `"0"` — which is **truthy in Python**, and the report tests
-`filters.get("include_offcuts")` for truthiness. `_sanitise_report_filters`
+`filters.get("above_tolerance_only")` for truthiness. `_sanitise_report_filters`
 collapses it to `1`/`0`, or the filter inverts silently.
+
+**The grouping contract is a module, not a const inside the page.**
+`pages/Reports/custom-report/reportPages.js` holds each report's
+`groupBy`/`sum`/`ratio`/`constant`/`mixed`. It is a module of its own because
+the contract is where a wrong number reaches a storekeeper, and the rules suite
+asserts it against REAL rows: the offcut register's `value_per_kg` is a RATIO
+over `total_value / total_weight`, never a sum, because summing the children's
+per-batch rates produces a number that looks like a rate and is not one.
 
 The client sends **only the key**. A report name reaching JavaScript would let
 anyone who can edit the bundle aim the endpoint at a different report; the
@@ -1229,6 +1248,266 @@ List filters on **both** `docstatus != 2` **and** `status not in ["Cancelled"]`
 - **Reports** — the only place in the app using `docstatus = 1` rather than
   `!= 2`; filters by **`creation`**, not `report_date`; client-side aggregation,
   no `get_count`.
+- **ResponseConfigEditor** — the "Configured choices" rows were keyed
+  `` `${index}-${choice.value}` ``, and `choice.value` is the field that row's
+  own input writes to. The key changed on every keystroke, so React unmounted
+  and remounted the row, destroying the `<input>` and its caret: the field
+  took the first character and then lost focus. Now keyed by the row index
+  (rows are only appended and deleted, and the children are controlled and
+  stateless, so the index is safe and React reuses the DOM nodes on delete).
+  The rules suite scans `src/` for the index-plus-value key shape — see
+  AGENTS.md invariant 22.
+- **Acceptance formulas** — `acceptance_formula` is a **Python expression**
+  evaluated by `frappe.safe_eval`, and it must evaluate to **true** for the
+  reading to be Accepted. ERPNext builds the variable table in
+  `Quality Inspection.get_formula_evaluation_data`
+  (`quality_inspection.py:336-347`) from the `numeric` flag alone:
+
+  | `numeric` | variables available |
+  |---|---|
+  | 1 (numeric readings) | `reading_1` … `reading_10` (floats; an empty reading is `0.0`) and `mean` |
+  | 0 (text result) | **only** `reading_value` |
+
+  **The two sets are disjoint.** `reading_1` in a text formula, or
+  `reading_value` in a numeric one, raises a `NameError` inside `safe_eval`
+  and ERPNext reports *"Row #N: reading_1 is not a valid reading field"* —
+  on the **inspection**, days after the formula was written, naming a field
+  the user never typed. The SPA sets `numeric` from the response type
+  (`formula_numeric` → 1, `formula_text` → 0), so the type alone decides the
+  variable set.
+
+  The formula field therefore now carries a **type-aware description**, a
+  worked example, and a live warning for a name the type cannot resolve
+  (`lib/qualityResponse.js` → `formulaVariables`, `formulaUnknownVariables`).
+  The response-type select also describes what each type asks the inspector
+  for, because "Formula using text result" used to be a label and nothing
+  else.
+- **The Quality forms show errors AT THE FIELD, with no banner underneath.**
+  Every failing field is on screen (the details strip force-opens on the
+  error count), so a banner below repeating the same sentence says it twice
+  on one screen — which is what *"Template is required"* looked like after
+  pressing "Start inspection". The four Quality forms (inspection, parameter,
+  template, parameter group) therefore have **no `FormErrorSummary` at
+  all**: the field carries the message, and a server error is a toast. The
+  rules suite asserts that none of them render one, so the banner cannot
+  creep back in.
+  The one message that is not a field error — *"complete every parameter
+  before submitting"* — is a **toast**, because the Submit button lives in
+  the fixed bottom toolbar and a banner at the top of the page would be
+  several screens above the button the user just pressed. The form also
+  jumps to the first unanswered question.
+- **One hub tile per inspection type** (added 2026-10-21) — the Quality hub
+  had a single "Quality Inspection" tile, so the inspector had to find the
+  right list before they could start, and the three types are genuinely
+  different jobs. It now has three, each opening that type's list:
+
+  | ERPNext value | Tile | Route |
+  |---|---|---|
+  | `Incoming` | **Receiving Inspection** | `/quality/inspection?type=Incoming` |
+  | `Outgoing` | **Final Inspection** | `/quality/inspection?type=Outgoing` |
+  | `In Process` | **In-Process Inspection** | `/quality/inspection?type=In%20Process` |
+
+  The **tile names are business language, not ERPNext's values** — "Outgoing"
+  on a phone tells an inspector nothing about what to do, "Final Inspection"
+  does. The values behind them are ERPNext's, unchanged.
+
+  The type rides in the **query string**, not a path segment:
+  `/quality/inspection/incoming` would be swallowed by the existing
+  `/quality/inspection/:name` route and read as an inspection NAMED
+  "incoming". The list reads `?type=`, applies it as
+  `["inspection_type", "=", type]`, offers it as a filter (so the user can
+  widen to all types from inside), and **keeps the URL in step** — so a
+  reload or a shared link shows the same list. React Router does not remount
+  the list when only the search params change, so an effect copies the URL's
+  type into the filter state; without it, going from one tile's list to
+  another's would show the old type under the new tile's name.
+
+  There is **no "All Inspections" tile** — the sidebar's "Inspections" item
+  still reaches the unfiltered list, so nothing is lost and the hub does not
+  grow to eleven tiles.
+
+  The ERPNext values live in **one module** (`lib/inspectionTypes.js`),
+  because four places need them — the form's select, the list's row label,
+  the list's filter and the hub's tiles — and they were being written out
+  separately, so a fix to one would not reach the others.
+
+  **The reference type is shown, and the filter is scoped to it.** The
+  reference NAME alone is ambiguous — `PR-00042` and `PI-00042` look alike,
+  and the reader has to know *which kind* of document the inspection is
+  against — so the row carries `reference_name · reference_type`. The filter
+  offers only the reference types that belong to the scoped inspection type:
+  Incoming → Purchase Receipt / Purchase Invoice / Subcontracting Receipt,
+  Outgoing → Delivery Note / Sales Invoice / Stock Entry, In Process → Job
+  Card. An "Incoming" list offering "Delivery Note" is a filter that can
+  only ever come back empty, and an empty list reads as "there is nothing
+  here" rather than "that combination is impossible".
+
+  That mapping is a **quality convention, not an ERPNext rule** —
+  `reference_type` and `inspection_type` are two independent Selects and
+  ERPNext enforces no relationship between them. The one place it does
+  couple them is `if self.inspection_type == "In Process" and
+  self.reference_type == "Job Card"` (`quality_inspection.py:67`).
+
+  **The Quality hub is three SECTIONS, not one flat grid** (2026-10-21) —
+  the numbers, the work, and the setup the work is built on. A flat grid of
+  ten tiles made the relationship invisible: a parameter template looks like
+  a report until you know what it is. In the user's order:
+
+  | Section | Tiles | Columns |
+  |---|---|---|
+  | **Reports** | Quality Reports | 1 (full width — one tile reads better whole than as a lonely quarter) |
+  | **Actions** | Receiving / Final / In-Process Inspection, Non-Conformance, Corrective Action | 3 |
+  | **Master configuration** | Parameter Groups, Inspection Parameters, Quality Templates, Quality Procedure | 4 |
+
+  The hub uses the app's own `components/Section.jsx` — the same pattern the
+  Store hub already uses — and `ModuleGrid` grew an optional `cols` prop
+  (default **4**, so every other hub is untouched). `ModuleGrid`'s
+  `gridCorners` breakpoints are now **derived from the same `columnCount`**
+  as the grid class: they used to be a separate array beside the class
+  string, and the two could disagree. The rules suite asserts the derivation
+  rather than comparing two lists.
+- **A wrong entry in `config/doctypes.js` kills a whole list.** `GenericList`
+  does **not** meta-validate the fields the config names, and a field the
+  doctype does not have fails the **entire query** — so one wrong name takes
+  the list down, and the error names a *column* rather than the config entry
+  that is wrong. Three such entries had quietly killed the "Non Conformance"
+  (`date`), "Quality Procedure" (`procedure_scope`, `is_active`) and
+  "Corrective Action" lists.
+
+  `GenericList` now **drops** a configured column or search field the
+  doctype does not have, and logs which ones it dropped. An unreadable
+  meta resolves to **null = unknown**, and unknown must NOT be treated as
+  "this doctype has no fields" — a permission blip would otherwise strip
+  every column. The meta is fetched once per doctype and **shared** between
+  the filter chips and the query, so the guard costs no extra request.
+
+  **"Corrective Action" is not a doctype** — it is a Text Editor field on
+  "Non Conformance". ERPNext's CAPA doctype is **"Quality Action"**
+  (`corrective_preventive` distinguishes corrective from preventive). The
+  hub's tile pointed at `resource/Corrective Action` and was answered
+  "DocType Corrective Action not found".
+
+  The config's columns can only be checked against ERPNext's real doctypes
+  on a site where the apps are installed, so the audit is a script over the
+  apps' `doctype/*/*.json` — read each entry's `titleField`,
+  `subtitleField`, `metaField`, `statusField` and `searchFields` and check
+  them against that doctype's fieldnames (`name`, `modified`, `docstatus`
+  and the other implicit fields count as present). The rules suite cannot
+  reach the apps, so it asserts the *guard* instead.
+- **The inspection screen** (reworked 2026-10-21) — the one screen a user
+  spends real time on, and the one used on a phone as much as on a desk. It
+  is now a **question paper on ONE surface**: there is no screen to move to
+  between steps.
+
+  - **The details are a collapsible strip**, not a screen, and it closes
+    differently in the two cases:
+    - **A NEW inspection closes BY HAND** — a **"Start inspection"** button
+      at the foot of the strip. The last field being filled is not the user
+      saying "the header is done", and a strip that vanishes under them
+      mid-edit is worse than one they close themselves. The button collapses
+      the strip **in place** — it does not navigate, because a Start *screen*
+      is what broke the flow in the first place. Clicking it with a detail
+      still missing marks the missing ones and focuses the first, exactly as
+      Save does, rather than silently doing nothing.
+    - **An EXISTING inspection closes ITSELF.** It was started when it was
+      created, and the strip is there for the user who needs to change
+      something — so it starts collapsed, and re-collapses when the details
+      are complete again.
+  - **The paper waits for the details.** The header is not a preamble: the
+    item and the reference are what the readings are about, and until they are
+    there the inspection cannot be saved at all. So while the details are
+    incomplete the rail and the questions are not rendered, and the strip
+    holds the screen; the paper arrives with the hand-off. "Complete" is
+    the same `requiredFields` check the Save button uses — the fields
+    ERPNext marks `reqd` on the doctype (`quality_inspection.json`:
+    `item_code`, `inspection_type`, `reference_type`, `reference_name`,
+    `sample_size`) plus the template.
+  - **The rail** — one numbered chip per question plus a chip for the
+    review, `sticky top-0` inside the app's scroll container (`<main>`; the
+    sidebar is `fixed`, so `main` is the scroller and a sticky child pins
+    directly below the app header). The chip's FILL is the answer state and
+    its OUTLINE marks the current question — two separate devices, because a
+    current question that was rejected must still look rejected.
+  - **One question at a time**, in a centred column, with ONE large input
+    (`h-12 text-lg`, centred) — a number typed with one thumb deserves a
+    bigger target than the app's default `h-8` field. Enter advances, and in
+    a multi-reading question it advances to the next empty reading. Choices
+    do **not** auto-advance: a number input is "complete" after its first
+    digit, which is exactly the skip the paper exists to remove.
+  - **The review is the position AFTER the last question**, not a separate
+    screen — so it is one tap from the rail. It carries a `StatRow` of
+    `StatCard`s (Questions / Answered / To do / Verdict), every question with
+    what was answered and its verdict, and a row you can tap to jump back.
+    The question list **scrolls inside itself** (`max-h-[40vh]`, `md:max-h-[55vh]`,
+    `overscroll-contain`), so a review of forty questions does not turn the
+    page into a ten-screen scroll.
+  - **Submit lives in the PageToolbar** — the fixed bottom bar — and is also
+    offered in the review's content. The toolbar is the GUARANTEE: a button
+    at the bottom of a scrolling page is exactly the one that goes missing on
+    a phone, and the toolbar cannot be scrolled away. The review's own button
+    is the obvious next step on a desk. This is the app's convention
+    everywhere else (`GenericForm`, the plate-offcut form, the template
+    form all put Save/Submit in the toolbar), and the review was the only
+    page whose primary action lived only in the content flow.
+  - **The answers are kept** so the user can walk away and come back:
+    `lib/inspectionDraft.js` is an in-memory store kept deliberately OUTSIDE
+    React (a context at the app root would re-render the whole tree on every
+    keystroke). The inspection list subscribes to it and shows a "Continue
+    your inspection" panel; resuming lands on the **exact question the user
+    left on**, not on a blank form.
+  - **Changing the template asks first** — it replaces the whole question
+    set, so every answer entered against the old one goes with it.
+  - The completion and status rules live in **`lib/inspectionProgress.js`**
+    (`parameterStatus`, `isParameterComplete`, `summariseInspection`,
+    `overallStatus`), and the rail's per-question state and the summary's
+    answer text live in **`lib/inspectionPaper.js`** (`questionStates`,
+    `describeAnswer`, `paperCanSubmit`). They are business rules that fail
+    SILENTLY, so the rules suite asserts them.
+  - A formula reading the user has filled in is **"answered", not
+    "accepted"**: the formula is evaluated by the server, so the browser
+    cannot know whether it passed, and claiming otherwise would be a verdict
+    the browser never earned.
+- **Parameter Group** (added 2026-10-21) — the master behind
+  `Quality Inspection Parameter.parameter_group`, which the SPA could only
+  *pick* before: the parameter form's `LinkField` searched the doctype, but
+  nothing could create, rename or delete one, and a typo in a group name was
+  unfixable without leaving for the ERPNext desk. It now has its own screens
+  at `/quality/parameter-groups` (list + form), a hub tile and a sidebar
+  child. `lib/qualityParameterGroup.js` holds the pure rules and the rules
+  suite asserts them.
+
+  The doctype has **one field**, `group_name`, declared
+  `autoname: "field:group_name"`. Two consequences, both silent:
+
+  1. `name === group_name`.
+  2. **Editing the name does nothing.** `frappe/model/base_document.py:1027-1033`
+     (`_sync_autoname_field`, called from `_validate_data_fields` inside
+     `validate()`) overwrites `group_name` with the stored `name` on every
+     save. A PUT carrying an edited `group_name` answers 200 "saved" and
+     keeps the old value.
+
+  So the form shows the name **read-only** and changes it with a **rename**,
+  not a save: `frappe.client.rename_doc` (`frappe/client.py:266-273`) takes
+  `doctype` / `old_name` / `new_name` — *not* `old` / `new`, which are the
+  internal `frappe.model.rename_doc.rename_doc` spellings and produce a
+  `TypeError` instead of a rename. Frappe then rewrites every
+  `Quality Inspection Parameter.parameter_group` that pointed at the group
+  (`frappe/model/rename_doc.py:169-170`, `update_link_field_values`), so a
+  rename cannot orphan a parameter.
+
+  **Delete is guarded, not offered-and-refused.** A group that parameters
+  still reference is rejected by Frappe (`check_if_doc_is_linked` →
+  `LinkExistsError`), so the form counts the references first and disables
+  Delete while the group is in use. A usage count that could not be
+  established is treated as "in use" — fail closed — because a wrong count
+  would re-enable a button that is guaranteed to fail.
+
+  **The name input's value and its writer must be the same state.** The form
+  once rendered `doc.group_name` while its `onChange` wrote `renameValue`:
+  the field was editable, every keystroke was accepted, and nothing appeared
+  on screen. `groupNameFieldState` in `lib/qualityParameterGroup.js` now
+  names the bound state ("doc" or "rename") so the pairing is assertable,
+  and the rules suite pins it for all four mode combinations.
 
 ### 7.9 HR / Sales / Purchase
 
@@ -2005,6 +2284,27 @@ checks the posting date and time inputs actually carry **today** and **now** —
 both used to render blank, which is not cosmetic (§11.3). It also renders the
 merged ESS dashboard and asserts all nine tile names appear, because the leak
 regex previously did not cover the `ess` or `requests` namespaces at all.
+
+### 10.2 Last run — 2026-10-21, after the Parameter Group work
+
+| Check | Result |
+|---|---|
+| rules suite | **563 passed, 7 failed** — the 7 are **pre-existing** (see below); the 33 new Parameter Group assertions all pass |
+| request-form render | **all forms render** |
+| store + ESS + receipt dialogs + balance + return | **125 passed, 1 failed** — the 1 is **pre-existing** |
+| `npm run lint` | **15 errors** — **pre-existing**, unchanged from `HEAD` (`.smoke-tmp/*` and `src/pages/ESS/requests/expense/ExpenseClaimForm.jsx`); the new files are clean |
+| `npm run build` | **✓ built**, `erpnext_ui/public/erp_ui/` regenerated |
+
+**The suites do NOT currently pass, and did not before this work either.**
+Verified against a clean tree at `HEAD` (`318f506`): the rules suite reports
+`530 passed, 7 failed` and the store suite `125 passed, 1 failed` — the same
+8 failures. They come from the Purchase Receipt rework ("Improve purchase
+receipt item selection"): six rules assertions about the receipt picker and
+the attach surfaces, one about `src/lib/docTransition.js` reading `loaded.docs`
+off a raw `get("method/")` response, and one store assertion, *"ess: leave and
+expense attach actions are draft-only"*. **§10.1's "0 failed" is from
+2026-10-13 and is stale.** The `ok(...)` helper prints `FAIL: <name> got:
+<detail>`, so the names above are what a run prints.
 
 ## 11. Stock Entry rework (2026-10-13)
 

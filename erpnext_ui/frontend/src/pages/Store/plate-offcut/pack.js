@@ -24,6 +24,8 @@
  * @property {string} id        - stable client key, echoed back on hover
  * @property {number} length_mm
  * @property {number} width_mm
+ * @property {string} [shape]   - Rectangle or Circle
+ * @property {number} [diameter_mm]
  * @property {number} [count]   - pieces of this size; drawn one per unit
  */
 
@@ -57,12 +59,13 @@ export function packPieces({ plateLength, plateWidth, pieces = [] }) {
   // not depend on the order rows happen to be typed in.
   const units = [];
   pieces.forEach((piece) => {
-    const l = num(piece.length_mm);
-    const w = num(piece.width_mm);
+    const circle = piece.shape === "Circle";
+    const l = circle ? num(piece.diameter_mm) : num(piece.length_mm);
+    const w = circle ? l : num(piece.width_mm);
     if (l <= 0 || w <= 0) return;
     const count = Math.max(1, Math.floor(num(piece.count) || 1));
     for (let i = 0; i < count; i += 1) {
-      units.push({ id: piece.id, index: i, l, w, area: l * w });
+      units.push({ id: piece.id, index: i, l, w, shape: circle ? "Circle" : "Rectangle", area: l * w });
     }
   });
   units.sort(
@@ -128,6 +131,7 @@ export function packPieces({ plateLength, plateWidth, pieces = [] }) {
     overflow.push({
       id: unit.id,
       index: unit.index,
+      shape: unit.shape,
       x: 0,
       y: 0,
       w: unit.l,
@@ -149,6 +153,7 @@ function placedOne(unit, x, y, w, h, rotated) {
   return {
     id: unit.id,
     index: unit.index,
+    shape: unit.shape,
     x,
     y,
     w,
@@ -167,6 +172,8 @@ function placedOne(unit, x, y, w, h, rotated) {
  */
 export function pieceLabel(piece, countsById) {
   const total = countsById?.get(piece.id) ?? 1;
-  const size = `${Math.round(piece.w)}x${Math.round(piece.h)}`;
+  const size = piece.shape === "Circle"
+    ? `Ø${Math.round(piece.w)}`
+    : `${Math.round(piece.w)}x${Math.round(piece.h)}`;
   return total > 1 ? `${size} x${total}` : size;
 }

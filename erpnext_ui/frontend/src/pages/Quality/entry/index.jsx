@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { get } from "../../../services/api";
 import ListLayout from "../../../components/ListLayout";
 import ActionBar from "../../../components/ActionBar";
@@ -9,8 +9,18 @@ import Pagination from "../../../components/Pagination";
 import { ListRow } from "../../../components/List/ListRow";
 import DataTable from "../../../components/List/DataTable";
 import { StatusBadge } from "../../../components/List/StatusBadge";
+import { Button } from "@/components/ui/button";
 import useListPagination from "../../../hooks/useListPagination";
+import { useInspectionDraft } from "../../../hooks/useInspectionDraft";
+import { clearInspectionDraft } from "../../../lib/inspectionDraft";
 import { listFilterHandlers } from "../../../lib/filterChips";
+import { summariseInspection } from "../../../lib/inspectionProgress";
+import {
+  INSPECTION_TYPES,
+  REFERENCE_TYPES,
+  inspectionTypeLabel,
+  referenceTypesFor,
+} from "../../../lib/inspectionTypes";
 
 const getStatus = (row, t) => {
   if (row.status === "Accepted")
@@ -20,24 +30,27 @@ const getStatus = (row, t) => {
   return { label: t("quality.statusDraft"), color: "open" };
 };
 
-const getTypeLabel = (type, t) => {
-  if (type === "Incoming") return t("quality.typeIncoming");
-  if (type === "In Process") return t("quality.typeInProcess");
-  if (type === "Outgoing") return t("quality.typeOutgoing");
-  return type || "-";
-};
-
 export default function InspectionList() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
+  // The inspection the user walked away from, if there is one.
+  //
+  // The answers live OUTSIDE React (lib/inspectionDraft.js) so they survive
+  // the form unmounting when the user navigates here. This hook subscribes to
+  // that store, so the panel appears the moment a paper is started and
+  // disappears when it is saved.
+  const draft = useInspectionDraft();
+  const draftProgress = useMemo(
+    () => summariseInspection(draft?.parameters || []),
+    [draft],
+  );
+
   const [data, setData] = useState([]);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [selectedFilters, setSelectedFilters] = useState({});
 
   const {
     page,
@@ -50,13 +63,108 @@ export default function InspectionList() {
     limit_page_length,
   } = useListPagination({ pageSize: 10 });
 
-  const filterUi = useMemo(
-    () => listFilterHandlers(setSelectedFilters, resetPage),
-    [resetPage],
+  /**
+   * The inspection type, in the URL.
+   *
+   * The hub's tiles each open the list for one type, and the type rides in
+   * the query string so the list can be LINKED to and RELOADED with the same
+   * scope. It is in the filter state as well, because that is what the
+   * filter bar and the chips work with -- the two are kept in step below.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const typeFilter = searchParams.get("type") || "";
+
+  const [selectedFilters, setSelectedFilters] = useState(() =>
+    typeFilter ? { inspection_type: typeFilter } : {},
   );
+
+  /**
+   * Keep the filter state in step with the URL.
+   *
+   * React Router does NOT remount the list when only the search params
+   * change, so going from one tile's list to another's would leave the OLD
+   * type in the filter state -- the list would show the wrong type under the
+   * new tile's name.
+   */
+  useEffect(() => {
+    // The URL is an EXTERNAL system: it is what the hub's tile set, and
+    // what a shared link carries. Syncing an external value into state is
+    // the case the rule is about.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedFilters((prev) => {
+      if (typeFilter) {
+        return prev.inspection_type === typeFilter
+          ? prev
+          : { ...prev, inspection_type: typeFilter };
+      }
+      if (!prev.inspection_type) return prev;
+      const next = { ...prev };
+      delete next.inspection_type;
+      return next;
+    });
+  }, [typeFilter]);
+
+  /**
+   * Put the type back in the URL when the filter bar changes it.
+   *
+   * Without this the URL would keep the type the tile set, so a reload (or
+   * a shared link) would show a different list from the one on screen.
+   */
+  const syncTypeToUrl = useCallback(
+    (type) => {
+      const next = new URLSearchParams(searchParams);
+      if (type) next.set("type", type);
+      else next.delete("type");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const filterUi = useMemo(() => {
+    const base = listFilterHandlers(setSelectedFilters, resetPage);
+    return {
+      ...base,
+      onApplyFilters: (filters) => {
+        base.onApplyFilters(filters);
+        syncTypeToUrl(filters.inspection_type || "");
+      },
+      onRemoveFilter: (field) => {
+        base.onRemoveFilter(field);
+        if (field === "inspection_type") syncTypeToUrl("");
+      },
+      onClearFilters: () => {
+        base.onClearFilters();
+        syncTypeToUrl("");
+      },
+    };
+  }, [resetPage, syncTypeToUrl]);
 
   const filterConfig = {
     filters: [
+      {
+        label: t("quality.inspectionType"),
+        field: "inspection_type",
+        type: "select",
+        // ERPNext's own values, so the filter matches what is stored.
+        options: INSPECTION_TYPES.map((it) => ({
+          value: it.value,
+          label: t(it.labelKey),
+        })),
+      },
+      {
+        label: t("quality.referenceType"),
+        field: "reference_type",
+        type: "select",
+        // ONLY the reference types that belong to the type this list is
+        // scoped to. An "Incoming" list offering "Delivery Note" is a filter
+        // that can only ever come back empty -- and an empty list reads as
+        // "there is nothing here" rather than "that combination is
+        // impossible".
+        options: referenceTypesFor(typeFilter).map((name) => ({
+          value: name,
+          label: name,
+        })),
+      },
       {
         label: t("quality.result"),
         field: "status",
@@ -89,6 +197,10 @@ export default function InspectionList() {
           "quality_inspection_template",
           "item_code",
           "reference_name",
+          // The reference NAME is not enough on its own: "PR-00042" and
+          // "PI-00042" look alike, and the reader has to know WHICH kind of
+          // document the inspection is against.
+          "reference_type",
           "status",
           "inspection_type",
           "report_date",
@@ -145,7 +257,13 @@ export default function InspectionList() {
       ],
       actions: [
         {
-          label: t("quality.newInspection"),
+          // With a paper in progress this becomes "continue" -- the primary
+          // action on this page is always the one the user most likely
+          // wants, and there is exactly one button per intent. The panel
+          // below carries the explicit "start a new one".
+          label: draft
+            ? t("quality.continueInspection")
+            : t("quality.newInspection"),
           variant: "btn-primary",
           onClick: () => navigate("/quality/inspection/new"),
         },
@@ -154,7 +272,7 @@ export default function InspectionList() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [draft]);
 
   const handleSearch = useCallback(
     (q) => {
@@ -175,8 +293,8 @@ export default function InspectionList() {
         const status = getStatus(row, t);
         return {
           title: row.name,
-          subtitle: `${row.item_code || "-"} · ${getTypeLabel(row.inspection_type, t)}`,
-          meta: `${row.reference_name || "-"} · ${row.report_date || "-"}`,
+          subtitle: `${row.item_code || "-"} · ${inspectionTypeLabel(row.inspection_type, t)}`,
+          meta: `${row.reference_name || "-"} · ${row.reference_type || "-"} · ${row.report_date || "-"}`,
           status: status.color,
           statusLabel: status.label,
           raw: row,
@@ -224,6 +342,43 @@ export default function InspectionList() {
       loading={loading}
       error={error}
       onRetry={loadData}
+      tabs={
+        draft ? (
+          /* THE PAPER IN PROGRESS
+             The user walked away from an inspection. The point of this panel
+             is that they land back on the EXACT question they left on, not
+             on a blank form -- being sent to a fresh "new inspection" is
+             what disconnects them from the flow they were in. */
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">
+                {t("quality.continueInspection")}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {[draft.doc?.item_code, draft.doc?.template]
+                  .filter(Boolean)
+                  .join(" · ") || t("quality.inspectionInProgress")}
+                {" · "}
+                {t("quality.inspectionProgress", {
+                  done: draftProgress.complete,
+                  total: draftProgress.total,
+                })}
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                clearInspectionDraft();
+                navigate("/quality/inspection/new");
+              }}
+            >
+              {t("quality.startNewInspection")}
+            </Button>
+          </div>
+        ) : null
+      }
       actionBar={
         <ActionBar
           onSearch={handleSearch}
