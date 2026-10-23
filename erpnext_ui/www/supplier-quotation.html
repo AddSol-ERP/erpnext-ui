@@ -1,104 +1,11 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="csrf-token" content="">
-  <meta name="robots" content="noindex, nofollow">
-  <title>Supplier Quotation — Supplier response</title>
-  <link rel="stylesheet" href="/assets/erpnext_ui/supplier_quotation/supplier-quotation.css?v=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supplier Quotation</title>
 </head>
 <body>
-  <main class="page">
-    <header class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <div>
-        <p class="brand-eyebrow">Supplier portal</p>
-        <h1 class="brand-name" id="brand-name">Supplier Quotation</h1>
-      </div>
-    </header>
-
-    <section class="card" id="loading-card" aria-live="polite">
-      <p class="muted">Opening your request…</p>
-    </section>
-
-    <section class="card hidden" id="gate-card">
-      <h2 id="gate-title">Confirm your email</h2>
-      <p id="gate-message" class="muted"></p>
-      <p id="gate-hint" class="hint hidden"></p>
-      <div id="gate-alert" class="alert hidden" role="alert"></div>
-      <div id="gate-actions" class="actions"></div>
-
-      <form id="otp-form" class="otp-form hidden" autocomplete="off" novalidate>
-        <label for="otp-input">Verification code</label>
-        <input
-          id="otp-input"
-          name="otp"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          maxlength="6"
-          pattern="[0-9]{6}"
-          placeholder="000000"
-        >
-        <button type="submit" class="btn btn-primary" id="verify-button">Verify and continue</button>
-      </form>
-
-      <p id="gate-note" class="note"></p>
-    </section>
-
-    <section class="card hidden" id="form-card">
-      <div class="request-head">
-        <div>
-          <p class="eyebrow">Request for quotation</p>
-          <h2 id="request-title"></h2>
-          <p id="request-meta" class="muted"></p>
-        </div>
-        <span class="badge">Response</span>
-      </div>
-
-      <div id="document-section" class="section hidden">
-        <h3>Quotation details</h3>
-        <div id="document-fields" class="field-grid"></div>
-      </div>
-
-      <div id="items-section" class="section">
-        <h3>Requested items</h3>
-        <p class="muted small">Enter your quoted values for each item. Quantities and units come from the request and cannot be changed.</p>
-        <div id="items-list" class="items"></div>
-      </div>
-
-      <div id="form-alert" class="alert hidden" role="alert"></div>
-
-      <div class="actions actions-end">
-        <button type="button" class="btn btn-primary" id="review-button">Review response</button>
-      </div>
-    </section>
-
-    <section class="card hidden" id="review-card">
-      <p class="eyebrow">Review</p>
-      <h2>Check your response</h2>
-      <p class="muted">Nothing is sent until you submit. You can go back and correct any value.</p>
-      <div id="review-body"></div>
-      <div id="review-alert" class="alert hidden" role="alert"></div>
-      <div class="actions actions-end">
-        <button type="button" class="btn btn-quiet" id="back-button">Edit response</button>
-        <button type="button" class="btn btn-primary" id="submit-button">Submit response</button>
-      </div>
-    </section>
-
-    <section class="card hidden" id="success-card">
-      <div class="success-mark" aria-hidden="true">✓</div>
-      <h2>Response received</h2>
-      <p class="muted">Thank you. The buying team has been notified and will review your quotation.</p>
-      <dl class="context-grid" id="success-meta"></dl>
-    </section>
-
-    <footer class="footer">
-      <p>This link is personal to the invited supplier email. Do not forward it.</p>
-    </footer>
-  </main>
-
-  <script>window.__SUPPLIER_QUOTATION_BRAND__ = "Supplier Quotation";</script>
-  <script>try{var m=document.querySelector('meta[name="csrf-token"]');if(m){var t=window.frappe&&frappe.csrf_token;m.setAttribute('content',t||'');}}catch(e){}</script>
+<h1>Supplier Quotation</h1>
 </body>
 </html>
