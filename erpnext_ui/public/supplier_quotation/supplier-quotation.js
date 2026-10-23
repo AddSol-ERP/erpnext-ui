@@ -208,7 +208,7 @@
   function setBrand(invitation) {
     const brand =
       invitation?.brand_name ||
-      window.__SUPPLIER_QUOTATION_BRAND__ ||
+      window.supplierQuotationBrand ||
       els.brandName?.textContent ||
       "Supplier Quotation";
     if (els.brandName) els.brandName.textContent = brand;
