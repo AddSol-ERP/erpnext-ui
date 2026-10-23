@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, Plus, Table2, Trash2, Info } from "lucide-react";
+import { ClipboardList, Plus, Table2, Trash2, Info, Lock } from "lucide-react";
 import { get, getMethod } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
@@ -97,6 +97,7 @@ export default function MaterialRequestForm() {
   const isTransfer = doc.material_request_type === "Material Transfer";
   const isCustomerProvided = doc.material_request_type === "Customer Provided";
   const isPurchase = doc.material_request_type === "Purchase";
+  const isReadOnly = doc.docstatus !== 0;
   // A production indent is a bill of materials, so its project is a property of
   // the whole request rather than of one row. The other purposes mix
   // project-specific and free items on the same indent, which is why they keep
@@ -679,7 +680,22 @@ export default function MaterialRequestForm() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
       <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
-      {/* BASIC */}
+      {isReadOnly ? (
+        <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <Lock className="mt-0.5 size-4 shrink-0" />
+          <p>{t("store.mr.readOnlySubmitted")}</p>
+        </div>
+      ) : null}
+
+      {/*
+        A submitted document is immutable in ERPNext. The toolbar already hides
+        Save and Submit, but every input stayed live: editing one changed only
+        local state, so the screen said "submitted" while accepting changes that
+        could never be saved. `fieldset disabled` makes the whole form read-only
+        at the DOM level, including LinkField, FormSelect and the item rows.
+      */}
+      <fieldset disabled={isReadOnly} className="contents">
+        {/* BASIC */}
       <FormSection
         title={t("store.form.basics")}
         icon={ClipboardList}
@@ -949,6 +965,7 @@ export default function MaterialRequestForm() {
           </div>
         ) : null}
       </FormSection>
+      </fieldset>
 
       <AppModal
         show={itemModalOpen}

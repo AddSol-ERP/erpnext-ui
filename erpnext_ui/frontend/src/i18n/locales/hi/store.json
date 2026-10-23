@@ -392,6 +392,7 @@
       "newTitle": "नई मटेरियल रिक्वेस्ट",
       "subtitleSubmitted": "{type} • सबमिट किया गया",
       "subtitleDraft": "{type} • ड्राफ्ट",
+      "readOnlySubmitted": "यह मटेरियल रिक्वेस्ट सबमिट हो चुकी है। विवरण केवल पढ़ने के लिए हैं।",
       "createSubtitle": "{type} बनाएं",
       "form": {
         "project": "परियोजना",

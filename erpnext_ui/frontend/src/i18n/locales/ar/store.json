@@ -392,6 +392,7 @@
       "newTitle": "طلب مواد جديد",
       "subtitleSubmitted": "{type} • مُرسل",
       "subtitleDraft": "{type} • مسودة",
+      "readOnlySubmitted": "تم إرسال طلب المواد. التفاصيل للقراءة فقط.",
       "createSubtitle": "إنشاء {type}",
       "form": {
         "project": "المشروع",

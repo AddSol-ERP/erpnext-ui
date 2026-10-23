@@ -392,6 +392,7 @@
       "newTitle": "New Material Request",
       "subtitleSubmitted": "{type} • Submitted",
       "subtitleDraft": "{type} • Draft",
+      "readOnlySubmitted": "This material request has been submitted. Details are read-only.",
       "createSubtitle": "Create {type}",
       "form": {
         "project": "Project",
