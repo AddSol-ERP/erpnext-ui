@@ -1,5 +1,7 @@
 import os
 
+from frappe.sessions import get_csrf_token
+
 no_cache = 1
 
 
@@ -7,6 +9,7 @@ def get_context(context):
 	context.no_sidebar = True
 	context.no_header = True
 	context.no_footer = True
+	context.csrf_token = get_csrf_token()
 	return context
 
 
