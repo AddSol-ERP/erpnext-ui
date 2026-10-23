@@ -13,5 +13,11 @@ def get_context(context):
 
 
 def get_html_content(path=None):
-	html = open(os.path.join(frappe.get_app_path("erpnext_ui", "www"), "supplier-quotation.html")).read()
-	return html
+	path = path or "supplier-quotation"
+	if not path.endswith(".html"):
+		path += ".html"
+	file_path = os.path.join(frappe.get_app_path("erpnext_ui", "www"), path)
+	if os.path.exists(file_path):
+		with open(file_path, "r", encoding="utf-8") as f:
+			return f.read()
+	return "<html><body>Not found</body></html>"
