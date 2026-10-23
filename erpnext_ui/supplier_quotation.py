@@ -12,12 +12,12 @@ Security model (see MEMORY.md §3.12):
 """
 
 import hashlib
-from html import escape
 import hmac
 import math
 import re
 import secrets
 from datetime import timedelta
+from html import escape
 
 import frappe
 from frappe import _
@@ -1068,6 +1068,8 @@ def _response_field_value(value, row):
 		return "—"
 	if row.fieldtype == "Check":
 		return _("Yes") if cint(value) else _("No")
+	if row.fieldtype in ("Text Editor", "Text", "Small Text", "Long Text"):
+		return strip_html(str(value))
 	return str(value)
 
 
@@ -1076,35 +1078,55 @@ def _send_supplier_response_acknowledgement(inv, sq, settings):
 	if not inv.recipient_email:
 		return
 
-	document_fields = get_configured_fields(settings, "Document", editable_only=True)
-	item_fields = get_configured_fields(settings, "Item", editable_only=True)
+	# The supplier should receive the same columns they saw in the form: the
+	# read-only context columns (description, brand, schedule date, ...) as well
+	# as the fields they were asked to fill. Fetching only editable fields left
+	# the acknowledgement with a narrower table than the response form.
+	document_context, document_fields = _split_context_and_inputs(settings, "Document")
+	item_context, item_fields = _split_context_and_inputs(settings, "Item")
+	item_context_extra = [
+		field
+		for field in item_context
+		if field.fieldname not in {"item_code", "item_name", "description", "qty", "uom"}
+	]
 	sq_items = {row.name: row for row in sq.items}
 	rows_html = []
 	for inv_item in inv.items:
 		sq_item = sq_items.get(inv_item.supplier_quotation_item)
 		if not sq_item:
 			continue
+		description = inv_item.description or sq_item.description or ""
 		cells = [
 			escape(str(inv_item.item_code or sq_item.item_code or "")),
 			escape(str(inv_item.item_name or sq_item.item_name or "")),
+			escape(strip_html(str(description))),
 			escape(str(inv_item.qty or sq_item.qty or "")),
 			escape(str(inv_item.uom or sq_item.uom or "")),
 		]
+		cells.extend(
+			escape(_response_field_value(sq_item.get(field.fieldname), field))
+			for field in item_context_extra
+		)
 		cells.extend(
 			escape(_response_field_value(sq_item.get(field.fieldname), field))
 			for field in item_fields
 		)
 		rows_html.append("<tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr>")
 
-	columns = [_("Item Code"), _("Item Name"), _("Quantity"), _("UOM")]
+	columns = [
+		_("Item Code"),
+		_("Item Name"),
+		_("Description"),
+		_("Quantity"),
+		_("UOM"),
+	]
+	columns.extend(_(field.label or field.fieldname) for field in item_context_extra)
 	columns.extend(_(field.label or field.fieldname) for field in item_fields)
 	header_html = "".join(f"<th>{escape(str(label))}</th>" for label in columns)
 	document_rows = "".join(
-		"<tr><th>{}</th><td>{}</td></tr>".format(
-			escape(str(field.label or field.fieldname)),
-		escape(_response_field_value(sq.get(field.fieldname), field)),
-		)
-		for field in document_fields
+		f"<tr><th>{escape(str(field.label or field.fieldname))}</th>"
+		f"<td>{escape(_response_field_value(sq.get(field.fieldname), field))}</td></tr>"
+		for field in document_context + document_fields
 	)
 	company = frappe.db.get_value("Company", inv.company, "company_name") if inv.company else None
 	company = company or inv.company or ""
