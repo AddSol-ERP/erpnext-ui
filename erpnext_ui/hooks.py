@@ -154,6 +154,10 @@ override_doctype_class = {
 	"Quality Inspection": "erpnext_ui.overrides.QualityInspection"
 }
 
+# Suppress ERPNext's standard footer for emails sent by our supplier quotation
+# response flow; the hook checks a private header and leaves all other mail alone.
+make_email_body_message = "erpnext_ui.email_hooks.remove_erpnext_footer_from_supplier_quotation_email"
+
 # Scheduled Tasks
 # ---------------
 

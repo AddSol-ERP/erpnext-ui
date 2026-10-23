@@ -12,6 +12,7 @@ Security model (see MEMORY.md §3.12):
 """
 
 import hashlib
+from html import escape
 import hmac
 import math
 import re
@@ -1019,6 +1020,7 @@ def _send_invitation_email(inv, token, settings, print_format, pdf_content):
 		attachments=attachments,
 		reference_doctype=INVITATION_DOCTYPE,
 		reference_name=inv.name,
+		email_headers={"X-ERPNext-UI-Supplier-Quotation": "1"},
 		now=True,
 	)
 
@@ -1055,9 +1057,88 @@ def _send_response_notification(inv, sq, settings):
 		message=message,
 		reference_doctype=INVITATION_DOCTYPE,
 		reference_name=inv.name,
+		email_headers={"X-ERPNext-UI-Supplier-Quotation": "1"},
 		now=True,
 	)
 	return recipients
+
+
+def _response_field_value(value, row):
+	if value is None or value == "":
+		return "—"
+	if row.fieldtype == "Check":
+		return _("Yes") if cint(value) else _("No")
+	return str(value)
+
+
+def _send_supplier_response_acknowledgement(inv, sq, settings):
+	"""Email the supplier a readable copy of the values they just submitted."""
+	if not inv.recipient_email:
+		return
+
+	document_fields = get_configured_fields(settings, "Document", editable_only=True)
+	item_fields = get_configured_fields(settings, "Item", editable_only=True)
+	sq_items = {row.name: row for row in sq.items}
+	rows_html = []
+	for inv_item in inv.items:
+		sq_item = sq_items.get(inv_item.supplier_quotation_item)
+		if not sq_item:
+			continue
+		cells = [
+			escape(str(inv_item.item_code or sq_item.item_code or "")),
+			escape(str(inv_item.item_name or sq_item.item_name or "")),
+			escape(str(inv_item.qty or sq_item.qty or "")),
+			escape(str(inv_item.uom or sq_item.uom or "")),
+		]
+		cells.extend(
+			escape(_response_field_value(sq_item.get(field.fieldname), field))
+			for field in item_fields
+		)
+		rows_html.append("<tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr>")
+
+	columns = [_("Item Code"), _("Item Name"), _("Quantity"), _("UOM")]
+	columns.extend(_(field.label or field.fieldname) for field in item_fields)
+	header_html = "".join(f"<th>{escape(str(label))}</th>" for label in columns)
+	document_rows = "".join(
+		"<tr><th>{}</th><td>{}</td></tr>".format(
+			escape(str(field.label or field.fieldname)),
+		escape(_response_field_value(sq.get(field.fieldname), field)),
+		)
+		for field in document_fields
+	)
+	company = frappe.db.get_value("Company", inv.company, "company_name") if inv.company else None
+	company = company or inv.company or ""
+	message = """
+	<p>Thank you. We have received your quotation response.</p>
+	<p><strong>Material Request:</strong> {mr}<br>
+	<strong>Supplier Quotation:</strong> {sq}<br>
+	<strong>Currency:</strong> {currency}</p>
+	{document_details}
+	<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%">
+	<thead><tr>{headers}</tr></thead><tbody>{items}</tbody></table>
+	<p>Regards,<br>{company}</p>
+	""".format(
+		mr=escape(str(inv.material_request)),
+		sq=escape(str(sq.name)),
+		currency=escape(str(sq.currency or "")),
+		document_details=(
+			f'<table border="0" cellpadding="4" cellspacing="0">{document_rows}</table>'
+			if document_rows
+			else ""
+		),
+		headers=header_html,
+		items="".join(rows_html),
+		company=escape(str(company)),
+	)
+	frappe.sendmail(
+		recipients=[inv.recipient_email],
+		subject=_("Quotation response received: {0}").format(inv.material_request),
+		message=message,
+		reference_doctype=INVITATION_DOCTYPE,
+		reference_name=inv.name,
+		email_headers={"X-ERPNext-UI-Supplier-Quotation": "1"},
+		now=True,
+	)
 
 
 # ---------------------------------------------------------------------------
@@ -1560,6 +1641,7 @@ def request_supplier_quotation_otp(token=None):
 			).format(otp, cint(settings.otp_expiry_minutes)),
 			reference_doctype=INVITATION_DOCTYPE,
 			reference_name=inv.name,
+			email_headers={"X-ERPNext-UI-Supplier-Quotation": "1"},
 			now=True,
 		)
 	except Exception as exc:
@@ -1809,6 +1891,7 @@ def submit_supplier_quotation_response(session=None, rows=None, document=None):
 	notification_sent = False
 	try:
 		_send_response_notification(inv, sq, settings)
+		_send_supplier_response_acknowledgement(inv, sq, settings)
 		inv.notification_status = "Sent"
 		inv.notification_error = None
 		notification_sent = True

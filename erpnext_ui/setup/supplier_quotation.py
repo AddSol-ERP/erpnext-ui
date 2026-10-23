@@ -22,7 +22,10 @@ DEFAULT_RESPONSE_MESSAGE = (
 	"Material Request: {material_request}\n"
 	"Supplier: {supplier}\n"
 	"Supplier Quotation: {supplier_quotation}\n\n"
-	"Review it in ERPNext."
+	"The response is recorded and ready for review."
+)
+LEGACY_DEFAULT_RESPONSE_MESSAGE = DEFAULT_RESPONSE_MESSAGE.replace(
+	"The response is recorded and ready for review.", "Review it in ERPNext."
 )
 
 
@@ -55,6 +58,9 @@ def setup_supplier_quotation_settings():
 		if not (settings.response_subject or "").strip():
 			settings.response_subject = DEFAULT_RESPONSE_SUBJECT
 		if not (settings.response_message or "").strip():
+			settings.response_message = DEFAULT_RESPONSE_MESSAGE
+		elif settings.response_message.strip() == LEGACY_DEFAULT_RESPONSE_MESSAGE:
+			# Replace only our old seed value; preserve administrator wording.
 			settings.response_message = DEFAULT_RESPONSE_MESSAGE
 
 	validate_template_text(settings.invitation_subject, "Invitation Subject")

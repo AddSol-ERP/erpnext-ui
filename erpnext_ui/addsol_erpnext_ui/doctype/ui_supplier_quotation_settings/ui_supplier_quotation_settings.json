@@ -17,7 +17,7 @@
   {"fieldname": "invitation_subject", "fieldtype": "Data", "label": "Invitation Subject", "default": "Request for quotation {material_request}"},
   {"fieldname": "invitation_message", "fieldtype": "Text", "label": "Invitation Message", "default": "Dear Supplier,\n\nPlease provide your best rates for the items listed in the attached request. Open the link below to enter your response. You will receive a verification code by email before any request details are shown.\n\n{link}\n\nRegards,\nPurchase Team"},
   {"fieldname": "response_subject", "fieldtype": "Data", "label": "Response Notification Subject", "default": "Supplier quotation received: {material_request} / {supplier}"},
-  {"fieldname": "response_message", "fieldtype": "Text", "label": "Response Notification Message", "default": "A supplier quotation response has been received.\n\nMaterial Request: {material_request}\nSupplier: {supplier}\nSupplier Quotation: {supplier_quotation}\n\nReview it in ERPNext."},
+  {"fieldname": "response_message", "fieldtype": "Text", "label": "Response Notification Message", "default": "A supplier quotation response has been received.\n\nMaterial Request: {material_request}\nSupplier: {supplier}\nSupplier Quotation: {supplier_quotation}\n\nThe response is recorded and ready for review."},
   {"fieldname": "attach_print_format", "fieldtype": "Check", "label": "Attach Material Request Print Format", "default": "1"},
   {"fieldname": "default_print_format", "fieldtype": "Link", "label": "Default Print Format", "options": "Print Format"},
   {"fieldname": "security_section", "fieldtype": "Section Break", "label": "Security and Expiry"},
