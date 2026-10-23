@@ -1,7 +1,5 @@
 import os
 
-import frappe
-
 no_cache = 1
 
 
@@ -16,8 +14,9 @@ def get_html_content(path=None):
 	path = path or "supplier-quotation"
 	if not path.endswith(".html"):
 		path += ".html"
-	file_path = os.path.join(frappe.get_app_path("erpnext_ui", "www"), path)
+	app_path = os.path.dirname(os.path.abspath(__file__))
+	file_path = os.path.join(app_path, path)
 	if os.path.exists(file_path):
 		with open(file_path, "r", encoding="utf-8") as f:
 			return f.read()
-	return "<html><body>Not found</body></html>"
+	return "<!doctype html><html><head><meta charset=\"utf-8\"></head><body>Supplier Quotation</body></html>"
