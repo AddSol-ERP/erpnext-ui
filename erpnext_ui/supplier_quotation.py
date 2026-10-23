@@ -285,7 +285,7 @@ def _catalog_entry(scope, df):
 		"precision": cint(df.precision),
 		"reqd": cint(df.reqd),
 		"read_only": cint(df.read_only),
-		"custom": cint(df.is_custom_field),
+		"custom": cint(getattr(df, "is_custom_field", 0)),
 		"context_eligible": context_eligible,
 		"editable_eligible": editable_eligible,
 		"default_enabled": cint(defaults.get("enabled")),
