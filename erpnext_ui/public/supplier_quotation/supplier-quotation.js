@@ -41,6 +41,7 @@
     documentFields: $("document-fields"),
     itemsList: $("items-list"),
     formAlert: $("form-alert"),
+    reviewSummary: $("review-summary"),
     reviewBody: $("review-body"),
     reviewAlert: $("review-alert"),
     successMeta: $("success-meta"),
@@ -367,6 +368,7 @@
     renderDocumentSection(form);
     renderItems(form);
 
+    els.reviewSummary.replaceChildren();
     els.reviewBody.replaceChildren();
     const first = els.form.querySelector("input, select, textarea");
     if (first) first.focus();
@@ -443,6 +445,7 @@
     items.forEach((item) => {
       state.values.items[item.item] = {};
       const row = document.createElement("tr");
+      row.dataset.item = item.item;
       const itemCell = el("th", `item-column mobile-item-summary${hasFullIdentity ? " desktop-mobile-only" : ""}`);
       itemCell.scope = "row";
       itemCell.appendChild(el("strong", "item-title", item.item_name || item.item_code || "Item"));
@@ -662,53 +665,263 @@
     clearAlert(els.formAlert);
     const missing = findMissing(state.form);
     if (missing.length) {
-      setAlert(
-        els.formAlert,
-        `Please complete: ${missing.map((entry) => entry.field.label).join(", ")}.`,
-      );
-      const first = missing[0];
-      const control = document.getElementById(
-        fieldId(first.scope, first.item, first.field.fieldname),
-      );
-      if (control) control.focus();
+      showMissingFields(missing);
       return;
     }
 
     hideAllCards();
     show(els.review);
     clearAlert(els.reviewAlert);
+    renderReviewSummary();
     els.reviewBody.replaceChildren();
 
+    const currency = state.form.currency;
     const documentFields = state.form.document?.fields || [];
     if (documentFields.length) {
-      const group = el("div", "review-group");
-      group.appendChild(el("h3", null, "Quotation details"));
-      documentFields.forEach((field) => {
-        group.appendChild(reviewRow(field, state.values.document[field.fieldname]));
-      });
-      els.reviewBody.appendChild(group);
+      els.reviewBody.appendChild(reviewDocumentSection(documentFields, currency));
     }
 
-    (state.form.items || []).forEach((item) => {
-      const group = el("div", "review-group");
-      group.appendChild(el("h3", null, item.item_name || item.item_code || "Item"));
-      const facts = el("p", "muted small");
-      facts.textContent = `${item.item_code || ""} · ${formatQuantity(item.qty)} ${item.uom || ""}`;
-      group.appendChild(facts);
-      (item.fields || []).forEach((field) => {
-        group.appendChild(reviewRow(field, state.values.items[item.item]?.[field.fieldname]));
-      });
-      els.reviewBody.appendChild(group);
-    });
+    const items = state.form.items || [];
+    if (items.length) {
+      els.reviewBody.appendChild(reviewItemsSection(items, currency));
+    }
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function reviewRow(field, value) {
-    const row = el("div", "review-row");
-    row.appendChild(el("span", null, field.label));
-    row.appendChild(el("span", null, displayValue(field, value)));
+  function showMissingFields(missing) {
+    els.formAlert.replaceChildren();
+    els.formAlert.appendChild(
+      el("p", "alert-title", "Complete the required fields before reviewing:"),
+    );
+
+    const list = el("ul", "alert-list");
+    missing.forEach((entry) => {
+      const item = state.form.items?.find((candidate) => candidate.item === entry.item);
+      const suffix = item ? ` — ${item.item_name || item.item_code || "Item"}` : "";
+      const button = el("button", "link-button", `${entry.field.label}${suffix}`);
+      button.type = "button";
+      button.addEventListener("click", () => {
+        focusFormField(entry.scope, entry.item, entry.field.fieldname);
+      });
+      const row = document.createElement("li");
+      row.appendChild(button);
+      list.appendChild(row);
+    });
+    els.formAlert.appendChild(list);
+    show(els.formAlert);
+
+    const first = missing[0];
+    focusFormField(first.scope, first.item, first.field.fieldname);
+  }
+
+  function renderReviewSummary() {
+    els.reviewSummary.replaceChildren();
+    const items = state.form.items || [];
+    const summary = [
+      ["Supplier", state.form.supplier_name || state.form.supplier],
+      ["Required by", state.form.required_by ? formatDate(state.form.required_by) : ""],
+      ["Currency", state.form.currency],
+      ["Items", `${items.length} ${items.length === 1 ? "item" : "items"}`],
+    ];
+
+    summary.forEach(([label, value]) => {
+      if (!value) return;
+      const tile = el("div", "review-summary-item");
+      tile.appendChild(el("span", "review-summary-label", label));
+      tile.appendChild(el("strong", "review-summary-value", value));
+      els.reviewSummary.appendChild(tile);
+    });
+  }
+
+  function reviewDocumentSection(fields, currency) {
+    const section = el("section", "review-section");
+    section.appendChild(
+      reviewSectionHead(
+        "Quotation details",
+        "The values you entered for this quotation.",
+        "Edit details",
+        () => returnToField("document"),
+      ),
+    );
+
+    const list = el("dl", "review-fields");
+    fields.forEach((field) => {
+      list.appendChild(reviewField(field, state.values.document[field.fieldname], currency));
+    });
+    section.appendChild(list);
+    return section;
+  }
+
+  function reviewItemsSection(items, currency) {
+    const section = el("section", "review-section");
+    section.appendChild(
+      reviewSectionHead(
+        "Quotation items",
+        `${items.length} ${items.length === 1 ? "item is" : "items are"} included in this response.`,
+      ),
+    );
+
+    const list = el("div", "review-items");
+    items.forEach((item, index) => {
+      list.appendChild(reviewItem(item, index, currency));
+    });
+    section.appendChild(list);
+    return section;
+  }
+
+  function reviewSectionHead(title, subtitle, editLabel, onEdit) {
+    const head = el("div", "review-section-head");
+    const copy = el("div");
+    copy.appendChild(el("h3", null, title));
+    if (subtitle) copy.appendChild(el("p", "muted small", subtitle));
+    head.appendChild(copy);
+
+    if (editLabel) {
+      const button = el("button", "review-edit-link", editLabel);
+      button.type = "button";
+      button.addEventListener("click", onEdit);
+      head.appendChild(button);
+    }
+    return head;
+  }
+
+  function reviewItem(item, index, currency) {
+    const card = el("article", "review-item");
+    const head = el("div", "review-item-head");
+    const identity = el("div", "review-item-identity");
+    identity.appendChild(el("span", "review-item-index", index + 1));
+
+    const copy = el("div", "review-item-copy");
+    copy.appendChild(el("h4", "review-item-name", item.item_name || item.item_code || "Item"));
+    const meta = [];
+    if (item.item_code && item.item_name) meta.push(item.item_code);
+    meta.push(`${formatQuantity(item.qty)} ${item.uom || ""}`.trim());
+    copy.appendChild(el("p", "review-item-meta", meta.join(" · ")));
+
+    identity.appendChild(copy);
+    head.appendChild(identity);
+
+    const edit = el("button", "review-edit-link", "Edit item");
+    edit.type = "button";
+    edit.addEventListener("click", () => returnToItem(item));
+    head.appendChild(edit);
+    card.appendChild(head);
+
+    const fields = item.fields || [];
+    if (fields.length) {
+      const list = el("dl", "review-fields review-fields-item");
+      fields.forEach((field) => {
+        list.appendChild(
+          reviewField(field, state.values.items[item.item]?.[field.fieldname], currency),
+        );
+      });
+      card.appendChild(list);
+    }
+    return card;
+  }
+
+  function reviewField(field, value, currency) {
+    const row = el("div", "review-field");
+    row.appendChild(el("dt", null, field.label));
+    const display = reviewValue(field, value, currency);
+    const dd = el("dd", display.empty ? "review-value review-empty" : "review-value", display.text);
+    row.appendChild(dd);
     return row;
+  }
+
+  function reviewValue(field, value, currency) {
+    if (value === null || value === undefined || value === "") {
+      return { text: "Not provided", empty: true };
+    }
+    if (field.fieldtype === "Check") return { text: value ? "Yes" : "No" };
+    if (field.fieldtype === "Date") return { text: formatDate(value) };
+    if (field.fieldtype === "Datetime") return { text: formatDateTime(value) };
+    if (field.fieldtype === "Int") {
+      return { text: formatNumber(value, { maximumFractionDigits: 0 }) };
+    }
+    if (field.fieldtype === "Float") {
+      return { text: formatNumber(value, { maximumFractionDigits: 4 }) };
+    }
+    if (field.fieldtype === "Percent") {
+      return { text: `${formatNumber(value, { maximumFractionDigits: 2 })}%` };
+    }
+    if (field.fieldtype === "Currency") {
+      return { text: formatCurrency(value, currency) };
+    }
+    return { text: String(value) };
+  }
+
+  function formatNumber(value, options) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+    return new Intl.NumberFormat(undefined, options || {}).format(number);
+  }
+
+  function formatCurrency(value, currency) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+    if (currency && /^[A-Z]{3}$/.test(currency)) {
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency,
+          maximumFractionDigits: 2,
+        }).format(number);
+      } catch (_) {
+        // Fall through to a plain number when the currency code is unknown.
+      }
+    }
+    const formatted = formatNumber(number, { maximumFractionDigits: 2 });
+    return currency ? `${formatted} ${currency}` : formatted;
+  }
+
+  function returnToField(scope, itemName, fieldname) {
+    hideAllCards();
+    show(els.form);
+    clearAlert(els.formAlert);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    requestAnimationFrame(() => focusFormField(scope, itemName, fieldname));
+  }
+
+  function returnToItem(item) {
+    const first = (item.fields || [])[0];
+    returnToField("item", item.item, first ? first.fieldname : null);
+  }
+
+  function focusFormField(scope, itemName, fieldname) {
+    let target = fieldname
+      ? document.getElementById(fieldId(scope, itemName, fieldname))
+      : scope === "document"
+        ? els.documentSection
+        : findItemRow(itemName);
+
+    if (!target) return;
+    if (!target.matches("input, select, textarea")) {
+      const control = target.querySelector("input, select, textarea");
+      target = control || els.form.querySelector("input, select, textarea") || target;
+    }
+
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    flash(target.closest(".field, .table-input-field, tr") || target);
+  }
+
+  function findItemRow(itemName) {
+    return (
+      Array.from(els.itemsList.querySelectorAll("[data-item]")).find(
+        (row) => row.dataset.item === itemName,
+      ) || els.itemsList
+    );
+  }
+
+  function flash(node) {
+    if (!node) return;
+    node.classList.remove("is-highlighted");
+    // Force a reflow so clicking Edit repeatedly re-runs the animation.
+    void node.offsetWidth;
+    node.classList.add("is-highlighted");
+    window.setTimeout(() => node.classList.remove("is-highlighted"), 1600);
   }
 
   function buildRowsPayload() {
@@ -847,6 +1060,7 @@
 
   els.otpForm.addEventListener("submit", verifyOtp);
   $("review-button").addEventListener("click", showReview);
+  $("review-edit-button")?.addEventListener("click", () => returnToField("document"));
   $("back-button").addEventListener("click", () => {
     hideAllCards();
     show(els.form);

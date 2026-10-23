@@ -6,7 +6,7 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   <meta name="robots" content="noindex, nofollow">
   <title>Supplier Quotation — Supplier response</title>
-  <link rel="stylesheet" href="/assets/erpnext_ui/supplier_quotation/supplier-quotation.css?v=7">
+  <link rel="stylesheet" href="/assets/erpnext_ui/supplier_quotation/supplier-quotation.css?v=8">
 </head>
 <body>
   <main class="page">
@@ -80,14 +80,25 @@
     </section>
 
     <section class="card hidden" id="review-card">
-      <p class="eyebrow">Review</p>
-      <h2>Check your response</h2>
-      <p class="muted">Nothing is sent until you submit. You can go back and correct any value.</p>
-      <div id="review-body"></div>
+      <div class="review-head">
+        <div>
+          <p class="eyebrow">Review</p>
+          <h2>Check your response</h2>
+          <p class="muted">Nothing is sent until you submit. You can go back and correct any value.</p>
+        </div>
+        <button type="button" class="btn btn-quiet btn-compact" id="review-edit-button">Edit</button>
+      </div>
+
+      <div id="review-summary" class="review-summary" aria-label="Response summary"></div>
+      <div id="review-body" class="review-body"></div>
       <div id="review-alert" class="alert hidden" role="alert"></div>
-      <div class="actions actions-end">
-        <button type="button" class="btn btn-quiet" id="back-button">Edit response</button>
-        <button type="button" class="btn btn-primary" id="submit-button">Submit response</button>
+
+      <div class="review-actions">
+        <p class="review-actions-note">Submitting sends your quotation to the buying team.</p>
+        <div class="actions actions-end">
+          <button type="button" class="btn btn-quiet" id="back-button">Back to edit</button>
+          <button type="button" class="btn btn-primary" id="submit-button">Submit response</button>
+        </div>
       </div>
     </section>
 
@@ -104,6 +115,6 @@
   </main>
 
   <script>window.supplierQuotationBrand = "Supplier Quotation";</script>
-  <script src="/assets/erpnext_ui/supplier_quotation/supplier-quotation.js?v=7"></script>
+  <script src="/assets/erpnext_ui/supplier_quotation/supplier-quotation.js?v=8"></script>
 </body>
 </html>
