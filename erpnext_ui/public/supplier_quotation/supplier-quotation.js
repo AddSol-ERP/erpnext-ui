@@ -12,6 +12,7 @@
   const API_BASE = "/api/method/erpnext_ui.supplier_quotation.";
   const CSRF =
     document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
+    (window.frappe && frappe.csrf_token) ||
     window.__SUPPLIER_QUOTATION_CSRF__ ||
     "";
 
