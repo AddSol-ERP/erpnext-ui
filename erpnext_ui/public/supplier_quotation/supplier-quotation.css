@@ -249,35 +249,75 @@ label { font-weight: 600; font-size: 14px; }
 .context-grid dt { color: var(--muted); font-size: 13px; }
 .context-grid dd { margin: 0; text-align: right; font-weight: 600; word-break: break-word; }
 
-.items { display: flex; flex-direction: column; gap: 14px; }
+.table-hint { margin: -4px 0 10px; }
 
-.item-card {
+.items-table-wrap {
+  width: 100%;
+  overflow: auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 10px;
+  background: var(--surface);
+  -webkit-overflow-scrolling: touch;
+}
+
+.items-table-wrap:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand) 45%, white);
+  outline-offset: 2px;
+}
+
+.items-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.items-table th,
+.items-table td {
+  min-width: 120px;
+  padding: 10px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.items-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f3f4f8;
+  color: #374151;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.items-table tbody tr:last-child > * { border-bottom: 0; }
+.items-table tr > *:last-child { border-right: 0; }
+.items-table .item-column {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 210px;
+  max-width: 280px;
   background: #fcfcfe;
 }
-
-.item-head { margin-bottom: 12px; }
-.item-title { margin: 0 0 2px; font-size: 16px; }
-.item-desc { margin: 0; font-size: 13px; color: var(--muted); white-space: pre-wrap; }
-
-.item-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.item-fields {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
+.items-table thead .item-column { z-index: 3; background: #f3f4f8; }
+.items-table tbody th { font-weight: 400; }
+.item-title { display: block; margin: 0 0 3px; font-size: 13px; font-weight: 700; }
+.item-code { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+.item-desc { margin: 0; color: var(--muted); font-size: 12px; white-space: pre-wrap; }
+.quantity-value, .quantity-uom { display: block; }
+.quantity-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.quantity-uom { color: var(--muted); }
+.context-value { white-space: pre-wrap; }
+.table-input-field { min-width: 150px; }
+.table-input-field input,
+.table-input-field select,
+.table-input-field textarea { min-width: 140px; padding: 8px 9px; border-radius: 7px; font-size: 13px; }
+.table-input-field textarea { min-height: 70px; }
+.table-input-field input[type="checkbox"] { min-width: 18px; width: 18px; height: 18px; }
 
 .review-group { margin-bottom: 18px; }
 .review-group h3 { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
@@ -318,7 +358,6 @@ label { font-weight: 600; font-size: 14px; }
   .page { padding: 40px 24px 64px; }
   .card { padding: 28px; }
   .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .item-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .context-grid div { flex-direction: column; gap: 2px; }
   .context-grid dd { text-align: left; }

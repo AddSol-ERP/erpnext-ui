@@ -383,37 +383,68 @@
 
   function renderItems(form) {
     els.itemsList.replaceChildren();
-    (form.items || []).forEach((item) => {
-      state.values.items[item.item] = {};
-      const card = el("article", "item-card");
+    const items = form.items || [];
+    if (!items.length) return;
 
-      const head = el("div", "item-head");
-      head.appendChild(el("h4", "item-title", item.item_name || item.item_code || "Item"));
-      if (item.item_code && item.item_name) {
-        head.appendChild(el("p", "muted small", item.item_code));
-      }
-      if (item.description) {
-        head.appendChild(el("p", "item-desc", item.description));
-      }
-      const facts = el("div", "item-context");
-      facts.appendChild(el("span", null, `Quantity: ${formatQuantity(item.qty)} ${item.uom || ""}`));
-      (item.context || []).forEach((field) => {
-        if (["item_code", "item_name", "description", "qty", "uom"].includes(field.fieldname)) {
-          return;
-        }
-        facts.appendChild(el("span", null, `${field.label}: ${displayValue(field, field.value)}`));
-      });
-      head.appendChild(facts);
-      card.appendChild(head);
+    const firstItem = items[0];
+    const contextFields = firstItem.context || [];
+    const inputFields = firstItem.fields || [];
+    const table = el("table", "items-table");
+    table.setAttribute("aria-label", "Requested items and supplier quotation fields");
 
-      const fields = el("div", "item-fields");
-      (item.fields || []).forEach((field) => {
-        state.values.items[item.item][field.fieldname] = initialValue(field);
-        fields.appendChild(buildField(field, "item", item.item));
-      });
-      card.appendChild(fields);
-      els.itemsList.appendChild(card);
+    const columns = [
+      { label: "Item", className: "item-column" },
+      { label: "Requested Qty" },
+      ...contextFields.map((field) => ({ label: field.label, help: field.help_text })),
+      ...inputFields.map((field) => ({ label: field.label, help: field.help_text })),
+    ];
+
+    const head = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    columns.forEach((column) => {
+      const cell = el("th", column.className || "", column.label);
+      cell.scope = "col";
+      if (column.help) cell.title = column.help;
+      headerRow.appendChild(cell);
     });
+    head.appendChild(headerRow);
+    table.appendChild(head);
+
+    const body = document.createElement("tbody");
+    items.forEach((item) => {
+      state.values.items[item.item] = {};
+      const row = document.createElement("tr");
+
+      const itemCell = el("th", "item-column", null);
+      itemCell.scope = "row";
+      itemCell.appendChild(el("strong", "item-title", item.item_name || item.item_code || "Item"));
+      if (item.item_code && item.item_name) itemCell.appendChild(el("span", "item-code", item.item_code));
+      if (item.description) itemCell.appendChild(el("p", "item-desc", item.description));
+      row.appendChild(itemCell);
+
+      const quantity = document.createElement("td");
+      quantity.appendChild(el("span", "quantity-value", formatQuantity(item.qty)));
+      quantity.appendChild(el("span", "quantity-uom", item.uom || ""));
+      row.appendChild(quantity);
+
+      contextFields.forEach((field) => {
+        const itemField = (item.context || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
+        const cell = el("td", "context-value", displayValue(itemField, itemField.value));
+        row.appendChild(cell);
+      });
+
+      inputFields.forEach((field) => {
+        const itemField = (item.fields || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
+        state.values.items[item.item][itemField.fieldname] = initialValue(itemField);
+        const cell = document.createElement("td");
+        cell.appendChild(buildField(itemField, "item", item.item, true));
+        row.appendChild(cell);
+      });
+
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    els.itemsList.appendChild(table);
   }
 
   function formatQuantity(value) {
@@ -443,7 +474,7 @@
     return `field-${scope}-${suffix}-${fieldname}`.replace(/[^a-zA-Z0-9_-]/g, "-");
   }
 
-  function buildField(field, scope, itemName) {
+  function buildField(field, scope, itemName, compact = false) {
     const id = fieldId(scope, itemName, field.fieldname);
     const wrap = el("div", field.fieldtype === "Check" ? "field checkbox-row" : "field");
 
@@ -471,20 +502,23 @@
     control.addEventListener("input", write);
     control.addEventListener("change", write);
 
-    if (field.fieldtype === "Check") {
+    if (compact) {
+      control.setAttribute("aria-label", `${field.label}${field.mandatory ? " (required)" : ""}`);
+      if (field.help_text) control.title = field.help_text;
+      wrap.appendChild(control);
+    } else if (field.fieldtype === "Check") {
       const label = el("label", null, field.label);
       label.htmlFor = id;
       wrap.appendChild(control);
       wrap.appendChild(label);
     } else {
-      const label = el("label", null, field.label);
-      if (field.mandatory) label.textContent = `${field.label} *`;
+      const label = el("label", null, field.mandatory ? `${field.label} *` : field.label);
       label.htmlFor = id;
       wrap.appendChild(label);
       wrap.appendChild(control);
     }
 
-    if (field.help_text) {
+    if (field.help_text && !compact) {
       wrap.appendChild(el("span", "help", field.help_text));
     }
     return wrap;
