@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="csrf-token" content="{{ csrf_token or '' }}">
+  <meta name="csrf-token" content="">
   <meta name="robots" content="noindex, nofollow">
-  <title>{{ brand_name or 'Supplier Quotation' }} — Supplier response</title>
+  <title>Supplier Quotation — Supplier response</title>
   <link rel="stylesheet" href="/assets/erpnext_ui/supplier_quotation/supplier-quotation.css?v=1">
 </head>
 <body>
@@ -14,7 +14,7 @@
       <span class="brand-mark" aria-hidden="true"></span>
       <div>
         <p class="brand-eyebrow">Supplier portal</p>
-        <h1 class="brand-name" id="brand-name">{{ brand_name or 'Supplier Quotation' }}</h1>
+        <h1 class="brand-name" id="brand-name">Supplier Quotation</h1>
       </div>
     </header>
 
@@ -98,7 +98,7 @@
     </footer>
   </main>
 
-  <script>window.__SUPPLIER_QUOTATION_BRAND__ = {{ (brand_name or 'Supplier Quotation') | tojson }};</script>
-  <script src="/assets/erpnext_ui/supplier_quotation/supplier-quotation.js?v=2"></script>
+  <script>window.__SUPPLIER_QUOTATION_BRAND__ = "Supplier Quotation";</script>
+  <script>try{var m=document.querySelector('meta[name="csrf-token"]');if(m){var t=window.frappe&&frappe.csrf_token;m.setAttribute('content',t||'');}}catch(e){}</script>
 </body>
 </html>
