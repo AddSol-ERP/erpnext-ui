@@ -98,7 +98,7 @@
     </footer>
   </main>
 
-  <script>window.__SUPPLIER_QUOTATION_CSRF__ = {{ csrf_token | tojson }};</script>
+  <script>window.__SUPPLIER_QUOTATION_CSRF__ = "{{ csrf_token | replace('"', '\\"') }}";</script>
   <script src="/assets/erpnext_ui/supplier_quotation/supplier-quotation.js?v=1"></script>
 </body>
 </html>
