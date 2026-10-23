@@ -401,7 +401,11 @@
 
     const columns = [
       { label: "Item", className: "item-column" },
-      ...inputFields.map((field) => ({ label: field.label, help: field.help_text })),
+      ...inputFields.map((field) => ({
+        label: field.mandatory ? `${field.label} *` : field.label,
+        fieldLabel: field.label,
+        help: field.help_text,
+      })),
       { label: "Requested Qty" },
       ...contextFields.map((field) => ({ label: field.label, help: field.help_text })),
     ];
@@ -433,11 +437,13 @@
         const itemField = (item.fields || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
         state.values.items[item.item][itemField.fieldname] = initialValue(itemField);
         const cell = document.createElement("td");
+        cell.dataset.label = itemField.mandatory ? `${itemField.label} *` : itemField.label;
         cell.appendChild(buildField(itemField, "item", item.item, true));
         row.appendChild(cell);
       });
 
-      const quantity = document.createElement("td");
+      const quantity = el("td", "quantity-cell");
+      quantity.dataset.label = "Requested Qty";
       quantity.appendChild(el("span", "quantity-value", formatQuantity(item.qty)));
       quantity.appendChild(el("span", "quantity-uom", item.uom || ""));
       row.appendChild(quantity);
@@ -445,6 +451,7 @@
       contextFields.forEach((field) => {
         const itemField = (item.context || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
         const cell = el("td", "context-value", displayValue(itemField, itemField.value));
+        cell.dataset.label = itemField.label;
         row.appendChild(cell);
       });
 
@@ -483,7 +490,8 @@
 
   function buildField(field, scope, itemName, compact = false) {
     const id = fieldId(scope, itemName, field.fieldname);
-    const wrap = el("div", field.fieldtype === "Check" ? "field checkbox-row" : "field");
+    const wrapClass = field.fieldtype === "Check" ? "field checkbox-row" : "field";
+    const wrap = el("div", compact ? `${wrapClass} table-input-field` : wrapClass);
 
     const control =
       field.fieldtype === "Select"
