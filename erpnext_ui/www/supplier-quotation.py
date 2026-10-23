@@ -1,23 +1,31 @@
 import frappe
+from frappe import _
+from frappe.website.page_renderers.template_page import TemplatePage
 
 no_cache = 1
+
+
+class SupplierQuotationPage(TemplatePage):
+	def __init__(self, path, http_status_code=None):
+		self.path = path
+		self.http_status_code = http_status_code
+		self.source = frappe.read_file(frappe.get_app_path("erpnext_ui", "www", "supplier-quotation.html"))
+		self.set_missing_values()
+
+	def render(self):
+		# Serve as-is without Jinja rendering to avoid template validation issues
+		self.set_headers()
+		return self.source
 
 
 def get_context(context):
 	context.no_sidebar = True
 	context.no_header = True
 	context.no_footer = True
-	try:
-		context.brand_name = (
-			frappe.db.get_single_value("UI Supplier Quotation Settings", "brand_name")
-			or "Supplier Quotation"
-		)
-	except Exception:
-		# The page can be reached before `bench migrate` has created the
-		# settings Single; the JavaScript then falls back to the same label.
-		context.brand_name = "Supplier Quotation"
-	# The page is served to a guest session. Frappe validates the CSRF token on
-	# unsafe methods, and a website page is the only place it can be handed to
-	# that session safely. The token itself is not a secret from this browser.
-	context.csrf_token = getattr(frappe.session, "csrf_token", "") or ""
 	return context
+
+
+def get_renderer(path):
+	if path == "supplier-quotation":
+		return SupplierQuotationPage(path)
+	return None
