@@ -401,9 +401,9 @@
 
     const columns = [
       { label: "Item", className: "item-column" },
+      ...inputFields.map((field) => ({ label: field.label, help: field.help_text })),
       { label: "Requested Qty" },
       ...contextFields.map((field) => ({ label: field.label, help: field.help_text })),
-      ...inputFields.map((field) => ({ label: field.label, help: field.help_text })),
     ];
 
     const head = document.createElement("thead");
@@ -429,6 +429,14 @@
       if (item.description) itemCell.appendChild(el("p", "item-desc", item.description));
       row.appendChild(itemCell);
 
+      inputFields.forEach((field) => {
+        const itemField = (item.fields || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
+        state.values.items[item.item][itemField.fieldname] = initialValue(itemField);
+        const cell = document.createElement("td");
+        cell.appendChild(buildField(itemField, "item", item.item, true));
+        row.appendChild(cell);
+      });
+
       const quantity = document.createElement("td");
       quantity.appendChild(el("span", "quantity-value", formatQuantity(item.qty)));
       quantity.appendChild(el("span", "quantity-uom", item.uom || ""));
@@ -437,14 +445,6 @@
       contextFields.forEach((field) => {
         const itemField = (item.context || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
         const cell = el("td", "context-value", displayValue(itemField, itemField.value));
-        row.appendChild(cell);
-      });
-
-      inputFields.forEach((field) => {
-        const itemField = (item.fields || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
-        state.values.items[item.item][itemField.fieldname] = initialValue(itemField);
-        const cell = document.createElement("td");
-        cell.appendChild(buildField(itemField, "item", item.item, true));
         row.appendChild(cell);
       });
 

@@ -265,6 +265,11 @@ label { font-weight: 600; font-size: 14px; }
   outline-offset: 2px;
 }
 
+@media (max-width: 639px) {
+  .items-table { min-width: 680px; }
+  .items-table .item-column { min-width: 160px; max-width: 180px; }
+}
+
 .items-table {
   width: 100%;
   min-width: 760px;
