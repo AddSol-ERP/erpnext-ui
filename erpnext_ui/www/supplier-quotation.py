@@ -1,5 +1,4 @@
 import frappe
-from frappe import _
 from frappe.website.page_renderers.template_page import TemplatePage
 
 no_cache = 1
@@ -8,12 +7,12 @@ no_cache = 1
 class SupplierQuotationPage(TemplatePage):
 	def __init__(self, path, http_status_code=None):
 		self.path = path
-		self.http_status_code = http_status_code
+		self.http_status_code = http_status_code or 200
 		self.source = frappe.read_file(frappe.get_app_path("erpnext_ui", "www", "supplier-quotation.html"))
+		self.context = {}
 		self.set_missing_values()
 
 	def render(self):
-		# Serve as-is without Jinja rendering to avoid template validation issues
 		self.set_headers()
 		return self.source
 
@@ -25,7 +24,7 @@ def get_context(context):
 	return context
 
 
-def get_renderer(path):
-	if path == "supplier-quotation":
-		return SupplierQuotationPage(path)
+def get_renderer(path, http_status_code=None):
+	if path in ("supplier-quotation", "supplier-quotation.html"):
+		return SupplierQuotationPage(path, http_status_code)
 	return None
