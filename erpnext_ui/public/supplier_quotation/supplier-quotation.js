@@ -205,11 +205,15 @@
   }
 
   function setBrand(invitation) {
-    if (invitation.brand_name) {
-      els.brandName.textContent = invitation.brand_name;
-      document.title = `${invitation.brand_name} — Supplier response`;
-    }
-    const colour = invitation.brand_color || "";
+    const brand =
+      invitation?.brand_name ||
+      window.__SUPPLIER_QUOTATION_BRAND__ ||
+      els.brandName?.textContent ||
+      "Supplier Quotation";
+    if (els.brandName) els.brandName.textContent = brand;
+    if (!invitation?.brand_name) document.title = `${brand} — Supplier response`;
+    if (invitation?.brand_name) document.title = `${invitation.brand_name} — Supplier response`;
+    const colour = invitation?.brand_color || "";
     if (/^#[0-9a-fA-F]{3,8}$/.test(colour)) {
       document.documentElement.style.setProperty("--brand", colour);
     }
