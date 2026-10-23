@@ -25,6 +25,7 @@
     review: $("review-card"),
     success: $("success-card"),
     brandName: $("brand-name"),
+    customerName: $("customer-name"),
     gateTitle: $("gate-title"),
     gateMessage: $("gate-message"),
     gateHint: $("gate-hint"),
@@ -212,6 +213,9 @@
       els.brandName?.textContent ||
       "Supplier Quotation";
     if (els.brandName) els.brandName.textContent = brand;
+    if (els.customerName) {
+      els.customerName.textContent = invitation?.customer_name || brand;
+    }
     if (!invitation?.brand_name) document.title = `${brand} — Supplier response`;
     if (invitation?.brand_name) document.title = `${invitation.brand_name} — Supplier response`;
     const colour = invitation?.brand_color || "";

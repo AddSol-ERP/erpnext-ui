@@ -1503,6 +1503,7 @@ def get_supplier_quotation_invitation_state(token=None):
 		"otp_sent_on": _as_iso(inv.otp_last_sent_on),
 		"otp_expiry_minutes": cint(settings.otp_expiry_minutes),
 		"brand_name": settings.brand_name or "Supplier Quotation",
+		"customer_name": frappe.db.get_value("Company", inv.company, "company_name") or inv.company,
 		"brand_color": settings.brand_color or "#4f46e5",
 		"can_request_otp": inv.state in ("Draft", "Sent", "Failed", "OTP Verified"),
 		"already_responded": inv.state == "Responded",

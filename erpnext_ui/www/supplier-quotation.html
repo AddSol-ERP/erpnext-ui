@@ -6,15 +6,19 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   <meta name="robots" content="noindex, nofollow">
   <title>Supplier Quotation — Supplier response</title>
-  <link rel="stylesheet" href="/assets/erpnext_ui/supplier_quotation/supplier-quotation.css?v=5">
+  <link rel="stylesheet" href="/assets/erpnext_ui/supplier_quotation/supplier-quotation.css?v=7">
 </head>
 <body>
   <main class="page">
     <header class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <div>
+      <div class="customer-brand">
         <p class="brand-eyebrow">Supplier portal</p>
-        <h1 class="brand-name" id="brand-name">Supplier Quotation</h1>
+        <h1 class="brand-name" id="customer-name">Supplier Quotation</h1>
+        <p class="brand-subtitle" id="brand-name">Supplier response</p>
+      </div>
+      <div class="addsol-badge" aria-label="Powered by AddSol">
+        <img src="/assets/erpnext_ui/erp_ui/logo.png" alt="AddSol logo">
+        <span><small>Powered by</small><strong>AddSol</strong></span>
       </div>
     </header>
 
@@ -100,6 +104,6 @@
   </main>
 
   <script>window.supplierQuotationBrand = "Supplier Quotation";</script>
-  <script src="/assets/erpnext_ui/supplier_quotation/supplier-quotation.js?v=5"></script>
+  <script src="/assets/erpnext_ui/supplier_quotation/supplier-quotation.js?v=6"></script>
 </body>
 </html>
