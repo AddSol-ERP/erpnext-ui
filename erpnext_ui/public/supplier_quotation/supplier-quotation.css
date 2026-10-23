@@ -311,6 +311,7 @@ label { font-weight: 600; font-size: 14px; }
 }
 .items-table thead .item-column { z-index: 3; background: #f3f4f8; }
 .items-table tbody th { font-weight: 400; }
+.items-table .desktop-mobile-only { display: none; }
 .item-title { display: block; margin: 0 0 3px; font-size: 13px; font-weight: 700; }
 .item-code { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
 .item-desc { margin: 0; color: var(--muted); font-size: 12px; white-space: pre-wrap; }
@@ -335,6 +336,8 @@ label { font-weight: 600; font-size: 14px; }
 
   .items-table { display: block; min-width: 0; }
   .items-table thead { display: none; }
+  .items-table .desktop-mobile-only { display: block; }
+  .items-table .desktop-identity { display: none; }
   .items-table tbody { display: grid; gap: 12px; }
   .items-table tbody tr {
     display: grid;

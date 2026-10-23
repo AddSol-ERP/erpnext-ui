@@ -400,18 +400,32 @@
     const firstItem = items[0];
     const contextFields = firstItem.context || [];
     const inputFields = firstItem.fields || [];
+    const identityNames = ["item_code", "item_name", "description"];
+    const identityFields = contextFields.filter((field) => identityNames.includes(field.fieldname));
+    const remainingContextFields = contextFields.filter(
+      (field) => !identityNames.includes(field.fieldname) && !["qty", "uom"].includes(field.fieldname),
+    );
+    const hasFullIdentity = identityNames.every((fieldname) =>
+      identityFields.some((field) => field.fieldname === fieldname),
+    );
+    const desktopIdentityFields = hasFullIdentity ? identityFields : [];
     const table = el("table", "items-table");
     table.setAttribute("aria-label", "Requested items and supplier quotation fields");
 
     const columns = [
-      { label: "Item", className: "item-column" },
+      ...desktopIdentityFields.map((field) => ({
+        label: field.label,
+        help: field.help_text,
+        className: "desktop-identity",
+        fieldname: field.fieldname,
+      })),
+      ...(!hasFullIdentity ? [{ label: "Item", className: "item-column" }] : []),
       ...inputFields.map((field) => ({
         label: field.mandatory ? `${field.label} *` : field.label,
-        fieldLabel: field.label,
         help: field.help_text,
       })),
       { label: "Requested Qty" },
-      ...contextFields.map((field) => ({ label: field.label, help: field.help_text })),
+      ...remainingContextFields.map((field) => ({ label: field.label, help: field.help_text })),
     ];
 
     const head = document.createElement("thead");
@@ -429,13 +443,19 @@
     items.forEach((item) => {
       state.values.items[item.item] = {};
       const row = document.createElement("tr");
-
-      const itemCell = el("th", "item-column", null);
+      const itemCell = el("th", `item-column mobile-item-summary${hasFullIdentity ? " desktop-mobile-only" : ""}`);
       itemCell.scope = "row";
       itemCell.appendChild(el("strong", "item-title", item.item_name || item.item_code || "Item"));
       if (item.item_code && item.item_name) itemCell.appendChild(el("span", "item-code", item.item_code));
       if (item.description) itemCell.appendChild(el("p", "item-desc", item.description));
       row.appendChild(itemCell);
+
+      desktopIdentityFields.forEach((field) => {
+        const itemField = (item.context || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
+        const cell = el("td", "context-value desktop-identity", displayValue(itemField, itemField.value));
+        cell.dataset.label = itemField.label;
+        row.appendChild(cell);
+      });
 
       inputFields.forEach((field) => {
         const itemField = (item.fields || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
@@ -452,7 +472,7 @@
       quantity.appendChild(el("span", "quantity-uom", item.uom || ""));
       row.appendChild(quantity);
 
-      contextFields.forEach((field) => {
+      remainingContextFields.forEach((field) => {
         const itemField = (item.context || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
         const cell = el("td", "context-value", displayValue(itemField, itemField.value));
         cell.dataset.label = itemField.label;
