@@ -14,7 +14,11 @@ def remove_erpnext_footer_from_supplier_quotation_email(mail):
 	for parent in mail.msg_root.walk():
 		if not parent.is_multipart():
 			continue
-		for index, part in enumerate(list(parent.get_payload())):
+		parts = parent.get_payload()
+		if not isinstance(parts, list):
+			continue
+
+		for index, part in enumerate(parts):
 			content_type = part.get_content_type()
 			if content_type not in ("text/html", "text/plain"):
 				continue
@@ -38,4 +42,10 @@ def remove_erpnext_footer_from_supplier_quotation_email(mail):
 			for key, value in part.items():
 				if key.lower() not in {"content-type", "content-transfer-encoding", "mime-version"}:
 					replacement[key] = value
-			parent.replace(part, replacement)
+			# MIMEMultipart is not a list: it has get_payload()/set_payload(), not
+			# replace(). `parent.replace(part, replacement)` raises
+			# AttributeError('MIMEMultipart' object has no attribute 'replace')
+			# and aborts the whole send, so swap the payload list in place.
+			parts[index] = replacement
+
+		parent.set_payload(parts)
