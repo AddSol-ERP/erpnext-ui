@@ -1520,7 +1520,11 @@ def request_supplier_quotation_otp(token=None):
 
 	if cint(inv.otp_resend_count) >= 20:
 		frappe.throw(_("Too many verification codes have been requested. Please contact the buyer."))
-	if inv.otp_last_sent_on:
+	# A verified supplier may have closed the browser before submitting. The
+	# OTP has already been consumed and the response session is kept only in
+	# sessionStorage, so let them request a replacement code immediately.
+	# Ordinary resend requests still obey the configured throttle.
+	if inv.state != "OTP Verified" and inv.otp_last_sent_on:
 		elapsed = _now() - get_datetime(inv.otp_last_sent_on)
 		throttle = cint(settings.otp_resend_throttle_minutes)
 		if throttle and elapsed < timedelta(minutes=throttle):

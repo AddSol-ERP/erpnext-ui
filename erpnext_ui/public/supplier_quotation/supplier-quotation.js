@@ -263,18 +263,25 @@
     // session must start with a fresh code rather than showing an input whose
     // code no longer exists.
     const sent = invitation.state === "Sent" && Boolean(invitation.otp_sent_on);
-    setGate("Confirm your email", message, {
-      hint: `A 6-digit verification code will be sent to ${invitation.email_hint}.`,
-      actions: [
-        {
-          label: sent ? "Send a new code" : "Send verification code",
-          primary: true,
-          onClick: (event) => sendOtp(event.currentTarget),
-        },
-      ],
-      showOtp: sent,
-      note: sent ? "Enter the most recent code we emailed you." : "",
-    });
+    const previousSessionEnded = invitation.state === "OTP Verified";
+    setGate(
+      "Confirm your email",
+      previousSessionEnded
+        ? "Your previous response session ended before submission. Request a new code to continue."
+        : message,
+      {
+        hint: `A 6-digit verification code will be sent to ${invitation.email_hint}.`,
+        actions: [
+          {
+            label: sent ? "Send a new code" : "Send verification code",
+            primary: true,
+            onClick: (event) => sendOtp(event.currentTarget),
+          },
+        ],
+        showOtp: sent,
+        note: sent ? "Enter the most recent code we emailed you." : "",
+      },
+    );
     if (sent) els.otpInput.focus();
   }
 
