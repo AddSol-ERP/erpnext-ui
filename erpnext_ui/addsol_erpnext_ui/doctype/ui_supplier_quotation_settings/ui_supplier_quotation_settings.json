@@ -1,0 +1,38 @@
+{
+ "doctype": "DocType",
+ "name": "UI Supplier Quotation Settings",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "issingle": 1,
+ "editable_grid": 1,
+ "fields": [
+  {"fieldname": "enabled", "fieldtype": "Check", "label": "Enable Supplier Quotation Responses", "default": "1"},
+  {"fieldname": "brand_section", "fieldtype": "Section Break", "label": "Branding"},
+  {"fieldname": "brand_name", "fieldtype": "Data", "label": "Public Page Brand Name"},
+  {"fieldname": "brand_color", "fieldtype": "Color", "label": "Public Page Brand Colour", "default": "#4f46e5"},
+  {"fieldname": "fields_section", "fieldtype": "Section Break", "label": "Supplier Fields"},
+  {"fieldname": "field_config", "fieldtype": "Table", "label": "Supplier Field Configuration", "options": "UI Supplier Quotation Field"},
+  {"fieldname": "notifications_section", "fieldtype": "Section Break", "label": "Notifications"},
+  {"fieldname": "response_recipients", "fieldtype": "Table", "label": "Response Recipients", "options": "UI Supplier Quotation Recipient"},
+  {"fieldname": "invitation_subject", "fieldtype": "Data", "label": "Invitation Subject", "default": "Request for quotation {material_request}"},
+  {"fieldname": "invitation_message", "fieldtype": "Text", "label": "Invitation Message", "default": "Dear Supplier,\n\nPlease provide your best rates for the items listed in the attached request. Open the link below to enter your response. You will receive a verification code by email before any request details are shown.\n\n{link}\n\nRegards,\nPurchase Team"},
+  {"fieldname": "response_subject", "fieldtype": "Data", "label": "Response Notification Subject", "default": "Supplier quotation received: {material_request} / {supplier}"},
+  {"fieldname": "response_message", "fieldtype": "Text", "label": "Response Notification Message", "default": "A supplier quotation response has been received.\n\nMaterial Request: {material_request}\nSupplier: {supplier}\nSupplier Quotation: {supplier_quotation}\n\nReview it in ERPNext."},
+  {"fieldname": "attach_print_format", "fieldtype": "Check", "label": "Attach Material Request Print Format", "default": "1"},
+  {"fieldname": "default_print_format", "fieldtype": "Link", "label": "Default Print Format", "options": "Print Format"},
+  {"fieldname": "security_section", "fieldtype": "Section Break", "label": "Security and Expiry"},
+  {"fieldname": "otp_expiry_minutes", "fieldtype": "Int", "label": "OTP Expiry (Minutes)", "default": "10"},
+  {"fieldname": "otp_max_attempts", "fieldtype": "Int", "label": "Maximum OTP Attempts", "default": "5"},
+  {"fieldname": "otp_resend_throttle_minutes", "fieldtype": "Int", "label": "OTP Resend Throttle (Minutes)", "default": "5"},
+  {"fieldname": "invitation_expiry_days", "fieldtype": "Int", "label": "Invitation Expiry (Days)", "default": "14"},
+  {"fieldname": "response_session_minutes", "fieldtype": "Int", "label": "Response Session Expiry (Minutes)", "default": "30"},
+  {"fieldname": "max_suppliers_per_request", "fieldtype": "Int", "label": "Maximum Suppliers per Request", "default": "50"},
+  {"fieldname": "enable_response_hooks", "fieldtype": "Check", "label": "Enable Custom Response Hooks", "default": "0"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "email": 1, "print": 1, "report": 1, "share": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

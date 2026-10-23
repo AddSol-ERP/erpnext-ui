@@ -40,19 +40,23 @@ import MaterialRequestForm from "./pages/Store/material-request/form";
 import DeliveryNoteList from "./pages/Store/delivery";
 import DeliveryNoteForm from "./pages/Store/delivery/form";
 import StockBalance from "./pages/Store/stock-balance";
+import SupplierQuotationSettings from "./pages/Settings/SupplierQuotation";
+import RequireSystemManager from "./components/RequireSystemManager";
 
 // Lazy: pulls recharts out of the initial bundle
 const QualityInspectionReport = lazy(() => import("./pages/Quality/reports"));
-const AttendancePage = lazy(() => import("./pages/Reports/attendance/AttendancePage"));
+const AttendancePage = lazy(
+  () => import("./pages/Reports/attendance/AttendancePage"),
+);
 const OvertimeReportPage = lazy(
-  () => import("./pages/Reports/overtime/OvertimeReportPage")
+  () => import("./pages/Reports/overtime/OvertimeReportPage"),
 );
 const LeaveBalance = lazy(
-  () => import("./pages/Reports/leave-balance/LeaveBalance")
+  () => import("./pages/Reports/leave-balance/LeaveBalance"),
 );
 // Reports authored in another app, rendered from their own metadata.
 const CustomReportPage = lazy(
-  () => import("./pages/Reports/custom-report/CustomReportPage")
+  () => import("./pages/Reports/custom-report/CustomReportPage"),
 );
 
 // NEW ROLE HUBS
@@ -163,8 +167,14 @@ export default function App() {
             abandoning the form leaves no half-created receipt, and a reload
             re-maps cleanly.
           */}
-          <Route path="/store/purchase-receipt" element={<PurchaseReceiptPicker />} />
-          <Route path="/store/purchase-receipt/new" element={<PurchaseReceiptForm />} />
+          <Route
+            path="/store/purchase-receipt"
+            element={<PurchaseReceiptPicker />}
+          />
+          <Route
+            path="/store/purchase-receipt/new"
+            element={<PurchaseReceiptForm />}
+          />
           <Route
             path="/store/purchase-receipt/:name"
             element={<PurchaseReceiptForm />}
@@ -198,7 +208,10 @@ export default function App() {
             hub whose cards only restated the Store dashboard, adding a level of
             drill-down without adding anything.
           */}
-          <Route path="/store/material-request" element={<MaterialRequestList />} />
+          <Route
+            path="/store/material-request"
+            element={<MaterialRequestList />}
+          />
 
           <Route path="/store/delivery" element={<DeliveryNoteList />} />
           <Route path="/store/delivery/new" element={<DeliveryNoteForm />} />
@@ -211,6 +224,14 @@ export default function App() {
               pattern-based audit passed it. */}
           <Route path="/store/delivery/:name" element={<DeliveryNoteForm />} />
           <Route path="/store/stock-balance" element={<StockBalance />} />
+          <Route
+            path="/store/supplier-quotation-settings"
+            element={
+              <RequireSystemManager>
+                <SupplierQuotationSettings />
+              </RequireSystemManager>
+            }
+          />
           {/* Plate Offcut. A static route trio, NOT the generic
               /store/:doctype below: this doctype has a bespoke form because its
               offcut rows are priced live from the server. */}
@@ -251,14 +272,8 @@ export default function App() {
           <Route path="/ess/attendance" element={<ESSCalendar />} />
           <Route path="/ess/overtime" element={<OvertimeLogs />} />
           <Route path="/ess/leave" element={<LeaveApplicationList />} />
-          <Route
-            path="/ess/leave/new"
-            element={<LeaveApplicationForm />}
-          />
-          <Route
-            path="/ess/leave/:name"
-            element={<LeaveApplicationForm />}
-          />
+          <Route path="/ess/leave/new" element={<LeaveApplicationForm />} />
+          <Route path="/ess/leave/:name" element={<LeaveApplicationForm />} />
           <Route
             path="/ess/attendance-request"
             element={<AttendanceRequestList />}
@@ -272,10 +287,7 @@ export default function App() {
             element={<AttendanceRequestForm />}
           />
           <Route path="/ess/expense-claim" element={<ExpenseClaimList />} />
-          <Route
-            path="/ess/expense-claim/new"
-            element={<ExpenseClaimForm />}
-          />
+          <Route path="/ess/expense-claim/new" element={<ExpenseClaimForm />} />
           <Route
             path="/ess/expense-claim/:name"
             element={<ExpenseClaimForm />}
@@ -423,7 +435,10 @@ export default function App() {
           <Route path="/purchase" element={<PurchaseDashboard />} />
           <Route path="/purchase/:doctype" element={<GenericListPage />} />
           <Route path="/purchase/:doctype/new" element={<GenericFormPage />} />
-          <Route path="/purchase/:doctype/:name" element={<GenericFormPage />} />
+          <Route
+            path="/purchase/:doctype/:name"
+            element={<GenericFormPage />}
+          />
 
           {/* ================================
               EMPLOYEE SELF SERVICE HUB

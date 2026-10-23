@@ -254,4 +254,11 @@ override_doctype_class = {
 after_migrate = [
     "erpnext_ui.setup.workflows.setup_workflows",
     "erpnext_ui.setup.attachment_settings.setup_attachment_settings",
+    "erpnext_ui.setup.supplier_quotation.setup_supplier_quotation_settings",
 ]
+
+scheduler_events = {
+    "daily": [
+        "erpnext_ui.supplier_quotation.expire_supplier_quotation_invitations",
+    ],
+}

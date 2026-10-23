@@ -22,7 +22,10 @@ import { useRole } from "../../context/RoleContext";
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import Section from "../../components/Section";
-import { REQUEST_PURPOSE_KEYS, REQUEST_PURPOSES } from "../../config/storePurposes";
+import {
+  REQUEST_PURPOSE_KEYS,
+  REQUEST_PURPOSES,
+} from "../../config/storePurposes";
 import { createTileNav } from "../../lib/tileNav";
 
 /**
@@ -166,7 +169,9 @@ export default function StoreDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
-  const { hasApp } = useRole();
+  const { hasApp, userRoles = [] } = useRole();
+  const canConfigureSupplierQuotes =
+    userRoles.includes("System Manager") || userRoles.includes("Administrator");
   const handleTileClick = createTileNav(navigate);
 
   // Hide tiles that belong to an optional app this site does not have. Mirrors
@@ -185,6 +190,15 @@ export default function StoreDashboard() {
       // Browsing is a separate intent from acting, so it is a separate control
       // rather than the body of every purpose card.
       actions: [
+        ...(canConfigureSupplierQuotes
+          ? [
+              {
+                label: t("store.supplierQuotationSettings.title"),
+                variant: "btn-outline-primary",
+                onClick: () => navigate("/store/supplier-quotation-settings"),
+              },
+            ]
+          : []),
         {
           label: t("store.mr.allTitle"),
           variant: "btn-outline-primary",
@@ -195,7 +209,7 @@ export default function StoreDashboard() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canConfigureSupplierQuotes]);
 
   return (
     <DashboardShell>
@@ -222,11 +236,17 @@ export default function StoreDashboard() {
       </Section>
 
       <Section title={t("store.purposeGroupStore")}>
-        <ModuleGrid items={visibleTiles(STORE_TILES)} onClick={handleTileClick} />
+        <ModuleGrid
+          items={visibleTiles(STORE_TILES)}
+          onClick={handleTileClick}
+        />
       </Section>
 
       <Section title={t("store.purposeGroupLookup")}>
-        <ModuleGrid items={visibleTiles(LOOKUP_TILES)} onClick={handleTileClick} />
+        <ModuleGrid
+          items={visibleTiles(LOOKUP_TILES)}
+          onClick={handleTileClick}
+        />
       </Section>
     </DashboardShell>
   );
