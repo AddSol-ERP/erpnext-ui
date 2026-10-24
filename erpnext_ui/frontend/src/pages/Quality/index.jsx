@@ -11,6 +11,7 @@ import {
   PackageOpen,
   NotebookText,
   SlidersHorizontal,
+  Settings2,
   Wrench,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
@@ -166,6 +167,13 @@ export default function QualityDashboard() {
           icon: NotebookText,
           route: "/quality/Quality Procedure",
           description: t("quality.qualityProcedureDesc"),
+        },
+        {
+          key: "additional-inspection-fields",
+          title: t("quality.additionalFieldsSettings"),
+          icon: Settings2,
+          route: "/quality/inspection-settings",
+          description: t("quality.additionalFieldsSettingsHint"),
         },
       ],
     },

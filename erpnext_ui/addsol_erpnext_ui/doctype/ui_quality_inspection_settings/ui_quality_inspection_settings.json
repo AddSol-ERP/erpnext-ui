@@ -1,0 +1,19 @@
+{
+ "doctype": "DocType",
+ "name": "UI Quality Inspection Settings",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "issingle": 1,
+ "editable_grid": 1,
+ "fields": [
+  {"fieldname": "additional_fields_section", "fieldtype": "Section Break", "label": "Additional Quality Inspection Fields"},
+  {"fieldname": "additional_fields", "fieldtype": "Table", "label": "Fields", "options": "UI Quality Inspection Field"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1},
+  {"role": "Administrator", "read": 1, "write": 1, "create": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

@@ -259,6 +259,7 @@ after_migrate = [
     "erpnext_ui.setup.workflows.setup_workflows",
     "erpnext_ui.setup.attachment_settings.setup_attachment_settings",
     "erpnext_ui.setup.supplier_quotation.setup_supplier_quotation_settings",
+    "erpnext_ui.setup.quality_inspection_settings.setup_quality_inspection_settings",
 ]
 
 scheduler_events = {

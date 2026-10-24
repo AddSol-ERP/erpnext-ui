@@ -28,6 +28,7 @@ import ParameterGroupList from "./pages/Quality/parameter-groups";
 import ParameterGroupForm from "./pages/Quality/parameter-groups/ParameterGroupForm";
 import InspectionList from "./pages/Quality/entry";
 import InspectionForm from "./pages/Quality/entry/InspectionForm";
+import QualityInspectionSettings from "./pages/Quality/inspection-settings";
 import AttendanceRequestList from "./pages/ESS/requests/attendance/AttendanceRequestList";
 import AttendanceRequestForm from "./pages/ESS/requests/attendance/AttendanceRequestForm";
 import LeaveApplicationList from "./pages/ESS/requests/leave/LeaveApplicationList";
@@ -136,6 +137,14 @@ export default function App() {
           />
           <Route path="/quality/inspection" element={<InspectionList />} />
           <Route path="/quality/inspection/new" element={<InspectionForm />} />
+          <Route
+            path="/quality/inspection-settings"
+            element={
+              <RequireSystemManager>
+                <QualityInspectionSettings />
+              </RequireSystemManager>
+            }
+          />
           <Route
             path="/quality/inspection/:name"
             element={<InspectionForm />}

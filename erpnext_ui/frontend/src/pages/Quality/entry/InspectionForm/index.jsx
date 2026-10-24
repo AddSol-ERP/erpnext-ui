@@ -3,13 +3,15 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 import { useToast } from "../../../../context/ToastContext";
-import { get } from "../../../../services/api";
+import { get, getMethod } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
 import { ClipboardList } from "lucide-react";
 import LinkField from "../../../../components/LinkField";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import FormSelect from "../../../../components/FormSelect";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
@@ -68,6 +70,29 @@ import InspectionReview from "./InspectionReview";
 // string in the posted JSON.
 const DEFAULT_SAMPLE_SIZE = 1;
 const EMPTY_REFERENCE_ITEMS = [];
+const ADDITIONAL_FIELDS_METHOD = "method/erpnext_ui.quality_inspection.get_quality_inspection_field_config";
+
+function configuredFieldDefault(field) {
+  return field.fieldtype === "Check" ? 0 : "";
+}
+
+function configuredFieldValue(field, value) {
+  if (value === null || value === undefined || value === "") return configuredFieldDefault(field);
+  if (["Int", "Float", "Currency", "Percent"].includes(field.fieldtype)) return Number(value);
+  return value;
+}
+
+function getConfiguredFieldErrors(doc, fields, t) {
+  const errors = {};
+  fields.forEach((field) => {
+    if (!(field.required_by_doctype || field.mandatory)) return;
+    const value = doc[field.fieldname];
+    if (value === null || value === undefined || value === "") {
+      errors[field.fieldname] = t("common.fieldRequired", { field: field.label });
+    }
+  });
+  return errors;
+}
 
 function splitSerialNumbers(value) {
   if (Array.isArray(value)) return value.map((serial) => String(serial).trim()).filter(Boolean);
@@ -139,6 +164,7 @@ export default function InspectionForm() {
   const [showAttach, setShowAttach] = useState(false);
   const [initialAttachment, setInitialAttachment] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [additionalFields, setAdditionalFields] = useState([]);
   const [referenceItemsState, setReferenceItemsState] = useState({ key: "", rows: [], error: false });
   const referenceRequestId = useRef(0);
   const referenceKey = doc.reference_type && doc.reference_name
@@ -384,8 +410,8 @@ export default function InspectionForm() {
    * plus the template, which the SPA requires.
    */
   const detailsErrors = useMemo(
-    () =>
-      requiredFields(
+    () => {
+      const errors = requiredFields(
         doc,
         {
           template: t("quality.template"),
@@ -396,8 +422,11 @@ export default function InspectionForm() {
           sample_size: t("quality.sampleSize"),
         },
         t,
-      ),
-    [doc, t],
+      );
+      Object.assign(errors, getConfiguredFieldErrors(doc, additionalFields, t));
+      return errors;
+    },
+    [additionalFields, doc, t],
   );
 
   /**
@@ -520,8 +549,18 @@ export default function InspectionForm() {
 
   /* ================= LOAD ================= */
   const loadDoc = async () => {
-    const res = await get(`resource/Quality Inspection/${name}`);
+    const [res, fieldConfig] = await Promise.all([
+      get(`resource/Quality Inspection/${name}`),
+      getMethod(ADDITIONAL_FIELDS_METHOD).catch(() => {
+        toast.error(t("quality.additionalFieldsLoadFailed"));
+        return { catalog: [] };
+      }),
+    ]);
     const d = res.data;
+    const configured = (fieldConfig.catalog || [])
+      .filter((field) => field.enabled)
+      .sort((a, b) => a.display_order - b.display_order || a.label.localeCompare(b.label));
+    setAdditionalFields(configured);
 
     // Every editable field is mapped back, or a re-save silently blanks it.
     // These four were absent once, which is why an edit-and-save of an existing
@@ -538,6 +577,10 @@ export default function InspectionForm() {
       sample_size: d.sample_size ?? DEFAULT_SAMPLE_SIZE,
       remarks: d.remarks || "",
       docstatus: d.docstatus ?? 0,
+      ...Object.fromEntries(configured.map((field) => [
+        field.fieldname,
+        configuredFieldValue(field, d[field.fieldname]),
+      ])),
     });
 
     const templateRes = await get(
@@ -703,6 +746,10 @@ export default function InspectionForm() {
     reference_name: current.reference_name,
     sample_size: Number(current.sample_size) || DEFAULT_SAMPLE_SIZE,
     remarks: current.remarks || "",
+    ...Object.fromEntries(additionalFields.map((field) => [
+      field.fieldname,
+      configuredFieldValue(field, current[field.fieldname]),
+    ])),
     // ERPNext's status field accepts Accepted/Rejected; Pending is represented
     // by incomplete reading rows while the document is still a draft.
     status: overallStatusRef.current === "Rejected" ? "Rejected" : "Accepted",
@@ -762,6 +809,7 @@ export default function InspectionForm() {
       },
       t,
     );
+    Object.assign(errs, getConfiguredFieldErrors(current, additionalFields, t));
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
       // No banner under the fields: the message is already on the field, and
@@ -844,6 +892,7 @@ export default function InspectionForm() {
       },
       t,
     );
+    Object.assign(errs, getConfiguredFieldErrors(current, additionalFields, t));
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
       // No banner under the fields: the message is already on the field, and
@@ -993,6 +1042,22 @@ export default function InspectionForm() {
       // loadDoc only setStates after awaited API responses.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       loadDoc();
+    } else {
+      getMethod(ADDITIONAL_FIELDS_METHOD)
+        .then((result) => {
+          const configured = (result.catalog || [])
+            .filter((field) => field.enabled)
+            .sort((a, b) => a.display_order - b.display_order || a.label.localeCompare(b.label));
+          setAdditionalFields(configured);
+          setDoc((current) => ({
+            ...current,
+            ...Object.fromEntries(configured.map((field) => [
+              field.fieldname,
+              configuredFieldValue(field, current[field.fieldname]),
+            ])),
+          }));
+        })
+        .catch(() => toast.error(t("quality.additionalFieldsLoadFailed")));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
@@ -1207,6 +1272,80 @@ export default function InspectionForm() {
               }}
             />
           </FormField>
+
+          {additionalFields.map((field) => {
+            const value = doc[field.fieldname] ?? configuredFieldDefault(field);
+            const disabled = Boolean(doc.docstatus);
+            let control;
+            if (field.fieldtype === "Check") {
+              control = (
+                <div className="flex h-8 items-center">
+                  <Checkbox
+                    checked={Boolean(value)}
+                    disabled={disabled}
+                    onCheckedChange={(checked) => updateDoc({ [field.fieldname]: checked === true ? 1 : 0 })}
+                  />
+                </div>
+              );
+            } else if (field.fieldtype === "Link") {
+              control = (
+                <LinkField
+                  doctype={field.options}
+                  value={value}
+                  disabled={disabled}
+                  onChange={(next) => updateDoc({ [field.fieldname]: next })}
+                />
+              );
+            } else if (field.fieldtype === "Select") {
+              control = (
+                <FormSelect
+                  value={value}
+                  disabled={disabled}
+                  onChange={(next) => updateDoc({ [field.fieldname]: next })}
+                  placeholder={t("quality.selectAdditionalField", { label: field.label })}
+                  options={String(field.options || "").split(/\r?\n/).filter(Boolean).map((option) => [option, option])}
+                />
+              );
+            } else if (["Small Text", "Text"].includes(field.fieldtype)) {
+              control = (
+                <Textarea
+                  value={value}
+                  disabled={disabled}
+                  onChange={(event) => updateDoc({ [field.fieldname]: event.target.value })}
+                />
+              );
+            } else {
+              const inputType = {
+                Date: "date",
+                Datetime: "datetime-local",
+                Time: "time",
+                Int: "number",
+                Float: "number",
+                Currency: "number",
+                Percent: "number",
+              }[field.fieldtype] || "text";
+              control = (
+                <Input
+                  type={inputType}
+                  step={field.fieldtype === "Int" ? "1" : inputType === "number" ? "any" : undefined}
+                  value={value}
+                  disabled={disabled}
+                  onChange={(event) => updateDoc({ [field.fieldname]: event.target.value })}
+                />
+              );
+            }
+            return (
+              <FormField
+                key={field.fieldname}
+                name={field.fieldname}
+                label={field.label}
+                required={field.required_by_doctype || field.mandatory}
+                error={fieldErrors[field.fieldname]}
+              >
+                {control}
+              </FormField>
+            );
+          })}
 
           {/* START INSPECTION
               A NEW inspection is closed BY HAND. The last field being filled

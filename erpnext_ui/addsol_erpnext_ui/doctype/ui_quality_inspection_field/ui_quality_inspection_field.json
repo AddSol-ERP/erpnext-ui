@@ -1,0 +1,18 @@
+{
+ "doctype": "DocType",
+ "name": "UI Quality Inspection Field",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "istable": 1,
+ "editable_grid": 1,
+ "fields": [
+  {"fieldname": "fieldname", "fieldtype": "Data", "label": "Fieldname", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "label", "fieldtype": "Data", "label": "Label", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "fieldtype", "fieldtype": "Data", "label": "Field Type", "read_only": 1},
+  {"fieldname": "options", "fieldtype": "Small Text", "label": "Options", "read_only": 1},
+  {"fieldname": "enabled", "fieldtype": "Check", "label": "Show in UI", "default": "0", "in_list_view": 1},
+  {"fieldname": "mandatory", "fieldtype": "Check", "label": "Required in UI", "in_list_view": 1},
+  {"fieldname": "display_order", "fieldtype": "Int", "label": "Display Order", "default": "0"}
+ ],
+ "permissions": []
+}
