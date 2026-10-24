@@ -251,6 +251,12 @@
   "referenceType": "संदर्भ प्रकार",
   "referenceName": "संदर्भ दस्तावेज़",
   "referenceNameHint": "वह दस्तावेज़ जिसके विरुद्ध यह निरीक्षण बनाया गया है।",
+  "noItemsForReference": "इस संदर्भ दस्तावेज़ में कोई आइटम नहीं मिला।",
+  "referenceItemsLoadFailed": "इस संदर्भ दस्तावेज़ से आइटम लोड नहीं हो सके।",
+  "batchNo": "बैच नंबर",
+  "selectBatch": "बैच चुनें…",
+  "serialNo": "सीरियल नंबर",
+  "selectSerial": "सीरियल नंबर चुनें…",
   "chooseReferenceTypeFirst": "पहले संदर्भ प्रकार चुनें",
   "selectReference": "दस्तावेज़ चुनें…",
   "sampleSize": "नमूना आकार"

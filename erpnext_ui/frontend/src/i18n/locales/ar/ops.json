@@ -251,6 +251,12 @@
   "referenceType": "نوع المرجع",
   "referenceName": "مستند المرجع",
   "referenceNameHint": "المستند الذي أُنشئ هذا الفحص بشأنه.",
+  "noItemsForReference": "لم يتم العثور على أصناف في المستند المرجعي.",
+  "referenceItemsLoadFailed": "تعذر تحميل الأصناف من المستند المرجعي.",
+  "batchNo": "رقم الدفعة",
+  "selectBatch": "اختر دفعة…",
+  "serialNo": "الرقم التسلسلي",
+  "selectSerial": "اختر رقمًا تسلسليًا…",
   "chooseReferenceTypeFirst": "اختر نوع المرجع أولاً",
   "selectReference": "اختر مستندًا…",
   "sampleSize": "حجم العينة"

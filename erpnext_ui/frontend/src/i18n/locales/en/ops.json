@@ -251,6 +251,12 @@
   "referenceType": "Reference Type",
   "referenceName": "Reference Document",
   "referenceNameHint": "The document this inspection is raised against.",
+  "noItemsForReference": "No items were found on this reference document.",
+  "referenceItemsLoadFailed": "Could not load items from this reference document.",
+  "batchNo": "Batch number",
+  "selectBatch": "Select a batch…",
+  "serialNo": "Serial number",
+  "selectSerial": "Select a serial number…",
   "chooseReferenceTypeFirst": "Choose a reference type first",
   "selectReference": "Select a document…",
   "sampleSize": "Sample Size"

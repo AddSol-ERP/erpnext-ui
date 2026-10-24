@@ -10,6 +10,7 @@ import {
   Pencil,
   Scale,
   Truck,
+  QrCode,
 } from "lucide-react";
 import { get } from "../../../../services/api";
 import { saveDocument, submitDocument } from "../../../../lib/docTransition";
@@ -115,11 +116,31 @@ const RECEIPT_ITEM_CLIENT_FIELDS = [
   "weight_per_unit",
   "transfer_qty",
   "received_stock_qty",
+  "tracking_serials",
+  "tracking_batches",
 ];
 
 /** Strip everything that must not leave the browser. */
 function toSavePayload(doc) {
-  return withCleanChildRows(doc, { extra: RECEIPT_ITEM_CLIENT_FIELDS });
+  const payload = withCleanChildRows(doc, { extra: RECEIPT_ITEM_CLIENT_FIELDS });
+  // ERPNext uses `qty` for accepted units and `rejected_qty` for rejected
+  // units. The PO status updater consumes `received_qty`, so send the physical
+  // quantity explicitly instead of leaving a stale value from the PO mapper.
+  payload.items = payload.items.map((row) => ({
+    ...row,
+    received_qty: (Number(row.qty) || 0) + (Number(row.rejected_qty) || 0),
+  }));
+  return payload;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
 }
 
 export default function PurchaseReceiptForm() {
@@ -156,6 +177,7 @@ export default function PurchaseReceiptForm() {
    */
   const [available, setAvailable] = useState([]);
   const [selectedPurchaseOrders, setSelectedPurchaseOrders] = useState([]);
+  const [activePurchaseOrder, setActivePurchaseOrder] = useState(poName || "");
   const hasPurchaseOrders = fromPo || selectedPurchaseOrders.length > 0;
   const [purchaseOrderDrafts, setPurchaseOrderDrafts] = useState({});
   const [purchaseOrderSourceValues, setPurchaseOrderSourceValues] = useState({});
@@ -201,6 +223,7 @@ export default function PurchaseReceiptForm() {
   const [initialAttachment, setInitialAttachment] = useState(null);
   const [attachForSubmit, setAttachForSubmit] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [printingLabels, setPrintingLabels] = useState(false);
   const plateConfigRef = useRef(plateConfig);
 
   const docRef = useRef(doc);
@@ -209,6 +232,16 @@ export default function PurchaseReceiptForm() {
   }, [doc]);
 
   const rows = useMemo(() => doc.items, [doc.items]);
+  const trackingItemRow = searchParams.get("item");
+
+  useEffect(() => {
+    if (!trackingItemRow || loading) return;
+    requestAnimationFrame(() => {
+      const target = [...document.querySelectorAll("[data-receipt-item]")]
+        .find((element) => element.dataset.receiptItem === trackingItemRow);
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [trackingItemRow, loading, rows.length]);
 
   /* ================= LOADERS ================= */
 
@@ -344,6 +377,7 @@ export default function PurchaseReceiptForm() {
         project: r.project || "",
         qty: r.qty ?? "",
         rejected_qty: r.rejected_qty ?? "",
+        received_qty: r.received_qty ?? ((Number(r.qty) || 0) + (Number(r.rejected_qty) || 0)),
         uom: r.uom || "",
         stock_uom: r.stock_uom || "",
         measured_total: "",
@@ -355,18 +389,43 @@ export default function PurchaseReceiptForm() {
         purchase_order_item: r.purchase_order_item || "",
         rate_from_po: r.rate ?? "",
       }));
+      const bundleNames = [...new Set(items.map((row) => row.serial_and_batch_bundle).filter(Boolean))];
+      const bundleResults = await Promise.all(bundleNames.map(async (bundleName) => {
+        try {
+          const bundle = await get(
+            `resource/${encodeURIComponent("Serial and Batch Bundle")}/${encodeURIComponent(bundleName)}`,
+          );
+          return [bundleName, bundle?.data?.entries || []];
+        } catch {
+          return [bundleName, []];
+        }
+      }));
+      const bundleEntries = Object.fromEntries(bundleResults);
+      const itemsWithTracking = items.map((row) => {
+        const entries = (bundleEntries[row.serial_and_batch_bundle] || [])
+          .filter((entry) => !entry.item_code || entry.item_code === row.item_code);
+        const trackingSerials = [...new Set([
+          ...String(row.serial_no || "").split(/[\n,]/).map((serial) => serial.trim()).filter(Boolean),
+          ...entries.map((entry) => entry.serial_no).filter(Boolean),
+        ])];
+        const trackingBatches = [...new Set([
+          row.batch_no,
+          ...entries.map((entry) => entry.batch_no),
+        ].filter(Boolean))];
+        return { ...row, tracking_serials: trackingSerials, tracking_batches: trackingBatches };
+      });
       setDoc({
         ...d,
         posting_date: d.posting_date || todayISO(),
-        items,
+        items: itemsWithTracking,
         docstatus: d.docstatus,
       });
       setSelectedPurchaseOrders(
-        [...new Set(items.map((row) => row.purchase_order).filter(Boolean))],
+        [...new Set(itemsWithTracking.map((row) => row.purchase_order).filter(Boolean))],
       );
 
       // Warm the UOM cache so an existing receipt shows its unit data.
-      await Promise.all(items.map(async (r) => {
+      await Promise.all(itemsWithTracking.map(async (r) => {
         if (r.item_code) {
           await Promise.all([
             loadUomInfo(r._rid, r.item_code),
@@ -495,6 +554,7 @@ export default function PurchaseReceiptForm() {
 
       setAvailable((current) => [...current, ...additions]);
       setSelectedPurchaseOrders((current) => [...current, sourceName]);
+      setActivePurchaseOrder(sourceName);
       setPurchaseOrderDrafts((current) => ({ ...current, [sourceName]: draft }));
       setPurchaseOrderSourceValues((current) => ({ ...current, [sourceName]: orderData }));
       setPurchaseOrderCandidate("");
@@ -544,6 +604,7 @@ export default function PurchaseReceiptForm() {
 
   /** Add a catalogue line to the receipt. */
   const pickLine = (line) => {
+    if (line.purchase_order) setActivePurchaseOrder(line.purchase_order);
     const rid = nextRid();
     // A factor of 0 or missing is not a rate. `TEST-KG-NOS` carries 0.0 on its
     // Nos conversion row precisely because the real factor is a measurement, so
@@ -810,12 +871,13 @@ export default function PurchaseReceiptForm() {
       }
       for (const row of current.items) {
         const qty = Number(row.qty);
+        const rejectedQty = Number(row.rejected_qty) || 0;
         const pending = Number(row.pending_qty);
         if (!row.purchase_order || !row.purchase_order_item) {
           selectionErrors.items = t("store.receipt.validation.pickItem");
           break;
         }
-        if (!Number.isFinite(qty) || qty <= 0 || qty > pending) {
+        if (!Number.isFinite(qty) || qty <= 0 || rejectedQty < 0 || qty + rejectedQty > pending) {
           selectionErrors.items = t("store.receipt.receivedQtyMustBeWithinPending", { pending, uom: row.uom });
           break;
         }
@@ -1005,6 +1067,60 @@ export default function PurchaseReceiptForm() {
     }
   };
 
+  const printItemLabels = async () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setError(t("store.receipt.labelPopupBlocked"));
+      return;
+    }
+
+    printWindow.document.write(`<p style="font:16px sans-serif;padding:24px">${escapeHtml(t("store.receipt.preparingLabels"))}</p>`);
+    setPrintingLabels(true);
+    try {
+      const response = await get("method/erpnext_ui.api.get_purchase_receipt_item_labels", { name });
+      const labels = response?.message?.labels || [];
+      if (!labels.length) throw new Error(t("store.receipt.noItemsForLabels"));
+
+      const labelMarkup = labels.map((label) => `
+        <article class="label">
+          <div class="content">
+            <strong class="item-code">${escapeHtml(label.item_code)}</strong>
+            <div class="item-name">${escapeHtml(label.item_name)}</div>
+            <div><b>${escapeHtml(t("store.receipt.receiptLabel"))}:</b> ${escapeHtml(label.purchase_receipt)}</div>
+            <div><b>${escapeHtml(t("store.receipt.quantityLabel"))}:</b> ${escapeHtml(label.qty)} ${escapeHtml(label.uom)}</div>
+            ${label.batch_numbers.length ? `<div class="tracking"><b>${escapeHtml(t("store.receipt.batchNumberLabel"))}:</b> ${label.batch_numbers.map(escapeHtml).join(", ")}</div>` : ""}
+            ${label.serial_numbers.length ? `<div class="tracking"><b>${escapeHtml(t("store.receipt.serialNumberLabel"))}:</b> ${label.serial_numbers.map(escapeHtml).join(", ")}</div>` : ""}
+          </div>
+          <img class="qr" src="data:image/svg+xml;base64,${label.qr_svg_base64}" alt="QR ${escapeHtml(label.item_code)}" />
+        </article>`).join("");
+
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(t("store.receipt.itemLabelsTitle", { name }))}</title>
+        <style>
+          @page { size: A4; margin: 8mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; color: #111; font: 9pt Arial, sans-serif; }
+          .labels { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4mm; }
+          .label { display: flex; align-items: center; gap: 3mm; width: 94mm; min-height: 55mm; padding: 3mm; border: 1px solid #888; break-inside: avoid; overflow: hidden; }
+          .content { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+          .item-code { display: block; font-size: 12pt; }
+          .item-name { margin: 1mm 0 2mm; font-size: 10pt; }
+          .tracking { margin-top: 1mm; font-size: 7.5pt; }
+          .qr { width: 34mm; height: 34mm; object-fit: contain; }
+          @media screen { body { padding: 8mm; background: #eee; } .label { background: white; } }
+          @media print { .labels { gap: 3mm; } }
+        </style></head><body><main class="labels">${labelMarkup}</main>
+        <script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>
+        </body></html>`);
+      printWindow.document.close();
+    } catch (e) {
+      printWindow.close();
+      setError(e.message || t("store.receipt.labelPrintFailed"));
+    } finally {
+      setPrintingLabels(false);
+    }
+  };
+
   /* ================= HEADER ================= */
 
   useEffect(() => {
@@ -1049,6 +1165,12 @@ export default function PurchaseReceiptForm() {
             setShowAttach(true);
           },
         },
+        isEdit && doc.items?.length > 0 && {
+          label: printingLabels ? t("store.receipt.preparingLabels") : t("store.receipt.printItemLabels"),
+          variant: "btn-outline-primary",
+          icon: QrCode,
+          onClick: printItemLabels,
+        },
         !isEdit && {
           label: t("attachments.open"),
           variant: "btn-outline-primary",
@@ -1064,7 +1186,7 @@ export default function PurchaseReceiptForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, doc.docstatus, loading, initialAttachment, createdReceipts.length]);
+  }, [isEdit, name, doc.docstatus, doc.items?.length, loading, initialAttachment, printingLabels, createdReceipts.length]);
 
   /* ================= MOUNT ================= */
 
@@ -1119,6 +1241,7 @@ export default function PurchaseReceiptForm() {
 
           setAvailable(catalogue);
           setSelectedPurchaseOrders([poName]);
+          setActivePurchaseOrder(poName);
           setPurchaseOrderDrafts({ [poName]: draft });
           setPurchaseOrderSourceValues({ [poName]: orderResult.data });
 
@@ -1394,6 +1517,8 @@ export default function PurchaseReceiptForm() {
       <FormSection
         title={t("store.receipt.transportDetails")}
         icon={Truck}
+        collapsible
+        defaultOpen={false}
         contentClassName="grid grid-cols-1 gap-3 md:grid-cols-2"
       >
         <FormField label={t("store.receipt.deliveryChallanNo")} name="supplier_delivery_note">
@@ -1432,7 +1557,7 @@ export default function PurchaseReceiptForm() {
       </FormSection>
 
       {/* ITEMS */}
-      <FormSection
+        <FormSection
         title={t("store.receipt.addedLines")}
         icon={ClipboardList}
       >
@@ -1467,10 +1592,17 @@ export default function PurchaseReceiptForm() {
               const info = uomInfo[row._rid];
               const looksWeighed = needsMeasuredTotal(info, row.uom);
               const rowErr = uomErrors[row._rid];
+              const batchNumbers = row.tracking_batches?.length
+                ? row.tracking_batches
+                : row.batch_no ? [row.batch_no] : [];
+              const serialNumbers = row.tracking_serials?.length
+                ? row.tracking_serials
+                : String(row.serial_no || "").split(/[\n,]/).map((serial) => serial.trim()).filter(Boolean);
               return (
                 <li
                   key={row._rid}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border px-3 py-2"
+                  data-receipt-item={row.name || undefined}
+                  className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 ${trackingItemRow === row.name ? "border-primary ring-2 ring-primary/30" : "border-border"}`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">
@@ -1485,6 +1617,16 @@ export default function PurchaseReceiptForm() {
                       <span>
                         {row.qty} {row.uom}
                       </span>
+                      {batchNumbers.length ? (
+                        <span className="break-all">
+                          <span className="font-medium">{t("store.receipt.batchNumberLabel")}:</span> {batchNumbers.join(", ")}
+                        </span>
+                      ) : null}
+                      {serialNumbers.length ? (
+                        <span className="break-all">
+                          <span className="font-medium">{t("store.receipt.serialNumberLabel")}:</span> {serialNumbers.join(", ")}
+                        </span>
+                      ) : null}
                       {!hasPurchaseOrders && looksWeighed ? (
                         <span className="flex items-center gap-1">
                           <Scale className="size-3" />
@@ -1533,7 +1675,10 @@ export default function PurchaseReceiptForm() {
                         size="sm"
                         onClick={() => {
                           setEditing(row._rid);
-                          if (hasPurchaseOrders && !isEdit) setPickerOpen(true);
+                          if (hasPurchaseOrders && !isEdit) {
+                            setActivePurchaseOrder(row.purchase_order || activePurchaseOrder);
+                            setPickerOpen(true);
+                          }
                         }}
                         aria-label={t("store.receipt.editLine")}
                       >
@@ -1582,6 +1727,9 @@ export default function PurchaseReceiptForm() {
           show={pickerOpen}
           onClose={() => setPickerOpen(false)}
           lines={available}
+          purchaseOrders={selectedPurchaseOrders}
+          selectedPurchaseOrder={activePurchaseOrder}
+          onPurchaseOrderChange={setActivePurchaseOrder}
           pickedKeys={pickedKeys}
           onPick={pickLine}
           row={editingRow}

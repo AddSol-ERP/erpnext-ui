@@ -50,6 +50,9 @@ export default function ReceiptItemWorkbench({
   show,
   onClose,
   lines,
+  purchaseOrders = [],
+  selectedPurchaseOrder,
+  onPurchaseOrderChange,
   pickedKeys = [],
   onPick,
   row,
@@ -74,14 +77,17 @@ export default function ReceiptItemWorkbench({
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return lines;
-    return lines.filter(
+    const referenceLines = selectedPurchaseOrder
+      ? lines.filter((line) => line.purchase_order === selectedPurchaseOrder)
+      : lines;
+    if (!q) return referenceLines;
+    return referenceLines.filter(
       (l) =>
         (l.item_code || "").toLowerCase().includes(q) ||
         (l.item_name || "").toLowerCase().includes(q) ||
         (l.warehouse || "").toLowerCase().includes(q),
     );
-  }, [lines, query]);
+  }, [lines, query, selectedPurchaseOrder]);
 
   // Reopening must land on the list, not wherever the last pick left it. Reset
   // here rather than in an effect keyed on `show`: a render-driven setState in an
@@ -124,6 +130,22 @@ export default function ReceiptItemWorkbench({
         className={`${listVisible} min-w-0 flex-col gap-2 rounded-lg border border-border bg-card p-3`}
       >
         <h3 className="text-sm font-semibold">{t("store.receipt.picker.title")}</h3>
+
+        {purchaseOrders.length > 1 ? (
+          <FormField label={t("store.receipt.referencePurchaseOrder")}>
+            <select
+              value={selectedPurchaseOrder || purchaseOrders[0]}
+              onChange={(event) => onPurchaseOrderChange?.(event.target.value)}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {purchaseOrders.map((purchaseOrder) => (
+                <option key={purchaseOrder} value={purchaseOrder}>
+                  {purchaseOrder}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        ) : null}
 
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

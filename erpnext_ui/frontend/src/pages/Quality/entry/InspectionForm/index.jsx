@@ -67,6 +67,25 @@ import InspectionReview from "./InspectionReview";
 // <input type="number"> hands back a string and a string would be stored as a
 // string in the posted JSON.
 const DEFAULT_SAMPLE_SIZE = 1;
+const EMPTY_REFERENCE_ITEMS = [];
+
+function splitSerialNumbers(value) {
+  if (Array.isArray(value)) return value.map((serial) => String(serial).trim()).filter(Boolean);
+  if (!value) return [];
+  return String(value).split(/[\n,]/).map((serial) => serial.trim()).filter(Boolean);
+}
+
+function getReferenceItemRows(reference) {
+  if (!reference || typeof reference !== "object") return [];
+  const rows = Object.values(reference)
+    .filter(Array.isArray)
+    .flat()
+    .filter((row) => row && typeof row === "object" && row.item_code);
+  if (reference.item_code && !rows.some((row) => row.item_code === reference.item_code)) {
+    rows.unshift(reference);
+  }
+  return rows;
+}
 
 
 export default function InspectionForm() {
@@ -87,6 +106,8 @@ export default function InspectionForm() {
     inspection_type: "",
     reference_type: "",
     reference_name: "",
+    item_serial_no: "",
+    batch_no: "",
     sample_size: DEFAULT_SAMPLE_SIZE,
     remarks: "",
     // ERPNext makes a submitted Quality Inspection read-only. It was never
@@ -118,6 +139,96 @@ export default function InspectionForm() {
   const [showAttach, setShowAttach] = useState(false);
   const [initialAttachment, setInitialAttachment] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [referenceItemsState, setReferenceItemsState] = useState({ key: "", rows: [], error: false });
+  const referenceRequestId = useRef(0);
+  const referenceKey = doc.reference_type && doc.reference_name
+    ? `${doc.reference_type}\u0000${doc.reference_name}`
+    : "";
+
+  useEffect(() => {
+    const requestId = ++referenceRequestId.current;
+    if (!doc.reference_type || !doc.reference_name) {
+      return;
+    }
+
+    get(`resource/${encodeURIComponent(doc.reference_type)}/${encodeURIComponent(doc.reference_name)}`)
+      .then(async (response) => {
+        const reference = response?.data || {};
+        const rows = getReferenceItemRows(reference);
+        const bundles = [...new Set(rows.map((row) => row.serial_and_batch_bundle).filter(Boolean))];
+        if (bundles.length) {
+          const bundleDocs = await Promise.all(bundles.map(async (bundle) => {
+            try {
+              const result = await get(`resource/${encodeURIComponent("Serial and Batch Bundle")}/${encodeURIComponent(bundle)}`);
+              return [bundle, result?.data || {}];
+            } catch {
+              return [bundle, {}];
+            }
+          }));
+          const bundleMap = Object.fromEntries(bundleDocs);
+          for (const row of rows) {
+            const bundle = bundleMap[row.serial_and_batch_bundle];
+            if (!bundle) continue;
+            const entries = bundle.entries || bundle.voucher_detail_no || [];
+            const matchingEntries = entries.filter((entry) => !entry.item_code || entry.item_code === row.item_code);
+            row.batch_no = row.batch_no || matchingEntries.find((entry) => entry.batch_no)?.batch_no || "";
+            row.serial_no = row.serial_no || matchingEntries.map((entry) => entry.serial_no).filter(Boolean);
+          }
+        }
+        if (requestId === referenceRequestId.current) {
+          setReferenceItemsState({
+            key: `${doc.reference_type}\u0000${doc.reference_name}`,
+            rows,
+            error: false,
+          });
+        }
+      })
+      .catch(() => {
+        if (requestId === referenceRequestId.current) {
+          setReferenceItemsState({
+            key: `${doc.reference_type}\u0000${doc.reference_name}`,
+            rows: [],
+            error: true,
+          });
+        }
+      });
+
+    return () => {
+      referenceRequestId.current += 1;
+    };
+  }, [doc.reference_type, doc.reference_name]);
+
+  const referenceItemRows = useMemo(
+    () => referenceItemsState.key === referenceKey
+      ? referenceItemsState.rows
+      : EMPTY_REFERENCE_ITEMS,
+    [referenceItemsState, referenceKey],
+  );
+  const referenceItemsLoading = Boolean(referenceKey) && referenceItemsState.key !== referenceKey;
+  const referenceItemsError = referenceItemsState.key === referenceKey && referenceItemsState.error;
+
+  const referenceItemCodes = useMemo(
+    () => [...new Set(referenceItemRows.map((row) => row.item_code).filter(Boolean))],
+    [referenceItemRows],
+  );
+  const selectedReferenceItemRows = useMemo(
+    () => referenceItemRows.filter((row) => row.item_code === doc.item_code),
+    [referenceItemRows, doc.item_code],
+  );
+  const availableBatches = useMemo(
+    () => [...new Set([
+      ...selectedReferenceItemRows.map((row) => row.batch_no).filter(Boolean),
+      doc.batch_no,
+    ])].filter(Boolean),
+    [selectedReferenceItemRows, doc.batch_no],
+  );
+  const availableSerials = useMemo(
+    () => [...new Set([
+      ...selectedReferenceItemRows.flatMap((row) => splitSerialNumbers(row.serial_no)),
+      doc.item_serial_no,
+    ])].filter(Boolean),
+    [selectedReferenceItemRows, doc.item_serial_no],
+  );
 
   // Always points at the newest document. The Save button is registered into
   // the page toolbar by an effect that deliberately does not depend on `doc`
@@ -387,8 +498,24 @@ export default function InspectionForm() {
    * deleted. It is the one field in this form that can silently become wrong.
    */
   const handleReferenceTypeChange = (reference_type) => {
-    updateDoc({ reference_type, reference_name: "" });
+    updateDoc({
+      reference_type,
+      reference_name: "",
+      item_code: "",
+      item_serial_no: "",
+      batch_no: "",
+    });
     setFieldErrors((prev) => ({ ...prev, reference_type: "", reference_name: "" }));
+  };
+
+  const handleReferenceNameChange = (reference_name) => {
+    updateDoc({
+      reference_name,
+      item_code: "",
+      item_serial_no: "",
+      batch_no: "",
+    });
+    setFieldErrors((prev) => ({ ...prev, reference_name: "", item_code: "" }));
   };
 
   /* ================= LOAD ================= */
@@ -406,6 +533,8 @@ export default function InspectionForm() {
       inspection_type: d.inspection_type || "",
       reference_type: d.reference_type || "",
       reference_name: d.reference_name || "",
+      item_serial_no: d.item_serial_no || "",
+      batch_no: d.batch_no || "",
       sample_size: d.sample_size ?? DEFAULT_SAMPLE_SIZE,
       remarks: d.remarks || "",
       docstatus: d.docstatus ?? 0,
@@ -563,6 +692,8 @@ export default function InspectionForm() {
    */
   const payloadFrom = (current) => ({
     item_code: current.item_code,
+    item_serial_no: current.item_serial_no || "",
+    batch_no: current.batch_no || "",
     quality_inspection_template: current.template,
     // Mandatory on the doctype. Omitting them produced
     // `MandatoryError: [Quality Inspection, ...]: inspection_type,
@@ -953,19 +1084,6 @@ export default function InspectionForm() {
           </FormField>
 
           <FormField
-            label={t("quality.item")}
-            error={fieldErrors.item_code}
-            required
-          >
-            <LinkField
-              doctype="Item"
-              value={doc.item_code}
-              onChange={(v) => updateDoc({ item_code: v })}
-              disabled={Boolean(doc.docstatus)}
-            />
-          </FormField>
-
-          <FormField
             label={t("quality.inspectionType")}
             error={fieldErrors.inspection_type}
             required
@@ -1013,10 +1131,7 @@ export default function InspectionForm() {
               // fire a link search against nothing.
               doctype={doc.reference_type || undefined}
               value={doc.reference_name}
-              onChange={(v) => {
-                updateDoc({ reference_name: v });
-                setFieldErrors((p) => ({ ...p, reference_name: "" }));
-              }}
+              onChange={handleReferenceNameChange}
               disabled={Boolean(doc.docstatus) || !doc.reference_type}
               placeholder={t(
                 doc.reference_type
@@ -1030,6 +1145,49 @@ export default function InspectionForm() {
               filters={{ docstatus: ["<", 2] }}
             />
           </FormField>
+
+          <FormField
+            label={t("quality.item")}
+            error={fieldErrors.item_code}
+            required
+          >
+            <LinkField
+              doctype="Item"
+              value={doc.item_code}
+              onChange={(v) => updateDoc({ item_code: v, item_serial_no: "", batch_no: "" })}
+              disabled={Boolean(doc.docstatus) || !doc.reference_name || referenceItemsLoading || !referenceItemCodes.length}
+              filters={doc.reference_name ? { name: ["in", referenceItemCodes] } : undefined}
+            />
+            {doc.reference_name && !referenceItemsLoading && !referenceItemCodes.length ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t(referenceItemsError ? "quality.referenceItemsLoadFailed" : "quality.noItemsForReference")}
+              </p>
+            ) : null}
+          </FormField>
+
+          {availableBatches.length ? (
+            <FormField label={t("quality.batchNo")}>
+              <FormSelect
+                value={doc.batch_no}
+                onChange={(batch_no) => updateDoc({ batch_no })}
+                disabled={Boolean(doc.docstatus)}
+                placeholder={t("quality.selectBatch")}
+                options={availableBatches.map((batch) => [batch, batch])}
+              />
+            </FormField>
+          ) : null}
+
+          {availableSerials.length ? (
+            <FormField label={t("quality.serialNo")}>
+              <FormSelect
+                value={doc.item_serial_no}
+                onChange={(item_serial_no) => updateDoc({ item_serial_no })}
+                disabled={Boolean(doc.docstatus)}
+                placeholder={t("quality.selectSerial")}
+                options={availableSerials.map((serial) => [serial, serial])}
+              />
+            </FormField>
+          ) : null}
 
           <FormField
             label={t("quality.sampleSize")}

@@ -2036,6 +2036,56 @@ def get_purchase_receipt_capabilities():
 
 
 @frappe.whitelist(allow_guest=False)
+def get_purchase_receipt_item_labels(name):
+    """Build printable QR labels for the item rows of a readable receipt."""
+    from base64 import b64encode
+    from io import BytesIO
+    from urllib.parse import quote
+
+    import pyqrcode
+    from erpnext.stock.serial_batch_bundle import get_batches_from_bundle, get_serial_nos_from_bundle
+    from frappe.utils import get_url
+
+    receipt = frappe.get_doc("Purchase Receipt", name)
+    receipt.check_permission("read")
+    labels = []
+    for item in receipt.items:
+        serial_numbers = [
+            value.strip()
+            for value in re.split(r"[\n,]", item.serial_no or "")
+            if value.strip()
+        ]
+        batch_numbers = [item.batch_no] if item.batch_no else []
+        if item.serial_and_batch_bundle:
+            serial_numbers.extend(get_serial_nos_from_bundle(item.serial_and_batch_bundle))
+            batch_numbers.extend(get_batches_from_bundle(item.serial_and_batch_bundle).keys())
+        serial_numbers = list(dict.fromkeys(serial_numbers))
+        batch_numbers = list(dict.fromkeys(batch_numbers))
+
+        tracking_url = (
+            f"{get_url()}/addsol_ui#/store/purchase-receipt/"
+            f"{quote(receipt.name, safe='')}?item={quote(item.name, safe='')}"
+        )
+        qr = pyqrcode.create(tracking_url)
+        stream = BytesIO()
+        qr.svg(stream, scale=5, quiet_zone=2)
+        labels.append(
+            {
+                "row": item.name,
+                "purchase_receipt": receipt.name,
+                "item_code": item.item_code,
+                "item_name": item.item_name,
+                "qty": item.qty,
+                "uom": item.uom,
+                "batch_numbers": batch_numbers,
+                "serial_numbers": serial_numbers,
+                "qr_svg_base64": b64encode(stream.getvalue()).decode("ascii"),
+            }
+        )
+    return {"labels": labels}
+
+
+@frappe.whitelist(allow_guest=False)
 def get_purchase_receipt_item_capabilities(item_code):
 	"""Return optional per-item receipt metadata via installed-app hooks."""
 	if not item_code:
