@@ -22,13 +22,12 @@ import {
   referenceTypesFor,
 } from "../../../lib/inspectionTypes";
 
-const getStatus = (row, t) => {
-  if (row.status === "Accepted")
-    return { label: t("quality.statusPass"), color: "complete" };
-  if (row.status === "Rejected")
-    return { label: t("quality.statusFail"), color: "danger" };
-  return { label: t("quality.statusDraft"), color: "open" };
-};
+const getInspectionResult = (row, t) =>
+  row.status === "Accepted"
+    ? { label: t("quality.statusPass"), color: "complete" }
+    : row.status === "Rejected"
+      ? { label: t("quality.statusFail"), color: "danger" }
+      : { label: t("quality.statusPending"), color: "open" };
 
 export default function InspectionList() {
   const navigate = useNavigate();
@@ -48,6 +47,7 @@ export default function InspectionList() {
   );
 
   const [data, setData] = useState([]);
+  const [documentState, setDocumentState] = useState("draft");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -185,7 +185,7 @@ export default function InspectionList() {
     setLoading(true);
     setError(null);
     try {
-      const filters = [["docstatus", "!=", 2]];
+      const filters = [["docstatus", "=", documentState === "submitted" ? 1 : 0]];
 
       Object.entries(selectedFilters).forEach(([k, v]) => {
         if (v) filters.push([k, "=", v]);
@@ -240,6 +240,7 @@ export default function InspectionList() {
     }
   }, [
     debouncedSearch,
+    documentState,
     selectedFilters,
     limit_start,
     limit_page_length,
@@ -290,13 +291,13 @@ export default function InspectionList() {
   const listData = useMemo(
     () =>
       data.map((row) => {
-        const status = getStatus(row, t);
+        const result = getInspectionResult(row, t);
         return {
           title: row.name,
           subtitle: `${row.item_code || "-"} · ${inspectionTypeLabel(row.inspection_type, t)}`,
           meta: `${row.reference_name || "-"} · ${row.reference_type || "-"} · ${row.report_date || "-"}`,
-          status: status.color,
-          statusLabel: status.label,
+          status: result.color,
+          statusLabel: result.label,
           raw: row,
         };
       }),
@@ -336,57 +337,79 @@ export default function InspectionList() {
     [t],
   );
 
+  const statusTabs = useMemo(() => (
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5 pb-2">
+      {[
+        { id: "draft", label: t("common.draft") },
+        { id: "submitted", label: t("common.submitted") },
+      ].map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          aria-pressed={documentState === tab.id}
+          onClick={() => {
+            setDocumentState(tab.id);
+            resetPage();
+          }}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            documentState === tab.id
+              ? "bg-primary/15 text-primary ring-1 ring-primary/40"
+              : "text-chrome-muted hover:bg-muted hover:text-chrome-foreground"
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  ), [documentState, resetPage, t]);
+
   return (
     <ListLayout
       contentMode="auto"
       loading={loading}
       error={error}
       onRetry={loadData}
-      tabs={
-        draft ? (
-          /* THE PAPER IN PROGRESS
-             The user walked away from an inspection. The point of this panel
-             is that they land back on the EXACT question they left on, not
-             on a blank form -- being sent to a fresh "new inspection" is
-             what disconnects them from the flow they were in. */
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">
-                {t("quality.continueInspection")}
-              </div>
-              <div className="truncate text-xs text-muted-foreground">
-                {[draft.doc?.item_code, draft.doc?.template]
-                  .filter(Boolean)
-                  .join(" · ") || t("quality.inspectionInProgress")}
-                {" · "}
-                {t("quality.inspectionProgress", {
-                  done: draftProgress.complete,
-                  total: draftProgress.total,
-                })}
-              </div>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                clearInspectionDraft();
-                navigate("/quality/inspection/new");
-              }}
-            >
-              {t("quality.startNewInspection")}
-            </Button>
-          </div>
-        ) : null
-      }
+      tabs={statusTabs}
       actionBar={
-        <ActionBar
-          onSearch={handleSearch}
-          resultCount={totalItems}
-          filterConfig={filterConfig}
-          selectedFilters={selectedFilters}
-          {...filterUi}
-        />
+        <div>
+          {draft ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-3 py-2 sm:px-4">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">
+                  {t("quality.continueInspection")}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {[draft.doc?.item_code, draft.doc?.template]
+                    .filter(Boolean)
+                    .join(" · ") || t("quality.inspectionInProgress")}
+                  {" · "}
+                  {t("quality.inspectionProgress", {
+                    done: draftProgress.complete,
+                    total: draftProgress.total,
+                  })}
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  clearInspectionDraft();
+                  navigate("/quality/inspection/new");
+                }}
+              >
+                {t("quality.startNewInspection")}
+              </Button>
+            </div>
+          ) : null}
+          <ActionBar
+            onSearch={handleSearch}
+            resultCount={totalItems}
+            filterConfig={filterConfig}
+            selectedFilters={selectedFilters}
+            {...filterUi}
+          />
+        </div>
       }
       cards={
         <div className="card-stack flex flex-col gap-2.5">

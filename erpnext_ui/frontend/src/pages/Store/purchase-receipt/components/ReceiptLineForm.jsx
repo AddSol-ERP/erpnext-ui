@@ -83,6 +83,7 @@ export default function ReceiptLineForm({
   plateEnabled = false,
   plateRow = false,
   plateConfig = {},
+  company,
   onItemChange,
   onSave,
 }) {
@@ -556,10 +557,11 @@ export default function ReceiptLineForm({
       </FormField> : null}
 
       {/* WAREHOUSE */}
-      <FormField label={t("store.labels.targetWarehouse")} required>
+      <FormField label={t("store.receipt.acceptedWarehouse")} required>
         <LinkField
           doctype="Warehouse"
           value={row.warehouse}
+          filters={{ company, is_group: 0 }}
           onChange={(v) => edit({ warehouse: v || "" })}
         />
       </FormField>
@@ -675,6 +677,16 @@ export default function ReceiptLineForm({
           onChange={(e) => edit({ rejected_qty: e.target.value })}
         />
       </FormField>
+      {(Number(row.rejected_qty) || 0) > 0 ? (
+        <FormField label={t("store.receipt.rejectedWarehouse")} required>
+          <LinkField
+            doctype="Warehouse"
+            value={row.rejected_warehouse || ""}
+            filters={{ company, is_group: 0 }}
+            onChange={(v) => edit({ rejected_warehouse: v || "" })}
+          />
+        </FormField>
+      ) : null}
 
       {/* Validation state, shown once something is wrong rather than hidden. */}
       {uomError ? (

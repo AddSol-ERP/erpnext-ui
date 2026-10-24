@@ -165,6 +165,7 @@ export default function PurchaseReceiptForm() {
     company: "",
     posting_date: todayISO(),
     set_warehouse: "",
+    rejected_warehouse: "",
     currency: "",
     conversion_rate: 1,
     items: [],
@@ -385,6 +386,7 @@ export default function PurchaseReceiptForm() {
         stock_qty: r.stock_qty ?? "",
         rate: r.rate ?? "",
         warehouse: r.warehouse || "",
+        rejected_warehouse: r.rejected_warehouse || "",
         purchase_order: r.purchase_order || "",
         purchase_order_item: r.purchase_order_item || "",
         rate_from_po: r.rate ?? "",
@@ -475,6 +477,7 @@ export default function PurchaseReceiptForm() {
           stock_qty: 1,
           rate: "",
           warehouse: p.set_warehouse || "",
+          rejected_warehouse: p.rejected_warehouse || "",
           purchase_order: "",
           purchase_order_item: "",
           rate_from_po: "",
@@ -529,6 +532,8 @@ export default function PurchaseReceiptForm() {
         rate: row.rate ?? "",
         conversion_factor: row.conversion_factor ?? "",
         warehouse: row.warehouse || draft.set_warehouse || "",
+        rejected_warehouse:
+          row.rejected_warehouse || draft.rejected_warehouse || docRef.current.rejected_warehouse || "",
         purchase_order: row.purchase_order || sourceName,
         purchase_order_item: row.purchase_order_item || "",
         pending_qty: row.qty,
@@ -635,6 +640,11 @@ export default function PurchaseReceiptForm() {
       stock_qty: hasPoFactor ? Number(line.qty) * poFactor : line.stock_qty ?? "",
       rate: line.rate ?? "",
       warehouse: line.warehouse || docRef.current.set_warehouse || "",
+      rejected_warehouse:
+        line.rejected_warehouse ||
+        purchaseOrderDrafts[line.purchase_order || poName || ""]?.rejected_warehouse ||
+        docRef.current.rejected_warehouse ||
+        "",
       // Tracking fields. Empty until the user supplies them (or ERPNext generates
       // them from a series), but present on the row so an edit round-trip through
       // the server does not silently drop them.
@@ -797,6 +807,10 @@ export default function PurchaseReceiptForm() {
         errs.items = t("store.receipt.validation.warehouseRequired");
         break;
       }
+      if ((Number(row.rejected_qty) || 0) > 0 && !row.rejected_warehouse) {
+        errs.items = t("store.receipt.validation.rejectedWarehouseRequired");
+        break;
+      }
 
       if (forSubmit && isPlate) {
         const supplierWeight = Number(row.custom_supplier_weight_kg) || 0;
@@ -879,6 +893,10 @@ export default function PurchaseReceiptForm() {
         }
         if (!Number.isFinite(qty) || qty <= 0 || rejectedQty < 0 || qty + rejectedQty > pending) {
           selectionErrors.items = t("store.receipt.receivedQtyMustBeWithinPending", { pending, uom: row.uom });
+          break;
+        }
+        if (rejectedQty > 0 && !row.rejected_warehouse) {
+          selectionErrors.items = t("store.receipt.validation.rejectedWarehouseRequired");
           break;
         }
       }
@@ -1234,6 +1252,7 @@ export default function PurchaseReceiptForm() {
             // row ended up with the PO's stock_qty and a factor of 1.
             conversion_factor: r.conversion_factor ?? "",
             warehouse: r.warehouse || draft.set_warehouse || "",
+            rejected_warehouse: r.rejected_warehouse || draft.rejected_warehouse || "",
             purchase_order: r.purchase_order || poName,
             purchase_order_item: r.purchase_order_item || "",
             pending_qty: r.qty,
@@ -1482,6 +1501,7 @@ export default function PurchaseReceiptForm() {
             doctype="Warehouse"
             value={doc.set_warehouse}
             disabled={!!doc.docstatus}
+            filters={{ company: doc.company, is_group: 0 }}
             onChange={(v) => {
               setDoc((p) => ({
                 ...p,
@@ -1491,6 +1511,21 @@ export default function PurchaseReceiptForm() {
                 items: p.items.map((r) =>
                   r.warehouse ? { ...r, warehouse: v || "" } : r,
                 ),
+              }));
+            }}
+          />
+        </FormField>
+        <FormField label={t("store.receipt.rejectedWarehouse")} name="rejected_warehouse">
+          <LinkField
+            doctype="Warehouse"
+            value={doc.rejected_warehouse}
+            disabled={!!doc.docstatus}
+            filters={{ company: doc.company, is_group: 0 }}
+            onChange={(v) => {
+              setDoc((p) => ({
+                ...p,
+                rejected_warehouse: v || "",
+                items: p.items.map((row) => ({ ...row, rejected_warehouse: v || "" })),
               }));
             }}
           />
@@ -1739,6 +1774,7 @@ export default function PurchaseReceiptForm() {
           plateEnabled={plateConfig.enabled}
           plateRow={!!editingRow && !!plateItems[editingRow._rid]}
           plateConfig={plateConfig}
+          company={doc.company}
           onItemChange={handleItemChange}
           onSave={(next) => patchById(next._rid, next)}
           selectionOnly={!isEdit}
@@ -1764,6 +1800,7 @@ export default function PurchaseReceiptForm() {
         plateEnabled={plateConfig.enabled}
         plateRow={!!editingRow && !!plateItems[editingRow._rid]}
         plateConfig={plateConfig}
+        company={doc.company}
         onItemChange={handleItemChange}
         onSave={(next) => patchById(next._rid, next)}
       />

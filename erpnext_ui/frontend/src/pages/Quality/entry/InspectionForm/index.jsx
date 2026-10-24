@@ -285,27 +285,15 @@ export default function InspectionForm() {
   /**
    * Is the details strip open?
    *
-   * It is a COLLAPSIBLE strip at the top of the one surface, and it stays
-   * OPEN until every required detail is filled. The header is the FIRST part
-   * of the job, not a preamble to it: the item and the reference are what
-   * the readings are about, and until they are there the inspection cannot
-   * be saved at all. So the strip collapses exactly when the details are
-   * complete -- and that collapse is the hand-off to the inspection.
-   *
-   * It used to collapse as soon as a TEMPLATE was picked, which closed it
-   * with the item, the type and the reference still empty -- so the user was
-   * left answering readings against an inspection that could not be saved,
-   * and had to re-open the header to fix it.
-   *
-   * An EXISTING inspection starts CLOSED: the document already says what it
-   * is, so the strip is there for the user who needs to change something --
-   * not something to read on the way in.
+   * It opens on both new and existing inspections. It stays open until the
+   * user collapses it (or starts a new inspection), so completing or editing
+   * a field does not make the section disappear during the task.
    *
    * `FormSection` force-opens it when `errorCount` is set, so a failed Save
    * shows the field that is missing rather than leaving the user with a
    * message they cannot act on.
    */
-  const [detailsOpen, setDetailsOpen] = useState(() => !isEdit);
+  const [detailsOpen, setDetailsOpen] = useState(true);
 
   /** The rail, so a question change can scroll back to the top of it. */
   const railRef = useRef(null);
@@ -438,27 +426,6 @@ export default function InspectionForm() {
    * is done, and only then does the inspection become the work.
    */
   const detailsComplete = Object.keys(detailsErrors).length === 0;
-
-  /**
-   * An EXISTING inspection closes its details by itself.
-   *
-   * It was started when it was created, and the strip is there for the user
-   * who needs to change something -- so when the details are complete again
-   * it steps aside on its own.
-   *
-   * A NEW inspection does NOT: that one is closed BY HAND, with the "Start
-   * inspection" button. The last field being filled is not the user saying
-   * "the header is done" -- and a strip that vanishes under them mid-edit is
-   * worse than one they close themselves.
-   */
-  useEffect(() => {
-    if (!isEdit) return;
-    if (!detailsComplete) return;
-    // The documented "reset state when a prop changes" case: the details
-    // becoming complete is what closes an EXISTING inspection's strip.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDetailsOpen(false);
-  }, [detailsComplete, isEdit]);
 
   /**
    * Begin the inspection.
@@ -1099,9 +1066,8 @@ export default function InspectionForm() {
     setDoc((current) => ({ ...current, ...draft.doc }));
     setParameters(draft.parameters || []);
     setQuestionIndex(draft.questionIndex ?? 0);
-    // The strip is NOT closed here: the hand-off effect closes it when the
-    // restored details are complete, and a restored paper whose details are
-    // NOT complete should show them, not hide them.
+    // Keep the details section open while restoring the draft; the user can
+    // collapse it once they are ready to work through the inspection.
     setDirty(true);
   }, [isEdit]);
 
@@ -1109,10 +1075,9 @@ export default function InspectionForm() {
   return (
     <div className="mx-auto w-full max-w-[1100px]">
       {/* THE DETAILS
-          A collapsible strip, not a screen. It stays OPEN until every
-          required detail is filled, and that collapse IS the hand-off to the
-          inspection -- there is no "Start" button to press and no other page
-          to move to.
+          A collapsible strip, not a screen. It starts open and remains open
+          until the user collapses it. On a new inspection, Start inspection
+          also closes it as the intentional hand-off to the readings.
 
           `errorCount` force-opens it, so a Save that failed on a missing
           reference shows the field that is missing rather than leaving the
@@ -1121,7 +1086,7 @@ export default function InspectionForm() {
         className="mb-3"
         title={t("quality.inspectionDetails")}
         icon={ClipboardList}
-        collapsible
+        collapsible={!isEdit}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         errorCount={countErrors(fieldErrors)}

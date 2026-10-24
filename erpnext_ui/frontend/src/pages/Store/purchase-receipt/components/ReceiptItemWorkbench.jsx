@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, Check, Package, Search } from "lucide-react";
 import AppModal from "../../../../components/AppModal";
 import { FormField } from "../../../../components/FormField";
+import LinkField from "../../../../components/LinkField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ReceiptLineForm from "./ReceiptLineForm";
@@ -62,6 +63,7 @@ export default function ReceiptItemWorkbench({
   plateEnabled,
   plateRow,
   plateConfig,
+  company,
   onItemChange,
   onSave,
   selectionOnly = false,
@@ -272,6 +274,34 @@ export default function ReceiptItemWorkbench({
             <FormField label={t("store.receipt.uom")}>
               <Input value={row.uom || ""} readOnly disabled />
             </FormField>
+            <FormField label={t("store.receipt.acceptedWarehouse")} required>
+              <LinkField
+                doctype="Warehouse"
+                value={row.warehouse || ""}
+                filters={{ company, is_group: 0 }}
+                onChange={(warehouse) => onSave({ ...row, warehouse: warehouse || "" })}
+              />
+            </FormField>
+            <FormField label={t("store.receipt.rejectedQty")}>
+              <Input
+                type="number"
+                min="0"
+                max={row.pending_qty}
+                step="any"
+                value={row.rejected_qty ?? ""}
+                onChange={(event) => onSave({ ...row, rejected_qty: event.target.value })}
+              />
+            </FormField>
+            {(Number(row.rejected_qty) || 0) > 0 ? (
+              <FormField label={t("store.receipt.rejectedWarehouse")} required>
+                <LinkField
+                  doctype="Warehouse"
+                  value={row.rejected_warehouse || ""}
+                  filters={{ company, is_group: 0 }}
+                  onChange={(warehouse) => onSave({ ...row, rejected_warehouse: warehouse || "" })}
+                />
+              </FormField>
+            ) : null}
           </div>
         ) : row ? (
           <ReceiptLineForm
@@ -282,6 +312,7 @@ export default function ReceiptItemWorkbench({
             plateEnabled={plateEnabled}
             plateRow={plateRow}
             plateConfig={plateConfig}
+            company={company}
             onItemChange={onItemChange}
             onSave={onSave}
           />
