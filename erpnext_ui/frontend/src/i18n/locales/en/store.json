@@ -100,6 +100,7 @@
       "labelPrintFailed": "Could not prepare item labels.",
       "receiptLabel": "Purchase Receipt",
       "quantityLabel": "Received",
+      "labelUnit": "Unit",
       "deliveryChallanNo": "Delivery challan number",
       "transporterName": "Transporter name",
       "vehicleNumber": "Vehicle number",

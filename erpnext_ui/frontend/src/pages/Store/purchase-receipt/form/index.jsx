@@ -1106,8 +1106,9 @@ export default function PurchaseReceiptForm() {
             <div class="item-name">${escapeHtml(label.item_name)}</div>
             <div><b>${escapeHtml(t("store.receipt.receiptLabel"))}:</b> ${escapeHtml(label.purchase_receipt)}</div>
             <div><b>${escapeHtml(t("store.receipt.quantityLabel"))}:</b> ${escapeHtml(label.qty)} ${escapeHtml(label.uom)}</div>
-            ${label.batch_numbers.length ? `<div class="tracking"><b>${escapeHtml(t("store.receipt.batchNumberLabel"))}:</b> ${label.batch_numbers.map(escapeHtml).join(", ")}</div>` : ""}
-            ${label.serial_numbers.length ? `<div class="tracking"><b>${escapeHtml(t("store.receipt.serialNumberLabel"))}:</b> ${label.serial_numbers.map(escapeHtml).join(", ")}</div>` : ""}
+            ${label.unit_count > 1 ? `<div><b>${escapeHtml(t("store.receipt.labelUnit"))}:</b> ${escapeHtml(label.unit_index)} / ${escapeHtml(label.unit_count)}</div>` : ""}
+            ${label.batch_number ? `<div class="tracking"><b>${escapeHtml(t("store.receipt.batchNumberLabel"))}:</b> ${escapeHtml(label.batch_number)}</div>` : ""}
+            ${label.serial_number ? `<div class="tracking"><b>${escapeHtml(t("store.receipt.serialNumberLabel"))}:</b> ${escapeHtml(label.serial_number)}</div>` : ""}
           </div>
           <img class="qr" src="data:image/svg+xml;base64,${label.qr_svg_base64}" alt="QR ${escapeHtml(label.item_code)}" />
         </article>`).join("");

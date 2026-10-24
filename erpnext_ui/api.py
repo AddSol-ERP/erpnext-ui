@@ -2037,7 +2037,7 @@ def get_purchase_receipt_capabilities():
 
 @frappe.whitelist(allow_guest=False)
 def get_purchase_receipt_item_labels(name):
-    """Build printable QR labels for the item rows of a readable receipt."""
+    """Build printable QR labels for each received stock unit or tracked lot."""
     from base64 import b64encode
     from io import BytesIO
     from urllib.parse import quote
@@ -2055,33 +2055,87 @@ def get_purchase_receipt_item_labels(name):
             for value in re.split(r"[\n,]", item.serial_no or "")
             if value.strip()
         ]
-        batch_numbers = [item.batch_no] if item.batch_no else []
+        batch_quantities = {item.batch_no: float(item.qty or 0)} if item.batch_no else {}
+        bundle_entries = []
         if item.serial_and_batch_bundle:
+            bundle = frappe.get_doc("Serial and Batch Bundle", item.serial_and_batch_bundle)
+            bundle_entries = [
+                entry for entry in bundle.entries
+                if not entry.item_code or entry.item_code == item.item_code
+            ]
             serial_numbers.extend(get_serial_nos_from_bundle(item.serial_and_batch_bundle))
-            batch_numbers.extend(get_batches_from_bundle(item.serial_and_batch_bundle).keys())
+            batch_quantities.update(
+                {
+                    batch_no: float(qty or 0)
+                    for batch_no, qty in get_batches_from_bundle(item.serial_and_batch_bundle).items()
+                }
+            )
         serial_numbers = list(dict.fromkeys(serial_numbers))
-        batch_numbers = list(dict.fromkeys(batch_numbers))
-
-        tracking_url = (
-            f"{get_url()}/addsol_ui#/store/purchase-receipt/"
-            f"{quote(receipt.name, safe='')}?item={quote(item.name, safe='')}"
-        )
-        qr = pyqrcode.create(tracking_url)
-        stream = BytesIO()
-        qr.svg(stream, scale=5, quiet_zone=2)
-        labels.append(
-            {
-                "row": item.name,
-                "purchase_receipt": receipt.name,
-                "item_code": item.item_code,
-                "item_name": item.item_name,
-                "qty": item.qty,
-                "uom": item.uom,
-                "batch_numbers": batch_numbers,
-                "serial_numbers": serial_numbers,
-                "qr_svg_base64": b64encode(stream.getvalue()).decode("ascii"),
+        units = []
+        if serial_numbers:
+            serial_batches = {
+                entry.serial_no: entry.batch_no
+                for entry in bundle_entries
+                if entry.serial_no and entry.batch_no
             }
-        )
+            fallback_batch = item.batch_no or (next(iter(batch_quantities)) if len(batch_quantities) == 1 else None)
+            units = [
+                {
+                    "serial_number": serial_no,
+                    "batch_number": serial_batches.get(serial_no) or fallback_batch,
+                    "qty": 1,
+                }
+                for serial_no in serial_numbers
+            ]
+        elif batch_quantities:
+            for batch_no, batch_qty in batch_quantities.items():
+                whole_qty = int(batch_qty)
+                units.extend({"batch_number": batch_no, "qty": 1} for _ in range(whole_qty))
+                remainder = batch_qty - whole_qty
+                if remainder > 0:
+                    units.append({"batch_number": batch_no, "qty": remainder})
+        else:
+            row_qty = float(item.qty or 0)
+            whole_qty = int(row_qty)
+            units.extend({"qty": 1} for _ in range(whole_qty))
+            remainder = row_qty - whole_qty
+            if remainder > 0:
+                units.append({"qty": remainder})
+
+        # A single receipt row should not accidentally create an unbounded
+        # print job if its quantity is malformed or exceptionally large.
+        if len(units) > 10000:
+            frappe.throw(f"Item {item.item_code} has too many units to print labels at once.")
+
+        for unit_index, unit in enumerate(units, start=1):
+            query = [f"item={quote(item.name, safe='')}", f"unit={unit_index}"]
+            if unit.get("batch_number"):
+                query.append(f"batch={quote(unit['batch_number'], safe='')}")
+            if unit.get("serial_number"):
+                query.append(f"serial={quote(unit['serial_number'], safe='')}")
+            query.append(f"qty={quote(str(unit['qty']), safe='')}")
+            tracking_url = (
+                f"{get_url()}/addsol_ui#/store/purchase-receipt/"
+                f"{quote(receipt.name, safe='')}?{'&'.join(query)}"
+            )
+            qr = pyqrcode.create(tracking_url)
+            stream = BytesIO()
+            qr.svg(stream, scale=5, quiet_zone=2)
+            labels.append(
+                {
+                    "row": item.name,
+                    "purchase_receipt": receipt.name,
+                    "item_code": item.item_code,
+                    "item_name": item.item_name,
+                    "qty": unit["qty"],
+                    "uom": item.uom,
+                    "batch_number": unit.get("batch_number"),
+                    "serial_number": unit.get("serial_number"),
+                    "unit_index": unit_index,
+                    "unit_count": len(units),
+                    "qr_svg_base64": b64encode(stream.getvalue()).decode("ascii"),
+                }
+            )
     return {"labels": labels}
 
 

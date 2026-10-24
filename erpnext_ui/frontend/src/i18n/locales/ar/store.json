@@ -100,6 +100,7 @@
       "labelPrintFailed": "تعذر تجهيز ملصقات الأصناف.",
       "receiptLabel": "إيصال الشراء",
       "quantityLabel": "الكمية المستلمة",
+      "labelUnit": "الوحدة",
       "deliveryChallanNo": "رقم إشعار التسليم",
       "transporterName": "اسم الناقل",
       "vehicleNumber": "رقم المركبة",
