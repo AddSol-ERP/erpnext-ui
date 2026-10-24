@@ -2059,10 +2059,7 @@ def get_purchase_receipt_item_labels(name):
         bundle_entries = []
         if item.serial_and_batch_bundle:
             bundle = frappe.get_doc("Serial and Batch Bundle", item.serial_and_batch_bundle)
-            bundle_entries = [
-                entry for entry in bundle.entries
-                if not entry.item_code or entry.item_code == item.item_code
-            ]
+            bundle_entries = bundle.entries or []
             serial_numbers.extend(get_serial_nos_from_bundle(item.serial_and_batch_bundle))
             batch_quantities.update(
                 {
