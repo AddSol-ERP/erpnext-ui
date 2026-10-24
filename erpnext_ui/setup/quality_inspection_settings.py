@@ -8,6 +8,6 @@ def setup_quality_inspection_settings():
 		return
 	from erpnext_ui.quality_inspection import sync_field_catalog
 
-	settings = sync_field_catalog()
-	if settings.is_new() or settings.is_dirty():
+	settings, changed = sync_field_catalog()
+	if settings.is_new() or changed:
 		settings.save(ignore_permissions=True)

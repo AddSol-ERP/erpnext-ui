@@ -53,12 +53,14 @@ def sync_field_catalog(settings=None):
 	"""Add newly-created Quality Inspection custom fields without changing choices."""
 	settings = settings or frappe.get_single(SETTINGS_DOCTYPE)
 	existing = {row.fieldname: row for row in settings.get("additional_fields", [])}
+	changed = False
 	for field in get_field_catalog():
 		row = existing.get(field["fieldname"])
 		if row:
-			row.label = field["label"]
-			row.fieldtype = field["fieldtype"]
-			row.options = field["options"]
+			for key in ("label", "fieldtype", "options"):
+				if row.get(key) != field[key]:
+					row.set(key, field[key])
+					changed = True
 		else:
 			settings.append(
 				"additional_fields",
@@ -73,7 +75,8 @@ def sync_field_catalog(settings=None):
 				},
 			)
 			existing[field["fieldname"]] = settings.additional_fields[-1]
-	return settings
+			changed = True
+	return settings, changed
 
 
 @frappe.whitelist(allow_guest=False)
@@ -82,8 +85,8 @@ def get_quality_inspection_field_config():
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Please sign in to access Quality Inspection fields."), frappe.PermissionError)
 
-	settings = sync_field_catalog()
-	if settings.is_new() or settings.is_dirty():
+	settings, changed = sync_field_catalog()
+	if settings.is_new() or changed:
 		settings.save(ignore_permissions=True)
 	configured = {row.fieldname: row for row in settings.get("additional_fields", [])}
 	result = []
