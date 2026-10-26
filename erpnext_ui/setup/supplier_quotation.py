@@ -49,6 +49,16 @@ def setup_supplier_quotation_settings():
 	settings = frappe.get_single(SETTINGS_DOCTYPE)
 	settings_changed = False
 
+	# These are Link fields. Older setup code seeded the string "Standard", but
+	# the built-in renderer is not always represented by a Print Format record,
+	# so saving it can abort migrate with LinkValidationError. Clear only links
+	# whose target record is absent; runtime falls back to Standard safely.
+	for fieldname in ("supplier_acknowledgement_print_format", "default_print_format"):
+		value = (settings.get(fieldname) or "").strip()
+		if value and not frappe.db.exists("Print Format", value):
+			settings.set(fieldname, "")
+			settings_changed = True
+
 	if settings.is_new():
 		settings_changed = True
 		settings.enabled = 1

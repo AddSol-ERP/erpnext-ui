@@ -43,7 +43,11 @@ INVITATION_EVENT_DOCTYPE = "UI Supplier Quotation Invitation Event"
 
 DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_SUBJECT = "Quotation response received: {material_request}"
 DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_MESSAGE = "Thank you. We have received your quotation response."
-DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT = "Standard"
+# The settings field is a Link to a real Print Format record. Leave it blank
+# by default; the email path uses ERPNext's built-in Standard renderer when no
+# custom format is selected.
+DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT = ""
+STANDARD_PRINT_FORMAT = "Standard"
 DEFAULT_SUPPLIER_QUOTATION_EMAIL_SUBJECT = "Supplier Quotation: {supplier_quotation}"
 DEFAULT_SUPPLIER_QUOTATION_EMAIL_MESSAGE = (
 	"Dear {supplier_name},\n\nPlease find the Supplier Quotation attached.\n\nRegards,\n{company}"
@@ -964,8 +968,8 @@ def _validate_supplier_quotation_print_format(print_format, check_permission=Tru
 	it runs as Guest after OTP verification, and the buyer's chosen print format
 	is not something the supplier may read.
 	"""
-	print_format = (print_format or "").strip() or DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT
-	if print_format == "Standard":
+	print_format = (print_format or "").strip() or STANDARD_PRINT_FORMAT
+	if print_format == STANDARD_PRINT_FORMAT:
 		return print_format
 	if not frappe.db.exists("Print Format", print_format):
 		frappe.throw(_("Supplier Quotation print format {0} does not exist.").format(print_format))
@@ -984,9 +988,9 @@ def _safe_supplier_quotation_print_format(print_format):
 	except Exception as exc:
 		frappe.log_error(
 			title="Supplier quotation acknowledgement print format unavailable",
-			message=f"{print_format or DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT}: {str(exc)[:800]}",
+			message=f"{print_format or STANDARD_PRINT_FORMAT}: {str(exc)[:800]}",
 		)
-		return DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT
+		return STANDARD_PRINT_FORMAT
 
 
 def _supplier_quotation_pdf(supplier_quotation, print_format):
