@@ -127,6 +127,40 @@ const NAV_SECTIONS = [
             to: "/store/stock-balance",
             icon: FileText,
           },
+          {
+            // Warehouse-driven, not report-key-driven: the endpoint checks
+            // Bin/Item/Warehouse permission, so there is no optional app and no
+            // server report key to filter on here.
+            key: "inspection-pending",
+            labelKey: "nav.inspectionPending",
+            to: "/store/inspection-pending",
+            icon: ClipboardCheck,
+          },
+          {
+            // Plate reports answer store questions, so they live with the
+            // stock routes rather than in the Reports hub. Defined in
+            // addsol_nl_custom; `reportKey` hides the child when the optional
+            // app is absent or this user may not run the report.
+            key: "report-plate-stock-register",
+            labelKey: "nav.reportPlateStock",
+            to: "/store/reports/plate-stock-register",
+            icon: Ruler,
+            reportKey: "plate-stock-register",
+          },
+          {
+            key: "report-plate-offcut-register",
+            labelKey: "nav.reportPlateOffcut",
+            to: "/store/reports/plate-offcut-register",
+            icon: Scissors,
+            reportKey: "plate-offcut-register",
+          },
+          {
+            key: "report-plate-weight-variance",
+            labelKey: "nav.reportPlateWeightVariance",
+            to: "/store/reports/plate-receipt-weight-variance",
+            icon: Scale,
+            reportKey: "plate-receipt-weight-variance",
+          },
         ],
       },
       {
@@ -314,34 +348,6 @@ const NAV_SECTIONS = [
             to: "/reports/leave-balance",
             icon: FileText,
             reportKey: "leave-balance",
-          },
-          {
-            // Defined in addsol_nl_custom; the sidebar child is filtered out by
-            // the canReadReport check below when that app is absent.
-            key: "report-plate-stock-register",
-            labelKey: "nav.reportPlateStock",
-            to: "/reports/plate-stock-register",
-            icon: Ruler,
-            reportKey: "plate-stock-register",
-          },
-          {
-            // The offcut pieces, in their own report. Defined in
-            // addsol_nl_custom; the sidebar child is filtered out by the
-            // canReadReport check below when that app is absent.
-            key: "report-plate-offcut-register",
-            labelKey: "nav.reportPlateOffcut",
-            to: "/reports/plate-offcut-register",
-            icon: Scissors,
-            reportKey: "plate-offcut-register",
-          },
-          {
-            // Defined in addsol_nl_custom; the sidebar child is filtered out by
-            // the canReadReport check below when that app is absent.
-            key: "report-plate-weight-variance",
-            labelKey: "nav.reportPlateWeightVariance",
-            to: "/reports/plate-receipt-weight-variance",
-            icon: Scale,
-            reportKey: "plate-receipt-weight-variance",
           },
         ],
       },

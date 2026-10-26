@@ -44,6 +44,11 @@ const SCALAR_DEFAULTS = {
   invitation_message: "",
   response_subject: "",
   response_message: "",
+  supplier_acknowledgement_subject: "",
+  supplier_acknowledgement_message: "",
+  supplier_quotation_email_subject: "",
+  supplier_quotation_email_message: "",
+  supplier_acknowledgement_print_format: "Standard",
   attach_print_format: 1,
   default_print_format: "Standard",
   otp_expiry_minutes: 10,
@@ -113,7 +118,10 @@ export default function SupplierQuotationSettings() {
   const [form, setForm] = useState(SCALAR_DEFAULTS);
   const [fields, setFields] = useState([]);
   const [recipients, setRecipients] = useState([]);
-  const [printFormats, setPrintFormats] = useState([
+  const [materialRequestPrintFormats, setMaterialRequestPrintFormats] = useState([
+    { value: "Standard", label: "Standard" },
+  ]);
+  const [acknowledgementPrintFormats, setAcknowledgementPrintFormats] = useState([
     { value: "Standard", label: "Standard" },
   ]);
   const [scope, setScope] = useState("Item");
@@ -149,11 +157,11 @@ export default function SupplierQuotationSettings() {
     }
   }, [t]);
 
-  const loadPrintFormats = useCallback(async () => {
+  const loadPrintFormats = useCallback(async (doctype, setOptions) => {
     try {
       const response = await get("resource/Print Format", {
         filters: JSON.stringify({
-          doc_type: "Supplier Quotation",
+          doc_type: doctype,
           disabled: 0,
         }),
         fields: JSON.stringify(["name"]),
@@ -164,24 +172,25 @@ export default function SupplierQuotationSettings() {
         value: row.name,
         label: row.name,
       }));
-      setPrintFormats([
+      setOptions([
         { value: "Standard", label: "Standard" },
         ...formats.filter((row) => row.value !== "Standard"),
       ]);
     } catch {
       // The catalog is still editable without this list. Failing the whole
       // screen because a print format query was denied would hide the fields.
-      setPrintFormats([{ value: "Standard", label: "Standard" }]);
+      setOptions([{ value: "Standard", label: "Standard" }]);
     }
   }, []);
 
   useEffect(() => {
-    // Both loaders own their own busy state; there is no external store to
+    // The loaders own their own busy state; there is no external store to
     // subscribe to. The rule targets cascading render bugs, and this is the
     // page's initial fetch, not state synchronised from props.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    loadPrintFormats();
+    loadPrintFormats("Material Request", setMaterialRequestPrintFormats);
+    loadPrintFormats("Supplier Quotation", setAcknowledgementPrintFormats);
   }, [load, loadPrintFormats]);
 
   const markDirty = () => {
@@ -412,7 +421,7 @@ export default function SupplierQuotationSettings() {
           <FormSelect
             value={form.default_print_format}
             onChange={(value) => setScalar("default_print_format", value)}
-            options={printFormats}
+            options={materialRequestPrintFormats}
           />
         </FormField>
         <div className="flex flex-col justify-end gap-2">
@@ -631,6 +640,28 @@ export default function SupplierQuotationSettings() {
               }
             />
           </FormField>
+          <FormField
+            label={t("store.supplierQuotationSettings.acknowledgementSubject")}
+          >
+            <Input
+              maxLength={140}
+              value={form.supplier_acknowledgement_subject}
+              onChange={(event) =>
+                setScalar("supplier_acknowledgement_subject", event.target.value)
+              }
+            />
+          </FormField>
+          <FormField
+            label={t("store.supplierQuotationSettings.quotationEmailSubject")}
+          >
+            <Input
+              maxLength={140}
+              value={form.supplier_quotation_email_subject}
+              onChange={(event) =>
+                setScalar("supplier_quotation_email_subject", event.target.value)
+              }
+            />
+          </FormField>
         </div>
         <FormField
           label={t("store.supplierQuotationSettings.invitationMessage")}
@@ -654,6 +685,42 @@ export default function SupplierQuotationSettings() {
             onChange={(event) =>
               setScalar("response_message", event.target.value)
             }
+          />
+        </FormField>
+        <FormField
+          label={t("store.supplierQuotationSettings.acknowledgementMessage")}
+          hint={t("store.supplierQuotationSettings.acknowledgementMessageHint")}
+        >
+          <Textarea
+            rows={4}
+            value={form.supplier_acknowledgement_message}
+            onChange={(event) =>
+              setScalar("supplier_acknowledgement_message", event.target.value)
+            }
+          />
+        </FormField>
+        <FormField
+          label={t("store.supplierQuotationSettings.quotationEmailMessage")}
+          hint={t("store.supplierQuotationSettings.quotationEmailMessageHint")}
+        >
+          <Textarea
+            rows={4}
+            value={form.supplier_quotation_email_message}
+            onChange={(event) =>
+              setScalar("supplier_quotation_email_message", event.target.value)
+            }
+          />
+        </FormField>
+        <FormField
+          label={t("store.supplierQuotationSettings.acknowledgementPrintFormat")}
+          hint={t("store.supplierQuotationSettings.acknowledgementPrintFormatHint")}
+        >
+          <FormSelect
+            value={form.supplier_acknowledgement_print_format}
+            onChange={(value) =>
+              setScalar("supplier_acknowledgement_print_format", value)
+            }
+            options={acknowledgementPrintFormats}
           />
         </FormField>
       </FormSection>

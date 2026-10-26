@@ -102,12 +102,20 @@ def get_quality_inspection_field_config():
 				"display_order": row.display_order or 0,
 			}
 		)
-	return {"catalog": result}
+	return {
+		"catalog": result,
+		"pending_inspection_warehouse": settings.get("pending_inspection_warehouse") or "",
+	}
 
 
 @frappe.whitelist(allow_guest=False)
-def save_quality_inspection_field_config(payload=None):
-	"""Save field visibility and requiredness; metadata is always server-derived."""
+def save_quality_inspection_field_config(payload=None, pending_inspection_warehouse=None):
+	"""Save field visibility, requiredness and the pending-inspection warehouse.
+
+	The warehouse is only written when the argument is present. An omitted
+	argument means "leave it alone", which keeps older callers that only send
+	field rows from clearing a site's configured warehouse by accident.
+	"""
 	if not {"System Manager", "Administrator"}.intersection(frappe.get_roles()):
 		frappe.throw(_("Only System Managers can change Quality Inspection UI settings."), frappe.PermissionError)
 
@@ -119,6 +127,18 @@ def save_quality_inspection_field_config(payload=None):
 	catalog = {field["fieldname"]: field for field in get_field_catalog()}
 	seen = set()
 	settings = frappe.get_single(SETTINGS_DOCTYPE)
+
+	if pending_inspection_warehouse is not None:
+		pending_inspection_warehouse = str(pending_inspection_warehouse or "").strip()
+		if pending_inspection_warehouse:
+			if not frappe.db.exists("Warehouse", pending_inspection_warehouse):
+				frappe.throw(
+					_("Warehouse {0} does not exist.").format(pending_inspection_warehouse)
+				)
+			if frappe.db.get_value("Warehouse", pending_inspection_warehouse, "is_group"):
+				frappe.throw(_("Choose a warehouse, not a warehouse group."))
+		settings.pending_inspection_warehouse = pending_inspection_warehouse or None
+
 	settings.set("additional_fields", [])
 	for row in payload:
 		if not isinstance(row, dict):

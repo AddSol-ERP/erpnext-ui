@@ -6,6 +6,8 @@
  "issingle": 1,
  "editable_grid": 1,
  "fields": [
+  {"fieldname": "pending_inspection_section", "fieldtype": "Section Break", "label": "Pending Inspection"},
+  {"fieldname": "pending_inspection_warehouse", "fieldtype": "Link", "label": "Pending Inspection Warehouse", "options": "Warehouse", "description": "Default warehouse for the Store Inspection Pending report. Users can still choose another warehouse in the report."},
   {"fieldname": "additional_fields_section", "fieldtype": "Section Break", "label": "Additional Quality Inspection Fields"},
   {"fieldname": "additional_fields", "fieldtype": "Table", "label": "Fields", "options": "UI Quality Inspection Field"}
  ],

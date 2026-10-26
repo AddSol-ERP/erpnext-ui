@@ -32,9 +32,10 @@ SPA_REPORT_DOCTYPES = {
 }
 
 # Script Reports that live in ANOTHER app, keyed the same way as
-# SPA_REPORT_DOCTYPES: frontend/src/pages/Reports/index.jsx and
+# SPA_REPORT_DOCTYPES: frontend/src/pages/Store/index.jsx and
 # frontend/src/layout/AppShell.jsx reference these keys, and
-# frontend/src/App.jsx guards each route with them.
+# frontend/src/App.jsx guards each route with them. They are rendered in the
+# Store module because they answer store questions.
 #
 # The value is (report name, the app that must be installed for it to exist).
 # Both halves stay server-side on purpose. The frontend sends only the KEY, so
@@ -1067,12 +1068,15 @@ def _get_effective_holiday_list(employee, company, as_on):
         if hl:
             return hl
 
-    if company:
+    if company and frappe.get_meta("Company").has_field("default_holiday_list"):
         hl = frappe.db.get_value("Company", company, "default_holiday_list")
         if hl:
             return hl
 
-    return frappe.db.get_single_value("Global Defaults", "default_holiday_list") or ""
+    if frappe.get_meta("Global Defaults").has_field("default_holiday_list"):
+        return frappe.db.get_single_value("Global Defaults", "default_holiday_list") or ""
+
+    return ""
 
 
 def _fetch_month_holidays(holiday_list, start_date, end_date):
@@ -2048,6 +2052,7 @@ def get_purchase_receipt_item_labels(name):
 
     receipt = frappe.get_doc("Purchase Receipt", name)
     receipt.check_permission("read")
+    supplier = receipt.supplier_name or receipt.supplier
     labels = []
     for item in receipt.items:
         serial_numbers = [
@@ -2105,7 +2110,11 @@ def get_purchase_receipt_item_labels(name):
             frappe.throw(f"Item {item.item_code} has too many units to print labels at once.")
 
         for unit_index, unit in enumerate(units, start=1):
-            query = [f"item={quote(item.name, safe='')}", f"unit={unit_index}"]
+            query = [
+                f"supplier={quote(supplier, safe='')}",
+                f"item={quote(item.name, safe='')}",
+                f"unit={unit_index}",
+            ]
             if unit.get("batch_number"):
                 query.append(f"batch={quote(unit['batch_number'], safe='')}")
             if unit.get("serial_number"):
@@ -2122,6 +2131,8 @@ def get_purchase_receipt_item_labels(name):
                 {
                     "row": item.name,
                     "purchase_receipt": receipt.name,
+                    "supplier": receipt.supplier,
+                    "supplier_name": supplier,
                     "item_code": item.item_code,
                     "item_name": item.item_name,
                     "qty": unit["qty"],
@@ -2329,6 +2340,357 @@ def _require_stock_read():
 				f"You do not have permission to view stock balances ({doctype}).",
 				frappe.PermissionError,
 			)
+
+
+def _pending_inspection_default_warehouse():
+	"""Return the configured pending-QC warehouse, or "" if none is set.
+
+	`UI Quality Inspection Settings` is the same single that owns the
+	additional-field configuration. A site that has not migrated yet has no
+	doctype, and that must read as "not configured" rather than raise inside a
+	report.
+	"""
+	try:
+		if not frappe.db.exists("DocType", "UI Quality Inspection Settings"):
+			return ""
+		return (
+			frappe.db.get_single_value("UI Quality Inspection Settings", "pending_inspection_warehouse") or ""
+		).strip()
+	except Exception:
+		frappe.log_error(
+			title="pending inspection: could not read configured warehouse",
+			message=frappe.get_traceback(),
+		)
+		return ""
+
+
+def _pending_inspection_chunks(values, size=400):
+	"""Yield unique values in chunks small enough for a SQL `IN` clause."""
+	unique = list(dict.fromkeys(value for value in values if value))
+	for offset in range(0, len(unique), size):
+		yield unique[offset:offset + size]
+
+
+def _pending_inspection_tracking(selected, item_codes):
+	"""Serial numbers and batch quantities for the given items in one warehouse.
+
+	`Serial No.warehouse` is the serial's current location, so it is the
+	authoritative source for a serialised row. Batch quantity is the signed sum
+	of the bundle entries joined to SLEs: `Serial and Batch Entry.qty` is
+	negative on an outward bundle (`serial_and_batch_bundle.py:1207-1214`), and
+	that sign is what makes a transfer out of this warehouse reduce the batch
+	instead of counting it twice.
+
+	Returns:
+		tuple: ({item_code: [(serial_no, batch_no), ...]},
+		        {item_code: [(batch_no, qty), ...]})
+	"""
+	serials = {}
+	batches = {}
+
+	for chunk in _pending_inspection_chunks(item_codes):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		for row in frappe.db.sql(
+			f"""
+			select sn.`item_code`, sn.`name` as `serial_no`, sn.`batch_no`
+			from `tabSerial No` sn
+			where sn.`warehouse` = %s and sn.`status` = 'Active'
+			  and sn.`item_code` in ({placeholders})
+			order by sn.`item_code`, sn.`batch_no`, sn.`name`
+			""",
+			(selected, *chunk),
+			as_dict=True,
+		):
+			serials.setdefault(row.item_code, []).append((row.serial_no, row.batch_no or ""))
+
+		for row in frappe.db.sql(
+			f"""
+			select sle.`item_code`, sbe.`batch_no`, sum(sbe.`qty`) as `qty`
+			from `tabSerial and Batch Entry` sbe
+			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
+			inner join `tabStock Ledger Entry` sle
+			        on sle.`serial_and_batch_bundle` = sbb.`name`
+			where sle.`warehouse` = %s and ifnull(sle.`is_cancelled`, 0) = 0
+			  and sbe.`batch_no` is not null and sbe.`batch_no` != ''
+			  and sle.`item_code` in ({placeholders})
+			group by sle.`item_code`, sbe.`batch_no`
+			having sum(sbe.`qty`) > 0
+			order by sle.`item_code`, sbe.`batch_no`
+			""",
+			(selected, *chunk),
+			as_dict=True,
+		):
+			batches.setdefault(row.item_code, []).append((row.batch_no, flt(row.qty)))
+
+	return serials, batches
+
+
+def _pending_inspection_source_refs(selected, rows):
+	"""Find the document that most recently brought each row into the warehouse.
+
+	Quality Inspection requires `reference_type` and `reference_name`. The
+	report's row is chosen from stock, so it has no reference of its own; the
+	last positive SLE is the closest truthful source. A serial/batch match is
+	preferred, then an item-level match -- legacy stock can predate bundles.
+
+	The voucher type is returned raw. The frontend only copies it into the QI
+	form when it appears in the doctype's own `reference_type` options, keeping
+	that ERPNext value list in one place.
+	"""
+	exact = {}
+	items = {row["item_code"] for row in rows}
+	serials = {row["serial_no"] for row in rows if row.get("serial_no")}
+	batches = {row["batch_no"] for row in rows if row.get("batch_no")}
+
+	if serials or batches:
+		clauses = []
+		params = [selected]
+		if serials:
+			clauses.append(f"sbe.`serial_no` in ({', '.join(['%s'] * len(serials))})")
+			params.extend(sorted(serials))
+		if batches:
+			clauses.append(f"sbe.`batch_no` in ({', '.join(['%s'] * len(batches))})")
+			params.extend(sorted(batches))
+
+		for row in frappe.db.sql(
+			f"""
+			select sle.`item_code`, sbe.`serial_no`, sbe.`batch_no`,
+			       sle.`voucher_type`, sle.`voucher_no`
+			from `tabSerial and Batch Entry` sbe
+			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
+			inner join `tabStock Ledger Entry` sle
+			        on sle.`serial_and_batch_bundle` = sbb.`name`
+			where sle.`warehouse` = %s and ifnull(sle.`is_cancelled`, 0) = 0
+			  and sle.`actual_qty` > 0 and ({' or '.join(clauses)})
+			order by sle.`posting_datetime` desc, sle.`creation` desc
+			""",
+			tuple(params),
+			as_dict=True,
+		):
+			if row.serial_no:
+				exact.setdefault(("serial", row.item_code, row.serial_no), row)
+			if row.batch_no:
+				exact.setdefault(("batch", row.item_code, row.batch_no), row)
+
+	item_refs = {}
+	for chunk in _pending_inspection_chunks(items):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		for row in frappe.db.sql(
+			f"""
+			select sle.`item_code`, sle.`voucher_type`, sle.`voucher_no`
+			from `tabStock Ledger Entry` sle
+			where sle.`warehouse` = %s and ifnull(sle.`is_cancelled`, 0) = 0
+			  and sle.`actual_qty` > 0 and sle.`item_code` in ({placeholders})
+			order by sle.`posting_datetime` desc, sle.`creation` desc
+			""",
+			(selected, *chunk),
+			as_dict=True,
+		):
+			item_refs.setdefault(row.item_code, row)
+
+	return exact, item_refs
+
+
+@frappe.whitelist(allow_guest=False)
+def get_pending_inspection_items(
+	warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50
+):
+	"""Stock currently held in the pending-inspection warehouse.
+
+	The report is warehouse-driven by definition: "pending inspection" on this
+	site is the stock sitting in the warehouse that separates goods receipt from
+	put-away. The warehouse is configurable because another company will use a
+	different one; the report also accepts an explicit warehouse so a user can
+	look at a second pending-QC location without changing the site default.
+
+	Only positive Bin balances are returned. A zero or negative Bin is not
+	waiting to be inspected, and including it would make the report read as a
+	stock-on-hand listing rather than a work queue.
+
+	Rows are expanded when the item carries tracking: one row per serial for a
+	serialised item, otherwise one row per batch. A tracked item whose tracking
+	records cannot be found keeps an item-level row for the unaccounted quantity
+	rather than hiding stock from the person who has to inspect it.
+
+	Permission model: requires read on `Bin`, `Item`, `Serial No`, `Batch` and
+	`Stock Ledger Entry`, plus permission on the selected `Warehouse`. Fails
+	closed on any probe error.
+
+	Args:
+		warehouse (str, optional): Overrides the configured default.
+		item_code (str, optional): Restrict to one item.
+		batch_no (str, optional): Restrict to one batch.
+		serial_no (str, optional): Restrict to one serial number.
+		start (int): Offset for paging.
+		limit (int): Page size, capped at 200.
+
+	Returns:
+		dict: {"warehouse", "default_warehouse", "configured", "rows",
+		       "total", "stock_value", "currency", "start", "limit"}
+	"""
+	for doctype in ("Bin", "Item", "Serial No", "Batch", "Stock Ledger Entry"):
+		if not _can_read(doctype):
+			frappe.throw(
+				frappe._("You do not have permission to view pending inspection stock ({0}).").format(
+					doctype
+				),
+				frappe.PermissionError,
+			)
+
+	default_warehouse = _pending_inspection_default_warehouse()
+	selected = (warehouse or "").strip() or default_warehouse
+	batch_no = (batch_no or "").strip()
+	serial_no = (serial_no or "").strip()
+
+	payload = {
+		"warehouse": selected,
+		"default_warehouse": default_warehouse,
+		"configured": bool(default_warehouse),
+		"rows": [],
+		"total": 0,
+		"stock_value": 0,
+		"currency": "",
+		"start": max(cint(start), 0),
+		"limit": min(max(cint(limit) or 50, 1), 200),
+	}
+
+	if not selected:
+		return payload
+
+	if not frappe.db.exists("Warehouse", selected):
+		frappe.throw(
+			frappe._("Warehouse {0} does not exist.").format(selected),
+			frappe.DoesNotExistError,
+		)
+	if frappe.db.get_value("Warehouse", selected, "is_group"):
+		frappe.throw(frappe._("Choose a warehouse, not a warehouse group."))
+
+	try:
+		warehouse_allowed = frappe.has_permission("Warehouse", "read", doc=selected)
+	except Exception:
+		warehouse_allowed = False
+	if not warehouse_allowed:
+		frappe.throw(
+			frappe._("You do not have permission to view this warehouse."),
+			frappe.PermissionError,
+		)
+
+	company = frappe.db.get_value("Warehouse", selected, "company")
+	payload["currency"] = (
+		frappe.db.get_value("Company", company, "default_currency") if company else ""
+	) or ""
+
+	conditions = ["b.`warehouse` = %s", "b.`actual_qty` > 0"]
+	params = [selected]
+	if item_code:
+		conditions.append("b.`item_code` = %s")
+		params.append(item_code)
+	where = " and ".join(conditions)
+
+	stock_rows = frappe.db.sql(
+		f"""
+		select b.`item_code`, b.`warehouse`, b.`actual_qty`,
+		       b.`stock_value`, b.`valuation_rate`,
+		       i.`item_name`, i.`item_group`, i.`stock_uom`,
+		       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
+		       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
+		from `tabBin` b
+		left join `tabItem` i on i.`name` = b.`item_code`
+		where {where}
+		order by coalesce(i.`item_name`, b.`item_code`), b.`item_code`
+		""",
+		tuple(params),
+		as_dict=True,
+	)
+
+	serials, batches = _pending_inspection_tracking(
+		selected, [row.item_code for row in stock_rows]
+	)
+
+	rows = []
+	for stock in stock_rows:
+		rate = flt(stock.valuation_rate)
+		actual_qty = flt(stock.actual_qty)
+		tracked_qty = 0.0
+		base = {
+			"item_code": stock.item_code,
+			"warehouse": stock.warehouse,
+			"item_name": stock.item_name,
+			"item_group": stock.item_group,
+			"stock_uom": stock.stock_uom,
+			"valuation_rate": rate,
+			"batch_no": "",
+			"serial_no": "",
+			"tracking": "item",
+		}
+
+		if cint(stock.has_serial_no) and serials.get(stock.item_code):
+			for serial_no, batch_no in serials[stock.item_code]:
+				rows.append({
+					**base,
+					"actual_qty": 1.0,
+					"stock_value": rate,
+					"batch_no": batch_no,
+					"serial_no": serial_no,
+					"tracking": "serial",
+				})
+				tracked_qty += 1.0
+		elif cint(stock.has_batch_no) and batches.get(stock.item_code):
+			for batch_no, qty in batches[stock.item_code]:
+				rows.append({
+					**base,
+					"actual_qty": qty,
+					"stock_value": flt(rate * qty),
+					"batch_no": batch_no,
+					"tracking": "batch",
+				})
+				tracked_qty += qty
+
+		# A tracked item can still carry stock that no bundle explains: opening
+		# balances and records that predate Serial and Batch Bundle. Keep that
+		# remainder visible instead of making the report total disagree with Bin.
+		remaining = flt(actual_qty - tracked_qty, 6)
+		if remaining > 0.000001:
+			rows.append({
+				**base,
+				"actual_qty": remaining,
+				"stock_value": flt(rate * remaining),
+			})
+
+	# Batch and serial are properties of the expanded rows, not of Bin, so they
+	# are applied here rather than in the Bin query. Filtering before paging and
+	# before the value total keeps every figure on screen about the same
+	# population.
+	if batch_no:
+		rows = [row for row in rows if row["batch_no"] == batch_no]
+	if serial_no:
+		rows = [row for row in rows if row["serial_no"] == serial_no]
+
+	rows.sort(key=lambda row: (
+		row["item_name"] or row["item_code"],
+		row["item_code"],
+		row["batch_no"],
+		row["serial_no"],
+	))
+
+	page_rows = rows[payload["start"]:payload["start"] + payload["limit"]]
+	exact_refs, item_refs = _pending_inspection_source_refs(selected, page_rows)
+	for row in page_rows:
+		ref = None
+		if row["serial_no"]:
+			ref = exact_refs.get(("serial", row["item_code"], row["serial_no"]))
+		elif row["batch_no"]:
+			ref = exact_refs.get(("batch", row["item_code"], row["batch_no"]))
+		ref = ref or item_refs.get(row["item_code"])
+		row["reference_type"] = ref.voucher_type if ref else ""
+		row["reference_name"] = ref.voucher_no if ref else ""
+		row["actual_qty"] = flt(row["actual_qty"])
+		row["stock_value"] = flt(row["stock_value"])
+
+	payload["rows"] = page_rows
+	payload["total"] = len(rows)
+	payload["stock_value"] = flt(sum(row["stock_value"] for row in rows))
+	return payload
 
 
 def _where(filters, extra=()):

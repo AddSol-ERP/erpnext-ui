@@ -28,6 +28,7 @@
     "purposeGroupRequester": "أحتاج إلى شيء",
     "purposeGroupStore": "أنا مسؤول عن المخزن",
     "purposeGroupLookup": "الاستعلامات",
+    "purposeGroupReports": "التقارير",
     "scopes": {
       "all": "الكل",
       "project": "طلبات المشاريع",
@@ -275,7 +276,7 @@
       "requestedQty": "تم طلبه سابقاً",
       "outstanding": "ما زال مطلوباً",
       "loadFailed": "تعذّرت قراءة قائمة المواد لهذا المشروع",
-      "hint": "أدخل مشروعاً في أحد الصفوف لاختيار المواد من قائمته. اتركه فارغاً للبحث عن أي مادة."
+      "hint": "المشروع وتاريخ الاحتياج في الأعلى يُطبّقان على كل صف. غيّر أيّاً منهما في صف معيّن لتجاوزه لذلك الصف. في طلب الإنتاج، اختيار المشروع يملأ الأصناف أيضاً من قائمة مواده."
     },
     "movements": {
       "title": "حركات المخزون",
@@ -516,6 +517,7 @@
       "companyRequired": "الشركة مطلوبة",
       "customerRequired": "العميل مطلوب",
       "uomRequired": "وحدة القياس مطلوبة",
+      "scheduleDateRequired": "تاريخ الاحتياج مطلوب لكل صنف",
       "invalidConversion": "معامل تحويل غير صالح",
       "addAtLeastOneItem": "أضف صنفاً واحداً على الأقل",
       "addItems": "أضف الأصناف",
@@ -701,6 +703,9 @@
       "createNewItem": "إنشاء صنف جديد",
       "createNewItemHint": "المتبقي بمواصفة مختلفة",
       "itemName": "اسم الصنف",
+      "batch": "الدفعة",
+      "serial": "الرقم التسلسلي",
+      "inspect": "فحص",
       "itemGroup": "مجموعة الصنف",
       "trackBatch": "تتبّع الدفعات",
       "trackSerial": "تتبّع الأرقام التسلسلية",
@@ -877,6 +882,14 @@
       "responseSubject": "موضوع إشعار الاستجابة",
       "invitationMessage": "نص الدعوة",
       "responseMessage": "نص إشعار الاستجابة",
+      "acknowledgementSubject": "موضوع إقرار المورد",
+      "acknowledgementMessage": "رسالة إقرار المورد",
+      "acknowledgementMessageHint": "تظهر في البريد الإلكتروني؛ يُرفق عرض السعر المقدم كملف PDF",
+      "quotationEmailSubject": "موضوع بريد عرض سعر المورد",
+      "quotationEmailMessage": "رسالة بريد عرض سعر المورد",
+      "quotationEmailMessageHint": "يُستخدم بواسطة زر Email Supplier في نموذج ERPNext. المتاح: {supplier}, {supplier_name}, {supplier_quotation}, {company}, {contact}, {brand}",
+      "acknowledgementPrintFormat": "تنسيق طباعة بريد عرض سعر المورد",
+      "acknowledgementPrintFormatHint": "يُستخدم للإقرار التلقائي ولإجراء Email Supplier اليدوي. يكون ملف PDF مكتملاً بقدر تنسيق الطباعة المختار؛ قد يحذف التنسيق القياسي حقولاً مخصصة مثل ملاحظة المورد.",
       "placeholdersHint": "المتاح: {material_request}, {supplier}, {supplier_name}, {supplier_quotation}, {company}, {contact}, {brand}, {link}, {material_request_link}, {supplier_quotation_link}",
       "securityTitle": "الأمان والحدود",
       "securityHint": "تُفرض هذه الحدود على الخادم لكل طلب عام",
@@ -892,6 +905,27 @@
       "recipientPlaceholder": "name@company.com",
       "recipientEnabled": "إشعار",
       "noRecipients": "لا يوجد مستلمون داخليون بعد. يمكن للموردين الرد رغم ذلك."
+    },
+    "inspectionPending": {
+      "title": "فحص معلّق",
+      "subtitle": "المخزون المنتظر في مستودع فحص الجودة قبل التخزين",
+      "tileDescription": "اعرض كل صنف لا يزال محتجزًا لفحص الجودة",
+      "warehouse": "مستودع الفحص المعلّق",
+      "warehouseHint": "اختر المستودع الذي يحتفظ بالبضائع بين الاستلام والتخزين. يمكن تغيير الافتراضي من إعدادات فحص الجودة.",
+      "batch": "الدفعة",
+      "serial": "الرقم التسلسلي",
+      "inspect": "فحص",
+      "itemGroup": "مجموعة الصنف",
+      "quantity": "الكمية",
+      "uom": "وحدة القياس",
+      "stockValue": "قيمة المخزون",
+      "linesPending": "سطور معلّقة",
+      "empty": "لا يوجد مخزون منتظر في هذا المستودع.",
+      "noWarehouseTitle": "لم يتم تعيين مستودع فحص معلّق",
+      "noWarehouseHint": "اختر مستودعًا أعلاه، أو عيّن الافتراضي في إعدادات فحص الجودة.",
+      "loadFailedTitle": "تعذر تحميل مخزون الفحص المعلّق",
+      "loadFailedHint": "تحقق من أذوناتك وحاول مرة أخرى.",
+      "configure": "إعداد"
     }
   }
 }

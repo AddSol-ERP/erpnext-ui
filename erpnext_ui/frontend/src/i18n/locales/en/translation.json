@@ -144,7 +144,8 @@
     "salarySlips": "My Payslips",
     "tasks": "My Tasks",
     "plateOffcut": "Plate Offcut",
-    "reportPlateWeightVariance": "Receipt Weight Variance"
+    "reportPlateWeightVariance": "Receipt Weight Variance",
+    "inspectionPending": "Inspection Pending"
   },
   "theme": {
     "appearance": "Appearance",

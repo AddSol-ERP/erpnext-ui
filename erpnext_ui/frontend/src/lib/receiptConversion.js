@@ -247,6 +247,76 @@ export function applyQuantity(row, qty, fallback = null) {
   return { ...next, stock_qty: Number.isFinite(n) ? n : "" };
 }
 
+/**
+ * The estimate for the quantity actually being received: the theoretical
+ * per-plate weight times this row's quantity, falling back to the estimate the
+ * PO carried when the unit weight is unavailable.
+ *
+ * The multiplication must come FIRST. `make_purchase_receipt` copies the PO's
+ * `custom_est_weight_kg`, but that figure is for the ORDERED quantity. On a
+ * partial receipt the mapper reduces `qty` to the outstanding pieces while
+ * leaving the old estimate intact, so copying it would price six plates at the
+ * weight of ten. `set_receipt_weights` recomputes the field from the received
+ * qty on save; this keeps the prefill consistent with that.
+ *
+ * Returns null when neither is available, rather than 0: a zero weight is a
+ * real value on a plate line, but "we do not know" must not look like one.
+ */
+export function estimatedLineWeight(row) {
+  const qty = Number(row?.qty);
+  const unitWeight = Number(
+    row?.custom_unit_weight_kg || row?.item_weight_per_unit || row?.weight_per_unit,
+  );
+  if (Number.isFinite(qty) && qty > 0 && Number.isFinite(unitWeight) && unitWeight > 0) {
+    return Math.round((qty * unitWeight + Number.EPSILON) * 1000) / 1000;
+  }
+
+  const estimated = Number(row?.custom_est_weight_kg);
+  if (Number.isFinite(estimated) && estimated > 0) return estimated;
+  return null;
+}
+
+/**
+ * Start a newly added weighed line from the weight already on the purchase
+ * order, in BOTH measurement fields.
+ *
+ * The estimated weight is what the order was priced on, so using it as the
+ * initial supplier and weighbridge reading makes the common case (the delivery
+ * matches the order) a zero-variance save instead of six typed digits. Both
+ * fields are ordinary editable inputs afterwards; this only supplies a default.
+ *
+ * A value already present is never replaced. That matters when the helper is
+ * called for a row that came back from the server: overwriting a stored
+ * measurement with the estimate would silently discard what was actually
+ * weighed. It is deliberately not wired into `loadPlateStatus`, whose refresh
+ * runs immediately before submit and would otherwise turn a missing
+ * measurement into an accepted one.
+ */
+export function withDefaultPlateWeights(row) {
+  // `custom_unit_weight_kg` is fetched from the item master on every line, not
+  // only plate lines. Without this gate an ordinary weighted item would also
+  // acquire supplier/weighbridge readings that the plate reports would then
+  // treat as real measurements.
+  if (!row?.custom_is_plate) return row;
+
+  const estimate = estimatedLineWeight(row);
+  if (estimate === null) return row;
+
+  const supplier = Number(row?.custom_supplier_weight_kg);
+  const weighbridge = Number(row?.custom_weighbridge_weight_kg);
+  return {
+    ...row,
+    custom_supplier_weight_kg:
+      Number.isFinite(supplier) && supplier > 0
+        ? row.custom_supplier_weight_kg
+        : estimate,
+    custom_weighbridge_weight_kg:
+      Number.isFinite(weighbridge) && weighbridge > 0
+        ? row.custom_weighbridge_weight_kg
+        : estimate,
+  };
+}
+
 /** Which basis the live factor on a row rests on. Drives the UI strip. */
 export function conversionBasis(row) {
   if (row?.conversion_source === CONVERSION_SOURCE.MEASURED) return "measured";

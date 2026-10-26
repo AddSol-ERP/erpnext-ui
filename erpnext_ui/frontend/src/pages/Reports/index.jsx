@@ -11,15 +11,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  CalendarCheck,
-  CalendarX,
-  Lock,
-  PieChart,
-  Ruler,
-  Scale,
-  Scissors,
-} from "lucide-react";
+import { CalendarCheck, CalendarX, Lock, PieChart } from "lucide-react";
 
 export default function ReportDashboard() {
   const navigate = useNavigate();
@@ -31,10 +23,9 @@ export default function ReportDashboard() {
   // frappe.has_permission(doctype, "read"). The `key` here must match the keys
   // in SPA_REPORT_DOCTYPES on the Python side.
   //
-  // Cross-app Script Reports use the same `canReadReport` call: their boolean
-  // comes from SPA_CUSTOM_REPORTS, which resolves to false when the app is not
-  // installed, the Report record is missing, or this user's role may not run it.
-  // So this tile disappears on a non-NL site with no conditional UI here at all.
+  // The cross-app plate reports use the same canReadReport call but are listed
+  // in the Store hub, because they answer store questions rather than people
+  // questions.
   const { canReadReport, loading: rolesLoading } = useRole();
 
   useEffect(() => {
@@ -73,34 +64,6 @@ export default function ReportDashboard() {
       icon: PieChart,
       route: "/reports/leave-balance",
     },
-    {
-      // Defined in addsol_nl_custom. Hidden automatically on any site without
-      // that app — see SPA_CUSTOM_REPORTS.
-      key: "plate-stock-register",
-      title: t("reports.plateStockRegister"),
-      description: t("reports.plateStockRegisterDesc"),
-      icon: Ruler,
-      route: "/reports/plate-stock-register",
-    },
-    {
-      // The offcut pieces, in their own report. Defined in addsol_nl_custom.
-      // Hidden automatically on any site without that app — see
-      // SPA_CUSTOM_REPORTS.
-      key: "plate-offcut-register",
-      title: t("reports.plateOffcutRegister"),
-      description: t("reports.plateOffcutRegisterDesc"),
-      icon: Scissors,
-      route: "/reports/plate-offcut-register",
-    },
-    {
-      // Defined in addsol_nl_custom. Hidden automatically on any site without
-      // that app — see SPA_CUSTOM_REPORTS.
-      key: "plate-receipt-weight-variance",
-      title: t("reports.plateWeightVariance"),
-      description: t("reports.plateWeightVarianceDesc"),
-      icon: Scale,
-      route: "/reports/plate-receipt-weight-variance",
-    },
   ];
 
   // Visibility reflects permission only. A readable report is listed even when
@@ -110,7 +73,6 @@ export default function ReportDashboard() {
 
   return (
     <DashboardShell>
-
       {/* Hold the grid back until permissions resolve, otherwise the page would
           flash empty for users who do have access. */}
       {rolesLoading ? null : !modules.length ? (

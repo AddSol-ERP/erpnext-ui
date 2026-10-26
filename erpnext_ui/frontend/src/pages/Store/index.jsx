@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  ClipboardCheck,
   ClipboardList,
   ShoppingCart,
   ArrowLeftRight,
@@ -16,6 +17,8 @@ import {
   Truck,
   Package,
   Scissors,
+  Ruler,
+  Scale,
 } from "lucide-react";
 import { useHeader } from "../../context/HeaderContext";
 import { useRole } from "../../context/RoleContext";
@@ -121,6 +124,55 @@ const STORE_TILES = [
   },
 ];
 
+/**
+ * Reports that answer Store questions: pending inspection, plate stock, offcuts
+ * and receipt weights.
+ *
+ * They live here rather than in the Reports hub because the question they
+ * answer is a Store question. Script Reports carry a server-side `reportKey` so
+ * the section hides itself when the report is unavailable -- either the
+ * optional app is absent or this user may not run it. The route guard repeats
+ * that check, because a hash URL is typeable. Inspection Pending is backed by
+ * its own endpoint instead, so it has no `reportKey`; the API enforces
+ * Bin/Item/Warehouse permission and the route does not need the report guard.
+ */
+const REPORT_TILES = [
+  {
+    // Not a Script Report, so it has no server-side `reportKey`. Its API checks
+    // Bin/Item/Warehouse permission instead, which is why the tile stays
+    // visible on every site and the route needs no RequireReportAccess guard.
+    key: "inspection-pending",
+    icon: ClipboardCheck,
+    route: "/store/inspection-pending",
+    titleKey: "store.inspectionPending.title",
+    descriptionKey: "store.inspectionPending.tileDescription",
+  },
+  {
+    key: "plate-stock-register",
+    icon: Ruler,
+    route: "/store/reports/plate-stock-register",
+    reportKey: "plate-stock-register",
+    titleKey: "reports.plateStockRegister",
+    descriptionKey: "reports.plateStockRegisterDesc",
+  },
+  {
+    key: "plate-offcut-register",
+    icon: Scissors,
+    route: "/store/reports/plate-offcut-register",
+    reportKey: "plate-offcut-register",
+    titleKey: "reports.plateOffcutRegister",
+    descriptionKey: "reports.plateOffcutRegisterDesc",
+  },
+  {
+    key: "plate-receipt-weight-variance",
+    icon: Scale,
+    route: "/store/reports/plate-receipt-weight-variance",
+    reportKey: "plate-receipt-weight-variance",
+    titleKey: "reports.plateWeightVariance",
+    descriptionKey: "reports.plateWeightVarianceDesc",
+  },
+];
+
 const LOOKUP_TILES = [
   {
     key: "stock-balance",
@@ -169,7 +221,7 @@ export default function StoreDashboard() {
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
-  const { hasApp, userRoles = [] } = useRole();
+  const { hasApp, canReadReport, userRoles = [] } = useRole();
   const canConfigureSupplierQuotes =
     userRoles.includes("System Manager") || userRoles.includes("Administrator");
   const handleTileClick = createTileNav(navigate);
@@ -178,6 +230,9 @@ export default function StoreDashboard() {
   // how the sidebar filters children on `reportKey`.
   const visibleTiles = (tiles) =>
     tiles.filter((tile) => !tile.app || hasApp(tile.app));
+  const visibleReportTiles = REPORT_TILES.filter(
+    (tile) => !tile.reportKey || canReadReport(tile.reportKey),
+  );
 
   useEffect(() => {
     setHeader({
@@ -248,6 +303,17 @@ export default function StoreDashboard() {
           onClick={handleTileClick}
         />
       </Section>
+
+      {/* Permission-gated, so the section is absent rather than empty when the
+          optional reports are unavailable. */}
+      {visibleReportTiles.length ? (
+        <Section title={t("store.purposeGroupReports")}>
+          <ModuleGrid
+            items={visibleReportTiles}
+            onClick={(tile) => navigate(tile.route)}
+          />
+        </Section>
+      ) : null}
     </DashboardShell>
   );
 }

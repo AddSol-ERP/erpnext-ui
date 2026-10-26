@@ -93,16 +93,21 @@ export default function MaterialRequestForm() {
     docRef.current = doc;
   }, [doc]);
 
+  // Monotonic id for header-project BOM loads. A slow response for project A
+  // must not append A's BOM lines after the user has already picked project B.
+  const projectRequestId = useRef(0);
+
   const purposeTitle = cfg ? t(`store.purposes.${cfg.i18nKey}.title`) : t("store.mr.title");
   const isTransfer = doc.material_request_type === "Material Transfer";
   const isCustomerProvided = doc.material_request_type === "Customer Provided";
   const isPurchase = doc.material_request_type === "Purchase";
   const isReadOnly = doc.docstatus !== 0;
-  // A production indent is a bill of materials, so its project is a property of
-  // the whole request rather than of one row. The other purposes mix
-  // project-specific and free items on the same indent, which is why they keep
-  // the per-row field.
-  const isProjectDriven = purpose === "production" || purpose === "manufacture";
+  // Every purpose carries one project on the header, copied onto the rows. Only
+  // a production request also explodes that project's BOM into the item list;
+  // the other purposes copy the project and let the user pick from its BOM one
+  // row at a time. Read the doctype value, not the route: the shared edit route
+  // has no `:purpose` segment.
+  const isProductionRequest = doc.material_request_type === "Manufacture";
   const canRequestSupplierQuotes = userRoles.some((role) =>
     ["Purchase User", "Purchase Manager", "Store Manager", "Stock User", "Stock Manager", "Administrator"].includes(role),
   );
@@ -175,9 +180,14 @@ export default function MaterialRequestForm() {
    *
    * Failure is recorded but never blocks typing: a person must still be able to
    * free-text items if a BOM is missing or unreadable.
+   *
+   * Returns the loaded entry because `handleHeaderProjectChange` needs the rows
+   * immediately. Reading `projectItems[next]` after the await reads the state
+   * from the render that started the request -- which is still empty on the
+   * first pick -- so the BOM fill would silently add nothing.
    */
   const loadProjectItems = useCallback(async (project) => {
-    if (!project) return;
+    if (!project) return null;
     setProjectItems((p) => ({
       ...p,
       [project]: { ...(p[project] || {}), loading: true, error: "" },
@@ -187,15 +197,13 @@ export default function MaterialRequestForm() {
       const message = await getMethod("method/erpnext_ui.api.get_project_items", {
         project,
       });
-      setProjectItems((p) => ({
-        ...p,
-        [project]: { loading: false, hasBom: !!message.has_bom, items: message.items || [] },
-      }));
+      const entry = { loading: false, hasBom: !!message.has_bom, items: message.items || [] };
+      setProjectItems((p) => ({ ...p, [project]: entry }));
+      return entry;
     } catch (e) {
-      setProjectItems((p) => ({
-        ...p,
-        [project]: { loading: false, hasBom: false, items: [], error: e.message },
-      }));
+      const entry = { loading: false, hasBom: false, items: [], error: e.message };
+      setProjectItems((p) => ({ ...p, [project]: entry }));
+      return entry;
     }
   }, []);
 
@@ -208,11 +216,25 @@ export default function MaterialRequestForm() {
     stock_uom: "",
     conversion_factor: 1,
     schedule_date: current.schedule_date,
-    project: isProjectDriven ? current.project : "",
+    project: current.project,
     from_warehouse: "",
     warehouse: defaultTargetWarehouse,
     description: "",
   });
+
+  /**
+   * The header Required By is global: changing it updates every line and any
+   * line being composed in the add-item modal. Rows keep their own date input so
+   * an individual line can still be pulled earlier/later afterwards.
+   */
+  const handleScheduleDateChange = (value) => {
+    setDoc((current) => ({
+      ...current,
+      schedule_date: value,
+      items: current.items.map((row) => ({ ...row, schedule_date: value })),
+    }));
+    setNewItem((row) => (row ? { ...row, schedule_date: value } : row));
+  };
 
   const handleDefaultTargetWarehouseChange = (warehouse) => {
     const next = warehouse || "";
@@ -225,16 +247,18 @@ export default function MaterialRequestForm() {
   };
 
   const addRow = () => {
-    setNewItem(emptyItemRow(doc));
+    setNewItem(emptyItemRow(docRef.current));
     setNewItemError("");
     setItemModalOpen(true);
   };
 
   const addNewItem = () => {
-    const row = newItem || emptyItemRow(doc);
+    const row = { ...(newItem || emptyItemRow(docRef.current)) };
+    // A row composed before the header date was chosen still has to inherit the
+    // selected date rather than save with an empty Required By.
+    if (!row.schedule_date) row.schedule_date = docRef.current.schedule_date || "";
     if (!row.item_code || !row.qty || Number(row.qty) <= 0 || !row.uom || !row.warehouse ||
-      (isTransfer && !row.from_warehouse) || (isPurchase && !String(row.description || "").trim()) ||
-      (!isProjectDriven && row.project === undefined)) {
+      (isTransfer && !row.from_warehouse) || (isPurchase && !String(row.description || "").trim())) {
       setNewItemError(t("store.validation.fillAllRows"));
       return;
     }
@@ -296,12 +320,17 @@ export default function MaterialRequestForm() {
   };
 
   /**
-   * Choose the whole indent's project, then fill the items from its BOM.
+   * Choose the whole indent's project.
+   *
+   * The project is a property of the whole request for every purpose: it is
+   * copied onto each row (ERPNext stores it per item, never on the header) and
+   * an explicit change here overwrites the rows. A row's own project field stays
+   * editable afterwards for an exception.
    *
    * A production indent IS a project: the bill of materials says what is needed,
-   * and picking items one row at a time from that same BOM meant transcribing a
-   * list the server already knows. So the project moves to the header and the
-   * items arrive with it.
+   * so its BOM lines are added automatically. The other purposes only copy the
+   * project; they still offer its BOM through the row item picker, one row at a
+   * time.
    *
    * Additive on purpose. Rows that already carry an item are left alone, and BOM
    * lines already present are skipped, so re-picking the project cannot silently
@@ -311,33 +340,39 @@ export default function MaterialRequestForm() {
    */
   const handleHeaderProjectChange = async (project) => {
     const next = project || "";
-    setDoc((p) => ({ ...p, project: next }));
+    const requestId = ++projectRequestId.current;
+
+    setDoc((p) => ({
+      ...p,
+      project: next,
+      items: p.items.map((r) => ({ ...r, project: next })),
+    }));
+    setNewItem((row) => (row ? { ...row, project: next } : row));
 
     if (!next) {
-      // Clearing keeps the items and drops the project from each row. They are
-      // real items either way; deleting them because a filter was cleared would
-      // be the destructive choice, and the rows stay honest since the item field
-      // simply goes back to free search.
       setBomAdded(null);
-      setDoc((p) => ({
-        ...p,
-        project: "",
-        items: p.items.map((r) => ({ ...r, project: "" })),
-      }));
       return;
     }
 
-    await loadProjectItems(next);
-    const cache = projectItems[next] || {};
-    const bomItems = cache.items || [];
+    const cache = await loadProjectItems(next);
+    // The user changed the project again while this BOM was loading; its rows
+    // must not be appended to the newer selection.
+    if (projectRequestId.current !== requestId) return;
+
+    if (!isProductionRequest) {
+      setBomAdded(null);
+      return;
+    }
+
+    const bomItems = cache?.items || [];
     const onDoc = new Set(
-      doc.items.map((r) => r.item_code).filter(Boolean),
+      docRef.current.items.map((r) => r.item_code).filter(Boolean),
     );
     const wanted = bomItems.filter((it) => !onDoc.has(it.item_code));
 
     setDoc((p) => {
       // Keep one spare empty row so the table never ends on a filled row.
-      const rows = p.items.length ? p.items : [{ item_code: "", qty: "", uom: "", stock_uom: "", conversion_factor: 1, schedule_date: p.schedule_date, project: "", from_warehouse: "", warehouse: "", description: "" }];
+      const rows = p.items.length ? p.items : [{ item_code: "", qty: "", uom: "", stock_uom: "", conversion_factor: 1, schedule_date: p.schedule_date, project: next, from_warehouse: "", warehouse: "", description: "" }];
       const withProject = rows.map((r) => ({ ...r, project: next }));
       const empties = withProject.filter((r) => !r.item_code);
       const filled = withProject.filter((r) => r.item_code);
@@ -347,7 +382,7 @@ export default function MaterialRequestForm() {
       return { ...p, project: next, items: [...filled, ...fresh, ...empties.slice(0, 1)] };
     });
 
-    setBomAdded({ project: next, added: wanted.length, total: bomItems.length, hasBom: cache.hasBom });
+    setBomAdded({ project: next, added: wanted.length, total: bomItems.length, hasBom: cache?.hasBom });
   };
 
   /** One Material Request Item built from one BOM line. */
@@ -461,6 +496,13 @@ export default function MaterialRequestForm() {
         }
         if (!row.uom) {
           errs.items = t("store.validation.uomRequired");
+          break;
+        }
+        // Material Request Item.schedule_date is `reqd: 1` even though the
+        // header's Required By is optional. Clearing the global date blanks
+        // every row, so catch it here instead of at save with a MandatoryError.
+        if (!row.schedule_date) {
+          errs.items = t("store.validation.scheduleDateRequired");
           break;
         }
         if (!row.conversion_factor || row.conversion_factor <= 0) {
@@ -677,7 +719,7 @@ export default function MaterialRequestForm() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 pt-4 md:h-full md:min-h-0">
       <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
 
       {isReadOnly ? (
@@ -699,6 +741,9 @@ export default function MaterialRequestForm() {
       <FormSection
         title={t("store.form.basics")}
         icon={ClipboardList}
+        collapsible
+        className="shrink-0"
+        errorCount={(fieldErrors.company ? 1 : 0) + (fieldErrors.customer ? 1 : 0)}
         contentClassName="grid grid-cols-1 gap-3 md:grid-cols-3"
       >
         <FormField label={t("store.form.purpose")} required name="material_request_type">
@@ -741,28 +786,26 @@ export default function MaterialRequestForm() {
           </FormField>
         )}
 
-        {/* PROJECT -- one for the whole indent. Shown only where the project
-            drives what gets requested; the others keep the per-row field. */}
-        {isProjectDriven ? (
-          <FormField
-            label={t("store.mr.form.project")}
-            name="project"
-            error={fieldErrors.project}
-          >
-            <LinkField
-              doctype="Project"
-              value={doc.project}
-              onChange={handleHeaderProjectChange}
-              placeholder={t("store.projectItems.chooseProject")}
-            />
-          </FormField>
-        ) : null}
+        {/* PROJECT -- one for the whole request, copied onto every row. A row
+            can still override it afterwards. */}
+        <FormField
+          label={t("store.mr.form.project")}
+          name="project"
+          error={fieldErrors.project}
+        >
+          <LinkField
+            doctype="Project"
+            value={doc.project}
+            onChange={handleHeaderProjectChange}
+            placeholder={t("store.projectItems.chooseProject")}
+          />
+        </FormField>
 
         <FormField label={t("store.form.requiredBy")} name="schedule_date">
           <Input
             type="date"
             value={doc.schedule_date}
-            onChange={(e) => setDoc({ ...doc, schedule_date: e.target.value })}
+            onChange={(e) => handleScheduleDateChange(e.target.value)}
           />
         </FormField>
       </FormSection>
@@ -771,7 +814,8 @@ export default function MaterialRequestForm() {
       <FormSection
         title={t("store.mr.form.items")}
         icon={Table2}
-        contentClassName="flex flex-col gap-3"
+        className="md:flex md:min-h-0 md:flex-1 md:flex-col"
+        contentClassName="flex max-h-[70dvh] flex-col gap-3 overflow-y-auto pr-1 md:max-h-none md:min-h-0 md:flex-1"
       >
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" />
@@ -812,30 +856,37 @@ export default function MaterialRequestForm() {
         {doc.items.map((row, i) => {
           const cache = row.project ? projectItems[row.project] : null;
           const bomOptions = bomOptionsFor(row.project);
-          const useBomPicker = Boolean(row.project && bomOptions.length);
+          // A header project change copies the project onto rows that may
+          // already carry a free-text item. Keep that item in the LinkField
+          // instead of handing its code to a Select whose options do not
+          // contain it -- and once the item is cleared (or chosen from the BOM)
+          // the picker takes over.
+          const useBomPicker = Boolean(
+            row.project &&
+              bomOptions.length &&
+              (!row.item_code || bomOptions.some((opt) => opt.value === row.item_code)),
+          );
 
           return (
             <div
               key={i}
               className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-background p-3 md:grid-cols-12 md:items-end"
             >
-              {/* PROJECT — the switch between project-scoped and free items.
-                  Hidden where the project is already global: a second control
-                  that could disagree with the header is worse than none. */}
-              {!isProjectDriven ? (
-                <div className="col-span-2 md:col-span-2">
-                  <FormField label={t("store.labels.projectOptional")}>
-                    <LinkField
-                      doctype="Project"
-                      value={row.project}
-                      onChange={(v) => handleProjectChange(i, v)}
-                      placeholder={t("store.projectItems.chooseProject", {
-                        defaultValue: "Choose a project",
-                      })}
-                    />
-                  </FormField>
-                </div>
-              ) : null}
+              {/* PROJECT — an explicit override of the header project. It also
+                  switches the item field between free search and the project's
+                  BOM. */}
+              <div className="col-span-2 md:col-span-2">
+                <FormField label={t("store.labels.projectOptional")}>
+                  <LinkField
+                    doctype="Project"
+                    value={row.project}
+                    onChange={(v) => handleProjectChange(i, v)}
+                    placeholder={t("store.projectItems.chooseProject", {
+                      defaultValue: "Choose a project",
+                    })}
+                  />
+                </FormField>
+              </div>
 
               {/* ITEM — BOM picker when a project with a BOM is set */}
               <div className="col-span-2 md:col-span-4">
@@ -988,16 +1039,17 @@ export default function MaterialRequestForm() {
       >
         {newItem ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {!isProjectDriven ? (
-              <FormField label={t("store.labels.projectOptional")}>
-                <LinkField
-                  doctype="Project"
-                  value={newItem.project || ""}
-                  onChange={(v) => updateNewItem("project", v || "")}
-                  placeholder={t("store.projectItems.chooseProject", { defaultValue: "Choose a project" })}
-                />
-              </FormField>
-            ) : null}
+            <FormField label={t("store.labels.projectOptional")}>
+              <LinkField
+                doctype="Project"
+                value={newItem.project || ""}
+                onChange={(v) => {
+                  updateNewItem("project", v || "");
+                  if (v) loadProjectItems(v);
+                }}
+                placeholder={t("store.projectItems.chooseProject", { defaultValue: "Choose a project" })}
+              />
+            </FormField>
             <FormField label={t("store.form.item")} required>
               {newItem.project && bomOptionsFor(newItem.project).length ? (
                 <FormSelect

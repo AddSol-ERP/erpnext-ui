@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 import { useToast } from "../../../../context/ToastContext";
@@ -38,6 +38,7 @@ import {
 } from "../../../../lib/inspectionProgress";
 import { questionStates } from "../../../../lib/inspectionPaper";
 import { INSPECTION_TYPES, REFERENCE_TYPES } from "../../../../lib/inspectionTypes";
+import { parseInspectionPrefill } from "../../../../lib/inspectionPrefill";
 import {
   clearInspectionDraft,
   getInspectionDraft,
@@ -116,12 +117,24 @@ function getReferenceItemRows(reference) {
 export default function InspectionForm() {
   const { name } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
   const isEdit = !!name;
 
-  const [doc, setDoc] = useState({
+  // The Store > Inspection Pending report opens this form with the stock row
+  // already filled in. The parameters are initial values only; every field
+  // remains editable. `parseInspectionPrefill` also rejects reference/value
+  // pairs the doctype cannot accept, so a hand-edited URL cannot pre-fill a
+  // broken Dynamic Link.
+  const prefill = useMemo(
+    () => parseInspectionPrefill(searchParams),
+    [searchParams],
+  );
+  const hasPrefill = Object.keys(prefill).length > 0;
+
+  const [doc, setDoc] = useState(() => ({
     template: "",
     item_code: "",
     // ERPNext marks all four of these `reqd` on Quality Inspection. Without
@@ -139,7 +152,8 @@ export default function InspectionForm() {
     // tracked here, so `!doc.docstatus` was ALWAYS true -- the header had no
     // way to tell a draft from a submitted document.
     docstatus: 0,
-  });
+    ...prefill,
+  }));
   // Event-based, never diff-based. Diffing would leave Save permanently hidden,
   // because effects also write to `doc` (loadDoc, the post-submit docstatus
   // bump) and those are not edits.
@@ -1055,7 +1069,11 @@ export default function InspectionForm() {
     // This runs BEFORE the effect above, so the draft is never briefly
     // overwritten with an empty one: the guard there ("nothing started yet")
     // stops it writing at all until the template is back in place.
-    if (isEdit) return;
+    //
+    // A report row is a deliberate new inspection, so an old draft must not
+    // overwrite its item/serial/batch prefill. The draft is left in place
+    // until this paper is saved; nothing is silently discarded.
+    if (isEdit || hasPrefill) return;
     const draft = getInspectionDraft();
     if (!draft) return;
 
@@ -1069,7 +1087,7 @@ export default function InspectionForm() {
     // Keep the details section open while restoring the draft; the user can
     // collapse it once they are ready to work through the inspection.
     setDirty(true);
-  }, [isEdit]);
+  }, [hasPrefill, isEdit]);
 
   /* ================= UI ================= */
   return (

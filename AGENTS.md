@@ -78,23 +78,34 @@ other seven dashboards had not, which is why it read as deliberate. The
 component is deleted. The subtitles stay: they are what `setHeader` shows, and
 that is the one place the page's context line should live.
 
-**A production Material Request picks its project ONCE, on the header.**
-`/store/material-request/purpose/production/new` used to carry the Project field
-on every item row, so the user re-read the same bill of materials once per line
-and two rows could disagree about the project — an indent quietly requesting
-material for two projects, which `validate_with_previous_doc` never catches
-because it compares rows against the source document, not each other. Selecting
-the header project now fills the items from its BOM. It is **additive**: rows
-already carrying an item survive, BOM lines already present are skipped, and one
-spare empty row is left at the end. Quantities prefill with the **outstanding
-gap**, not the full BOM quantity — re-requesting what is already pending is how
-duplicate indents happen.
+**A Material Request picks its project and Required By date ONCE, on the
+header.** The form used to carry Project on every item row (except production),
+so the user re-read the same bill of materials once per line and two rows could
+disagree about the project — an indent quietly requesting material for two
+projects, which `validate_with_previous_doc` never catches because it compares
+rows against the source document, not each other. The header Project is now
+shown for **every** purpose and an explicit change copies it onto every row.
+Rows keep their own Project control afterwards so an individual line can still
+name an exception.
 
-ERPNext still stores `project` per item row, so the header value is copied onto
-every row and **stripped back off before the save** — Material Request has no
-header project column, and on edit it is recovered from the first row that
-carries one. The other four purposes keep the per-row field, because those
-genuinely mix project and non-project items on one request.
+Only a **production** request also fills the items from the project's BOM. It is
+**additive**: rows already carrying an item survive, BOM lines already present
+are skipped, and one spare empty row is left at the end. Quantities prefill with
+the **outstanding gap**, not the full BOM quantity — re-requesting what is
+already pending is how duplicate indents happen. The other purposes copy the
+project and let the row item picker choose from its BOM.
+
+The header **Required By** date is global in the same way: changing it rewrites
+every item row and any line being composed in the add-item modal. New rows
+default to it. A row's date stays editable afterwards, but `Material Request
+Item.schedule_date` is mandatory even though the header field is optional, so
+the form validates a blank row date before the save instead of letting a
+MandatoryError name nothing.
+
+ERPNext still stores `project` and `schedule_date` per item row, so the header
+project is copied onto every row and **stripped back off before the save** —
+Material Request has no header project column — and on edit it is recovered from
+the first row that carries one.
 
 **Never stack one modal on another in the Store module.** The Purchase Receipt
 picker used to open a line-entry dialog *on top of* the picker dialog, so adding

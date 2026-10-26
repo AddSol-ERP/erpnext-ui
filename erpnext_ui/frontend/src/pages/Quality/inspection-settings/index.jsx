@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshCw, Save, Settings2 } from "lucide-react";
+import { RefreshCw, Save, Settings2, Warehouse } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useHeader } from "../../../context/HeaderContext";
 import { useToast } from "../../../context/ToastContext";
 import FormSection from "../../../components/FormSection";
+import LinkField from "../../../components/LinkField";
 import { getMethod, post } from "../../../services/api";
 
 const GET_METHOD = "method/erpnext_ui.quality_inspection.get_quality_inspection_field_config";
@@ -16,6 +17,7 @@ export default function QualityInspectionSettings() {
   const { setHeader } = useHeader();
   const toast = useToast();
   const [fields, setFields] = useState([]);
+  const [pendingWarehouse, setPendingWarehouse] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -28,6 +30,7 @@ export default function QualityInspectionSettings() {
     try {
       const result = await getMethod(GET_METHOD);
       setFields(result.catalog || []);
+      setPendingWarehouse(result.pending_inspection_warehouse || "");
       setDirty(false);
     } catch (reason) {
       setError(reason.message || t("quality.additionalFieldsLoadFailed"));
@@ -35,6 +38,12 @@ export default function QualityInspectionSettings() {
       setLoading(false);
     }
   }, [t]);
+
+  const updateWarehouse = (next) => {
+    setPendingWarehouse(next);
+    setDirty(true);
+    setError("");
+  };
 
   const update = (fieldname, patch) => {
     setFields((current) => current.map((field) =>
@@ -55,15 +64,16 @@ export default function QualityInspectionSettings() {
           mandatory: field.mandatory,
           display_order: field.display_order,
         }))),
+        pending_inspection_warehouse: pendingWarehouse,
       });
-      toast.success(t("quality.additionalFieldsSaved"));
+      toast.success(t("quality.settingsSaved"));
       await load();
     } catch (reason) {
       setError(reason.message || t("common.saveFailed"));
     } finally {
       setSaving(false);
     }
-  }, [fields, load, t, toast]);
+  }, [fields, load, pendingWarehouse, t, toast]);
 
   useEffect(() => {
     saveRef.current = save;
@@ -105,6 +115,24 @@ export default function QualityInspectionSettings() {
           {error}
         </div>
       ) : null}
+      <FormSection title={t("quality.pendingInspectionSection")} icon={Warehouse}>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {t("quality.pendingInspectionWarehouseHint")}
+        </p>
+        <div className="max-w-md space-y-1.5">
+          <label className="block text-xs font-medium text-muted-foreground">
+            {t("quality.pendingInspectionWarehouse")}
+          </label>
+          <LinkField
+            doctype="Warehouse"
+            value={pendingWarehouse}
+            onChange={updateWarehouse}
+            filters={{ is_group: 0 }}
+            placeholder={t("quality.pendingInspectionWarehouse")}
+            disabled={loading}
+          />
+        </div>
+      </FormSection>
       <FormSection title={t("quality.additionalFieldsSection")} icon={Settings2}>
         <p className="mb-4 text-sm text-muted-foreground">
           {t("quality.additionalFieldsInstructions")}

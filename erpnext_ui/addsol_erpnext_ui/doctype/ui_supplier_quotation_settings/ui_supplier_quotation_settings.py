@@ -50,7 +50,12 @@ class UISupplierQuotationSettings(Document):
 			row.email = email
 
 	def validate_templates(self):
-		from erpnext_ui.supplier_quotation import validate_template_text
+		from erpnext_ui.supplier_quotation import (
+			ACKNOWLEDGEMENT_TEMPLATE_KEYS,
+			SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS,
+			_validate_supplier_quotation_print_format,
+			validate_template_text,
+		)
 
 		if not (self.invitation_subject or "").strip():
 			frappe.throw(_("Invitation Subject is required."))
@@ -62,3 +67,29 @@ class UISupplierQuotationSettings(Document):
 		validate_template_text(self.invitation_message, _("Invitation Message"))
 		validate_template_text(self.response_subject, _("Response Notification Subject"))
 		validate_template_text(self.response_message, _("Response Notification Message"))
+		if len(self.supplier_acknowledgement_subject or "") > 140:
+			frappe.throw(_("Supplier Acknowledgement Subject cannot exceed 140 characters."))
+		validate_template_text(
+			self.supplier_acknowledgement_subject,
+			_("Supplier Acknowledgement Subject"),
+			ACKNOWLEDGEMENT_TEMPLATE_KEYS,
+		)
+		validate_template_text(
+			self.supplier_acknowledgement_message,
+			_("Supplier Acknowledgement Message"),
+			ACKNOWLEDGEMENT_TEMPLATE_KEYS,
+		)
+		if len(self.supplier_quotation_email_subject or "") > 140:
+			frappe.throw(_("Supplier Quotation Email Subject cannot exceed 140 characters."))
+		validate_template_text(
+			self.supplier_quotation_email_subject,
+			_("Supplier Quotation Email Subject"),
+			SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS,
+		)
+		validate_template_text(
+			self.supplier_quotation_email_message,
+			_("Supplier Quotation Email Message"),
+			SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS,
+		)
+		if (self.supplier_acknowledgement_print_format or "").strip():
+			_validate_supplier_quotation_print_format(self.supplier_acknowledgement_print_format)

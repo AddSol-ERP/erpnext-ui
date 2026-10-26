@@ -144,7 +144,8 @@
     "salarySlips": "قواتير راتبي",
     "tasks": "مهامي",
     "plateOffcut": "قطع الألواح",
-    "reportPlateWeightVariance": "اختلاف وزن الإيصال"
+    "reportPlateWeightVariance": "اختلاف وزن الإيصال",
+    "inspectionPending": "فحص معلّق"
   },
   "theme": {
     "appearance": "المظهر",

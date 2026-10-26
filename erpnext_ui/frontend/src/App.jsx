@@ -41,6 +41,7 @@ import MaterialRequestForm from "./pages/Store/material-request/form";
 import DeliveryNoteList from "./pages/Store/delivery";
 import DeliveryNoteForm from "./pages/Store/delivery/form";
 import StockBalance from "./pages/Store/stock-balance";
+import InspectionPendingReport from "./pages/Store/inspection-pending";
 import SupplierQuotationSettings from "./pages/Settings/SupplierQuotation";
 import RequireSystemManager from "./components/RequireSystemManager";
 
@@ -234,6 +235,44 @@ export default function App() {
           <Route path="/store/delivery/:name" element={<DeliveryNoteForm />} />
           <Route path="/store/stock-balance" element={<StockBalance />} />
           <Route
+            path="/store/inspection-pending"
+            element={<InspectionPendingReport />}
+          />
+          {/* Cross-app Script Reports belong to the Store module because every
+              one of them answers a store question about plate stock, offcuts or
+              receipt weights. The guard still resolves the server-side report
+              key, so the URL alone cannot open a report this user may not run. */}
+          <Route
+            path="/store/reports/plate-stock-register"
+            element={
+              <RequireReportAccess reportKey="plate-stock-register">
+                <Suspense fallback={null}>
+                  <CustomReportPage reportKey="plate-stock-register" />
+                </Suspense>
+              </RequireReportAccess>
+            }
+          />
+          <Route
+            path="/store/reports/plate-offcut-register"
+            element={
+              <RequireReportAccess reportKey="plate-offcut-register">
+                <Suspense fallback={null}>
+                  <CustomReportPage reportKey="plate-offcut-register" />
+                </Suspense>
+              </RequireReportAccess>
+            }
+          />
+          <Route
+            path="/store/reports/plate-receipt-weight-variance"
+            element={
+              <RequireReportAccess reportKey="plate-receipt-weight-variance">
+                <Suspense fallback={null}>
+                  <CustomReportPage reportKey="plate-receipt-weight-variance" />
+                </Suspense>
+              </RequireReportAccess>
+            }
+          />
+          <Route
             path="/store/supplier-quotation-settings"
             element={
               <RequireSystemManager>
@@ -383,42 +422,29 @@ export default function App() {
               </RequireReportAccess>
             }
           />
-          {/* Cross-app Script Reports. `reportKey` is a key of
-              SPA_CUSTOM_REPORTS in erpnext_ui/api.py — the report name and the
-              app that must be installed for it stay server-side, so on a site
-              without that app this key resolves to false and the guard denies
-              the route even though the URL is typeable. */}
+          {/* The plate reports moved into the Store module. Redirect rather
+              than keep a second route: HashRouter URLs are bookmarked and
+              shared, and a redirect guarantees one canonical path whose
+              breadcrumbs agree with the module that owns it. */}
           <Route
             path="/reports/plate-stock-register"
             element={
-              <RequireReportAccess reportKey="plate-stock-register">
-                <Suspense fallback={null}>
-                  <CustomReportPage reportKey="plate-stock-register" />
-                </Suspense>
-              </RequireReportAccess>
+              <Navigate to="/store/reports/plate-stock-register" replace />
             }
           />
-          {/* The offcut pieces, in their own report. A separate KEY and a
-              separate route, not a filter on the plate register: the two hold
-              different stock, so no figure is ever counted in two places. */}
           <Route
             path="/reports/plate-offcut-register"
             element={
-              <RequireReportAccess reportKey="plate-offcut-register">
-                <Suspense fallback={null}>
-                  <CustomReportPage reportKey="plate-offcut-register" />
-                </Suspense>
-              </RequireReportAccess>
+              <Navigate to="/store/reports/plate-offcut-register" replace />
             }
           />
           <Route
             path="/reports/plate-receipt-weight-variance"
             element={
-              <RequireReportAccess reportKey="plate-receipt-weight-variance">
-                <Suspense fallback={null}>
-                  <CustomReportPage reportKey="plate-receipt-weight-variance" />
-                </Suspense>
-              </RequireReportAccess>
+              <Navigate
+                to="/store/reports/plate-receipt-weight-variance"
+                replace
+              />
             }
           />
 

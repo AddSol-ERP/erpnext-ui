@@ -37,6 +37,7 @@ import {
   validateBatch,
   validateLineRow,
   validateSerials,
+  withDefaultPlateWeights,
 } from "../../../../lib/receiptConversion";
 import ReceiptItemWorkbench from "../components/ReceiptItemWorkbench";
 import ReceiptLineDialog from "../components/ReceiptLineDialog";
@@ -616,7 +617,7 @@ export default function PurchaseReceiptForm() {
     // this must be a presence test and not a truthiness one.
     const poFactor = Number(line.conversion_factor);
     const hasPoFactor = Number.isFinite(poFactor) && poFactor > 0;
-    const row = {
+    const row = withDefaultPlateWeights({
       ...line,
       _rid: rid,
       item_code: line.item_code,
@@ -658,7 +659,7 @@ export default function PurchaseReceiptForm() {
       factor_from_po: hasPoFactor ? poFactor : null,
       factor_source_po: hasPoFactor ? "purchase_order" : null,
       pending_qty: line.pending_qty,
-    };
+    });
     // A picked line is no longer offered by the picker. Dropping it from the
     // catalogue here (rather than relying on a "picked" check at render time)
     // keeps the catalogue and doc.items in step even if a row is removed again.
@@ -711,7 +712,24 @@ export default function PurchaseReceiptForm() {
         warehouse: current.set_warehouse || d.warehouse || "",
       });
       await loadUomInfo(rid, itemCode);
-      await loadPlateStatus(rid, itemCode);
+      const isPlate = await loadPlateStatus(rid, itemCode);
+      if (isPlate) {
+        // A direct-entry plate row has no PO to copy from, so its "original"
+        // weight is the item's theoretical weight at the quantity entered.
+        setDoc((previous) => ({
+          ...previous,
+          items: previous.items.map((row) =>
+            row._rid === rid
+              ? withDefaultPlateWeights({
+                  ...row,
+                  custom_is_plate: 1,
+                  custom_unit_weight_kg:
+                    row.custom_unit_weight_kg || d.weight_per_unit || "",
+                })
+              : row,
+          ),
+        }));
+      }
     } catch (e) {
       setError(e.message || String(e));
     }
@@ -1104,6 +1122,7 @@ export default function PurchaseReceiptForm() {
           <div class="content">
             <strong class="item-code">${escapeHtml(label.item_code)}</strong>
             <div class="item-name">${escapeHtml(label.item_name)}</div>
+            <div><b>${escapeHtml(t("store.receipt.supplier"))}:</b> ${escapeHtml(label.supplier_name || label.supplier)}</div>
             <div><b>${escapeHtml(t("store.receipt.receiptLabel"))}:</b> ${escapeHtml(label.purchase_receipt)}</div>
             <div><b>${escapeHtml(t("store.receipt.quantityLabel"))}:</b> ${escapeHtml(label.qty)} ${escapeHtml(label.uom)}</div>
             ${label.unit_count > 1 ? `<div><b>${escapeHtml(t("store.receipt.labelUnit"))}:</b> ${escapeHtml(label.unit_index)} / ${escapeHtml(label.unit_count)}</div>` : ""}

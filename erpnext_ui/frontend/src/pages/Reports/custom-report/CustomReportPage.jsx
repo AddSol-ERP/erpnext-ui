@@ -130,9 +130,12 @@ export default function CustomReportPage({ reportKey }) {
     setHeader({
       title: t(page.titleKey),
       subtitle: t(page.subtitleKey),
+      // These reports are a Store surface now, so the trail points at the
+      // module that owns them. Keeping "Reports" here would send the user to a
+      // hub that no longer lists the page they came from.
       breadcrumbs: [
         { label: t("common.home"), path: "/" },
-        { label: t("nav.reports"), path: "/reports" },
+        { label: t("nav.store"), path: "/store" },
         { label: t(page.titleKey) },
       ],
       actions: [

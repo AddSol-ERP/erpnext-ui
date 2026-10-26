@@ -30,6 +30,7 @@ import {
   conversionDriftSuspicious,
   computeFactor,
   conversionPreview,
+  estimatedLineWeight,
   hasUsableFactor,
   needsMeasuredTotal,
   needsSerials,
@@ -41,6 +42,7 @@ import {
   validateLineRow,
   validateSerials,
   wholeNumberRules,
+  withDefaultPlateWeights,
 } from "../src/lib/receiptConversion.js";
 import { DOCTYPE_CONFIG } from "../src/config/doctypes.js";
 import {
@@ -52,6 +54,7 @@ import {
 } from "../src/pages/Reports/custom-report/format.js";
 import { packPieces, pieceLabel } from "../src/pages/Store/plate-offcut/pack.js";
 import { toSelectItems } from "../src/lib/selectItems.js";
+import { parseInspectionPrefill } from "../src/lib/inspectionPrefill.js";
 import {
   aggregateEstimates,
   expandRows,
@@ -1340,41 +1343,74 @@ ok(
 
 
 // ---------------------------------------------------------------------------
-// A production indent is a bill of materials, so its project belongs on the
-// HEADER, not on each row.
+// Material Request: one project and one Required By date for the whole request.
 //
-// Picking it per row meant transcribing a list the server already knows: every
-// row opened the same BOM and the user re-read it N times. Worse, two rows could
-// disagree about the project, so one indent could quietly request material for
-// two different projects -- which `validate_with_previous_doc` never sees,
-// because it compares rows against the source document, not against each other.
+// The project belongs on the HEADER for every purpose. Picking it per row meant
+// transcribing a list the server already knows, and two rows could disagree
+// about the project, so one request could quietly cover two projects -- which
+// `validate_with_previous_doc` never sees, because it compares rows against the
+// source document, not against each other.
 //
-// ERPNext still stores `project` per ITEM row, so the header value is copied
-// onto every row on selection and stripped back off before the save: it is a
-// form control, and Material Request has no such header column.
+// Changing the header copies the value onto every row, but a row stays
+// editable afterwards for an exception. Only production explodes the BOM; the
+// other purposes copy the project and let the row item picker choose from it.
+//
+// ERPNext still stores `project` and `schedule_date` per ITEM row, so the
+// header values are copied down and `project` is stripped back off before the
+// save: Material Request has no header project column.
 // ---------------------------------------------------------------------------
 
 const mrSrc = readSrc("../../src/pages/Store/material-request/form/index.jsx");
 const mrCode = stripJsComments(mrSrc);
 
 ok(
-  "material request: the production project is chosen once, on the header",
-  /isProjectDriven = purpose === "production"/.test(mrCode) &&
-    /doctype="Project"[\s\S]{0,120}handleHeaderProjectChange/.test(mrCode),
-  "a per-row project means transcribing one BOM once per line",
+  "material request: the project is chosen globally, on the header",
+  /isProductionRequest = doc\.material_request_type === "Manufacture"/.test(mrCode) &&
+    !/isProjectDriven/.test(mrCode) &&
+    /doctype="Project"[\s\S]{0,160}handleHeaderProjectChange/.test(mrCode),
+  "one header project, copied to rows; the route purpose is absent on edit",
 );
 ok(
-  "material request: choosing the project fills the items from its BOM",
+  "material request: a header project change is copied onto every row",
+  /items: p\.items\.map\(\(r\) => \(\{ \.\.\.r, project: next \}\)\)/.test(mrCode),
+  "a header change that leaves rows behind produces a mixed-project request",
+);
+ok(
+  "material request: a header Required By change is copied onto every row",
+  /const handleScheduleDateChange = \(value\) => \{[\s\S]{0,260}items: current\.items\.map\(\(row\) => \(\{ \.\.\.row, schedule_date: value \}\)\)/.test(mrCode),
+  "the header date is a bulk control, not a second value beside the rows",
+);
+ok(
+  "material request: new rows default to the header project and date",
+  /schedule_date: current\.schedule_date/.test(mrCode) &&
+    /project: current\.project/.test(mrCode) &&
+    /schedule_date: scheduleDate \|\| ""/.test(mrCode),
+  "creating a row must inherit what the header already selected",
+);
+ok(
+  "material request: only production explodes the header project's BOM",
+  /const cache = await loadProjectItems\(next\)/.test(mrCode) &&
+    /if \(!isProductionRequest\) \{[\s\S]{0,120}setBomAdded\(null\)/.test(mrCode),
+  "indent/purchase/transfer must copy the project, not add its whole BOM",
+);
+ok(
+  "material request: choosing a production project fills the items from its BOM",
   /get_project_items/.test(mrSrc) &&
     /bomAdded/.test(mrCode) &&
     /outstanding_qty/.test(mrCode),
   "the endpoint already returns BOM lines; the form must consume them",
 );
 ok(
+  "material request: the BOM rows are read from the awaited cache, not stale state",
+  /const cache = await loadProjectItems\(next\)/.test(mrCode) &&
+    /projectRequestId\.current !== requestId/.test(mrCode),
+  "reading projectItems after the await sees the render that started the request",
+);
+ok(
   "material request: filling is additive -- existing rows and duplicates survive",
   // Check the Set is POPULATED, not merely that `.has()` is called -- an empty
   // Set still reads as "dedupe present" to a looser check.
-  /const onDoc = new Set\([\s\S]{0,140}doc\.items\.map\(\(r\) => r\.item_code\)/.test(mrCode) &&
+  /const onDoc = new Set\([\s\S]{0,140}docRef\.current\.items\.map\(\(r\) => r\.item_code\)/.test(mrCode) &&
     /onDoc\.has\(it\.item_code\)/.test(mrCode) &&
     /const filled = withProject\.filter\(\(r\) => r\.item_code\)/.test(mrCode),
   "re-picking a project must not discard a typed row or duplicate a line",
@@ -1401,9 +1437,21 @@ ok(
   "otherwise editing blanks every row when the empty box is cleared",
 );
 ok(
-  "material request: the per-row project is hidden where the header owns it",
-  /\{!isProjectDriven \? \([\s\S]{0,220}projectOptional/.test(mrCode),
-  "two controls that can disagree are worse than one",
+  "material request: a row's project stays editable after the header bulk apply",
+  /handleProjectChange\(i, v\)/.test(mrCode) &&
+    /store\.labels\.projectOptional/.test(mrCode),
+  "the header is a bulk control; a row may still need an exception",
+);
+ok(
+  "material request: a missing row Required By is caught before the save",
+  /store\.validation\.scheduleDateRequired/.test(mrCode),
+  "item schedule_date is mandatory even though the header field is optional",
+);
+ok(
+  "material request: basics collapses and the item list owns the scroll",
+  /title=\{t\("store\.form\.basics"\)\}[\s\S]{0,220}collapsible/.test(mrCode) &&
+    /flex max-h-\[70dvh\][^"]*overflow-y-auto[^"]*md:max-h-none/.test(mrCode),
+  "many item rows must scroll inside the card, not lengthen the page",
 );
 
 
@@ -1629,6 +1677,118 @@ ok(
     /store\.receipt\.conversion/.test(
       readSrc("../../src/pages/Store/purchase-receipt/components/ReceiptLineForm.jsx"),
     ),
+);
+
+// A new weighed line starts from the weight the PO was priced on, in BOTH
+// measurement fields. They remain editable; the default only saves the common
+// case (delivery matches the order) from being typed twice.
+ok(
+  "weight default: the PO's estimated weight fills supplier and weighbridge",
+  (() => {
+    const row = withDefaultPlateWeights({
+      custom_is_plate: 1,
+      qty: 10,
+      custom_est_weight_kg: 2453.125,
+      custom_supplier_weight_kg: "",
+      custom_weighbridge_weight_kg: "",
+    });
+    return row.custom_supplier_weight_kg === 2453.125 &&
+      row.custom_weighbridge_weight_kg === 2453.125;
+  })(),
+  "both fields should start from the same original weight",
+);
+ok(
+  "weight default: a typed measurement is never overwritten",
+  (() => {
+    const row = withDefaultPlateWeights({
+      custom_is_plate: 1,
+      qty: 10,
+      custom_est_weight_kg: 2453.125,
+      custom_supplier_weight_kg: 2400,
+      custom_weighbridge_weight_kg: 2395,
+    });
+    return row.custom_supplier_weight_kg === 2400 &&
+      row.custom_weighbridge_weight_kg === 2395;
+  })(),
+  "loading an existing receipt must keep what was actually weighed",
+);
+ok(
+  "weight default: qty x theoretical weight is used when the estimate is absent",
+  (() => {
+    const row = withDefaultPlateWeights({
+      custom_is_plate: 1,
+      qty: 10,
+      custom_est_weight_kg: "",
+      custom_unit_weight_kg: 2.54,
+      custom_supplier_weight_kg: "",
+      custom_weighbridge_weight_kg: "",
+    });
+    return estimatedLineWeight(row) === 25.4 &&
+      row.custom_supplier_weight_kg === 25.4 &&
+      row.custom_weighbridge_weight_kg === 25.4;
+  })(),
+  "the PO mapper can omit the derived field; the theoretical figure still gives the same default",
+);
+ok(
+  "weight default: a partial receipt uses its own quantity, not the PO's full estimate",
+  (() => {
+    // The mapper reduces qty to the outstanding six pieces but copies the PO's
+    // 25.4 Kg estimate, which was for ten. Ten plates' weight on six pieces is
+    // the exact silent overstatement this guard exists to stop.
+    const row = withDefaultPlateWeights({
+      custom_is_plate: 1,
+      qty: 6,
+      custom_est_weight_kg: 25.4,
+      custom_unit_weight_kg: 2.54,
+      custom_supplier_weight_kg: "",
+      custom_weighbridge_weight_kg: "",
+    });
+    return estimatedLineWeight(row) === 15.24 &&
+      row.custom_supplier_weight_kg === 15.24 &&
+      row.custom_weighbridge_weight_kg === 15.24;
+  })(),
+  "the prefill must match the quantity actually being received",
+);
+ok(
+  "weight default: an ordinary weighted item does not get plate readings",
+  (() => {
+    // Every item with a weight_per_unit fetches custom_unit_weight_kg, so the
+    // gate must be the plate flag -- otherwise the plate reports get
+    // "measurements" nobody took.
+    const row = withDefaultPlateWeights({
+      custom_is_plate: 0,
+      qty: 10,
+      custom_unit_weight_kg: 2.54,
+      custom_supplier_weight_kg: "",
+      custom_weighbridge_weight_kg: "",
+    });
+    return row.custom_supplier_weight_kg === "" &&
+      row.custom_weighbridge_weight_kg === "";
+  })(),
+  "the field exists on every receipt item; only plate rows are measured",
+);
+ok(
+  "weight default: no usable estimate leaves the fields blank instead of guessing",
+  (() => {
+    const row = withDefaultPlateWeights({
+      custom_is_plate: 1,
+      qty: 10,
+      custom_est_weight_kg: "",
+      custom_unit_weight_kg: "",
+      custom_supplier_weight_kg: "",
+      custom_weighbridge_weight_kg: "",
+    });
+    return row.custom_supplier_weight_kg === "" &&
+      row.custom_weighbridge_weight_kg === "";
+  })(),
+  "a missing weight must not become 0 and look like a measured zero",
+);
+ok(
+  "weight default: a newly picked PO line goes through the helper",
+  /withDefaultPlateWeights\(\{\s*\.\.\.line/.test(
+    readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx"),
+  ),
+  "otherwise the helper exists but the receipt never uses it",
 );
 ok(
   "conversion: the PO UOM stays locked, because ERPNext compares it",
@@ -3919,6 +4079,249 @@ ok(
     "an unregistered patch means migrate never creates the column and every remark is dropped",
   );
 }
+// A Material Request labels its line `description` as "Remark", and
+// `make_supplier_quotation` copies that text onto the draft. The supplier
+// response form must keep it read-only: reusing it for the supplier's comment
+// would overwrite the buyer's instruction. The supplier therefore gets a
+// separate field, created by an idempotent Custom Field patch.
+{
+  const supplierSrc = readSrc("../../../supplier_quotation.py");
+  const patchesTxt = readSrc("../../../patches.txt");
+  const supplierRemarkPatchSrc = readSrc(
+    "../../../patches/v1_0/add_supplier_quotation_supplier_remark_field.py",
+  );
+  const protectedStart = supplierSrc.indexOf("PROTECTED_FIELDS = {");
+  const protectedEnd = supplierSrc.indexOf("\n}\n", protectedStart);
+  const protectedSrc = supplierSrc.slice(protectedStart, protectedEnd);
+  ok(
+    "the supplier remark is its own Supplier Quotation Item Custom Field",
+    patchesTxt.includes("erpnext_ui.patches.v1_0.add_supplier_quotation_supplier_remark_field") &&
+      /"fieldname": "ui_supplier_remark"/.test(supplierRemarkPatchSrc) &&
+      /"fieldtype": "Small Text"/.test(supplierRemarkPatchSrc) &&
+      /"insert_after": "description"/.test(supplierRemarkPatchSrc) &&
+      /create_custom_fields\(\{"Supplier Quotation Item": \[SUPPLIER_REMARK_FIELD\]\}\)/.test(
+        supplierRemarkPatchSrc,
+      ),
+    "an unregistered patch means migrate never creates the column, and the supplier input would be rejected",
+  );
+  ok(
+    "the supplier remark is optional and editable; description stays protected context",
+    /"ui_supplier_remark": \{"enabled": 1, "editable": 1, "mandatory": 0, "order": 35\}/.test(
+      supplierSrc,
+    ) &&
+      /"description": \{"enabled": 1, "editable": 0, "mandatory": 0, "order": 30\}/.test(supplierSrc) &&
+      protectedEnd > protectedStart &&
+      /"description"/.test(protectedSrc) &&
+      !/"ui_supplier_remark"/.test(protectedSrc) &&
+      /sq_item\.get\(row\.fieldname\)/.test(supplierSrc),
+    "making description editable would overwrite the Material Request remark the supplier is answering",
+  );
+}
+// The supplier's acknowledgement is its own email, not the internal response
+// notification. It must stay configurable, and the item/pricing detail rides a
+// Supplier Quotation PDF so the body does not grow with every line.
+{
+  const supplierSrc = readSrc("../../../supplier_quotation.py");
+  const supplierSettingsJson = readSrc(
+    "../../../addsol_erpnext_ui/doctype/ui_supplier_quotation_settings/ui_supplier_quotation_settings.json",
+  );
+  const supplierSetupSrc = readSrc("../../../setup/supplier_quotation.py");
+  const supplierSettingsControllerSrc = readSrc(
+    "../../../addsol_erpnext_ui/doctype/ui_supplier_quotation_settings/ui_supplier_quotation_settings.py",
+  );
+  const supplierSettingsPageSrc = readSrc(
+    "../../src/pages/Settings/SupplierQuotation/index.jsx",
+  );
+  ok(
+    "the acknowledgement subject, message and print format are configurable",
+    /"supplier_acknowledgement_subject"/.test(supplierSettingsJson) &&
+      /"supplier_acknowledgement_message"/.test(supplierSettingsJson) &&
+      /"supplier_acknowledgement_print_format"/.test(supplierSettingsJson) &&
+      /"supplier_acknowledgement_subject"/.test(supplierSrc) &&
+      /"supplier_acknowledgement_message"/.test(supplierSrc) &&
+      /"supplier_acknowledgement_print_format"/.test(supplierSrc) &&
+      /settings\.get\("supplier_acknowledgement_subject"\)/.test(supplierSrc) &&
+      /settings\.get\("supplier_acknowledgement_message"\)/.test(supplierSrc) &&
+      /settings\.get\("supplier_acknowledgement_print_format"\)/.test(supplierSrc),
+    "a hardcoded acknowledgement would ignore the administrator's wording and chosen PDF format",
+  );
+  ok(
+    "the acknowledgement attaches a Supplier Quotation PDF and keeps the inline table as fallback only",
+    /frappe\.get_print\(\s*"Supplier Quotation"/.test(supplierSrc) &&
+      /fcontent": pdf_content/.test(supplierSrc) &&
+      /def _supplier_acknowledgement_details/.test(supplierSrc) &&
+      /message \+= _supplier_acknowledgement_details\(inv, sq, settings\)/.test(supplierSrc),
+    "removing the fallback would send a thank-you with no submitted values when PDF generation fails",
+  );
+  ok(
+    "acknowledgement placeholders exclude the consumed invitation link",
+    /ACKNOWLEDGEMENT_TEMPLATE_KEYS = ALLOWED_TEMPLATE_KEYS - \{"link"\}/.test(supplierSrc) &&
+      /ACKNOWLEDGEMENT_TEMPLATE_KEYS/.test(supplierSrc),
+    "the token is consumed before the acknowledgement, so {link} could only render literally",
+  );
+  ok(
+    "the settings screen loads Material Request and Supplier Quotation formats separately",
+    /loadPrintFormats\("Material Request", setMaterialRequestPrintFormats\)/.test(
+      supplierSettingsPageSrc,
+    ) &&
+      /loadPrintFormats\("Supplier Quotation", setAcknowledgementPrintFormats\)/.test(
+        supplierSettingsPageSrc,
+      ) &&
+      /supplier_acknowledgement_print_format: "Standard"/.test(supplierSettingsPageSrc),
+    "using the Supplier Quotation list for the invitation PDF is how the wrong format gets saved",
+  );
+  ok(
+    "the setup seeds and validates the acknowledgement defaults",
+    /DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_SUBJECT/.test(supplierSetupSrc) &&
+      /DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_MESSAGE/.test(supplierSetupSrc) &&
+      /DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT/.test(supplierSetupSrc) &&
+      /ACKNOWLEDGEMENT_TEMPLATE_KEYS/.test(supplierSetupSrc),
+    "an existing site would otherwise have blank acknowledgement fields until an administrator edited settings",
+  );
+  ok(
+    "the setup persists backfilled email settings even when the field catalog is unchanged",
+    /settings_changed = False/.test(supplierSetupSrc) &&
+      /if settings_changed:\s*\n\s*settings\.save\(ignore_permissions=True\)/.test(
+        supplierSetupSrc,
+      ),
+    "sync saves only catalog changes, so an existing site would discard the new acknowledgement defaults",
+  );
+  const seederSyncIndex = supplierSetupSrc.indexOf(
+    "sync_supplier_quotation_field_config(settings)",
+  );
+  const seederSaveIndex = supplierSetupSrc.indexOf(
+    "settings.save(ignore_permissions=True)",
+  );
+  ok(
+    "the setup populates the field catalog before saving a new Single",
+    seederSyncIndex >= 0 &&
+      seederSaveIndex > seederSyncIndex &&
+      /validate_field_config_rows/.test(supplierSettingsControllerSrc),
+    "a new Single has no field rows, so saving first fails validation: 'Enable at least one supplier-editable field.'",
+  );
+  const pdfStart = supplierSrc.indexOf("def _supplier_quotation_pdf");
+  const pdfEnd = supplierSrc.indexOf("\n\ndef ", pdfStart + 1);
+  const pdfSrc = pdfStart >= 0 && pdfEnd > pdfStart ? supplierSrc.slice(pdfStart, pdfEnd) : "";
+  ok(
+    "the acknowledgement PDF renders as Administrator, then restores the Guest session",
+    /frappe\.set_user\("Administrator"\)/.test(pdfSrc) &&
+      /frappe\.get_print\(/.test(pdfSrc) &&
+      /finally:\s*\n\s*frappe\.set_user\(original_user\)/.test(pdfSrc),
+    "printview checks print permission; a Guest render would silently fall back to the inline table for every acknowledgement",
+  );
+  ok(
+    "the send-time print-format check does not demand Guest read permission",
+    /def _validate_supplier_quotation_print_format\(print_format, check_permission=True\)/.test(
+      supplierSrc,
+    ) &&
+      /if check_permission:\s*\n\s*format_doc\.check_permission\("read"\)/.test(supplierSrc) &&
+      /_validate_supplier_quotation_print_format\(print_format, check_permission=False\)/.test(
+        supplierSrc,
+      ),
+    "the acknowledgement runs as Guest; a read check would silently downgrade every custom format to Standard",
+  );
+  ok(
+    "the default acknowledgement does not promise an attachment the fallback may omit",
+    /DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_MESSAGE = "Thank you\. We have received your quotation response\."/.test(
+      supplierSrc,
+    ) &&
+      !/Please find the submitted quotation attached/.test(supplierSrc) &&
+      !/Please find the submitted quotation attached/.test(supplierSettingsJson),
+    "PDF failure sends the values inline, so the default wording must not say a file is attached",
+  );
+  ok(
+    "the supplier acknowledgement is sent outside the internal notification try",
+    /# The supplier's copy is independent[\s\S]*?try:\s*\n\s*_send_supplier_response_acknowledgement\(inv, sq, settings\)/.test(
+      supplierSrc,
+    ),
+    "nesting the supplier copy under the notification failure path would suppress it when buyer recipients are missing",
+  );
+
+  const supplierDeskSrc = readSrc("../../../public/js/supplier_quotation_desk.js");
+  const hooksSrc = readSrc("../../../hooks.py");
+  const manualStart = supplierSrc.indexOf("def send_supplier_quotation_email");
+  const manualEnd = supplierSrc.indexOf(
+    "\n\n# ---------------------------------------------------------------------------",
+    manualStart + 1,
+  );
+  const manualSrc =
+    manualStart >= 0 && manualEnd > manualStart
+      ? supplierSrc.slice(manualStart, manualEnd)
+      : "";
+  const recipientStart = supplierSrc.indexOf("def _supplier_quotation_email_recipient");
+  const recipientEnd = supplierSrc.indexOf("\n\ndef ", recipientStart + 1);
+  const recipientSrc =
+    recipientStart >= 0 && recipientEnd > recipientStart
+      ? supplierSrc.slice(recipientStart, recipientEnd)
+      : "";
+
+  ok(
+    "the manual Supplier Quotation email has its own configurable subject and message",
+    /"supplier_quotation_email_subject"/.test(supplierSettingsJson) &&
+      /"supplier_quotation_email_message"/.test(supplierSettingsJson) &&
+      /"supplier_quotation_email_subject"/.test(supplierSrc) &&
+      /"supplier_quotation_email_message"/.test(supplierSrc) &&
+      /supplier_quotation_email_subject/.test(supplierSettingsPageSrc) &&
+      /supplier_quotation_email_message/.test(supplierSettingsPageSrc) &&
+      /DEFAULT_SUPPLIER_QUOTATION_EMAIL_SUBJECT/.test(supplierSetupSrc) &&
+      /DEFAULT_SUPPLIER_QUOTATION_EMAIL_MESSAGE/.test(supplierSetupSrc) &&
+      /SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS/.test(supplierSetupSrc),
+    "reusing the response-acknowledgement wording for the manual send would tell a supplier their response was received when they were only being sent a quotation",
+  );
+  ok(
+    "the manual send is whitelisted, permission-checked and derives the recipient server-side",
+    /@frappe\.whitelist\(allow_guest=False\)\s*\n\s*def send_supplier_quotation_email\(supplier_quotation=None\):/.test(
+      supplierSrc,
+    ) &&
+      /sq\.check_permission\("read"\)/.test(manualSrc) &&
+      /sq\.check_permission\("email"\)/.test(manualSrc) &&
+      /recipient = _supplier_quotation_email_recipient\(sq\)/.test(manualSrc) &&
+      !/def send_supplier_quotation_email\([^)]*recipient/.test(supplierSrc) &&
+      /recipient = \(supplier_quotation\.contact_email or ""\)\.strip\(\)/.test(
+        recipientSrc,
+      ) &&
+      /_contact_email\(supplier_quotation\.contact_person\)/.test(recipientSrc) &&
+      /_resolve_supplier_contact\(supplier_quotation\.supplier\)/.test(recipientSrc) &&
+      /validate_email_address\(recipient, throw=True\)/.test(recipientSrc),
+    "a caller-supplied recipient would turn an internal email button into an open relay",
+  );
+  ok(
+    "the one-click send attaches the configured Supplier Quotation PDF and fails closed",
+    /settings\.get\("supplier_acknowledgement_print_format"\)/.test(manualSrc) &&
+      /DEFAULT_SUPPLIER_QUOTATION_EMAIL_SUBJECT/.test(manualSrc) &&
+      /DEFAULT_SUPPLIER_QUOTATION_EMAIL_MESSAGE/.test(manualSrc) &&
+      /SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS/.test(manualSrc) &&
+      !/DEFAULT_SUPPLIER_ACKNOWLEDGEMENT/.test(manualSrc) &&
+      /_validate_supplier_quotation_print_format\(/.test(manualSrc) &&
+      /check_permission=False/.test(manualSrc) &&
+      /_supplier_quotation_pdf\(sq, print_format\)/.test(manualSrc) &&
+      /fcontent": pdf_content/.test(manualSrc) &&
+      /frappe\.sendmail\(/.test(manualSrc) &&
+      /recipients=\[recipient\]/.test(manualSrc) &&
+      /reference_doctype="Supplier Quotation"/.test(manualSrc) &&
+      /now=True/.test(manualSrc) &&
+      !/_supplier_acknowledgement_details/.test(manualSrc),
+    "a silent Standard fallback or an inline table would make the one-click action send something other than the chosen quotation PDF",
+  );
+  ok(
+    "the desk button is registered and only appears for emailable saved quotations",
+    /doctype_js = \{"Supplier Quotation": "public\/js\/supplier_quotation_desk\.js"\}/.test(
+      hooksSrc,
+    ) &&
+      /frappe\.ui\.form\.on\("Supplier Quotation"/.test(supplierDeskSrc) &&
+      /frm\.add_custom_button\(__\("Email Supplier"\)/.test(supplierDeskSrc) &&
+      /frm\.is_new\(\)/.test(supplierDeskSrc) &&
+      /frm\.doc\.docstatus === 2/.test(supplierDeskSrc) &&
+      /frm\.is_dirty\(\)/.test(supplierDeskSrc) &&
+      /frappe\.model\.can_email\(null, frm\)/.test(supplierDeskSrc) &&
+      /method: "erpnext_ui\.supplier_quotation\.send_supplier_quotation_email"/.test(
+        supplierDeskSrc,
+      ) &&
+      /supplier_quotation: frm\.doc\.name/.test(supplierDeskSrc) &&
+      !/frm\.email_doc\(/.test(supplierDeskSrc),
+    "a composer button would not be the one-click configured send, and an unsaved form would email the stored contact/values",
+  );
+}
 // The staging flow: multi-pick and camera are SEPARATE inputs (capture on the
 // multi input would fight `multiple`), staging is inline (never a nested
 // modal -- the store module's exactly-one-dialog invariant), and nothing
@@ -4271,6 +4674,85 @@ ok(
       qiFormSrc,
     ),
     "otherwise the server reports all four in one toast with no field marked",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inspection Pending -> Quality Inspection prefill.
+//
+// The report row knows the item, batch and serial, but Quality Inspection ALSO
+// requires a reference document. A hand-editable hash URL must not be able to
+// inject a reference_type outside the doctype's seven Dynamic Link options, or
+// a reference_name that is never paired with its target doctype -- ERPNext
+// reports the latter as "Could not find Reference Name", naming the document
+// rather than the missing pairing.
+// ---------------------------------------------------------------------------
+{
+  const full = parseInspectionPrefill(new URLSearchParams(
+    "item_code=IT-1&batch_no=B-1&item_serial_no=SN-1&inspection_type=Incoming" +
+    "&reference_type=Purchase%20Receipt&reference_name=MAT-PRE-1",
+  ));
+  ok(
+    "a pending row pre-fills item, batch, serial and its source reference",
+    full.item_code === "IT-1" && full.batch_no === "B-1" &&
+      full.item_serial_no === "SN-1" && full.inspection_type === "Incoming" &&
+      full.reference_type === "Purchase Receipt" && full.reference_name === "MAT-PRE-1",
+    "clicking a report row must open an inspection that can be saved without retyping the stock line",
+  );
+
+  ok(
+    "invalid inspection/reference values are ignored, not posted",
+    Object.keys(parseInspectionPrefill(new URLSearchParams(
+      "inspection_type=Whatever&reference_type=Sales%20Order&reference_name=SO-1",
+    ))).length === 0,
+    "these strings become Select values and a Dynamic Link; an unknown type is a server failure the form never offered",
+  );
+  ok(
+    "a reference name without a valid type is never pre-filled",
+    parseInspectionPrefill(new URLSearchParams(
+      "reference_type=Sales%20Order&reference_name=SO-1",
+    )).reference_name === undefined,
+    "reference_name is a Dynamic Link whose target IS reference_type, so the orphan is reported as a missing document",
+  );
+  ok(
+    "blank and unknown query keys do not create fields",
+    Object.keys(parseInspectionPrefill(new URLSearchParams(
+      "item_code=%20%20&batch_no=&reference_type=Purchase%20Receipt&reference_name=",
+    ))).length === 0,
+    "an empty parameter must leave the form's defaults intact rather than storing an empty string over them",
+  );
+
+  const reportSrc = readSrc("../../src/pages/Store/inspection-pending/index.jsx");
+  ok(
+    "the report only forwards a reference type the QI form offers",
+    /REFERENCE_TYPES\.includes\(row\.reference_type\)/.test(reportSrc) &&
+      /params\.set\("reference_type", row\.reference_type\)/.test(reportSrc) &&
+      /navigate\(`\/quality\/inspection\/new\?\$\{params\.toString\(\)\}`\)/.test(reportSrc),
+    "the API returns the raw SLE voucher type; the QI doctype accepts only its own seven reference types",
+  );
+
+  ok(
+    "the report sends batch and serial filters to the server",
+    /batch_no: batchNo \|\| ""/.test(reportSrc) &&
+      /serial_no: serialNo \|\| ""/.test(reportSrc),
+    "filtering only the current page would hide matching rows that the server never returned",
+  );
+  ok(
+    "changing warehouse, item or batch clears dependent filters",
+    /const changeWarehouse = \(next\) => \{[\s\S]{0,320}setBatchNo\(""\);[\s\S]{0,80}setSerialNo\(""\)/.test(reportSrc) &&
+      /const changeItem = \(next\) => \{[\s\S]{0,220}setBatchNo\(""\);[\s\S]{0,80}setSerialNo\(""\)/.test(reportSrc) &&
+      /const changeBatch = \(next\) => \{[\s\S]{0,220}setSerialNo\(""\)/.test(reportSrc),
+    "a serial from the previous batch, or a batch from the previous warehouse, turns the next request into a guaranteed empty result",
+  );
+
+  const pendingApi = readSrc("../../../api.py");
+  ok(
+    "the pending report applies batch/serial filters before paging",
+    /batch_no=None, serial_no=None, start=0, limit=50/.test(pendingApi) &&
+      /if batch_no:\s*\n\s*rows = \[row for row in rows if row\["batch_no"\] == batch_no\]/.test(pendingApi) &&
+      /if serial_no:\s*\n\s*rows = \[row for row in rows if row\["serial_no"\] == serial_no\]/.test(pendingApi) &&
+      /payload\["total"\] = len\(rows\)/.test(pendingApi),
+    "Bin has no batch/serial columns, so filtering after expansion is the only place that can make total, value and rows agree",
   );
 }
 

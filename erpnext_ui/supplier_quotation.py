@@ -41,6 +41,14 @@ INVITATION_DOCTYPE = "UI Supplier Quotation Invitation"
 INVITATION_ITEM_DOCTYPE = "UI Supplier Quotation Invitation Item"
 INVITATION_EVENT_DOCTYPE = "UI Supplier Quotation Invitation Event"
 
+DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_SUBJECT = "Quotation response received: {material_request}"
+DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_MESSAGE = "Thank you. We have received your quotation response."
+DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT = "Standard"
+DEFAULT_SUPPLIER_QUOTATION_EMAIL_SUBJECT = "Supplier Quotation: {supplier_quotation}"
+DEFAULT_SUPPLIER_QUOTATION_EMAIL_MESSAGE = (
+	"Dear {supplier_name},\n\nPlease find the Supplier Quotation attached.\n\nRegards,\n{company}"
+)
+
 INTERNAL_ROLES = {
 	"Purchase User",
 	"Purchase Manager",
@@ -202,10 +210,31 @@ ALLOWED_TEMPLATE_KEYS = {
 	"supplier_quotation_link",
 }
 
+# The acknowledgement is sent after the invitation token has been consumed, so
+# it has no live public link. Offering {link} there would render the literal
+# placeholder into the supplier's email.
+ACKNOWLEDGEMENT_TEMPLATE_KEYS = ALLOWED_TEMPLATE_KEYS - {"link"}
+
+# The manual "Email Supplier" action sends the quotation itself, not a response
+# receipt. There is no public link to offer, and a desk URL is useless to the
+# supplier, so the manual template gets only plain document context.
+SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS = {
+	"supplier",
+	"supplier_name",
+	"supplier_quotation",
+	"company",
+	"contact",
+	"brand",
+}
+
 DEFAULT_ITEM_FIELDS = {
 	"item_code": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 10},
 	"item_name": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 20},
 	"description": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 30},
+	# `description` carries the Material Request's "Remark" and stays read-only
+	# context. The supplier's own comment needs a separate column, otherwise a
+	# response would overwrite the buyer's line instruction.
+	"ui_supplier_remark": {"enabled": 1, "editable": 1, "mandatory": 0, "order": 35},
 	"qty": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 40},
 	"uom": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 50},
 	"rate": {"enabled": 1, "editable": 1, "mandatory": 1, "order": 60},
@@ -465,9 +494,10 @@ def sync_supplier_quotation_field_config(settings=None):
 	return {"added": added, "updated": updated}
 
 
-def validate_template_text(value, label):
+def validate_template_text(value, label, allowed_keys=None):
+	allowed = ALLOWED_TEMPLATE_KEYS if allowed_keys is None else allowed_keys
 	for key in re.findall(r"\{([a-zA-Z0-9_]+)\}", value or ""):
-		if key not in ALLOWED_TEMPLATE_KEYS:
+		if key not in allowed:
 			frappe.throw(_("Unknown placeholder {0} in {1}.").format("{" + key + "}", label))
 
 
@@ -926,6 +956,97 @@ def _material_request_pdf(material_request, print_format):
 	)
 
 
+def _validate_supplier_quotation_print_format(print_format, check_permission=True):
+	"""Reject a print format that cannot render a Supplier Quotation.
+
+	Settings save and the manual Email Supplier action call this so the error is
+	visible. The automatic acknowledgement wraps it with `check_permission=False`:
+	it runs as Guest after OTP verification, and the buyer's chosen print format
+	is not something the supplier may read.
+	"""
+	print_format = (print_format or "").strip() or DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT
+	if print_format == "Standard":
+		return print_format
+	if not frappe.db.exists("Print Format", print_format):
+		frappe.throw(_("Supplier Quotation print format {0} does not exist.").format(print_format))
+	format_doc = frappe.get_doc("Print Format", print_format)
+	if check_permission:
+		format_doc.check_permission("read")
+	if format_doc.doc_type != "Supplier Quotation" or format_doc.disabled:
+		frappe.throw(_("Select an enabled Supplier Quotation print format."))
+	return print_format
+
+
+def _safe_supplier_quotation_print_format(print_format):
+	"""Fall back to Standard, logging the broken setting instead of failing the email."""
+	try:
+		return _validate_supplier_quotation_print_format(print_format, check_permission=False)
+	except Exception as exc:
+		frappe.log_error(
+			title="Supplier quotation acknowledgement print format unavailable",
+			message=f"{print_format or DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT}: {str(exc)[:800]}",
+		)
+		return DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_PRINT_FORMAT
+
+
+def _supplier_quotation_pdf(supplier_quotation, print_format):
+	# `printview` checks read/print permission (`frappe/www/printview.py`,
+	# `validate_print_permission`). This runs after OTP verification, but the
+	# session is still Guest, so rendering as the supplier would always fail and
+	# every acknowledgement would fall back to the inline table. The invitation
+	# binding is the authority here; elevation only supplies the print context.
+	original_user = frappe.session.user
+	frappe.set_user("Administrator")
+	try:
+		return frappe.get_print(
+			"Supplier Quotation",
+			supplier_quotation.name,
+			print_format=print_format,
+			as_pdf=True,
+			doc=supplier_quotation,
+			letterhead=supplier_quotation.get("letter_head"),
+		)
+	finally:
+		frappe.set_user(original_user)
+
+
+def _supplier_quotation_email_recipient(supplier_quotation):
+	"""Resolve the supplier address without accepting one from the caller.
+
+	The quotation's own contact wins. A Supplier Quotation created by hand often
+	has only `supplier` filled, so fall back to the supplier's default/first
+	contact rather than making the user open the Supplier form first.
+	"""
+	recipient = (supplier_quotation.contact_email or "").strip()
+	if not recipient and supplier_quotation.contact_person:
+		recipient = (_contact_email(supplier_quotation.contact_person) or "").strip()
+	if not recipient and supplier_quotation.supplier:
+		resolved = _resolve_supplier_contact(supplier_quotation.supplier)
+		if resolved.get("error"):
+			frappe.throw(resolved["error"])
+		recipient = (resolved.get("email") or "").strip()
+	if not recipient:
+		frappe.throw(_("Set a contact email on the Supplier Quotation or its Supplier before sending."))
+	validate_email_address(recipient, throw=True)
+	return recipient
+
+
+def _supplier_quotation_email_context(supplier_quotation, settings, recipient):
+	company = (
+		frappe.db.get_value("Company", supplier_quotation.company, "company_name")
+		if supplier_quotation.company
+		else None
+	)
+	return {
+		"supplier": supplier_quotation.supplier or "",
+		"supplier_name": supplier_quotation.supplier_name or supplier_quotation.supplier or "",
+		"supplier_quotation": supplier_quotation.name,
+		"company": company or supplier_quotation.company or "",
+		"contact": recipient,
+		"brand": settings.brand_name or "Supplier Quotation",
+	}
+
+
 def _existing_invitation(material_request, supplier):
 	name = frappe.db.get_value(
 		INVITATION_DOCTYPE,
@@ -1073,11 +1194,14 @@ def _response_field_value(value, row):
 	return str(value)
 
 
-def _send_supplier_response_acknowledgement(inv, sq, settings):
-	"""Email the supplier a readable copy of the values they just submitted."""
-	if not inv.recipient_email:
-		return
+def _supplier_acknowledgement_details(inv, sq, settings):
+	"""Render the old inline response table.
 
+	This is now a failure fallback only: the normal acknowledgement attaches the
+	Supplier Quotation PDF, which is smaller than an email body carrying every
+	item and price. If PDF generation fails, the supplier still receives the
+	values they submitted instead of a message with no record.
+	"""
 	# The supplier should receive the same columns they saw in the form: the
 	# read-only context columns (description, brand, schedule date, ...) as well
 	# as the fields they were asked to fill. Fetching only editable fields left
@@ -1104,12 +1228,10 @@ def _send_supplier_response_acknowledgement(inv, sq, settings):
 			escape(str(inv_item.uom or sq_item.uom or "")),
 		]
 		cells.extend(
-			escape(_response_field_value(sq_item.get(field.fieldname), field))
-			for field in item_context_extra
+			escape(_response_field_value(sq_item.get(field.fieldname), field)) for field in item_context_extra
 		)
 		cells.extend(
-			escape(_response_field_value(sq_item.get(field.fieldname), field))
-			for field in item_fields
+			escape(_response_field_value(sq_item.get(field.fieldname), field)) for field in item_fields
 		)
 		rows_html.append("<tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr>")
 
@@ -1130,8 +1252,7 @@ def _send_supplier_response_acknowledgement(inv, sq, settings):
 	)
 	company = frappe.db.get_value("Company", inv.company, "company_name") if inv.company else None
 	company = company or inv.company or ""
-	message = """
-	<p>Thank you. We have received your quotation response.</p>
+	return """
 	<p><strong>Material Request:</strong> {mr}<br>
 	<strong>Supplier Quotation:</strong> {sq}<br>
 	<strong>Currency:</strong> {currency}</p>
@@ -1152,10 +1273,49 @@ def _send_supplier_response_acknowledgement(inv, sq, settings):
 		items="".join(rows_html),
 		company=escape(str(company)),
 	)
+
+
+def _send_supplier_response_acknowledgement(inv, sq, settings):
+	"""Email the supplier the configured acknowledgement and a PDF copy.
+
+	The PDF carries the item and pricing detail, so the email body stays small.
+	The old inline table is appended only when PDF generation fails.
+	"""
+	if not inv.recipient_email:
+		return
+
+	plain_context = _plain_context(inv, settings)
+	html_context = _html_context(inv, settings)
+	subject_template = (
+		settings.get("supplier_acknowledgement_subject") or ""
+	).strip() or DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_SUBJECT
+	message_template = (
+		settings.get("supplier_acknowledgement_message") or ""
+	).strip() or DEFAULT_SUPPLIER_ACKNOWLEDGEMENT_MESSAGE
+	subject = _render_plain(subject_template, plain_context)
+	message = _render_html(message_template, html_context)
+
+	print_format = _safe_supplier_quotation_print_format(
+		settings.get("supplier_acknowledgement_print_format")
+	)
+	attachments = []
+	try:
+		pdf_content = _supplier_quotation_pdf(sq, print_format)
+		if not pdf_content:
+			raise frappe.ValidationError(_("The Supplier Quotation PDF is empty."))
+		attachments.append({"fname": f"{sq.name}.pdf", "fcontent": pdf_content})
+	except Exception as exc:
+		frappe.log_error(
+			title="Supplier quotation acknowledgement PDF failed",
+			message=f"{inv.name}: {str(exc)[:800]}",
+		)
+		message += _supplier_acknowledgement_details(inv, sq, settings)
+
 	frappe.sendmail(
 		recipients=[inv.recipient_email],
-		subject=_("Quotation response received: {0}").format(inv.material_request),
+		subject=subject,
 		message=message,
+		attachments=attachments,
 		reference_doctype=INVITATION_DOCTYPE,
 		reference_name=inv.name,
 		email_headers={"X-ERPNext-UI-Supplier-Quotation": "1"},
@@ -1190,6 +1350,11 @@ SETTINGS_SCALAR_FIELDS = {
 	"invitation_message",
 	"response_subject",
 	"response_message",
+	"supplier_acknowledgement_subject",
+	"supplier_acknowledgement_message",
+	"supplier_quotation_email_subject",
+	"supplier_quotation_email_message",
+	"supplier_acknowledgement_print_format",
 	"attach_print_format",
 	"default_print_format",
 	"otp_expiry_minutes",
@@ -1558,6 +1723,80 @@ def retry_supplier_response_notification(invitation_name):
 		frappe.throw(_("Could not send the response notification: {0}").format(str(exc)))
 
 
+@frappe.whitelist(allow_guest=False)
+def send_supplier_quotation_email(supplier_quotation=None):
+	"""Send the Supplier Quotation PDF to its supplier contact.
+
+	This is the one-click action on the stock ERPNext Supplier Quotation form.
+	Permission is read + email on the quotation; the recipient is derived from the
+	quotation or supplier, never supplied by the caller. The print format is the
+	one configured for supplier-quotation emails, so the manual copy and the
+	automatic acknowledgement cannot drift.
+	"""
+	name = (supplier_quotation or "").strip()
+	if not name:
+		frappe.throw(_("Supplier Quotation is required."))
+
+	sq = frappe.get_doc("Supplier Quotation", name)
+	sq.check_permission("read")
+	sq.check_permission("email")
+	if sq.docstatus == 2:
+		frappe.throw(_("A cancelled Supplier Quotation cannot be emailed."))
+
+	settings = get_settings(require_enabled=False)
+	recipient = _supplier_quotation_email_recipient(sq)
+	context = _supplier_quotation_email_context(sq, settings, recipient)
+
+	subject_template = (
+		settings.get("supplier_quotation_email_subject") or ""
+	).strip() or DEFAULT_SUPPLIER_QUOTATION_EMAIL_SUBJECT
+	message_template = (
+		settings.get("supplier_quotation_email_message") or ""
+	).strip() or DEFAULT_SUPPLIER_QUOTATION_EMAIL_MESSAGE
+	if len(subject_template) > 140:
+		frappe.throw(_("Supplier Quotation Email Subject cannot exceed 140 characters."))
+	validate_template_text(
+		subject_template,
+		_("Supplier Quotation Email Subject"),
+		SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS,
+	)
+	validate_template_text(
+		message_template,
+		_("Supplier Quotation Email Message"),
+		SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS,
+	)
+
+	subject = _render_plain(subject_template, context)
+	message = _render_html(message_template, context)
+
+	# The format is administrator-configured, and the PDF is rendered as
+	# Administrator. A Purchase User needs read + email on the quotation, not read
+	# on the Print Format record (whose read permission is System Manager only).
+	print_format = _validate_supplier_quotation_print_format(
+		settings.get("supplier_acknowledgement_print_format"), check_permission=False
+	)
+	pdf_content = _supplier_quotation_pdf(sq, print_format)
+	if not pdf_content:
+		frappe.throw(_("The Supplier Quotation PDF is empty."))
+
+	frappe.sendmail(
+		recipients=[recipient],
+		subject=subject,
+		message=message,
+		attachments=[{"fname": f"{sq.name}.pdf", "fcontent": pdf_content}],
+		reference_doctype="Supplier Quotation",
+		reference_name=sq.name,
+		email_headers={"X-ERPNext-UI-Supplier-Quotation": "1"},
+		now=True,
+	)
+	return {
+		"supplier_quotation": sq.name,
+		"recipient": recipient,
+		"subject": subject,
+		"print_format": print_format,
+	}
+
+
 # ---------------------------------------------------------------------------
 # Public invitation state / OTP
 # ---------------------------------------------------------------------------
@@ -1913,7 +2152,6 @@ def submit_supplier_quotation_response(session=None, rows=None, document=None):
 	notification_sent = False
 	try:
 		_send_response_notification(inv, sq, settings)
-		_send_supplier_response_acknowledgement(inv, sq, settings)
 		inv.notification_status = "Sent"
 		inv.notification_error = None
 		notification_sent = True
@@ -1922,6 +2160,16 @@ def submit_supplier_quotation_response(session=None, rows=None, document=None):
 		inv.notification_error = str(exc)[:500]
 		frappe.log_error(
 			title="Supplier quotation response notification failed",
+			message=f"{inv.name}: {str(exc)[:800]}",
+		)
+
+	# The supplier's copy is independent of the internal notification: a missing
+	# buyer recipient must not stop the supplier receiving their acknowledgement.
+	try:
+		_send_supplier_response_acknowledgement(inv, sq, settings)
+	except Exception as exc:
+		frappe.log_error(
+			title="Supplier quotation acknowledgement failed",
 			message=f"{inv.name}: {str(exc)[:800]}",
 		)
 	_save_public_doc(inv)

@@ -28,6 +28,7 @@
     "purposeGroupRequester": "I need something",
     "purposeGroupStore": "I keep the stock",
     "purposeGroupLookup": "Lookups",
+    "purposeGroupReports": "Reports",
     "scopes": {
       "all": "All",
       "project": "Project indents",
@@ -275,7 +276,7 @@
       "requestedQty": "Already asked for",
       "outstanding": "Still needed",
       "loadFailed": "Could not read the bill of materials for this project",
-      "hint": "Set a project on a row to pick items from its bill of materials. Leave it empty to search all items yourself."
+      "hint": "The project and required-by date at the top apply to every line. Change either on a row to override it there. In a production request, choosing a project also fills items from its bill of materials."
     },
     "movements": {
       "title": "Stock Movements",
@@ -516,6 +517,7 @@
       "companyRequired": "Company required",
       "customerRequired": "Customer is required",
       "uomRequired": "UOM required",
+      "scheduleDateRequired": "Required By date is required for every item",
       "invalidConversion": "Invalid conversion factor",
       "addAtLeastOneItem": "Add at least one item",
       "addItems": "Add items",
@@ -701,6 +703,9 @@
       "createNewItem": "Create a new item",
       "createNewItemHint": "The leftover is a different specification",
       "itemName": "Item name",
+      "batch": "Batch",
+      "serial": "Serial No.",
+      "inspect": "Inspect",
       "itemGroup": "Item group",
       "trackBatch": "Track batches",
       "trackSerial": "Track serial numbers",
@@ -859,6 +864,14 @@
       "responseSubject": "Response notification subject",
       "invitationMessage": "Invitation message",
       "responseMessage": "Response notification message",
+      "acknowledgementSubject": "Supplier acknowledgement subject",
+      "acknowledgementMessage": "Supplier acknowledgement message",
+      "acknowledgementMessageHint": "Shown in the email; the submitted quotation is attached as a PDF",
+      "quotationEmailSubject": "Supplier quotation email subject",
+      "quotationEmailMessage": "Supplier quotation email message",
+      "quotationEmailMessageHint": "Used by the Email Supplier button on the ERPNext form. Available: {supplier}, {supplier_name}, {supplier_quotation}, {company}, {contact}, {brand}",
+      "acknowledgementPrintFormat": "Supplier quotation email print format",
+      "acknowledgementPrintFormatHint": "Used by both the automatic acknowledgement and the manual Email Supplier action. The PDF is only as complete as the selected format; Standard may omit custom fields such as Supplier Remark.",
       "placeholdersHint": "Available: {material_request}, {supplier}, {supplier_name}, {supplier_quotation}, {company}, {contact}, {brand}, {link}, {material_request_link}, {supplier_quotation_link}",
       "securityTitle": "Security and limits",
       "securityHint": "These limits are enforced on the server for every public request",
@@ -874,6 +887,27 @@
       "recipientPlaceholder": "name@company.com",
       "recipientEnabled": "Notify",
       "noRecipients": "No internal recipients yet. Suppliers can still respond."
+    },
+    "inspectionPending": {
+      "title": "Inspection Pending",
+      "subtitle": "Stock waiting in the pending-QC warehouse before put-away",
+      "tileDescription": "See every item still held for quality inspection",
+      "warehouse": "Pending inspection warehouse",
+      "warehouseHint": "Select the warehouse that holds goods between receipt and put-away. The site default can be changed under Quality Inspection settings.",
+      "batch": "Batch",
+      "serial": "Serial No.",
+      "inspect": "Inspect",
+      "itemGroup": "Item group",
+      "quantity": "Quantity",
+      "uom": "UOM",
+      "stockValue": "Stock value",
+      "linesPending": "lines pending",
+      "empty": "No stock is waiting in this warehouse.",
+      "noWarehouseTitle": "No pending inspection warehouse set",
+      "noWarehouseHint": "Choose a warehouse above, or set the default in Quality Inspection settings.",
+      "loadFailedTitle": "Could not load pending inspection stock",
+      "loadFailedHint": "Check your permissions and try again.",
+      "configure": "Configure"
     }
   }
 }

@@ -111,7 +111,8 @@ rebuild is committed, or both mount paths serve stale code.
 | `add_to_apps_screen` | `:14-22` | Addsol UI tile → `/addsol_ui`, logo `/assets/erpnext_ui/erp_ui/logo.png`, `has_permission: erpnext_ui.api.has_app_permission` |
 | `boot_session` | `:25` | `erpnext_ui.api.boot_session` → forces `home_page` |
 | `app_include_js` | `:32` | injects `addsol_ui_nav.js` on **every desk page** |
-| `after_migrate` | `:248-249` | `setup.workflows.setup_workflows` |
+| `doctype_js` | `:49` | injects `supplier_quotation_desk.js` on the Supplier Quotation form |
+| `after_migrate` | `:258-262` | workflows, attachment settings, supplier quotation settings, quality inspection settings |
 
 Note `after_migrate`, **not `after_install`**: a fresh `bench install-app` seeds
 no workflows; the first `bench migrate` does.
@@ -135,6 +136,7 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 | **`get_indent_queue(...)`** | `:1003-1180` | Store: the storekeeper's worklist. See §3.7. |
 | `has_app_permission()` | `:76-80` | hook, returns `True` |
 | **`get_custom_report_data(report_key, filters=None)`** | `:2526` | Runs a Script Report that lives in ANOTHER app. Takes a **key**, never a report name. See §3.8. |
+| **`get_pending_inspection_items(warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50)`** | new | Store: pending-QC stock, split/filterable by serial and batch. See §3.9. |
 | `boot_session(bootinfo)` | `:103-122` | hook |
 
 **17 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
@@ -517,8 +519,11 @@ filters on status and the form renders a "nothing outstanding" state.
 
 ### 3.8 Cross-app Script Reports (added 2026-10-16)
 
-`Plate Stock Register` and `Plate Offcut Register` live in `addsol_nl_custom`
-and are now rendered inside the SPA's Reports module. `SPA_CUSTOM_REPORTS`
+`Plate Stock Register`, `Plate Offcut Register` and `Plate Receipt Weight
+Variance` live in `addsol_nl_custom` and are rendered inside the SPA's **Store**
+module under `/store/reports/*` (the old `/reports/*` links redirect). They
+answer store questions, so their tiles sit in the Store hub's Reports section and
+their sidebar children hang off Store. `SPA_CUSTOM_REPORTS`
 (`api.py:33-51`) maps a key to
 `(report name, owning app)`, `get_custom_report_data(report_key, filters)`
 (`:2526`) runs it.
@@ -612,6 +617,65 @@ anyone who can edit the bundle aim the endpoint at a different report; the
 rules suite asserts it does not (`comments are stripped first — a name in a
 comment is not a leak, and this repo documents rationale in comments by
 convention`).
+
+---
+
+### 3.9 Pending inspection report (added 2026-10-27)
+
+The Store module has an **Inspection Pending** report at
+`/store/inspection-pending` (tile in Store > Reports, sidebar child beside
+Stock Balance). It is **not** a Quality Inspection list and **not** a cross-app
+Script Report: the question is "what stock is still sitting in the pending-QC
+warehouse?", which is answered from `Bin`.
+
+- `UI Quality Inspection Settings.pending_inspection_warehouse` stores the site
+  default. It is a `Link` to `Warehouse`, validated as non-group; an empty value
+  is allowed so a site can pick a warehouse on the report instead.
+- `get_pending_inspection_items` accepts an explicit `warehouse` so a second
+  pending-QC location can be inspected without changing the site default. It
+  reads the default when the argument is blank, returns `""` when nothing is
+  configured, and returns only `Bin.actual_qty > 0`.
+- Rows are expanded where tracking exists: one row per active `Serial No` in the
+  warehouse, otherwise one row per batch. Batch quantity is the **signed** sum
+  of `Serial and Batch Entry.qty` joined through `Serial and Batch Bundle` to
+  the warehouse's SLEs. Outward bundle entries are negative
+  (`serial_and_batch_bundle.py:1207-1214`), so a transfer out reduces the batch
+  instead of leaving the original receipt's quantity on the report.
+- A tracked item whose serial/batch records do not cover the whole Bin balance
+  keeps a remainder row at item level rather than hiding stock. The same
+  fallback applies when the item has no tracking records at all.
+- Permission is enforced server-side: read on `Bin`, `Item`, `Serial No`,
+  `Batch` and `Stock Ledger Entry`, plus
+  `frappe.has_permission("Warehouse", "read", doc=selected)`. A probe error
+  fails closed. The route therefore has **no `RequireReportAccess`** guard and
+  the tile has no `reportKey`; `canReadReport` cannot describe this report.
+- The response includes `currency` from the warehouse's company so the page can
+  format value without hardcoding a currency. Pagination is server-side
+  (`start`, `limit`, capped at 200); rows are ordered by item, batch and serial.
+- `batch_no` and `serial_no` filter the EXPANDED rows, before paging and before
+  the stock-value total. They are not Bin columns -- a Bin can hold several
+  batches -- so applying them in the Bin query would make the filtered total
+  describe the whole Bin while the table showed one batch.
+- Each row also carries the most recent **positive SLE** `voucher_type` /
+  `voucher_no` for its serial, batch, or item. Quality Inspection requires
+  `reference_type` and `reference_name`, so the report forwards them to
+  `/quality/inspection/new`; the frontend drops a voucher type that is not in
+  the QI doctype's seven `reference_type` options.
+- `lib/inspectionPrefill.js` parses those query parameters into initial form
+  state, rejects an unknown inspection/reference type, and will not prefill an
+  orphaned `reference_name`. Prefill deliberately suppresses restoring an older
+  in-memory inspection draft; the draft itself is left untouched.
+- `after_migrate` seeds `Factory Inward (Pending QC) - NLEPL` when that
+  non-group warehouse exists. Otherwise it uses a prefix match **only** when
+  exactly one non-group warehouse matches `Factory Inward (Pending QC) - %`. It
+  never overwrites an existing selection and leaves an ambiguous site alone.
+  The default lives on the settings page, so another company can point it at
+  its own warehouse.
+
+The report page keeps its selected warehouse in component state after the first
+response. Otherwise clicking Refresh could fall back to a newly changed site
+default while the user believes they are still looking at the warehouse they
+selected.
 
 ---
 
@@ -1153,6 +1217,38 @@ wanted.
   for material already requested is how duplicate indents happen.
   Validation: company required, `customer` required for *Customer Provided*, and
   for *Material Transfer* both warehouses required **and different**.
+- **Supplier quotations** — the request form's per-line **Remark** is
+  `Material Request Item.description`, and `make_supplier_quotation` copies it
+  onto the draft `Supplier Quotation Item`. The supplier response form therefore
+  treats `description` as read-only context. The supplier's own comment is a
+  separate `Supplier Quotation Item.ui_supplier_remark` Custom Field (created by
+  `patches/v1_0/add_supplier_quotation_supplier_remark_field.py`), enabled and
+  optional in `DEFAULT_ITEM_FIELDS`. Reusing `description` for it would overwrite
+  the buyer's instruction.
+
+  The supplier's confirmation email has its own settings
+  (`supplier_acknowledgement_subject`, `_message`, `_print_format`) and attaches
+  a Supplier Quotation PDF instead of inlining every item and price. The old
+  inline table is a failure fallback only; PDF generation or a stale print
+  format must not leave the supplier with no record. The internal response
+  notification and the supplier acknowledgement are sent independently, so a
+  missing buyer recipient cannot suppress the supplier's copy. The PDF is
+  rendered as Administrator and then the Guest session is restored: Frappe's
+  `printview` checks print permission, so a direct Guest render would always
+  fall back to the inline table.
+
+  The stock ERPNext Supplier Quotation form also gets a visible **Email
+  Supplier** button (`public/js/supplier_quotation_desk.js`, via `doctype_js`).
+  It is the one-click manual send, not the composer: it uses
+  `supplier_quotation_email_subject`/`_message` and the same configured
+  `supplier_acknowledgement_print_format`, attaches the PDF, and sends
+  immediately after confirmation. The response-acknowledgement wording must not
+  be reused here — a manual send is not a receipt for a response. The endpoint
+  (`send_supplier_quotation_email`) requires read + email permission, derives
+  the recipient from `contact_email` → `contact_person` → the supplier's
+  default/first contact, and fails closed if the PDF cannot be rendered. It
+  refuses a dirty form because the endpoint reads the stored document, and it
+  refuses a cancelled quotation.
 - **Give Items** (`pages/Store/indents/`) — the queue from `get_indent_queue`.
   Each indent expands to per-item outstanding quantity, editable for a partial
   issue. Submitting calls ERPNext's own
@@ -1855,18 +1951,25 @@ Edit dialog — otherwise the measured-total and derived-factor logic would exis
 twice and drift. The tray Edit dialog survives because that row is already on the
 receipt and has no picker behind it, so it never stacks.
 
-### 9.8f Production indents: the project belongs on the header
+### 9.8f Material Requests: the project and Required By belong on the header
 
-`/store/material-request/purpose/production/new` carried the Project field on
-**every item row**. Picking it per row meant re-reading the same bill of
-materials once per line to transcribe a list the server already knows.
+The form used to carry the Project field on **every item row** except
+production. Picking it per row meant re-reading the same bill of materials once
+per line to transcribe a list the server already knows.
 
 The worse consequence is disagreement: two rows could name two different
 projects on one indent, so a single Material Request would request material for
 both. `validate_with_previous_doc` cannot catch that — it compares each row
 against the *source document*, never rows against each other.
 
-The project is now chosen once in the header and the items arrive from its BOM:
+Project is now a header control for **every** purpose. An explicit header change
+copies the project onto every row, but a row keeps its own Project field so it
+can still name an exception. Existing rows keep their stored values when the
+document is opened; only a header change overwrites them. Clearing the header
+drops the project from every row but keeps the items.
+
+Only a **production** request also explodes the project's BOM into the item
+list:
 
 - **Additive.** Rows that already carry an item are left alone and BOM lines
   already on the indent are skipped, so re-picking the project cannot discard
@@ -1874,11 +1977,29 @@ The project is now chosen once in the header and the items arrive from its BOM:
 - **Outstanding, not required.** Quantities prefill with the gap
   (`outstanding_qty`, falling back to `required_qty`). Prefilling the full BOM
   quantity is how duplicate indents happen.
-- **Clearing is non-destructive.** The project is dropped from every row but the
-  items stay; they are real items either way.
 - **A visible note says what happened** (`filledFromBom` / `allPresent` /
   `noBom`), because rows appearing from nowhere otherwise reads as either a
   failed BOM read or an empty project.
+
+The other purposes copy the project only. Their row item picker still offers the
+project's BOM because `loadProjectItems` is called for every purpose, but the
+whole BOM is not added automatically.
+
+`loadProjectItems` now **returns** the loaded entry. `handleHeaderProjectChange`
+used to `await loadProjectItems(next)` and then read `projectItems[next]` from the
+render that started the request — on a first pick that state was still empty, so
+the “fill from BOM” path silently added nothing. A monotonic request id also
+stops a slow response for project A from appending A's lines after the user has
+picked project B.
+
+**Required By is global in the same way.** Changing the header date rewrites
+every item row and any line being composed in the add-item modal; new rows
+default to it. A row's date stays editable afterwards. `Material Request
+Item.schedule_date` is `reqd: 1` even though the header `schedule_date` is
+optional (`material_request_item.json` / `material_request.json`), so clearing
+the header date blanks every row and the form reports
+`store.validation.scheduleDateRequired` before the save rather than letting a
+MandatoryError name nothing.
 
 Two ERPNext details this had to respect:
 
@@ -1890,8 +2011,9 @@ Two ERPNext details this had to respect:
   Without that an existing indent opens with an empty box, and clearing it would
   silently blank every row.
 
-The other four purposes keep the per-row field: those requests genuinely mix
-project-specific and free items, which is the split the shop floor works in.
+`isProductionRequest` reads `doc.material_request_type === "Manufacture"`, not
+the route purpose: the shared `/store/material-request/:name` edit route has no
+`:purpose` segment.
 
 ### 9.8g `dashboard.quickAccess` was never rendered at all
 
@@ -2876,6 +2998,12 @@ eligibility rules. The NL plate app contributes its existing weight settings
 and weighed-item classifier through these hooks.
 
 Weighed receipt rows capture supplier weight and optional weighbridge weight.
+A newly added plate row pre-fills BOTH measurement fields with its estimated
+weight, and both stay editable. The estimate is received quantity × theoretical
+unit weight, never the PO's copied `custom_est_weight_kg` on a partial receipt:
+that field is for the ordered quantity. An existing stored measurement is never
+overwritten, because the helper is not run from `loadPlateStatus` or the save
+preflight.
 When a truck net weight is entered, the UI allocates it proportionally across
 only the eligible weighed lines using their estimated weights, rounds each line
 to three decimals and puts the rounding remainder on the last line. It stores

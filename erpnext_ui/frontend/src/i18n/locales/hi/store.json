@@ -28,6 +28,7 @@
     "purposeGroupRequester": "मुझे कुछ चाहिए",
     "purposeGroupStore": "मेरे पास स्टोर है",
     "purposeGroupLookup": "सूची देखें",
+    "purposeGroupReports": "रिपोर्ट",
     "scopes": {
       "all": "सभी",
       "project": "प्रोजेक्ट इंडेंट",
@@ -275,7 +276,7 @@
       "requestedQty": "पहले मांगा गया",
       "outstanding": "अब भी चाहिए",
       "loadFailed": "इस प्रोजेक्ट का बिल ऑफ मटेरियल पढ़ा नहीं जा सका",
-      "hint": "किसी पंक्ति में प्रोजेक्ट भरें तो उसके बिल ऑफ मटेरियल से सामान चुन सकते हैं। खाली छोड़ें तो सभी सामान खुद खोज सकते हैं।"
+      "hint": "ऊपर दिया गया प्रोजेक्ट और आवश्यक तिथि हर पंक्ति पर लागू होते हैं। किसी पंक्ति पर उन्हें बदलकर उस पंक्ति के लिए अलग कर सकते हैं। प्रोडक्शन मांग में प्रोजेक्ट चुनने पर उसकी सामग्री सूची से सामान भी भर जाता है।"
     },
     "movements": {
       "title": "स्टॉक गतिविधि",
@@ -516,6 +517,7 @@
       "companyRequired": "कंपनी आवश्यक है",
       "customerRequired": "ग्राहक आवश्यक है",
       "uomRequired": "यूओएम आवश्यक है",
+      "scheduleDateRequired": "हर वस्तु के लिए आवश्यक तिथि भरें",
       "invalidConversion": "अमान्य रूपांतरण कारक",
       "addAtLeastOneItem": "कम से कम एक आइटम जोड़ें",
       "addItems": "आइटम जोड़ें",
@@ -701,6 +703,9 @@
       "createNewItem": "नया आइटम बनाएँ",
       "createNewItemHint": "बचा हुआ सामान अलग स्पेसिफिकेशन का है",
       "itemName": "आइटम का नाम",
+      "batch": "बैच",
+      "serial": "सीरियल नं.",
+      "inspect": "निरीक्षण करें",
       "itemGroup": "आइटम समूह",
       "trackBatch": "बैच ट्रैक करें",
       "trackSerial": "सीरियल नंबर ट्रैक करें",
@@ -859,6 +864,14 @@
       "responseSubject": "प्रतिक्रिया सूचना विषय",
       "invitationMessage": "आमंत्रण संदेश",
       "responseMessage": "प्रतिक्रिया सूचना संदेश",
+      "acknowledgementSubject": "आपूर्तिकर्ता पावती विषय",
+      "acknowledgementMessage": "आपूर्तिकर्ता पावती संदेश",
+      "acknowledgementMessageHint": "ईमेल में दिखाया जाता है; जमा किया गया कोटेशन PDF के रूप में संलग्न होता है",
+      "quotationEmailSubject": "आपूर्तिकर्ता कोटेशन ईमेल विषय",
+      "quotationEmailMessage": "आपूर्तिकर्ता कोटेशन ईमेल संदेश",
+      "quotationEmailMessageHint": "ERPNext फ़ॉर्म के Email Supplier बटन द्वारा उपयोग किया जाता है। उपलब्ध: {supplier}, {supplier_name}, {supplier_quotation}, {company}, {contact}, {brand}",
+      "acknowledgementPrintFormat": "आपूर्तिकर्ता कोटेशन ईमेल प्रिंट प्रारूप",
+      "acknowledgementPrintFormatHint": "स्वचालित पावती और मैन्युअल Email Supplier दोनों के लिए उपयोग होता है। PDF उतना ही पूर्ण होगा जितना चुना गया प्रारूप; मानक प्रारूप Supplier Remark जैसे कस्टम फ़ील्ड छोड़ सकता है।",
       "placeholdersHint": "उपलब्ध: {material_request}, {supplier}, {supplier_name}, {supplier_quotation}, {company}, {contact}, {brand}, {link}, {material_request_link}, {supplier_quotation_link}",
       "securityTitle": "सुरक्षा और सीमाएँ",
       "securityHint": "ये सीमाएँ हर सार्वजनिक अनुरोध पर सर्वर द्वारा लागू होती हैं",
@@ -874,6 +887,27 @@
       "recipientPlaceholder": "name@company.com",
       "recipientEnabled": "सूचित करें",
       "noRecipients": "अभी कोई आंतरिक प्राप्तकर्ता नहीं है। आपूर्तिकर्ता फिर भी उत्तर दे सकते हैं।"
+    },
+    "inspectionPending": {
+      "title": "निरीक्षण लंबित",
+      "subtitle": "रखने से पहले लंबित-गुणवत्ता गोदाम में मौजूद स्टॉक",
+      "tileDescription": "गुणवत्ता निरीक्षण के लिए रुके सभी आइटम देखें",
+      "warehouse": "लंबित निरीक्षण गोदाम",
+      "warehouseHint": "रसीद और भंडारण के बीच सामान रखने वाला गोदाम चुनें। साइट डिफ़ॉल्ट गुणवत्ता निरीक्षण सेटिंग्स में बदला जा सकता है।",
+      "batch": "बैच",
+      "serial": "सीरियल नं.",
+      "inspect": "निरीक्षण करें",
+      "itemGroup": "आइटम समूह",
+      "quantity": "मात्रा",
+      "uom": "इकाई",
+      "stockValue": "स्टॉक मूल्य",
+      "linesPending": "पंक्तियाँ लंबित",
+      "empty": "इस गोदाम में कोई स्टॉक लंबित नहीं है।",
+      "noWarehouseTitle": "कोई लंबित निरीक्षण गोदाम सेट नहीं है",
+      "noWarehouseHint": "ऊपर गोदाम चुनें, या गुणवत्ता निरीक्षण सेटिंग्स में डिफ़ॉल्ट सेट करें।",
+      "loadFailedTitle": "लंबित निरीक्षण स्टॉक लोड नहीं हो सका",
+      "loadFailedHint": "अपनी अनुमतियाँ जाँचें और पुनः प्रयास करें।",
+      "configure": "कॉन्फ़िगर करें"
     }
   }
 }
