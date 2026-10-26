@@ -625,8 +625,9 @@ convention`).
 The Store module has an **Inspection Pending** report at
 `/store/inspection-pending` (tile in Store > Reports, sidebar child beside
 Stock Balance). It is **not** a Quality Inspection list and **not** a cross-app
-Script Report: the question is "what stock is still sitting in the pending-QC
-warehouse?", which is answered from `Bin`.
+Script Report: the question is "what stock was sitting in the pending-QC
+warehouse as of the selected date?", which is answered from Stock Ledger
+Entries through that date.
 
 - `UI Quality Inspection Settings.pending_inspection_warehouse` stores the site
   default. It is a `Link` to `Warehouse`, validated as non-group; an empty value
@@ -634,17 +635,22 @@ warehouse?", which is answered from `Bin`.
 - `get_pending_inspection_items` accepts an explicit `warehouse` so a second
   pending-QC location can be inspected without changing the site default. It
   reads the default when the argument is blank, returns `""` when nothing is
-  configured, and returns only `Bin.actual_qty > 0`.
-- Rows are expanded where tracking exists: one row per active `Serial No` in the
-  warehouse, otherwise one row per batch. Batch quantity is the **signed** sum
+  configured, and sums non-cancelled Stock Ledger Entry quantities through the
+  selected as-of date for the selected warehouse so its balances agree with the
+  Stock Ledger report for the same cutoff.
+- Rows are expanded where tracking exists: one row per serial held at that
+  cutoff, otherwise one row per batch. Serial and batch balances are rebuilt
+  from signed bundle entries through the date, not current `Serial No`
+  locations. Batch quantity is the **signed** sum
   of `Serial and Batch Entry.qty` joined through `Serial and Batch Bundle` to
   the warehouse's SLEs. Outward bundle entries are negative
   (`serial_and_batch_bundle.py:1207-1214`), so a transfer out reduces the batch
   instead of leaving the original receipt's quantity on the report.
-- A tracked item whose serial/batch records do not cover the whole Bin balance
-  keeps a remainder row at item level rather than hiding stock. The same
-  fallback applies when the item has no tracking records at all.
-- Permission is enforced server-side: read on `Bin`, `Item`, `Serial No`,
+- A tracked item whose serial/batch records do not cover the whole ledger
+  balance keeps a remainder row at item level rather than hiding stock. If
+  tracking detail overstates the ledger balance, the report uses one item-level
+  row for the full ledger quantity rather than overstating stock.
+- Permission is enforced server-side: read on `Item`, `Serial No`,
   `Batch` and `Stock Ledger Entry`, plus
   `frappe.has_permission("Warehouse", "read", doc=selected)`. A probe error
   fails closed. The route therefore has **no `RequireReportAccess`** guard and

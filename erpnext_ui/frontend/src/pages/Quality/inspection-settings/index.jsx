@@ -39,6 +39,10 @@ export default function QualityInspectionSettings() {
     }
   }, [t]);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
   const updateWarehouse = (next) => {
     setPendingWarehouse(next);
     setDirty(true);

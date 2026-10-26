@@ -11,6 +11,8 @@ import Pagination from "../../../components/Pagination";
 import useListPagination from "../../../hooks/useListPagination";
 import { REFERENCE_TYPES } from "../../../lib/inspectionTypes";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { localDateISO } from "../../../utils/localDateTime";
 import {
   Empty,
   EmptyDescription,
@@ -77,6 +79,7 @@ export default function InspectionPendingReport() {
   const [itemCode, setItemCode] = useState("");
   const [batchNo, setBatchNo] = useState("");
   const [serialNo, setSerialNo] = useState("");
+  const [asOfDate, setAsOfDate] = useState(() => localDateISO());
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({});
   const [loading, setLoading] = useState(true);
@@ -108,6 +111,7 @@ export default function InspectionPendingReport() {
         item_code: itemCode || "",
         batch_no: batchNo || "",
         serial_no: serialNo || "",
+        as_of_date: asOfDate,
         start: limit_start,
         limit: limit_page_length,
       });
@@ -136,6 +140,7 @@ export default function InspectionPendingReport() {
     }
   }, [
     batchNo,
+    asOfDate,
     itemCode,
     limit_page_length,
     limit_start,
@@ -211,6 +216,11 @@ export default function InspectionPendingReport() {
     resetPage();
   };
 
+  const changeAsOfDate = (event) => {
+    setAsOfDate(event.target.value || localDateISO());
+    resetPage();
+  };
+
   /**
    * Open a new Quality Inspection for this stock line.
    *
@@ -240,7 +250,7 @@ export default function InspectionPendingReport() {
   return (
     <DashboardShell>
       <div className="rounded-lg border border-border bg-card p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-muted-foreground">
               {t("store.inspectionPending.warehouse")}
@@ -284,12 +294,25 @@ export default function InspectionPendingReport() {
               doctype="Serial No"
               value={serialNo}
               onChange={changeSerial}
-              filters={{
-                status: "Active",
-                ...(itemCode ? { item_code: itemCode } : {}),
-                ...(warehouse ? { warehouse } : {}),
-              }}
+              // Historical rows can refer to serials that have since moved or
+              // been delivered, so don't limit this selector to today's
+              // warehouse/status. The report API applies the as-of balance.
+              filters={itemCode ? { item_code: itemCode } : undefined}
               placeholder={t("store.inspectionPending.serial")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label
+              className="block text-xs font-medium text-muted-foreground"
+              htmlFor="inspection-pending-as-of-date"
+            >
+              {t("store.inspectionPending.asOfDate")}
+            </label>
+            <Input
+              id="inspection-pending-as-of-date"
+              type="date"
+              value={asOfDate}
+              onChange={changeAsOfDate}
             />
           </div>
         </div>

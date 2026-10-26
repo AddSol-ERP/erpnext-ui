@@ -2371,11 +2371,12 @@ def _pending_inspection_chunks(values, size=400):
 		yield unique[offset:offset + size]
 
 
-def _pending_inspection_tracking(selected, item_codes):
-	"""Serial numbers and batch quantities for the given items in one warehouse.
+def _pending_inspection_tracking(selected, item_codes, as_of_date):
+	"""Serial numbers and batch quantities held in a warehouse as of a date.
 
-	`Serial No.warehouse` is the serial's current location, so it is the
-	authoritative source for a serialised row. Batch quantity is the signed sum
+	Serial and batch balances are reconstructed from signed bundle entries joined
+	to Stock Ledger Entries, so historical reports do not rely on today's
+	`Serial No.warehouse` value. Batch quantity is the signed sum
 	of the bundle entries joined to SLEs: `Serial and Batch Entry.qty` is
 	negative on an outward bundle (`serial_and_batch_bundle.py:1207-1214`), and
 	that sign is what makes a transfer out of this warehouse reduce the batch
@@ -2392,13 +2393,21 @@ def _pending_inspection_tracking(selected, item_codes):
 		placeholders = ", ".join(["%s"] * len(chunk))
 		for row in frappe.db.sql(
 			f"""
-			select sn.`item_code`, sn.`name` as `serial_no`, sn.`batch_no`
-			from `tabSerial No` sn
-			where sn.`warehouse` = %s and sn.`status` = 'Active'
-			  and sn.`item_code` in ({placeholders})
-			order by sn.`item_code`, sn.`batch_no`, sn.`name`
+			select sle.`item_code`, sbe.`serial_no`, max(sbe.`batch_no`) as `batch_no`
+			from `tabSerial and Batch Entry` sbe
+			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
+			inner join `tabStock Ledger Entry` sle
+			        on sle.`serial_and_batch_bundle` = sbb.`name`
+			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			  and sle.`docstatus` < 2 and ifnull(sle.`is_cancelled`, 0) = 0
+			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
+			  and ifnull(sbe.`serial_no`, '') != ''
+			  and sle.`item_code` in ({placeholders})
+			group by sle.`item_code`, sbe.`serial_no`
+			having sum(sbe.`qty`) > 0
+			order by sle.`item_code`, max(sbe.`batch_no`), sbe.`serial_no`
 			""",
-			(selected, *chunk),
+			(selected, as_of_date, *chunk),
 			as_dict=True,
 		):
 			serials.setdefault(row.item_code, []).append((row.serial_no, row.batch_no or ""))
@@ -2410,14 +2419,17 @@ def _pending_inspection_tracking(selected, item_codes):
 			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
-			where sle.`warehouse` = %s and ifnull(sle.`is_cancelled`, 0) = 0
+			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			  and sle.`docstatus` < 2
+			  and ifnull(sle.`is_cancelled`, 0) = 0
+			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
 			  and sbe.`batch_no` is not null and sbe.`batch_no` != ''
 			  and sle.`item_code` in ({placeholders})
 			group by sle.`item_code`, sbe.`batch_no`
 			having sum(sbe.`qty`) > 0
 			order by sle.`item_code`, sbe.`batch_no`
 			""",
-			(selected, *chunk),
+			(selected, as_of_date, *chunk),
 			as_dict=True,
 		):
 			batches.setdefault(row.item_code, []).append((row.batch_no, flt(row.qty)))
@@ -2425,7 +2437,7 @@ def _pending_inspection_tracking(selected, item_codes):
 	return serials, batches
 
 
-def _pending_inspection_source_refs(selected, rows):
+def _pending_inspection_source_refs(selected, rows, as_of_date):
 	"""Find the document that most recently brought each row into the warehouse.
 
 	Quality Inspection requires `reference_type` and `reference_name`. The
@@ -2460,11 +2472,12 @@ def _pending_inspection_source_refs(selected, rows):
 			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
-			where sle.`warehouse` = %s and ifnull(sle.`is_cancelled`, 0) = 0
+			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			  and sle.`docstatus` < 2 and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sle.`actual_qty` > 0 and ({' or '.join(clauses)})
 			order by sle.`posting_datetime` desc, sle.`creation` desc
 			""",
-			tuple(params),
+			tuple([selected, as_of_date, *params[1:]]),
 			as_dict=True,
 		):
 			if row.serial_no:
@@ -2479,11 +2492,12 @@ def _pending_inspection_source_refs(selected, rows):
 			f"""
 			select sle.`item_code`, sle.`voucher_type`, sle.`voucher_no`
 			from `tabStock Ledger Entry` sle
-			where sle.`warehouse` = %s and ifnull(sle.`is_cancelled`, 0) = 0
+			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			  and sle.`docstatus` < 2 and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sle.`actual_qty` > 0 and sle.`item_code` in ({placeholders})
 			order by sle.`posting_datetime` desc, sle.`creation` desc
 			""",
-			(selected, *chunk),
+			(selected, as_of_date, *chunk),
 			as_dict=True,
 		):
 			item_refs.setdefault(row.item_code, row)
@@ -2493,7 +2507,7 @@ def _pending_inspection_source_refs(selected, rows):
 
 @frappe.whitelist(allow_guest=False)
 def get_pending_inspection_items(
-	warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50
+	warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50, as_of_date=None
 ):
 	"""Stock currently held in the pending-inspection warehouse.
 
@@ -2503,16 +2517,16 @@ def get_pending_inspection_items(
 	different one; the report also accepts an explicit warehouse so a user can
 	look at a second pending-QC location without changing the site default.
 
-	Only positive Bin balances are returned. A zero or negative Bin is not
-	waiting to be inspected, and including it would make the report read as a
-	stock-on-hand listing rather than a work queue.
+	Only positive Stock Ledger Entry balances as of `as_of_date` are returned.
+	The date defaults to today. Cancelled ledger rows are excluded, and a zero
+	or negative net balance is not waiting to be inspected.
 
 	Rows are expanded when the item carries tracking: one row per serial for a
 	serialised item, otherwise one row per batch. A tracked item whose tracking
 	records cannot be found keeps an item-level row for the unaccounted quantity
 	rather than hiding stock from the person who has to inspect it.
 
-	Permission model: requires read on `Bin`, `Item`, `Serial No`, `Batch` and
+	Permission model: requires read on `Item`, `Serial No`, `Batch` and
 	`Stock Ledger Entry`, plus permission on the selected `Warehouse`. Fails
 	closed on any probe error.
 
@@ -2521,14 +2535,16 @@ def get_pending_inspection_items(
 		item_code (str, optional): Restrict to one item.
 		batch_no (str, optional): Restrict to one batch.
 		serial_no (str, optional): Restrict to one serial number.
+		as_of_date (str, optional): Include ledger movements through this date;
+			defaults to today.
 		start (int): Offset for paging.
 		limit (int): Page size, capped at 200.
 
 	Returns:
-		dict: {"warehouse", "default_warehouse", "configured", "rows",
+		dict: {"warehouse", "default_warehouse", "configured", "as_of_date", "rows",
 		       "total", "stock_value", "currency", "start", "limit"}
 	"""
-	for doctype in ("Bin", "Item", "Serial No", "Batch", "Stock Ledger Entry"):
+	for doctype in ("Item", "Serial No", "Batch", "Stock Ledger Entry"):
 		if not _can_read(doctype):
 			frappe.throw(
 				frappe._("You do not have permission to view pending inspection stock ({0}).").format(
@@ -2539,6 +2555,7 @@ def get_pending_inspection_items(
 
 	default_warehouse = _pending_inspection_default_warehouse()
 	selected = (warehouse or "").strip() or default_warehouse
+	as_of_date = str(getdate(as_of_date or nowdate()))
 	batch_no = (batch_no or "").strip()
 	serial_no = (serial_no or "").strip()
 
@@ -2546,6 +2563,7 @@ def get_pending_inspection_items(
 		"warehouse": selected,
 		"default_warehouse": default_warehouse,
 		"configured": bool(default_warehouse),
+		"as_of_date": as_of_date,
 		"rows": [],
 		"total": 0,
 		"stock_value": 0,
@@ -2580,31 +2598,43 @@ def get_pending_inspection_items(
 		frappe.db.get_value("Company", company, "default_currency") if company else ""
 	) or ""
 
-	conditions = ["b.`warehouse` = %s", "b.`actual_qty` > 0"]
-	params = [selected]
+	conditions = [
+		"sle.`warehouse` = %s",
+		"sle.`posting_date` <= %s",
+		"sle.`docstatus` < 2",
+		"ifnull(sle.`is_cancelled`, 0) = 0",
+	]
+	params = [selected, as_of_date]
 	if item_code:
-		conditions.append("b.`item_code` = %s")
+		conditions.append("sle.`item_code` = %s")
 		params.append(item_code)
 	where = " and ".join(conditions)
 
 	stock_rows = frappe.db.sql(
 		f"""
-		select b.`item_code`, b.`warehouse`, b.`actual_qty`,
-		       b.`stock_value`, b.`valuation_rate`,
+		select sle.`item_code`, sle.`warehouse`,
+		       sum(sle.`actual_qty`) as `actual_qty`,
+		       sum(sle.`stock_value_difference`) as `stock_value`,
+		       case when sum(sle.`actual_qty`) != 0
+		            then sum(sle.`stock_value_difference`) / sum(sle.`actual_qty`)
+		            else 0 end as `valuation_rate`,
 		       i.`item_name`, i.`item_group`, i.`stock_uom`,
 		       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
 		       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
-		from `tabBin` b
-		left join `tabItem` i on i.`name` = b.`item_code`
+		from `tabStock Ledger Entry` sle
+		left join `tabItem` i on i.`name` = sle.`item_code`
 		where {where}
-		order by coalesce(i.`item_name`, b.`item_code`), b.`item_code`
+		group by sle.`item_code`, sle.`warehouse`, i.`item_name`, i.`item_group`,
+		         i.`stock_uom`, i.`has_batch_no`, i.`has_serial_no`
+		having sum(sle.`actual_qty`) > 0
+		order by coalesce(i.`item_name`, sle.`item_code`), sle.`item_code`
 		""",
 		tuple(params),
 		as_dict=True,
 	)
 
 	serials, batches = _pending_inspection_tracking(
-		selected, [row.item_code for row in stock_rows]
+		selected, [row.item_code for row in stock_rows], as_of_date
 	)
 
 	rows = []
@@ -2625,40 +2655,52 @@ def get_pending_inspection_items(
 		}
 
 		if cint(stock.has_serial_no) and serials.get(stock.item_code):
-			for serial_no, batch_no in serials[stock.item_code]:
-				rows.append({
-					**base,
-					"actual_qty": 1.0,
-					"stock_value": rate,
-					"batch_no": batch_no,
-					"serial_no": serial_no,
-					"tracking": "serial",
-				})
-				tracked_qty += 1.0
+			item_serials = serials[stock.item_code]
+			if len(item_serials) <= actual_qty:
+				for serial_no, batch_no in item_serials:
+					rows.append({
+						**base,
+						"actual_qty": 1.0,
+						"stock_value": rate,
+						"batch_no": batch_no,
+						"serial_no": serial_no,
+						"tracking": "serial",
+					})
+				tracked_qty = float(len(item_serials))
 		elif cint(stock.has_batch_no) and batches.get(stock.item_code):
-			for batch_no, qty in batches[stock.item_code]:
-				rows.append({
-					**base,
-					"actual_qty": qty,
-					"stock_value": flt(rate * qty),
-					"batch_no": batch_no,
-					"tracking": "batch",
-				})
-				tracked_qty += qty
+			item_batches = batches[stock.item_code]
+			batch_total = sum(qty for _batch_no, qty in item_batches)
+			if batch_total <= actual_qty + 0.000001:
+				for batch_no, qty in item_batches:
+					rows.append({
+						**base,
+						"actual_qty": qty,
+						"stock_value": flt(rate * qty),
+						"batch_no": batch_no,
+						"tracking": "batch",
+					})
+				tracked_qty = batch_total
 
-		# A tracked item can still carry stock that no bundle explains: opening
-		# balances and records that predate Serial and Batch Bundle. Keep that
-		# remainder visible instead of making the report total disagree with Bin.
-		remaining = flt(actual_qty - tracked_qty, 6)
-		if remaining > 0.000001:
+		# Never let stale/duplicated tracking entries inflate the stock-ledger
+		# quantity. When tracking detail does not reconcile, use an item-level row
+		# for the full ledger quantity so the displayed total stays accurate.
+		if tracked_qty == 0:
 			rows.append({
 				**base,
-				"actual_qty": remaining,
-				"stock_value": flt(rate * remaining),
+				"actual_qty": actual_qty,
+				"stock_value": flt(rate * actual_qty),
 			})
+		else:
+			remaining = flt(actual_qty - tracked_qty, 6)
+			if remaining > 0.000001:
+				rows.append({
+					**base,
+					"actual_qty": remaining,
+					"stock_value": flt(rate * remaining),
+				})
 
-	# Batch and serial are properties of the expanded rows, not of Bin, so they
-	# are applied here rather than in the Bin query. Filtering before paging and
+	# Batch and serial are properties of the expanded rows, not of the ledger
+	# summary query, so they are applied here. Filtering before paging and
 	# before the value total keeps every figure on screen about the same
 	# population.
 	if batch_no:
@@ -2674,7 +2716,7 @@ def get_pending_inspection_items(
 	))
 
 	page_rows = rows[payload["start"]:payload["start"] + payload["limit"]]
-	exact_refs, item_refs = _pending_inspection_source_refs(selected, page_rows)
+	exact_refs, item_refs = _pending_inspection_source_refs(selected, page_rows, as_of_date)
 	for row in page_rows:
 		ref = None
 		if row["serial_no"]:
