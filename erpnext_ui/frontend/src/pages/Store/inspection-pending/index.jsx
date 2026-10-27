@@ -388,16 +388,6 @@ export default function InspectionPendingReport() {
                 {t("store.inspectionPending.linesPending")}
               </span>
             </div>
-            <div>
-              <span className="font-semibold tabular-nums">
-                {meta.mixed_currency
-                  ? t("store.inspectionPending.multipleCurrencies")
-                  : fmtMoney(meta.stock_value, meta.currency)}
-              </span>{" "}
-              <span className="text-muted-foreground">
-                {t("store.inspectionPending.stockValue")}
-              </span>
-            </div>
             <div className="min-w-0 truncate text-muted-foreground">
               {meta.warehouse || t("store.inspectionPending.allWarehouses")}
             </div>
@@ -428,9 +418,6 @@ export default function InspectionPendingReport() {
                   <th className="px-4 py-2.5 font-medium">
                     {t("store.inspectionPending.uom")}
                   </th>
-                  <th className="px-4 py-2.5 text-end font-medium">
-                    {t("store.inspectionPending.stockValue")}
-                  </th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
@@ -438,7 +425,7 @@ export default function InspectionPendingReport() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={8}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("common.loading")}
@@ -447,7 +434,7 @@ export default function InspectionPendingReport() {
                 ) : rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={8}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("store.inspectionPending.empty")}
@@ -485,9 +472,6 @@ export default function InspectionPendingReport() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {row.stock_uom || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-end tabular-nums">
-                        {fmtMoney(row.stock_value, row.currency || meta.currency)}
                       </td>
                       <td className="px-4 py-3 text-end">
                         <Button
