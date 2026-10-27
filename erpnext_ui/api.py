@@ -2553,10 +2553,10 @@ def _completed_pending_inspection_tracking(rows, as_of_date):
 			(as_of_date, *item_chunk, *tracking_params),
 			as_dict=True,
 		):
-			if inspection.batch_no:
-				completed_batches.add((inspection.item_code, inspection.batch_no))
 			if inspection.item_serial_no:
 				completed_serials.add((inspection.item_code, inspection.item_serial_no))
+			elif inspection.batch_no:
+				completed_batches.add((inspection.item_code, inspection.batch_no))
 
 	return completed_batches, completed_serials
 

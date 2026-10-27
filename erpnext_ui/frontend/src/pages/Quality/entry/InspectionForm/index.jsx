@@ -124,9 +124,13 @@ function filterCompletedReferenceRows(rows, completedRows) {
   const completedSerials = new Set();
   const completedItemOnly = new Set();
   completedRows.forEach((row) => {
-    if (row.batch_no) completedBatches.add(`${row.item_code}\u0000${row.batch_no}`);
-    if (row.item_serial_no) completedSerials.add(`${row.item_code}\u0000${row.item_serial_no}`);
-    if (!row.batch_no && !row.item_serial_no && row.item_code) {
+    // A serial inspection can also carry its parent batch. Count it as a
+    // serial completion so sibling serials in that batch stay selectable.
+    if (row.item_serial_no) {
+      completedSerials.add(`${row.item_code}\u0000${row.item_serial_no}`);
+    } else if (row.batch_no) {
+      completedBatches.add(`${row.item_code}\u0000${row.batch_no}`);
+    } else if (row.item_code) {
       completedItemOnly.add(row.item_code);
     }
   });
