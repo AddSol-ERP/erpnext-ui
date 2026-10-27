@@ -626,8 +626,8 @@ The Store module has an **Inspection Pending** report at
 `/store/inspection-pending` (tile in Store > Reports, sidebar child beside
 Stock Balance). It is **not** a Quality Inspection list and **not** a cross-app
 Script Report: the question is "what stock was sitting in the pending-QC
-warehouse as of the selected date?", which is answered from Stock Ledger
-Entries through that date.
+warehouse as of the selected date?" For today, match ERPNext Stock Balance's
+`Bin` snapshot; for an earlier date, sum Stock Ledger Entries through that date.
 
 - `UI Quality Inspection Settings.pending_inspection_warehouse` stores the site
   default. It is a `Link` to `Warehouse`, validated as non-group; an empty value
@@ -635,9 +635,9 @@ Entries through that date.
 - `get_pending_inspection_items` accepts an explicit `warehouse` so a second
   pending-QC location can be inspected without changing the site default. It
   reads the default when the argument is blank, returns `""` when nothing is
-  configured, and sums non-cancelled Stock Ledger Entry quantities through the
-  selected as-of date for the selected warehouse so its balances agree with the
-  Stock Ledger report for the same cutoff.
+  configured. For today's as-of date it reads `Bin.actual_qty`, `stock_value`
+  and `valuation_rate`, matching ERPNext Stock Balance. For a historical date
+  it sums non-cancelled Stock Ledger Entries through the cutoff.
 - Rows are expanded where tracking exists: one row per serial held at that
   cutoff, otherwise one row per batch. Serial and batch balances are rebuilt
   from signed bundle entries through the date, not current `Serial No`
@@ -650,7 +650,7 @@ Entries through that date.
   balance keeps a remainder row at item level rather than hiding stock. If
   tracking detail overstates the ledger balance, the report uses one item-level
   row for the full ledger quantity rather than overstating stock.
-- Permission is enforced server-side: read on `Item`, `Serial No`,
+- Permission is enforced server-side: read on `Bin`, `Item`, `Serial No`,
   `Batch` and `Stock Ledger Entry`, plus
   `frappe.has_permission("Warehouse", "read", doc=selected)`. A probe error
   fails closed. The route therefore has **no `RequireReportAccess`** guard and

@@ -2399,7 +2399,7 @@ def _pending_inspection_tracking(selected, item_codes, as_of_date):
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
 			where sle.`warehouse` = %s and sle.`posting_date` <= %s
-			  and sle.`docstatus` < 2 and ifnull(sle.`is_cancelled`, 0) = 0
+			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
 			  and ifnull(sbe.`serial_no`, '') != ''
 			  and sle.`item_code` in ({placeholders})
@@ -2420,7 +2420,6 @@ def _pending_inspection_tracking(selected, item_codes, as_of_date):
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
 			where sle.`warehouse` = %s and sle.`posting_date` <= %s
-			  and sle.`docstatus` < 2
 			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
 			  and sbe.`batch_no` is not null and sbe.`batch_no` != ''
@@ -2473,7 +2472,7 @@ def _pending_inspection_source_refs(selected, rows, as_of_date):
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
 			where sle.`warehouse` = %s and sle.`posting_date` <= %s
-			  and sle.`docstatus` < 2 and ifnull(sle.`is_cancelled`, 0) = 0
+			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sle.`actual_qty` > 0 and ({' or '.join(clauses)})
 			order by sle.`posting_datetime` desc, sle.`creation` desc
 			""",
@@ -2493,7 +2492,7 @@ def _pending_inspection_source_refs(selected, rows, as_of_date):
 			select sle.`item_code`, sle.`voucher_type`, sle.`voucher_no`
 			from `tabStock Ledger Entry` sle
 			where sle.`warehouse` = %s and sle.`posting_date` <= %s
-			  and sle.`docstatus` < 2 and ifnull(sle.`is_cancelled`, 0) = 0
+			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sle.`actual_qty` > 0 and sle.`item_code` in ({placeholders})
 			order by sle.`posting_datetime` desc, sle.`creation` desc
 			""",
@@ -2517,9 +2516,10 @@ def get_pending_inspection_items(
 	different one; the report also accepts an explicit warehouse so a user can
 	look at a second pending-QC location without changing the site default.
 
-	Only positive Stock Ledger Entry balances as of `as_of_date` are returned.
-	The date defaults to today. Cancelled ledger rows are excluded, and a zero
-	or negative net balance is not waiting to be inspected.
+	Only positive balances as of `as_of_date` are returned. The date defaults to
+	today. Today's balance comes from `Bin`, matching ERPNext Stock Balance;
+	historical balances are summed from non-cancelled Stock Ledger Entries. A
+	zero or negative net balance is not waiting to be inspected.
 
 	Rows are expanded when the item carries tracking: one row per serial for a
 	serialised item, otherwise one row per batch. A tracked item whose tracking
@@ -2544,7 +2544,7 @@ def get_pending_inspection_items(
 		dict: {"warehouse", "default_warehouse", "configured", "as_of_date", "rows",
 		       "total", "stock_value", "currency", "start", "limit"}
 	"""
-	for doctype in ("Item", "Serial No", "Batch", "Stock Ledger Entry"):
+	for doctype in ("Bin", "Item", "Serial No", "Batch", "Stock Ledger Entry"):
 		if not _can_read(doctype):
 			frappe.throw(
 				frappe._("You do not have permission to view pending inspection stock ({0}).").format(
@@ -2598,40 +2598,64 @@ def get_pending_inspection_items(
 		frappe.db.get_value("Company", company, "default_currency") if company else ""
 	) or ""
 
-	conditions = [
-		"sle.`warehouse` = %s",
-		"sle.`posting_date` <= %s",
-		"sle.`docstatus` < 2",
-		"ifnull(sle.`is_cancelled`, 0) = 0",
-	]
-	params = [selected, as_of_date]
-	if item_code:
-		conditions.append("sle.`item_code` = %s")
-		params.append(item_code)
-	where = " and ".join(conditions)
-
-	stock_rows = frappe.db.sql(
-		f"""
-		select sle.`item_code`, sle.`warehouse`,
-		       sum(sle.`actual_qty`) as `actual_qty`,
-		       sum(sle.`stock_value_difference`) as `stock_value`,
-		       case when sum(sle.`actual_qty`) != 0
-		            then sum(sle.`stock_value_difference`) / sum(sle.`actual_qty`)
-		            else 0 end as `valuation_rate`,
-		       i.`item_name`, i.`item_group`, i.`stock_uom`,
-		       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
-		       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
-		from `tabStock Ledger Entry` sle
-		left join `tabItem` i on i.`name` = sle.`item_code`
-		where {where}
-		group by sle.`item_code`, sle.`warehouse`, i.`item_name`, i.`item_group`,
-		         i.`stock_uom`, i.`has_batch_no`, i.`has_serial_no`
-		having sum(sle.`actual_qty`) > 0
-		order by coalesce(i.`item_name`, sle.`item_code`), sle.`item_code`
-		""",
-		tuple(params),
-		as_dict=True,
-	)
+	if as_of_date == nowdate():
+		# ERPNext's Stock Balance uses Bin.actual_qty for today's closing balance.
+		# Use the same snapshot here; rebuilding today's total from SLE movements
+		# can disagree with Bin after legacy imports or stock reposting.
+		conditions = ["b.`warehouse` = %s", "b.`actual_qty` > 0"]
+		params = [selected]
+		if item_code:
+			conditions.append("b.`item_code` = %s")
+			params.append(item_code)
+		where = " and ".join(conditions)
+		stock_rows = frappe.db.sql(
+			f"""
+			select b.`item_code`, b.`warehouse`, b.`actual_qty`,
+			       b.`stock_value`, b.`valuation_rate`,
+			       i.`item_name`, i.`item_group`, i.`stock_uom`,
+			       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
+			       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
+			from `tabBin` b
+			left join `tabItem` i on i.`name` = b.`item_code`
+			where {where}
+			order by coalesce(i.`item_name`, b.`item_code`), b.`item_code`
+			""",
+			tuple(params),
+			as_dict=True,
+		)
+	else:
+		conditions = [
+			"sle.`warehouse` = %s",
+			"sle.`posting_date` <= %s",
+			"ifnull(sle.`is_cancelled`, 0) = 0",
+		]
+		params = [selected, as_of_date]
+		if item_code:
+			conditions.append("sle.`item_code` = %s")
+			params.append(item_code)
+		where = " and ".join(conditions)
+		stock_rows = frappe.db.sql(
+			f"""
+			select sle.`item_code`, sle.`warehouse`,
+			       sum(sle.`actual_qty`) as `actual_qty`,
+			       sum(sle.`stock_value_difference`) as `stock_value`,
+			       case when sum(sle.`actual_qty`) != 0
+			            then sum(sle.`stock_value_difference`) / sum(sle.`actual_qty`)
+			            else 0 end as `valuation_rate`,
+			       i.`item_name`, i.`item_group`, i.`stock_uom`,
+			       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
+			       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
+			from `tabStock Ledger Entry` sle
+			left join `tabItem` i on i.`name` = sle.`item_code`
+			where {where}
+			group by sle.`item_code`, sle.`warehouse`, i.`item_name`, i.`item_group`,
+			         i.`stock_uom`, i.`has_batch_no`, i.`has_serial_no`
+			having sum(sle.`actual_qty`) > 0
+			order by coalesce(i.`item_name`, sle.`item_code`), sle.`item_code`
+			""",
+			tuple(params),
+			as_dict=True,
+		)
 
 	serials, batches = _pending_inspection_tracking(
 		selected, [row.item_code for row in stock_rows], as_of_date
