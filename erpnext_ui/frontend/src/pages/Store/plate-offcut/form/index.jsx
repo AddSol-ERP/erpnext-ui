@@ -86,6 +86,7 @@ function printOffcutLabels(popup, pieces) {
         ["Weight", num(piece.weight_kg) ? `${num(piece.weight_kg).toFixed(3)} Kg` : ""],
       ].filter(([, value]) => value).map(([key, value]) => `${escapeHtml(key)}: ${escapeHtml(value)}`).join("<br>")}</div></div>
     </article>`).join("");
+  popup.document.open();
   popup.document.write(`<!doctype html><html><head><title>Offcut QR labels</title>
     <style>body{font:13px Arial,sans-serif;margin:18px;color:#111}.labels{display:grid;grid-template-columns:1fr 1fr;gap:12px}.label{box-sizing:border-box;border:1px solid #aaa;padding:12px;display:flex;gap:12px;align-items:center;break-inside:avoid}.label img{width:108px;height:108px}.serial{font-size:17px;font-weight:700;margin-bottom:8px}.info{line-height:1.5;font-size:11px}@media print{body{margin:0}.label{border:1px solid #bbb}}</style>
     </head><body><main class="labels">${labels}</main><script>window.onload=()=>window.print()</script></body></html>`);
@@ -472,6 +473,14 @@ export default function PlateOffcutForm() {
     setFieldErrors(errors);
     if (Object.keys(errors).length) return;
 
+    // Open synchronously from the user's Submit click so the browser allows
+    // the QR print report after the server registers serials on submission.
+    const reportWindow = window.open("", "_blank", "width=900,height=720");
+    if (reportWindow) {
+      reportWindow.document.write("<!doctype html><title>Offcut QR labels</title><p>Preparing QR labels…</p>");
+      reportWindow.document.close();
+    }
+
     setSaving(true);
     setError("");
     try {
@@ -490,9 +499,27 @@ export default function PlateOffcutForm() {
         doc: payload,
         initialAttachment: isEdit ? undefined : initialAttachment,
       });
+      if (reportWindow) {
+        try {
+          const registeredDoc = await fetchDocument(DOCTYPE, saved.data.name);
+          const serials = [...new Set((registeredDoc.offcuts || []).map((row) => row.serial_no).filter(Boolean))];
+          const pieces = await Promise.all(serials.map(async (serial) => {
+            const result = await fetchOffcutStock({ search: serial, limitStart: 0, pageLength: 200 });
+            return result.pieces.find((piece) => piece.serial === serial);
+          }));
+          if (pieces.length && pieces.every((piece) => piece?.qr_svg_base64)) {
+            printOffcutLabels(reportWindow, pieces);
+          } else {
+            reportWindow.close();
+          }
+        } catch {
+          reportWindow.close();
+        }
+      }
       setDirty(false);
       navigate(`/store/plate-offcut/${encodeURIComponent(saved.data.name)}`);
     } catch (e) {
+      reportWindow?.close();
       if (e?.savedDocName) {
         setError(e.message || t("attachments.uploadFailed"));
         navigate(`/store/plate-offcut/${encodeURIComponent(e.savedDocName)}`);
@@ -1118,6 +1145,10 @@ export default function PlateOffcutForm() {
         open={confirmSubmit}
         loading={saving}
         title={t("store.plateOffcut.submitTitle")}
+        confirmLabel={t("common.submit")}
+        confirmLoadingLabel={t("common.submitting")}
+        variant="default"
+        icon={false}
         message={t("store.plateOffcut.submitMessage", {
           pieces,
           scrap: estimate?.scrap_weight_kg ?? 0,
