@@ -2701,16 +2701,18 @@ def get_pending_inspection_items(
 				frappe._("You do not have permission to view this warehouse."),
 				frappe.PermissionError,
 			)
-		warehouse_rows = frappe.get_list(
-			"Warehouse", filters={"name": selected, "is_group": 0},
-			fields=["name", "company"], limit_page_length=1,
-		)
-	else:
-		warehouse_rows = frappe.get_list(
-			"Warehouse", filters={"is_group": 0},
-			fields=["name", "company"], limit_page_length=0,
-		)
+	accessible_warehouse_rows = frappe.get_list(
+		"Warehouse", filters={"is_group": 0},
+		fields=["name", "company"], limit_page_length=0,
+	)
+	accessible_warehouses = [row.name for row in accessible_warehouse_rows]
+	warehouse_rows = (
+		[row for row in accessible_warehouse_rows if row.name == selected]
+		if selected
+		else accessible_warehouse_rows
+	)
 	warehouses = [row.name for row in warehouse_rows]
+	payload["available_warehouses"] = accessible_warehouses
 	if not warehouses:
 		payload["configured"] = True
 		return payload

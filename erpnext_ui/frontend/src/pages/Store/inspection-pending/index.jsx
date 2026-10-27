@@ -12,6 +12,13 @@ import useListPagination from "../../../hooks/useListPagination";
 import { REFERENCE_TYPES } from "../../../lib/inspectionTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { localDateISO } from "../../../utils/localDateTime";
 import {
   Empty,
@@ -81,6 +88,7 @@ export default function InspectionPendingReport() {
   // Rapid filter changes can leave an older response in flight. Without this
   // guard it can overwrite the rows for the latest filter selection.
   const requestId = useRef(0);
+  const warehouseDefaultApplied = useRef(false);
 
   const {
     page,
@@ -113,6 +121,13 @@ export default function InspectionPendingReport() {
       setRows(payload.rows || []);
       setMeta(payload);
       setTotal(payload.total || 0);
+      if (!warehouseDefaultApplied.current) {
+        warehouseDefaultApplied.current = true;
+        if (payload.default_warehouse &&
+            (payload.available_warehouses || []).includes(payload.default_warehouse)) {
+          setWarehouse(payload.default_warehouse);
+        }
+      }
 
     } catch (e) {
       if (id !== requestId.current) return;
@@ -240,13 +255,28 @@ export default function InspectionPendingReport() {
             <label className="block text-xs font-medium text-muted-foreground">
               {t("store.inspectionPending.warehouse")}
             </label>
-            <LinkField
-              doctype="Warehouse"
-              value={warehouse}
-              onChange={changeWarehouse}
-              filters={{ is_group: 0 }}
-              placeholder={t("store.inspectionPending.allWarehouses")}
-            />
+            <Select
+              value={warehouse || "__all_warehouses__"}
+              onValueChange={(next) =>
+                changeWarehouse(next === "__all_warehouses__" ? "" : next)
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={t("store.inspectionPending.allWarehouses")}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all_warehouses__">
+                  {t("store.inspectionPending.allWarehouses")}
+                </SelectItem>
+                {(meta.available_warehouses || []).map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-muted-foreground">
