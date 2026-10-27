@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ClipboardList,
+  ClipboardCheck,
   Plus,
   Trash2,
   Info,
@@ -144,6 +145,11 @@ function escapeHtml(value) {
   })[character]);
 }
 
+function getInternalReceiptReturnTo(value) {
+  if (typeof value !== "string") return "";
+  return /^\/store\/purchase-receipt\/[^/?#]+$/.test(value) ? value : "";
+}
+
 export default function PurchaseReceiptForm() {
   const { name } = useParams();
   const [searchParams] = useSearchParams();
@@ -172,6 +178,8 @@ export default function PurchaseReceiptForm() {
     items: [],
     docstatus: 0,
   });
+  const [submittedInspections, setSubmittedInspections] = useState([]);
+  const [inspectionsLoading, setInspectionsLoading] = useState(true);
 
   /**
    * Outstanding PO lines not yet added to this receipt. Display-only: it never
@@ -368,6 +376,7 @@ export default function PurchaseReceiptForm() {
 
   const loadDoc = useCallback(async () => {
     setLoading(true);
+    setInspectionsLoading(true);
     try {
       const res = await get(`resource/Purchase Receipt/${name}`);
       const d = res.data;
@@ -393,16 +402,35 @@ export default function PurchaseReceiptForm() {
         rate_from_po: r.rate ?? "",
       }));
       const bundleNames = [...new Set(items.map((row) => row.serial_and_batch_bundle).filter(Boolean))];
-      const bundleResults = await Promise.all(bundleNames.map(async (bundleName) => {
-        try {
-          const bundle = await get(
-            `resource/${encodeURIComponent("Serial and Batch Bundle")}/${encodeURIComponent(bundleName)}`,
-          );
-          return [bundleName, bundle?.data?.entries || []];
-        } catch {
-          return [bundleName, []];
-        }
-      }));
+      const inspectionsPromise = get("resource/Quality Inspection", {
+        fields: JSON.stringify([
+          "name",
+          "item_code",
+          "item_serial_no",
+          "batch_no",
+          "docstatus",
+        ]),
+        filters: JSON.stringify([
+          ["reference_type", "=", "Purchase Receipt"],
+          ["reference_name", "=", name],
+          ["docstatus", "=", 1],
+        ]),
+        limit_start: 0,
+        limit_page_length: 500,
+      }).catch(() => ({ data: [] }));
+      const [bundleResults, inspectionResult] = await Promise.all([
+        Promise.all(bundleNames.map(async (bundleName) => {
+          try {
+            const bundle = await get(
+              `resource/${encodeURIComponent("Serial and Batch Bundle")}/${encodeURIComponent(bundleName)}`,
+            );
+            return [bundleName, bundle?.data?.entries || []];
+          } catch {
+            return [bundleName, []];
+          }
+        })),
+        inspectionsPromise,
+      ]);
       const bundleEntries = Object.fromEntries(bundleResults);
       const itemsWithTracking = items.map((row) => {
         const entries = (bundleEntries[row.serial_and_batch_bundle] || [])
@@ -423,6 +451,8 @@ export default function PurchaseReceiptForm() {
         items: itemsWithTracking,
         docstatus: d.docstatus,
       });
+      setSubmittedInspections(inspectionResult?.data || []);
+      setInspectionsLoading(false);
       setSelectedPurchaseOrders(
         [...new Set(itemsWithTracking.map((row) => row.purchase_order).filter(Boolean))],
       );
@@ -438,6 +468,8 @@ export default function PurchaseReceiptForm() {
       }));
     } catch {
       setError(t("common.failedToLoad", { name: t("store.receipt.title") }));
+      setSubmittedInspections([]);
+      setInspectionsLoading(false);
     } finally {
       setLoading(false);
     }
@@ -1064,6 +1096,50 @@ export default function PurchaseReceiptForm() {
       return;
     }
     submitNow();
+  };
+
+  const hasCompletedInspection = (row) => {
+    const inspections = submittedInspections.filter(
+      (inspection) => inspection.item_code === row.item_code,
+    );
+    const serials = row.tracking_serials?.length
+      ? row.tracking_serials
+      : [...new Set(String(row.serial_no || "").split(/[\n,]/).map((value) => value.trim()).filter(Boolean))];
+    if (serials.length) {
+      return serials.every((serial) =>
+        inspections.some((inspection) => inspection.item_serial_no === serial),
+      );
+    }
+
+    const batches = row.tracking_batches?.length
+      ? row.tracking_batches
+      : row.batch_no ? [row.batch_no] : [];
+    if (batches.length) {
+      return batches.every((batch) =>
+        inspections.some((inspection) => inspection.batch_no === batch),
+      );
+    }
+
+    return inspections.length > 0;
+  };
+
+  const startQualityInspection = (row) => {
+    const params = new URLSearchParams({
+      item_code: row.item_code,
+      inspection_type: "Incoming",
+      reference_type: "Purchase Receipt",
+      reference_name: name,
+      return_to: `/store/purchase-receipt/${encodeURIComponent(name)}`,
+    });
+    const serials = row.tracking_serials?.length
+      ? row.tracking_serials
+      : [...new Set(String(row.serial_no || "").split(/[\n,]/).map((value) => value.trim()).filter(Boolean))];
+    const batches = row.tracking_batches?.length
+      ? row.tracking_batches
+      : row.batch_no ? [row.batch_no] : [];
+    if (serials.length === 1) params.set("item_serial_no", serials[0]);
+    if (!serials.length && batches.length === 1) params.set("batch_no", batches[0]);
+    navigate(`/quality/inspection/new?${params.toString()}`);
   };
 
   const closeAttach = () => {
@@ -1748,6 +1824,24 @@ export default function PurchaseReceiptForm() {
                         <Trash2 className="size-3.5 text-destructive" />
                       </Button>
                     </div>
+                  ) : null}
+                  {isEdit && !inspectionsLoading ? (
+                    hasCompletedInspection(row) ? (
+                      <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        {t("store.receipt.qualityInspectionComplete")}
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => startQualityInspection(row)}
+                        aria-label={t("store.receipt.attemptQualityInspection", { item: row.item_code })}
+                      >
+                        <ClipboardCheck className="size-3.5" />
+                        {t("store.receipt.attemptQualityInspection")}
+                      </Button>
+                    )
                   ) : null}
                 </li>
               );

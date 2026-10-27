@@ -73,6 +73,11 @@ const DEFAULT_SAMPLE_SIZE = 1;
 const EMPTY_REFERENCE_ITEMS = [];
 const ADDITIONAL_FIELDS_METHOD = "method/erpnext_ui.quality_inspection.get_quality_inspection_field_config";
 
+function getInternalReturnTo(params) {
+  const value = params.get("return_to") || "";
+  return /^\/store\/purchase-receipt\/[^/?#]+$/.test(value) ? value : "";
+}
+
 function configuredFieldDefault(field) {
   return field.fieldtype === "Check" ? 0 : "";
 }
@@ -122,6 +127,7 @@ export default function InspectionForm() {
   const { t } = useTranslation();
 
   const isEdit = !!name;
+  const returnTo = getInternalReturnTo(searchParams);
 
   // The Store > Inspection Pending report opens this form with the stock row
   // already filled in. The parameters are initial values only; every field
@@ -817,7 +823,7 @@ export default function InspectionForm() {
       // The document is on the server now, so the in-progress paper is no
       // longer the place to come back to.
       clearInspectionDraft();
-      navigate("/quality/inspection");
+      navigate(returnTo || "/quality/inspection");
     } catch (e) {
       // e.message is already the server's own wording, resolved from
       // _server_messages and with informational `alert: 1` entries filtered

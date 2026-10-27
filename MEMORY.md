@@ -136,7 +136,7 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 | **`get_indent_queue(...)`** | `:1003-1180` | Store: the storekeeper's worklist. See §3.7. |
 | `has_app_permission()` | `:76-80` | hook, returns `True` |
 | **`get_custom_report_data(report_key, filters=None)`** | `:2526` | Runs a Script Report that lives in ANOTHER app. Takes a **key**, never a report name. See §3.8. |
-| **`get_pending_inspection_items(warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50)`** | new | Store: pending-QC stock, split/filterable by serial and batch. See §3.9. |
+| **`get_pending_inspection_items(warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50, as_of_date=None)`** | new | Store: pending-QC stock, split/filterable by serial and batch. See §3.9. |
 | `boot_session(bootinfo)` | `:103-122` | hook |
 
 **17 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which

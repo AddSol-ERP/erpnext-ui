@@ -204,6 +204,7 @@
     if (field.fieldtype === "Check") return value ? "Yes" : "No";
     if (field.fieldtype === "Date") return formatDate(value);
     if (field.fieldtype === "Datetime") return formatDateTime(value);
+    if (field.fieldtype === "Text Editor") return stripTags(String(value));
     return String(value);
   }
 
@@ -370,8 +371,14 @@
 
     els.reviewSummary.replaceChildren();
     els.reviewBody.replaceChildren();
-    const first = els.form.querySelector("input, select, textarea");
-    if (first) first.focus();
+    const first = els.form.querySelector("input, select, textarea, [contenteditable]");
+    if (first) {
+      if (first.matches("[contenteditable]")) {
+        first.focus({ preventScroll: true });
+      } else {
+        first.focus();
+      }
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -402,7 +409,7 @@
     const firstItem = items[0];
     const contextFields = firstItem.context || [];
     const inputFields = firstItem.fields || [];
-    const identityNames = ["item_code", "item_name", "description"];
+    const identityNames = ["item_name", "description"];
     const identityFields = contextFields.filter((field) => identityNames.includes(field.fieldname));
     const remainingContextFields = contextFields.filter(
       (field) => !identityNames.includes(field.fieldname) && !["qty", "uom"].includes(field.fieldname),
@@ -415,17 +422,17 @@
     table.setAttribute("aria-label", "Requested items and supplier quotation fields");
 
     const columns = [
-      ...desktopIdentityFields.map((field) => ({
-        label: field.label,
-        help: field.help_text,
-        className: "desktop-identity",
-        fieldname: field.fieldname,
-      })),
-      ...(!hasFullIdentity ? [{ label: "Item", className: "item-column" }] : []),
-      ...inputFields.map((field) => ({
-        label: field.mandatory ? `${field.label} *` : field.label,
-        help: field.help_text,
-      })),
+      { label: "Item", className: "item-column" },
+      ...inputFields.map((field) => {
+        let label = field.mandatory ? `${field.label} *` : field.label;
+        if (field.fieldname === "rate" && firstItem && firstItem.uom) {
+          label = field.mandatory ? `${field.label} (${firstItem.uom}) *` : `${field.label} (${firstItem.uom})`;
+        }
+        return {
+          label,
+          help: field.help_text,
+        };
+      }),
       { label: "Requested Qty" },
       ...remainingContextFields.map((field) => ({ label: field.label, help: field.help_text })),
     ];
@@ -446,25 +453,21 @@
       state.values.items[item.item] = {};
       const row = document.createElement("tr");
       row.dataset.item = item.item;
-      const itemCell = el("th", `item-column mobile-item-summary${hasFullIdentity ? " desktop-mobile-only" : ""}`);
+      const itemCell = el("th", "item-column mobile-item-summary");
       itemCell.scope = "row";
       itemCell.appendChild(el("strong", "item-title", item.item_name || item.item_code || "Item"));
-      if (item.item_code && item.item_name) itemCell.appendChild(el("span", "item-code", item.item_code));
       if (item.description) itemCell.appendChild(el("p", "item-desc", item.description));
       row.appendChild(itemCell);
-
-      desktopIdentityFields.forEach((field) => {
-        const itemField = (item.context || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
-        const cell = el("td", "context-value desktop-identity", displayValue(itemField, itemField.value));
-        cell.dataset.label = itemField.label;
-        row.appendChild(cell);
-      });
 
       inputFields.forEach((field) => {
         const itemField = (item.fields || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
         state.values.items[item.item][itemField.fieldname] = initialValue(itemField);
         const cell = document.createElement("td");
-        cell.dataset.label = itemField.mandatory ? `${itemField.label} *` : itemField.label;
+        let label = itemField.mandatory ? `${itemField.label} *` : itemField.label;
+        if (itemField.fieldname === "rate" && item.uom) {
+          label = itemField.mandatory ? `${itemField.label} (${item.uom}) *` : `${itemField.label} (${item.uom})`;
+        }
+        cell.dataset.label = label;
         cell.appendChild(buildField(itemField, "item", item.item, true));
         row.appendChild(cell);
       });
@@ -507,6 +510,9 @@
 
   function initialValue(field) {
     if (field.fieldtype === "Check") return field.value ? 1 : 0;
+    if (field.fieldtype === "Text Editor") {
+      return field.value === null || field.value === undefined ? "" : String(field.value);
+    }
     return field.value === null || field.value === undefined ? "" : field.value;
   }
 
@@ -521,11 +527,13 @@
     const wrap = el("div", compact ? `${wrapClass} table-input-field` : wrapClass);
 
     const control =
-      field.fieldtype === "Select"
+      field.fieldtype === "Select" || field.link_options
         ? buildSelect(field, id)
         : field.fieldtype === "Check"
           ? buildCheckbox(field, id)
-          : buildInput(field, id);
+          : field.fieldtype === "Text Editor"
+            ? buildRichTextEditor(field, id)
+            : buildInput(field, id);
 
     control.dataset.scope = scope;
     control.dataset.field = field.fieldname;
@@ -533,32 +541,53 @@
     control.id = id;
 
     const write = () => {
-      let value = control.value;
-      if (field.fieldtype === "Check") value = control.checked ? 1 : 0;
+      let value;
+      if (field.fieldtype === "Check") {
+        value = control.checked ? 1 : 0;
+      } else if (field.fieldtype === "Text Editor" && control._getValue) {
+        value = control._getValue();
+      } else {
+        value = control.value;
+      }
       if (scope === "document") {
         state.values.document[field.fieldname] = value;
       } else {
         state.values.items[itemName][field.fieldname] = value;
       }
     };
-    control.addEventListener("input", write);
-    control.addEventListener("change", write);
+    if (field.fieldtype === "Text Editor") {
+      // events handled by editor
+    } else {
+      control.addEventListener("input", write);
+      control.addEventListener("change", write);
+    }
+    if (field.fieldtype === "Text Editor" && control._attachWrite) {
+      control._attachWrite(write);
+    } else if (field.fieldtype === "Text Editor") {
+      const editorEl = control.querySelector(".rich-editor") || control;
+      editorEl.addEventListener("input", write);
+      editorEl.addEventListener("blur", write);
+    }
 
     if (compact) {
+    if (field.fieldtype === "Text Editor") {
+      wrap.appendChild(control);
+    } else {
       control.setAttribute("aria-label", `${field.label}${field.mandatory ? " (required)" : ""}`);
       if (field.help_text) control.title = field.help_text;
       wrap.appendChild(control);
-    } else if (field.fieldtype === "Check") {
-      const label = el("label", null, field.label);
-      label.htmlFor = id;
-      wrap.appendChild(control);
-      wrap.appendChild(label);
-    } else {
-      const label = el("label", null, field.mandatory ? `${field.label} *` : field.label);
-      label.htmlFor = id;
-      wrap.appendChild(label);
-      wrap.appendChild(control);
     }
+  } else if (field.fieldtype === "Check") {
+    const label = el("label", null, field.label);
+    label.htmlFor = id;
+    wrap.appendChild(control);
+    wrap.appendChild(label);
+  } else {
+    const label = el("label", null, field.mandatory ? `${field.label} *` : field.label);
+    label.htmlFor = id;
+    wrap.appendChild(label);
+    wrap.appendChild(control);
+  }
 
     if (field.help_text && !compact) {
       wrap.appendChild(el("span", "help", field.help_text));
@@ -612,15 +641,31 @@
 
   function buildSelect(field, id) {
     const control = document.createElement("select");
-    const options = String(field.options || "")
-      .split("\n")
-      .map((option) => option.trim())
-      .filter(Boolean);
-    control.appendChild(new Option("Select…", ""));
-    const current = field.value === null || field.value === undefined ? "" : String(field.value);
-    if (current && !options.includes(current)) options.unshift(current);
-    options.forEach((option) => control.appendChild(new Option(option, option)));
-    control.value = current;
+    if (Array.isArray(field.link_options) && field.link_options.length) {
+      control.appendChild(new Option("Select…", ""));
+      const current = field.value === null || field.value === undefined ? "" : String(field.value);
+      let hasCurrent = false;
+      field.link_options.forEach((opt) => {
+        const value = opt.value !== undefined ? String(opt.value) : "";
+        const label = opt.label !== undefined ? String(opt.label) : value;
+        if (value === current) hasCurrent = true;
+        control.appendChild(new Option(label, value));
+      });
+      if (current && !hasCurrent) {
+        control.appendChild(new Option(current, current));
+      }
+      control.value = current;
+    } else {
+      const options = String(field.options || "")
+        .split("\n")
+        .map((option) => option.trim())
+        .filter(Boolean);
+      control.appendChild(new Option("Select…", ""));
+      const current = field.value === null || field.value === undefined ? "" : String(field.value);
+      if (current && !options.includes(current)) options.unshift(current);
+      options.forEach((option) => control.appendChild(new Option(option, option)));
+      control.value = current;
+    }
     control.id = id;
     return control;
   }
@@ -633,6 +678,62 @@
     return control;
   }
 
+  function buildRichTextEditor(field, id) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rich-editor-wrap";
+    wrapper.id = id;
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "rich-toolbar";
+
+    function cmd(name) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "rich-btn";
+      button.innerHTML = name === "ul" ? "•" : name === "ol" ? "1." : name === "bold" ? "<b>B</b>" : name === "italic" ? "<i>I</i>" : name === "underline" ? "<u>U</u>" : name;
+      button.addEventListener("click", (e) => {
+        e.preventDefault();
+        editor.focus();
+        if (name === "ul") document.execCommand("insertUnorderedList");
+        else if (name === "ol") document.execCommand("insertOrderedList");
+        else document.execCommand(name);
+      });
+      return button;
+    }
+
+    toolbar.appendChild(cmd("bold"));
+    toolbar.appendChild(cmd("italic"));
+    toolbar.appendChild(cmd("underline"));
+    toolbar.appendChild(cmd("ul"));
+    toolbar.appendChild(cmd("ol"));
+    wrapper.appendChild(toolbar);
+
+    const editor = document.createElement("div");
+    editor.className = "rich-editor";
+    editor.contentEditable = "true";
+    editor.innerHTML = field.value === null || field.value === undefined ? "" : String(field.value);
+    wrapper.appendChild(editor);
+
+    wrapper._getValue = () => editor.innerHTML;
+    let writeHandler = null;
+    wrapper._attachWrite = (fn) => {
+      writeHandler = fn;
+    };
+    editor.addEventListener("input", () => {
+      if (writeHandler) writeHandler();
+    });
+    editor.addEventListener("blur", () => {
+      if (writeHandler) writeHandler();
+    });
+    editor.addEventListener("paste", (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData("text/plain");
+      document.execCommand("insertText", false, text);
+    });
+
+    return wrapper;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Review / submit                                                    */
   /* ------------------------------------------------------------------ */
@@ -640,6 +741,10 @@
   function isEmpty(value, field) {
     if (field.fieldtype === "Check") return !value;
     if (value === null || value === undefined) return true;
+    if (field.fieldtype === "Text Editor") {
+      const text = stripTags(String(value)).trim();
+      return text === "" || text === "0";
+    }
     const text = String(value).trim();
     return text === "" || text === "0";
   }
@@ -825,7 +930,12 @@
     const row = el("div", "review-field");
     row.appendChild(el("dt", null, field.label));
     const display = reviewValue(field, value, currency);
-    const dd = el("dd", display.empty ? "review-value review-empty" : "review-value", display.text);
+    const dd = el("dd", display.empty ? "review-value review-empty" : "review-value");
+    if (display.node) {
+      dd.appendChild(display.node);
+    } else {
+      dd.textContent = display.text;
+    }
     row.appendChild(dd);
     return row;
   }
@@ -837,6 +947,14 @@
     if (field.fieldtype === "Check") return { text: value ? "Yes" : "No" };
     if (field.fieldtype === "Date") return { text: formatDate(value) };
     if (field.fieldtype === "Datetime") return { text: formatDateTime(value) };
+    if (field.fieldtype === "Text Editor") {
+      const text = stripTags(String(value)).trim();
+      if (!text) return { text: "Not provided", empty: true };
+      const dd = document.createElement("div");
+      dd.className = "review-rich";
+      dd.innerHTML = String(value);
+      return { node: dd, empty: false };
+    }
     if (field.fieldtype === "Int") {
       return { text: formatNumber(value, { maximumFractionDigits: 0 }) };
     }
@@ -897,14 +1015,26 @@
         : findItemRow(itemName);
 
     if (!target) return;
-    if (!target.matches("input, select, textarea")) {
-      const control = target.querySelector("input, select, textarea");
-      target = control || els.form.querySelector("input, select, textarea") || target;
+    if (!target.matches("input, select, textarea, [contenteditable]")) {
+      const control = target.querySelector("input, select, textarea, [contenteditable]");
+      target = control || els.form.querySelector("input, select, textarea, [contenteditable]") || target;
     }
 
-    target.focus({ preventScroll: true });
+    if (target.matches("[contenteditable]")) {
+      target.focus({ preventScroll: true });
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (_) {}
+    } else {
+      target.focus({ preventScroll: true });
+    }
     target.scrollIntoView({ block: "center", behavior: "smooth" });
-    flash(target.closest(".field, .table-input-field, tr") || target);
+    flash(target.closest(".field, .table-input-field, .rich-editor-wrap, tr") || target);
   }
 
   function findItemRow(itemName) {
@@ -1064,8 +1194,14 @@
   $("back-button").addEventListener("click", () => {
     hideAllCards();
     show(els.form);
-    const first = els.form.querySelector("input, select, textarea");
-    if (first) first.focus();
+    const first = els.form.querySelector("input, select, textarea, [contenteditable]");
+    if (first) {
+      if (first.matches("[contenteditable]")) {
+        first.focus({ preventScroll: true });
+      } else {
+        first.focus();
+      }
+    }
   });
   $("submit-button").addEventListener("click", submitResponse);
 

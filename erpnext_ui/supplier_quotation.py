@@ -31,6 +31,7 @@ from frappe.utils import (
 	getdate,
 	now_datetime,
 	nowdate,
+	sanitize_html,
 	strip_html,
 	validate_email_address,
 )
@@ -168,6 +169,7 @@ SAFE_FIELD_TYPES = {
 	"Small Text",
 	"Text",
 	"Long Text",
+	"Text Editor",
 	"Link",
 	"Email",
 	"Phone",
@@ -232,7 +234,7 @@ SUPPLIER_QUOTATION_EMAIL_TEMPLATE_KEYS = {
 }
 
 DEFAULT_ITEM_FIELDS = {
-	"item_code": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 10},
+	"item_code": {"enabled": 0, "editable": 0, "mandatory": 0, "order": 10},
 	"item_name": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 20},
 	"description": {"enabled": 1, "editable": 0, "mandatory": 0, "order": 30},
 	# `description` carries the Material Request's "Remark" and stays read-only
@@ -249,7 +251,9 @@ DEFAULT_ITEM_FIELDS = {
 
 DEFAULT_DOCUMENT_FIELDS = {
 	"valid_till": {"enabled": 1, "editable": 1, "mandatory": 0, "order": 10},
-	"remarks": {"enabled": 1, "editable": 1, "mandatory": 0, "order": 20},
+	"incoterm": {"enabled": 1, "editable": 1, "mandatory": 0, "order": 15},
+	"terms": {"enabled": 1, "editable": 1, "mandatory": 0, "order": 20},
+	"remarks": {"enabled": 1, "editable": 1, "mandatory": 0, "order": 25},
 }
 
 
@@ -735,6 +739,17 @@ def _validate_value(df, value):
 			frappe.throw(_("{0} is too long.").format(df.label or df.fieldname))
 		return text
 
+	if fieldtype == "Text Editor":
+		html = sanitize_html(value or "", always_sanitize=True)
+		# Strip tags for length check to avoid penalising markup
+		text = strip_html(html).strip()
+		max_length = cint(df.length) or 20000
+		if len(text) > max_length:
+			frappe.throw(_("{0} is too long.").format(df.label or df.fieldname))
+		if text == "":
+			return None
+		return html
+
 	if fieldtype == "Int":
 		try:
 			return int(str(value))
@@ -789,7 +804,7 @@ def _validate_value(df, value):
 
 def _field_payload(row, value, editable):
 	df = _field_meta(row)
-	return {
+	payload = {
 		"fieldname": row.fieldname,
 		"label": row.label or df.label or row.fieldname,
 		"fieldtype": df.fieldtype,
@@ -799,6 +814,20 @@ def _field_payload(row, value, editable):
 		"editable": 1 if editable else 0,
 		"value": _serialise_value(df, value),
 	}
+	if editable and df.fieldtype == "Link" and (df.options or "").strip() == "Incoterm":
+		try:
+			incoterms = frappe.get_all(
+				"Incoterm",
+				fields=["name", "title"],
+				order_by="name",
+			)
+			payload["link_options"] = [
+				{"value": row.name, "label": f"{row.name} — {row.title}" if row.title else row.name}
+				for row in incoterms
+			]
+		except Exception:
+			payload["link_options"] = []
+	return payload
 
 
 def _serialise_value(df, value):
@@ -813,7 +842,10 @@ def _serialise_value(df, value):
 	if df.fieldtype in ("Date", "Datetime"):
 		return _as_iso(value)
 	if df.fieldtype == "Text Editor":
-		return strip_html(str(value))
+		try:
+			return sanitize_html(str(value), always_sanitize=True)
+		except Exception:
+			return strip_html(str(value))
 	return value
 
 

@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   Boxes,
   Loader2,
+  Printer,
   Plus,
   Save,
   Scissors,
@@ -46,6 +47,7 @@ import {
   serverReason,
 } from "../estimate";
 import { isComplete, rowIssues } from "../../../../lib/offcutIssues";
+import { fetchOffcutStock } from "../api";
 
 const DOCTYPE = "Plate Offcut";
 
@@ -65,6 +67,31 @@ const nextRid = () => `o${++ridSeq}`;
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
+  })[char]);
+}
+
+function printOffcutLabels(popup, pieces) {
+  const labels = pieces.map((piece) => `
+    <article class="label">
+      <img src="data:image/svg+xml;base64,${piece.qr_svg_base64}" alt="QR code">
+      <div><div class="serial">${escapeHtml(piece.serial)}</div>
+      <div class="info">${[
+        ["Item", piece.item_code],
+        ["Size", piece.length_mm && piece.width_mm ? `${piece.length_mm} x ${piece.width_mm} mm` : ""],
+        ["Batch", piece.batch_no],
+        ["Source plate", piece.source_serial],
+        ["Weight", num(piece.weight_kg) ? `${num(piece.weight_kg).toFixed(3)} Kg` : ""],
+      ].filter(([, value]) => value).map(([key, value]) => `${escapeHtml(key)}: ${escapeHtml(value)}`).join("<br>")}</div></div>
+    </article>`).join("");
+  popup.document.write(`<!doctype html><html><head><title>Offcut QR labels</title>
+    <style>body{font:13px Arial,sans-serif;margin:18px;color:#111}.labels{display:grid;grid-template-columns:1fr 1fr;gap:12px}.label{box-sizing:border-box;border:1px solid #aaa;padding:12px;display:flex;gap:12px;align-items:center;break-inside:avoid}.label img{width:108px;height:108px}.serial{font-size:17px;font-weight:700;margin-bottom:8px}.info{line-height:1.5;font-size:11px}@media print{body{margin:0}.label{border:1px solid #bbb}}</style>
+    </head><body><main class="labels">${labels}</main><script>window.onload=()=>window.print()</script></body></html>`);
+  popup.document.close();
+}
+
 export default function PlateOffcutForm() {
   const { name } = useParams();
   // A plate chosen from the "available" tab arrives here as ?serial=, so the
@@ -73,6 +100,7 @@ export default function PlateOffcutForm() {
   // a client-side navigation.
   const [searchParams] = useSearchParams();
   const prefillSerial = name ? "" : (searchParams.get("serial") || "").trim();
+  const focusOffcutSerial = name ? (searchParams.get("serial") || "").trim() : "";
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
@@ -139,20 +167,29 @@ export default function PlateOffcutForm() {
           // A saved draft already carries the server's own row weights; adopt
           // them rather than re-asking, so a reopened draft shows its numbers
           // without touching a field first.
-          setRows(
-            (full.offcuts || []).map((row) => ({
+          const loadedRows = (full.offcuts || []).map((row) => ({
             _rid: nextRid(),
             shape: row.shape || "Rectangle",
             length_mm: row.length_mm ?? "",
             width_mm: row.width_mm ?? "",
             diameter_mm: row.diameter_mm ?? "",
+            serial_no: row.serial_no,
               pieces: 1,
               weight_kg: row.weight_kg,
               theoretical_weight_kg: row.theoretical_weight_kg,
               value: row.value,
               saved_name: row.name,
-            })),
-          );
+          }));
+          setRows(loadedRows);
+          const focusedRow = loadedRows.find((row) => row.serial_no === focusOffcutSerial);
+          if (focusedRow) {
+            setHighlight(focusedRow._rid);
+            requestAnimationFrame(() => {
+              const target = [...document.querySelectorAll("[data-offcut-serial]")]
+                .find((element) => element.dataset.offcutSerial === focusOffcutSerial);
+              target?.scrollIntoView({ behavior: "smooth", block: "center" });
+            });
+          }
           setEstimate({
             source_weight_kg: full.source_weight_kg,
             total_offcut_weight_kg: full.total_offcut_weight_kg,
@@ -200,7 +237,7 @@ export default function PlateOffcutForm() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name]);
+  }, [name, focusOffcutSerial]);
 
   useEffect(() => {
     docRef.current = doc;
@@ -555,6 +592,30 @@ export default function PlateOffcutForm() {
   const canSubmit = !submitted && !dirty;
   const over = num(estimate?.over_by_kg);
 
+  const handlePrintLabels = useCallback(async () => {
+    const serials = [...new Set(rows.map((row) => row.serial_no).filter(Boolean))];
+    if (!serials.length) return;
+    const popup = window.open("", "_blank", "width=900,height=720");
+    if (!popup) {
+      setError(t("store.plateOffcut.printWindowBlocked"));
+      return;
+    }
+    try {
+      const pieces = await Promise.all(serials.map(async (serial) => {
+        const result = await fetchOffcutStock({ search: serial, limitStart: 0, pageLength: 200 });
+        return result.pieces.find((piece) => piece.serial === serial);
+      }));
+      const labels = pieces.filter((piece) => piece?.qr_svg_base64);
+      if (labels.length !== serials.length) {
+        throw new Error(t("store.plateOffcut.offcutLabelsUnavailable"));
+      }
+      printOffcutLabels(popup, labels);
+    } catch (e) {
+      popup.close();
+      setError(e.message || t("store.plateOffcut.offcutLabelsUnavailable"));
+    }
+  }, [rows, t]);
+
   /* --------------------------------------------------------------- header */
   useEffect(() => {
     const actions = [];
@@ -579,6 +640,14 @@ export default function PlateOffcutForm() {
         variant: "btn-outline-primary",
         onClick: () => navigate("/store/plate-offcut"),
       });
+      if (rows.some((row) => row.serial_no)) {
+        actions.push({
+          label: t("store.plateOffcut.printQrLabels"),
+          variant: "btn-outline-primary",
+          icon: Printer,
+          onClick: handlePrintLabels,
+        });
+      }
     }
 
     // Attach is available on any SAVED offcut, draft or submitted: the dialog
@@ -617,7 +686,7 @@ export default function PlateOffcutForm() {
     });
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, submitted, dirty, saving, initialAttachment]);
+  }, [isEdit, name, submitted, dirty, saving, initialAttachment, rows, handlePrintLabels]);
 
   if (loading) {
     return (
@@ -749,6 +818,7 @@ export default function PlateOffcutForm() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t("store.plateOffcut.shape")}</TableHead>
+                    {submitted ? <TableHead>{t("store.plateOffcut.offcutSerial")}</TableHead> : null}
                     <TableHead>{t("store.plateOffcut.dimensions")}</TableHead>
                     <TableHead className="text-end">
                       {t("store.plateOffcut.pieces")}
@@ -785,6 +855,7 @@ export default function PlateOffcutForm() {
                     return (
                       <Fragment key={row._rid}>
                       <TableRow
+                        data-offcut-serial={row.serial_no || undefined}
                         className={
                           highlight === row._rid ? "bg-primary/[0.06]" : undefined
                         }
@@ -807,6 +878,11 @@ export default function PlateOffcutForm() {
                             ]}
                           />
                         </TableCell>
+                        {submitted ? (
+                          <TableCell className="whitespace-nowrap text-xs font-medium">
+                            {row.serial_no || "—"}
+                          </TableCell>
+                        ) : null}
                         <TableCell>
                           {row.shape === "Circle" ? (
                             <Input

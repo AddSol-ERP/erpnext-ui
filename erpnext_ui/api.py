@@ -2506,7 +2506,13 @@ def _pending_inspection_source_refs(selected, rows, as_of_date):
 
 @frappe.whitelist(allow_guest=False)
 def get_pending_inspection_items(
-	warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50, as_of_date=None
+	warehouse=None,
+	item_code=None,
+	batch_no=None,
+	serial_no=None,
+	start=0,
+	limit=50,
+	as_of_date=None,
 ):
 	"""Stock currently held in the pending-inspection warehouse.
 
