@@ -899,7 +899,7 @@
       "subtitle": "Stock waiting in the pending-QC warehouse before put-away",
       "tileDescription": "See every item still held for quality inspection",
       "warehouse": "Pending inspection warehouse",
-      "warehouseHint": "Quantities and batch or serial details are calculated as of the selected date. The site default warehouse can be changed under Quality Inspection settings.",
+      "warehouseHint": "Quantities and batch or serial details are calculated as of the selected date. Submitted Incoming Inspections clear their batch or serial from this list. The site default warehouse can be changed under Quality Inspection settings.",
       "asOfDate": "As of date",
       "batch": "Batch",
       "serial": "Serial No.",

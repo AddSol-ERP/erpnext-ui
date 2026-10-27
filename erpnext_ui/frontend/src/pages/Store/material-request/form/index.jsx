@@ -627,6 +627,11 @@ export default function MaterialRequestForm() {
       ],
 
       actions: [
+        isEdit && {
+          label: t("common.print"),
+          variant: "btn-outline-primary",
+          onClick: () => navigate(`/store/print/Material%20Request/${encodeURIComponent(name)}`),
+        },
         isEdit &&
           doc.docstatus === 1 &&
           doc.material_request_type === "Purchase" &&
@@ -652,7 +657,7 @@ export default function MaterialRequestForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, name, purpose, purposeTitle, doc.docstatus, doc.material_request_type, loading, canRequestSupplierQuotes]);
+  }, [isEdit, name, purpose, purposeTitle, doc.docstatus, doc.material_request_type, loading, canRequestSupplierQuotes, navigate]);
 
   /* ================= DEFAULT ================= */
 

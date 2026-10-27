@@ -61,11 +61,22 @@
         <span class="badge">Response</span>
       </div>
 
-      <div id="document-section" class="section hidden">
-        <h3>Quotation details</h3>
-        <div id="document-fields" class="field-grid"></div>
+      <div class="response-step-indicator" aria-live="polite">
+        <span id="step-one-indicator" class="step-indicator active">1 · Quotation details</span>
+        <span id="step-two-indicator" class="step-indicator">2 · Requested items</span>
       </div>
 
+      <div id="common-step">
+        <div id="document-section" class="section">
+          <h3>Quotation details</h3>
+          <div id="document-fields" class="field-grid"></div>
+        </div>
+        <div class="actions actions-end">
+          <button type="button" class="btn btn-primary" id="continue-button">Continue to items</button>
+        </div>
+      </div>
+
+      <div id="items-step" class="hidden">
       <div id="items-section" class="section">
         <h3>Requested items</h3>
         <p class="muted small">Enter your quoted values for each item. Quantities and units come from the request and cannot be changed.</p>
@@ -76,7 +87,9 @@
       <div id="form-alert" class="alert hidden" role="alert"></div>
 
       <div class="actions actions-end">
+        <button type="button" class="btn btn-quiet" id="back-to-common-button">Back to quotation details</button>
         <button type="button" class="btn btn-primary" id="review-button">Review response</button>
+      </div>
       </div>
     </section>
 

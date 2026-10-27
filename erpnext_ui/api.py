@@ -2505,6 +2505,62 @@ def _pending_inspection_source_refs(selected, rows, as_of_date):
 	return exact, item_refs
 
 
+def _completed_pending_inspection_tracking(rows, as_of_date):
+	"""Return batch and serial identifiers already covered by submitted Incoming QIs."""
+	if not rows:
+		return set(), set()
+
+	if not _can_read("Quality Inspection"):
+		frappe.throw(
+			frappe._("You do not have permission to check completed quality inspections."),
+			frappe.PermissionError,
+		)
+
+	item_codes = {row["item_code"] for row in rows if row.get("item_code")}
+	batches = {row["batch_no"] for row in rows if row.get("batch_no")}
+	serials = {row["serial_no"] for row in rows if row.get("serial_no")}
+	if not item_codes or not (batches or serials):
+		return set(), set()
+
+	completed_batches = set()
+	completed_serials = set()
+	for item_chunk in _pending_inspection_chunks(item_codes):
+		item_placeholders = ", ".join(["%s"] * len(item_chunk))
+		tracking_clauses = []
+		tracking_params = []
+		if batches:
+			batch_chunk = list(batches)
+			for values in _pending_inspection_chunks(batch_chunk):
+				placeholders = ", ".join(["%s"] * len(values))
+				tracking_clauses.append(f"qi.`batch_no` in ({placeholders})")
+				tracking_params.extend(values)
+		if serials:
+			serial_chunk = list(serials)
+			for values in _pending_inspection_chunks(serial_chunk):
+				placeholders = ", ".join(["%s"] * len(values))
+				tracking_clauses.append(f"qi.`item_serial_no` in ({placeholders})")
+				tracking_params.extend(values)
+		for inspection in frappe.db.sql(
+			f"""
+			select qi.`item_code`, qi.`batch_no`, qi.`item_serial_no`
+			from `tabQuality Inspection` qi
+			where qi.`docstatus` = 1
+			  and qi.`inspection_type` = 'Incoming'
+			  and date(qi.`modified`) <= %s
+			  and qi.`item_code` in ({item_placeholders})
+			  and ({' or '.join(tracking_clauses)})
+			""",
+			(as_of_date, *item_chunk, *tracking_params),
+			as_dict=True,
+		):
+			if inspection.batch_no:
+				completed_batches.add((inspection.item_code, inspection.batch_no))
+			if inspection.item_serial_no:
+				completed_serials.add((inspection.item_code, inspection.item_serial_no))
+
+	return completed_batches, completed_serials
+
+
 @frappe.whitelist(allow_guest=False)
 def get_pending_inspection_items(
 	warehouse=None,
@@ -2533,9 +2589,12 @@ def get_pending_inspection_items(
 	records cannot be found keeps an item-level row for the unaccounted quantity
 	rather than hiding stock from the person who has to inspect it.
 
-	Permission model: requires read on `Item`, `Serial No`, `Batch` and
-	`Stock Ledger Entry`, plus permission on the selected `Warehouse`. Fails
-	closed on any probe error.
+	A submitted Incoming Quality Inspection clears the exact batch or serial it
+	identifies from the pending list. Draft inspections do not clear stock.
+
+	Permission model: requires read on `Item`, `Serial No`, `Batch`,
+	`Stock Ledger Entry` and `Quality Inspection`, plus permission on the
+	selected `Warehouse`. Fails closed on any probe error.
 
 	Args:
 		warehouse (str, optional): Overrides the configured default.
@@ -2738,6 +2797,28 @@ def get_pending_inspection_items(
 		rows = [row for row in rows if row["batch_no"] == batch_no]
 	if serial_no:
 		rows = [row for row in rows if row["serial_no"] == serial_no]
+
+	# The pending warehouse identifies stock awaiting QC, but a submitted
+	# Incoming Quality Inspection clears the specific batch or serial it names.
+	# Keep unrelated and untracked stock visible; remove only identities that
+	# already have a completed inspection as of the selected report date.
+	completed_batches, completed_serials = _completed_pending_inspection_tracking(
+		rows, as_of_date
+	)
+	rows = [
+		row
+		for row in rows
+		if not (
+			(row["serial_no"] and (
+				(row["item_code"], row["serial_no"]) in completed_serials
+				or (row["batch_no"] and (row["item_code"], row["batch_no"]) in completed_batches)
+			))
+			or (
+				row["batch_no"]
+				and (row["item_code"], row["batch_no"]) in completed_batches
+			)
+		)
+	]
 
 	rows.sort(key=lambda row: (
 		row["item_name"] or row["item_code"],

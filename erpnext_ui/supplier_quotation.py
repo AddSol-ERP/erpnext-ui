@@ -1105,6 +1105,21 @@ def _create_draft_supplier_quotation(material_request, recipient):
 	sq.supplier = recipient["supplier"]
 	sq.supplier_name = recipient.get("supplier_name")
 	sq.transaction_date = nowdate()
+	# Material Request stores project on its item rows. Carry that link onto the
+	# corresponding Supplier Quotation items so downstream Purchase Orders can
+	# retain project costing and reporting dimensions.
+	mr_items = {row.name: row for row in material_request.items}
+	projects = set()
+	for sq_item in sq.items:
+		mr_item = mr_items.get(sq_item.get("material_request_item"))
+		project = mr_item.get("project") if mr_item else None
+		if not project:
+			continue
+		projects.add(project)
+		if sq_item.meta.has_field("project"):
+			sq_item.project = project
+	if len(projects) == 1 and sq.meta.has_field("project"):
+		sq.project = next(iter(projects))
 	if recipient.get("contact"):
 		sq.contact_person = recipient["contact"]
 	# The mapper runs set_missing_values before the supplier is known, so run it

@@ -1444,6 +1444,14 @@ export default function PurchaseReceiptForm() {
   const pickedKeys = rows.map((r) => r.purchase_order_item || r.item_code);
   const outstanding = hasPurchaseOrders ? available.length : null;
 
+  const openCreatedReceipt = (receiptName) => {
+    // The multi-receipt success panel and the detail route render this same
+    // component. Clear the success state before navigating so it does not mask
+    // the newly selected receipt after React Router reuses the component.
+    setCreatedReceipts([]);
+    navigate(`/store/purchase-receipt/${encodeURIComponent(receiptName)}`);
+  };
+
   if (createdReceipts.length) {
     return (
       <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:px-6">
@@ -1459,7 +1467,7 @@ export default function PurchaseReceiptForm() {
                 <p className="font-medium">{receipt.name}</p>
                 {receipt.purchaseOrder ? <p className="text-xs text-muted-foreground">{t("store.receipt.receiptForPurchaseOrder", { po: receipt.purchaseOrder })}</p> : null}
               </div>
-              <Button variant="outline" onClick={() => navigate(`/store/purchase-receipt/${encodeURIComponent(receipt.name)}`)}>
+              <Button variant="outline" onClick={() => openCreatedReceipt(receipt.name)}>
                 {t("store.receipt.openReceipt")}
               </Button>
             </li>

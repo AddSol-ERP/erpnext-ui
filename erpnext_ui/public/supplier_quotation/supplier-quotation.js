@@ -368,10 +368,11 @@
 
     renderDocumentSection(form);
     renderItems(form);
+    showCommonStep();
 
     els.reviewSummary.replaceChildren();
     els.reviewBody.replaceChildren();
-    const first = els.form.querySelector("input, select, textarea, [contenteditable]");
+    const first = $("common-step").querySelector("input, select, textarea, [contenteditable]");
     if (first) {
       if (first.matches("[contenteditable]")) {
         first.focus({ preventScroll: true });
@@ -382,13 +383,32 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function showCommonStep() {
+    show($("common-step"));
+    hide($("items-step"));
+    $("step-one-indicator")?.classList.add("active");
+    $("step-two-indicator")?.classList.remove("active");
+  }
+
+  function showItemsStep() {
+    hide($("common-step"));
+    show($("items-step"));
+    $("step-one-indicator")?.classList.remove("active");
+    $("step-two-indicator")?.classList.add("active");
+    const first = $("items-list")?.querySelector("input, select, textarea, [contenteditable]");
+    first?.focus();
+  }
+
   function renderDocumentSection(form) {
-    const context = form.document?.context || [];
+    const context = [
+      { label: "Material Request", value: form.material_request },
+      { label: "Supplier", value: form.supplier_name || form.supplier },
+      { label: "Company", value: form.company },
+      { label: "Required by", value: form.required_by, fieldtype: "Date" },
+      { label: "Currency", value: form.currency },
+      ...(form.document?.context || []),
+    ].filter((field) => field.value !== null && field.value !== undefined && field.value !== "");
     const fields = form.document?.fields || [];
-    if (!context.length && !fields.length) {
-      hide(els.documentSection);
-      return;
-    }
     show(els.documentSection);
     els.documentFields.replaceChildren();
 
@@ -749,13 +769,14 @@
     return text === "" || text === "0";
   }
 
-  function findMissing(form) {
+  function findMissingDocumentFields(form) {
+    return (form.document?.fields || [])
+      .filter((field) => field.mandatory && isEmpty(state.values.document[field.fieldname], field))
+      .map((field) => ({ field, scope: "document", item: null }));
+  }
+
+  function findMissingItemFields(form) {
     const missing = [];
-    (form.document?.fields || []).forEach((field) => {
-      if (field.mandatory && isEmpty(state.values.document[field.fieldname], field)) {
-        missing.push({ field, scope: "document", item: null });
-      }
-    });
     (form.items || []).forEach((item) => {
       (item.fields || []).forEach((field) => {
         if (field.mandatory && isEmpty(state.values.items[item.item]?.[field.fieldname], field)) {
@@ -766,9 +787,19 @@
     return missing;
   }
 
+  function continueToItems() {
+    const missing = findMissingDocumentFields(state.form);
+    if (missing.length) {
+      showMissingFields(missing);
+      return;
+    }
+    showItemsStep();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function showReview() {
     clearAlert(els.formAlert);
-    const missing = findMissing(state.form);
+    const missing = findMissingItemFields(state.form);
     if (missing.length) {
       showMissingFields(missing);
       return;
@@ -997,6 +1028,8 @@
   function returnToField(scope, itemName, fieldname) {
     hideAllCards();
     show(els.form);
+    if (scope === "item") showItemsStep();
+    else showCommonStep();
     clearAlert(els.formAlert);
     window.scrollTo({ top: 0, behavior: "smooth" });
     requestAnimationFrame(() => focusFormField(scope, itemName, fieldname));
@@ -1190,11 +1223,17 @@
 
   els.otpForm.addEventListener("submit", verifyOtp);
   $("review-button").addEventListener("click", showReview);
+  $("continue-button")?.addEventListener("click", continueToItems);
+  $("back-to-common-button")?.addEventListener("click", () => {
+    showCommonStep();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
   $("review-edit-button")?.addEventListener("click", () => returnToField("document"));
   $("back-button").addEventListener("click", () => {
     hideAllCards();
     show(els.form);
-    const first = els.form.querySelector("input, select, textarea, [contenteditable]");
+    showItemsStep();
+    const first = $("items-step").querySelector("input, select, textarea, [contenteditable]");
     if (first) {
       if (first.matches("[contenteditable]")) {
         first.focus({ preventScroll: true });

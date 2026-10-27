@@ -115,6 +115,25 @@ p:last-child { margin-bottom: 0; }
 }
 
 .actions-end { justify-content: flex-end; }
+.response-step-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: 1rem 0;
+}
+.step-indicator {
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 999px;
+  color: var(--muted, #64748b);
+  font-size: .82rem;
+  padding: .4rem .75rem;
+}
+.step-indicator.active {
+  border-color: var(--primary, #2563eb);
+  background: color-mix(in srgb, var(--primary, #2563eb) 9%, white);
+  color: var(--primary, #2563eb);
+  font-weight: 600;
+}
 
 .btn {
   appearance: none;
