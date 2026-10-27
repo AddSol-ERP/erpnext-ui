@@ -65,8 +65,8 @@ const fmtMoney = (value, currency) => {
  * Items still awaiting Incoming Quality Inspection, across accessible warehouses.
  *
  * The warehouse filter is optional. With it blank, all warehouses the current
- * user can read are included. The API checks completed inspections against the
- * exact source reference and item/batch/serial scope.
+ * user can read are included. The selected warehouse's stock balance is the
+ * source of truth; batch and serial identifiers are descriptive details.
  */
 export default function InspectionPendingReport() {
   const { t } = useTranslation();
@@ -235,8 +235,12 @@ export default function InspectionPendingReport() {
       item_code: row.item_code,
       inspection_type: "Incoming",
     });
-    if (row.batch_no) params.set("batch_no", row.batch_no);
-    if (row.serial_no) params.set("item_serial_no", row.serial_no);
+    if (row.batch_no && !row.batch_no.includes(", ")) {
+      params.set("batch_no", row.batch_no);
+    }
+    if (row.serial_no && !row.serial_no.includes(", ")) {
+      params.set("item_serial_no", row.serial_no);
+    }
     if (REFERENCE_TYPES.includes(row.reference_type) && row.reference_name) {
       params.set("reference_type", row.reference_type);
       params.set("reference_name", row.reference_name);

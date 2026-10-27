@@ -2372,21 +2372,8 @@ def _pending_inspection_chunks(values, size=400):
 		yield unique[offset:offset + size]
 
 
-def _pending_inspection_tracking(warehouses, item_codes, as_of_date):
-	"""Serial numbers and batch quantities held in allowed warehouses as of a date.
-
-	Serial and batch balances are reconstructed from signed bundle entries joined
-	to Stock Ledger Entries, so historical reports do not rely on today's
-	`Serial No.warehouse` value. Batch quantity is the signed sum
-	of the bundle entries joined to SLEs: `Serial and Batch Entry.qty` is
-	negative on an outward bundle (`serial_and_batch_bundle.py:1207-1214`), and
-	that sign is what makes a transfer out of this warehouse reduce the batch
-	instead of counting it twice.
-
-	Returns:
-		tuple: ({item_code: [(serial_no, batch_no), ...]},
-		        {item_code: [(batch_no, qty), ...]})
-	"""
+def _pending_inspection_tracking_labels(warehouses, item_codes, as_of_date):
+	"""Get available batch and serial labels without changing balance rows."""
 	serials = {}
 	batches = {}
 	warehouse_placeholders = ", ".join(["%s"] * len(warehouses))
@@ -2395,45 +2382,39 @@ def _pending_inspection_tracking(warehouses, item_codes, as_of_date):
 		placeholders = ", ".join(["%s"] * len(chunk))
 		for row in frappe.db.sql(
 			f"""
-		select sle.`item_code`, sle.`warehouse`, sbe.`serial_no`, max(sbe.`batch_no`) as `batch_no`
+			select sle.`item_code`, sle.`warehouse`, sbe.`serial_no`, max(sbe.`batch_no`) as `batch_no`
 			from `tabSerial and Batch Entry` sbe
 			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
-			inner join `tabStock Ledger Entry` sle
-			        on sle.`serial_and_batch_bundle` = sbb.`name`
+			inner join `tabStock Ledger Entry` sle on sle.`serial_and_batch_bundle` = sbb.`name`
 			where sle.`warehouse` in ({warehouse_placeholders}) and sle.`posting_date` <= %s
 			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
-			  and ifnull(sbe.`serial_no`, '') != ''
-			  and sle.`item_code` in ({placeholders})
+			  and ifnull(sbe.`serial_no`, '') != '' and sle.`item_code` in ({placeholders})
 			group by sle.`item_code`, sle.`warehouse`, sbe.`serial_no`
 			having sum(sbe.`qty`) > 0
-			order by sle.`item_code`, sle.`warehouse`, max(sbe.`batch_no`), sbe.`serial_no`
+			order by sle.`item_code`, sle.`warehouse`, sbe.`serial_no`
 			""",
-			(*warehouses, as_of_date, *chunk),
-			as_dict=True,
+			(*warehouses, as_of_date, *chunk), as_dict=True,
 		):
-			serials.setdefault((row.item_code, row.warehouse), []).append((row.serial_no, row.batch_no or ""))
+			serials.setdefault((row.item_code, row.warehouse), []).append(row.serial_no)
 
 		for row in frappe.db.sql(
 			f"""
-		select sle.`item_code`, sle.`warehouse`, sbe.`batch_no`, sum(sbe.`qty`) as `qty`
+			select sle.`item_code`, sle.`warehouse`, sbe.`batch_no`
 			from `tabSerial and Batch Entry` sbe
 			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
-			inner join `tabStock Ledger Entry` sle
-			        on sle.`serial_and_batch_bundle` = sbb.`name`
+			inner join `tabStock Ledger Entry` sle on sle.`serial_and_batch_bundle` = sbb.`name`
 			where sle.`warehouse` in ({warehouse_placeholders}) and sle.`posting_date` <= %s
 			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
-			  and sbe.`batch_no` is not null and sbe.`batch_no` != ''
-			  and sle.`item_code` in ({placeholders})
+			  and ifnull(sbe.`batch_no`, '') != '' and sle.`item_code` in ({placeholders})
 			group by sle.`item_code`, sle.`warehouse`, sbe.`batch_no`
 			having sum(sbe.`qty`) > 0
 			order by sle.`item_code`, sle.`warehouse`, sbe.`batch_no`
 			""",
-			(*warehouses, as_of_date, *chunk),
-			as_dict=True,
+			(*warehouses, as_of_date, *chunk), as_dict=True,
 		):
-			batches.setdefault((row.item_code, row.warehouse), []).append((row.batch_no, flt(row.qty)))
+			batches.setdefault((row.item_code, row.warehouse), []).append(row.batch_no)
 
 	return serials, batches
 
@@ -2523,16 +2504,15 @@ def get_pending_inspection_items(
 	inspection warehouse is used. Users can request all accessible leaf
 	warehouses explicitly or select one warehouse.
 
-	Only positive balances as of `as_of_date` are returned. The date defaults to
+	Nonzero balances as of `as_of_date` are returned. The date defaults to
 	today. Stock Ledger Entry movements are summed per item and warehouse through
-	that date. Batch and serial movements are then summed separately to expand
-	tracked stock into one row per batch or serial. A zero or negative balance is
-	not waiting to be inspected.
+	that date. Batch and serial identifiers are looked up separately and attached
+	as labels; they do not split, reduce, or otherwise alter the aggregate stock
+	rows. A zero or negative balance is not waiting to be inspected.
 
-	Rows are expanded when the item carries tracking: one row per serial for a
-	serialised item, otherwise one row per batch. A tracked item whose tracking
-	records cannot be found keeps an item-level row for the unaccounted quantity
-	rather than hiding stock from the person who has to inspect it.
+	Each aggregate item/warehouse balance remains one row. Available batch and
+	serial identifiers appear on that row; when tracking records are unavailable,
+	the item balance is still shown.
 
 	The warehouse is the source of truth for pending action: stock remains on
 	the list while it is in the selected warehouse, and drops off after QC moves
@@ -2680,85 +2660,43 @@ def get_pending_inspection_items(
 		as_dict=True,
 	)
 
-	serials, batches = _pending_inspection_tracking(
+	serials, batches = _pending_inspection_tracking_labels(
 		warehouses, [row.item_code for row in stock_rows], as_of_date
 	)
 
 	rows = []
 	for stock in stock_rows:
-		actual_qty = flt(stock.actual_qty)
-		tracked_qty = 0.0
-		base = {
+		stock_key = (stock.item_code, stock.warehouse)
+		rows.append({
 			"item_code": stock.item_code,
 			"warehouse": stock.warehouse,
 			"item_name": stock.item_name,
 			"item_group": stock.item_group,
 			"stock_uom": stock.stock_uom,
 			"currency": currencies.get(stock.warehouse, ""),
-			"batch_no": "",
-			"serial_no": "",
-			"tracking": "item",
-		}
+			"actual_qty": flt(stock.actual_qty),
+			"batch_no": ", ".join(batches.get(stock_key, [])),
+			"serial_no": ", ".join(serials.get(stock_key, [])),
+			"tracking": "serial" if cint(stock.has_serial_no) else (
+				"batch" if cint(stock.has_batch_no) else "item"
+			),
+		})
 
-		stock_key = (stock.item_code, stock.warehouse)
-		if cint(stock.has_serial_no) and serials.get(stock_key):
-			item_serials = serials[stock_key]
-			if len(item_serials) <= actual_qty:
-				for serial_no, batch_no in item_serials:
-					rows.append({
-					**base,
-					"actual_qty": 1.0,
-					"batch_no": batch_no,
-						"serial_no": serial_no,
-						"tracking": "serial",
-					})
-				tracked_qty = float(len(item_serials))
-		elif cint(stock.has_batch_no) and batches.get(stock_key):
-			item_batches = batches[stock_key]
-			batch_total = sum(qty for _batch_no, qty in item_batches)
-			if batch_total <= actual_qty + 0.000001:
-				for batch_no, qty in item_batches:
-					rows.append({
-						**base,
-						"actual_qty": qty,
-						"batch_no": batch_no,
-						"tracking": "batch",
-					})
-				tracked_qty = batch_total
-
-		# Never let stale/duplicated tracking entries inflate the stock-ledger
-		# quantity. When tracking detail does not reconcile, use an item-level row
-		# for the full ledger quantity so the displayed total stays accurate.
-		if tracked_qty == 0:
-			rows.append({
-				**base,
-				"actual_qty": actual_qty,
-			})
-		else:
-			remaining = flt(actual_qty - tracked_qty, 6)
-			if remaining > 0.000001:
-				rows.append({
-					**base,
-					"actual_qty": remaining,
-				})
-
-	# Batch and serial are properties of the expanded rows, not of the ledger
-	# summary query, so they are applied here. Filtering before paging and
-	# before the value total keeps every figure on screen about the same
-	# population.
+	# Batch and serial filters apply to the identifiers attached to each item
+	# balance row; they never change the balance or expand the row count.
 	if batch_no:
-		rows = [row for row in rows if row["batch_no"] == batch_no]
+		rows = [row for row in rows if batch_no in row["batch_no"].split(", ")]
 	if serial_no:
-		rows = [row for row in rows if row["serial_no"] == serial_no]
+		rows = [row for row in rows if serial_no in row["serial_no"].split(", ")]
 
 	# Preserve the source voucher for a convenient Quality Inspection link, but
 	# warehouse stock alone determines whether an item remains pending.
 	exact_refs, item_refs = _pending_inspection_source_refs(warehouses, rows, as_of_date)
 	for row in rows:
 		ref = None
-		if row["serial_no"]:
+		if row["serial_no"] and ", " not in row["serial_no"]:
 			ref = exact_refs.get(("serial", row["item_code"], row["serial_no"], row["warehouse"]))
-		elif row["batch_no"]:
+		elif row["batch_no"] and ", " not in row["batch_no"]:
 			ref = exact_refs.get(("batch", row["item_code"], row["batch_no"], row["warehouse"]))
 		ref = ref or item_refs.get((row["item_code"], row["warehouse"]))
 		row["_reference_type"] = ref.voucher_type if ref else ""
