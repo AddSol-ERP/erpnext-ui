@@ -23,6 +23,7 @@
 			"purchaseOrders": "खरीद ऑर्डर",
 			"expenses": "व्यय",
 			"leaves": "अवकाश",
+			"attendanceRequests": "उपस्थिति अनुरोध",
 			"quotations": "कोटेशन",
 			"overtimeLogs": "ओवरटाइम लॉग"
 		},
@@ -35,6 +36,7 @@
 		},
 		"preview": {
 			"leaveApproval": "अवकाश अनुमोदन",
+			"attendanceRequestApproval": "उपस्थिति अनुरोध अनुमोदन",
 			"expenseApproval": "व्यय अनुमोदन",
 			"purchaseOrderApproval": "खरीद ऑर्डर अनुमोदन",
 			"quotationApproval": "कोटेशन अनुमोदन",
@@ -53,6 +55,7 @@
 			"overtimeHours": "ओवरटाइम घंटे",
 			"attendanceDate": "उपस्थिति तिथि",
 			"shift": "शिफ़्ट",
+			"halfDay": "आधा दिन",
 			"inTime": "आने का समय",
 			"outTime": "जाने का समय",
 			"attendance": "उपस्थिति",

@@ -23,6 +23,7 @@
 			"purchaseOrders": "Purchase Orders",
 			"expenses": "Expenses",
 			"leaves": "Leaves",
+			"attendanceRequests": "Attendance Requests",
 			"quotations": "Quotations",
 			"overtimeLogs": "Overtime Logs"
 		},
@@ -35,6 +36,7 @@
 		},
 		"preview": {
 			"leaveApproval": "Leave Approval",
+			"attendanceRequestApproval": "Attendance Request Approval",
 			"expenseApproval": "Expense Approval",
 			"purchaseOrderApproval": "Purchase Order Approval",
 			"quotationApproval": "Quotation Approval",
@@ -53,6 +55,7 @@
 			"overtimeHours": "Overtime Hours",
 			"attendanceDate": "Attendance Date",
 			"shift": "Shift",
+			"halfDay": "Half day",
 			"inTime": "In Time",
 			"outTime": "Out Time",
 			"attendance": "Attendance",

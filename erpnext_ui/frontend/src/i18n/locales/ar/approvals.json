@@ -23,6 +23,7 @@
 			"purchaseOrders": "أوامر الشراء",
 			"expenses": "المصروفات",
 			"leaves": "الإجازات",
+			"attendanceRequests": "طلبات الحضور",
 			"quotations": "عروض الأسعار",
 			"overtimeLogs": "سجلات العمل الإضافي"
 		},
@@ -35,6 +36,7 @@
 		},
 		"preview": {
 			"leaveApproval": "اعتماد الإجازة",
+			"attendanceRequestApproval": "الموافقة على طلب الحضور",
 			"expenseApproval": "اعتماد المصروفات",
 			"purchaseOrderApproval": "اعتماد أمر الشراء",
 			"quotationApproval": "اعتماد عرض السعر",
@@ -53,6 +55,7 @@
 			"overtimeHours": "ساعات العمل الإضافية",
 			"attendanceDate": "تاريخ الحضور",
 			"shift": "الوردية",
+			"halfDay": "نصف يوم",
 			"inTime": "وقت الحضور",
 			"outTime": "وقت الانصراف",
 			"attendance": "الحضور",

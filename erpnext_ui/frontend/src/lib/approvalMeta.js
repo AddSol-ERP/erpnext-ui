@@ -117,6 +117,7 @@ export function resolveStatusField(meta, doctype) {
   if (meta.fieldSet.has(preferred)) return preferred;
   if (meta.fieldSet.has(DEFAULT_STATUS_FIELD)) return DEFAULT_STATUS_FIELD;
   if (meta.fieldSet.has(FALLBACK_STATUS_FIELD)) return FALLBACK_STATUS_FIELD;
+  if (meta.fieldSet.has("workflow_state")) return "workflow_state";
 
   return DEFAULT_STATUS_FIELD;
 }

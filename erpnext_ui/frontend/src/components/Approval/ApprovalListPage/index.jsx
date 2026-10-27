@@ -57,6 +57,18 @@ const DOCTYPE_FIELDS = {
     "leave_approver",
     "workflow_state",
   ],
+  "Attendance Request": [
+    "employee",
+    "employee_name",
+    "from_date",
+    "to_date",
+    "reason",
+    "explanation",
+    "half_day",
+    "half_day_date",
+    "shift",
+    "workflow_state",
+  ],
   Quotation: [
     "customer_name",
     "transaction_date",
@@ -81,6 +93,7 @@ const SEARCH_FIELDS = {
   "Purchase Order": ["name", "supplier"],
   "Expense Claim": ["name", "employee"],
   "Leave Application": ["name", "employee", "employee_name"],
+  "Attendance Request": ["name", "employee", "employee_name"],
   Quotation: ["customer_name", "title"],
   "Overtime Log": ["name", "employee", "employee_name"],
 };
@@ -233,6 +246,13 @@ const ApprovalListPage = () => {
     if (doctype === "Leave Application") {
       filters.push([statusField, "in", ["Open", "Applied"]]);
     }
+    if (doctype === "Attendance Request") {
+      filters.push([
+        statusField,
+        "in",
+        ["Pending Reporting Manager Approval", "Pending HR Approval"],
+      ]);
+    }
     if (doctype === "Overtime Log") {
       filters.push([statusField, "=", "Draft"]);
     }
@@ -251,7 +271,9 @@ const ApprovalListPage = () => {
     let filters = [];
     const status = selectedFilters.status || selectedFilters.workflow_state;
 
-    if (status === "Draft") {
+    if (statusField === "workflow_state" && status) {
+      filters.push([statusField, "=", status]);
+    } else if (status === "Draft") {
       filters.push(["docstatus", "=", 0]);
     } else if (status) {
       filters.push(["docstatus", "=", 1]);
@@ -357,6 +379,8 @@ const ApprovalListPage = () => {
           "To Receive",
           "To Bill",
           "To Receive and Bill",
+          "Pending Reporting Manager Approval",
+          "Pending HR Approval",
           "Submitted",
         ].includes(raw) ||
         row.docstatus === 1
@@ -389,6 +413,17 @@ const ApprovalListPage = () => {
               ? ` (${t("approvals.daysCount", { days: row.total_leave_days })})`
               : ""
           }`,
+          statusLabel: status.label,
+          statusColor: status.color,
+          raw: row,
+        };
+      }
+
+      if (doctype === "Attendance Request") {
+        return {
+          title: row.employee_name || row.employee || "—",
+          subtitle: row.reason || "—",
+          meta: `${row.from_date || ""} → ${row.to_date || ""}`,
           statusLabel: status.label,
           statusColor: status.color,
           raw: row,

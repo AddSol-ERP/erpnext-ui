@@ -369,9 +369,9 @@ export default function ReceiptLineForm({
             rather than leaving the user to guess whether they can reduce it. */}
         {row.pending_qty !== undefined && row.pending_qty !== null && Number(row.pending_qty) > 0 ? (
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {(Number(row.qty) || 0) + (Number(row.rejected_qty) || 0) < Number(row.pending_qty)
+            {(Number(row.qty) || 0) < Number(row.pending_qty)
               ? t("store.receipt.receivingOf", {
-                  qty: (Number(row.qty) || 0) + (Number(row.rejected_qty) || 0),
+                  qty: Number(row.qty) || 0,
                   pending: row.pending_qty,
                   uom: receivedUom,
                 })
@@ -682,26 +682,6 @@ export default function ReceiptLineForm({
               {t("store.receipt.batchWillGenerate")}
             </span>
           </div>
-        </FormField>
-      ) : null}
-
-      {/* REJECTED */}
-      <FormField label={t("store.receipt.rejectedQty")}>
-        <Input
-          type="number"
-          step="any"
-          value={row.rejected_qty ?? ""}
-          onChange={(e) => edit({ rejected_qty: e.target.value })}
-        />
-      </FormField>
-      {(Number(row.rejected_qty) || 0) > 0 ? (
-        <FormField label={t("store.receipt.rejectedWarehouse")} required>
-          <LinkField
-            doctype="Warehouse"
-            value={row.rejected_warehouse || ""}
-            filters={{ company, is_group: 0 }}
-            onChange={(v) => edit({ rejected_warehouse: v || "" })}
-          />
         </FormField>
       ) : null}
 

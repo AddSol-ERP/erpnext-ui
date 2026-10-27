@@ -126,12 +126,12 @@ const RECEIPT_ITEM_CLIENT_FIELDS = [
 /** Strip everything that must not leave the browser. */
 function toSavePayload(doc) {
   const payload = withCleanChildRows(doc, { extra: RECEIPT_ITEM_CLIENT_FIELDS });
-  // ERPNext uses `qty` for accepted units and `rejected_qty` for rejected
-  // units. The PO status updater consumes `received_qty`, so send the physical
-  // quantity explicitly instead of leaving a stale value from the PO mapper.
+  // The receipt quantity is the amount physically received. Rejected quantity
+  // is determined by quality inspection, not entered before inspection.
   payload.items = payload.items.map((row) => ({
     ...row,
-    received_qty: (Number(row.qty) || 0) + (Number(row.rejected_qty) || 0),
+    rejected_qty: 0,
+    received_qty: Number(row.qty) || 0,
   }));
   return payload;
 }
@@ -173,7 +173,6 @@ export default function PurchaseReceiptForm() {
     company: "",
     posting_date: todayISO(),
     set_warehouse: "",
-    rejected_warehouse: "",
     currency: "",
     conversion_rate: 1,
     items: [],
@@ -388,8 +387,8 @@ export default function PurchaseReceiptForm() {
         item_name: r.item_name,
         project: r.project || "",
         qty: r.qty ?? "",
-        rejected_qty: r.rejected_qty ?? "",
-        received_qty: r.received_qty ?? ((Number(r.qty) || 0) + (Number(r.rejected_qty) || 0)),
+        rejected_qty: 0,
+        received_qty: Number(r.qty) || 0,
         uom: r.uom || "",
         stock_uom: r.stock_uom || "",
         measured_total: "",
@@ -511,7 +510,6 @@ export default function PurchaseReceiptForm() {
           stock_qty: 1,
           rate: "",
           warehouse: p.set_warehouse || "",
-          rejected_warehouse: p.rejected_warehouse || "",
           purchase_order: "",
           purchase_order_item: "",
           rate_from_po: "",
@@ -567,7 +565,7 @@ export default function PurchaseReceiptForm() {
         conversion_factor: row.conversion_factor ?? "",
         warehouse: row.warehouse || draft.set_warehouse || "",
         rejected_warehouse:
-          row.rejected_warehouse || draft.rejected_warehouse || docRef.current.rejected_warehouse || "",
+          row.rejected_warehouse || draft.rejected_warehouse || "",
         purchase_order: row.purchase_order || sourceName,
         purchase_order_item: row.purchase_order_item || "",
         pending_qty: row.qty,
@@ -687,7 +685,6 @@ export default function PurchaseReceiptForm() {
       rejected_warehouse:
         line.rejected_warehouse ||
         purchaseOrderDrafts[line.purchase_order || poName || ""]?.rejected_warehouse ||
-        docRef.current.rejected_warehouse ||
         "",
       // Tracking fields. Empty until the user supplies them (or ERPNext generates
       // them from a series), but present on the row so an edit round-trip through
@@ -916,10 +913,6 @@ export default function PurchaseReceiptForm() {
         errs.items = t("store.receipt.validation.warehouseRequired");
         break;
       }
-      if ((Number(row.rejected_qty) || 0) > 0 && !row.rejected_warehouse) {
-        errs.items = t("store.receipt.validation.rejectedWarehouseRequired");
-        break;
-      }
 
       if (forSubmit && isPlate) {
         const supplierWeight = Number(row.custom_supplier_weight_kg) || 0;
@@ -993,18 +986,13 @@ export default function PurchaseReceiptForm() {
       }
       for (const row of current.items) {
         const qty = Number(row.qty);
-        const rejectedQty = Number(row.rejected_qty) || 0;
         const pending = Number(row.pending_qty);
         if (!row.purchase_order || !row.purchase_order_item) {
           selectionErrors.items = t("store.receipt.validation.pickItem");
           break;
         }
-        if (!Number.isFinite(qty) || qty <= 0 || rejectedQty < 0 || qty + rejectedQty > pending) {
+        if (!Number.isFinite(qty) || qty <= 0 || qty > pending) {
           selectionErrors.items = t("store.receipt.receivedQtyMustBeWithinPending", { pending, uom: row.uom });
-          break;
-        }
-        if (rejectedQty > 0 && !row.rejected_warehouse) {
-          selectionErrors.items = t("store.receipt.validation.rejectedWarehouseRequired");
           break;
         }
       }
@@ -1665,21 +1653,6 @@ export default function PurchaseReceiptForm() {
                 items: p.items.map((r) =>
                   r.warehouse ? { ...r, warehouse: v || "" } : r,
                 ),
-              }));
-            }}
-          />
-        </FormField>
-        <FormField label={t("store.receipt.rejectedWarehouse")} name="rejected_warehouse">
-          <LinkField
-            doctype="Warehouse"
-            value={doc.rejected_warehouse}
-            disabled={!!doc.docstatus}
-            filters={{ company: doc.company, is_group: 0 }}
-            onChange={(v) => {
-              setDoc((p) => ({
-                ...p,
-                rejected_warehouse: v || "",
-                items: p.items.map((row) => ({ ...row, rejected_warehouse: v || "" })),
               }));
             }}
           />

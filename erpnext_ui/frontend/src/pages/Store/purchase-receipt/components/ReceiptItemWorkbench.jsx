@@ -282,26 +282,6 @@ export default function ReceiptItemWorkbench({
                 onChange={(warehouse) => onSave({ ...row, warehouse: warehouse || "" })}
               />
             </FormField>
-            <FormField label={t("store.receipt.rejectedQty")}>
-              <Input
-                type="number"
-                min="0"
-                max={row.pending_qty}
-                step="any"
-                value={row.rejected_qty ?? ""}
-                onChange={(event) => onSave({ ...row, rejected_qty: event.target.value })}
-              />
-            </FormField>
-            {(Number(row.rejected_qty) || 0) > 0 ? (
-              <FormField label={t("store.receipt.rejectedWarehouse")} required>
-                <LinkField
-                  doctype="Warehouse"
-                  value={row.rejected_warehouse || ""}
-                  filters={{ company, is_group: 0 }}
-                  onChange={(warehouse) => onSave({ ...row, rejected_warehouse: warehouse || "" })}
-                />
-              </FormField>
-            ) : null}
           </div>
         ) : row ? (
           <ReceiptLineForm

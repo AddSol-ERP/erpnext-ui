@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CalendarCheck,
+  ClipboardCheck,
   FileText,
   Hourglass,
   Receipt,
@@ -45,6 +46,15 @@ const APPROVAL_DOCTYPES = [
     doctype: "Leave Application",
     labelKey: "approvals.tiles.leaves",
     icon: CalendarCheck,
+  },
+  {
+    doctype: "Attendance Request",
+    labelKey: "approvals.tiles.attendanceRequests",
+    icon: ClipboardCheck,
+    pendingStatuses: [
+      "Pending Reporting Manager Approval",
+      "Pending HR Approval",
+    ],
   },
   {
     doctype: "Quotation",
@@ -162,10 +172,13 @@ export default function Approval() {
             // counts don't silently read a column that doesn't exist.
             const meta = await getApprovalMeta(item.doctype);
             const statusField = resolveStatusField(meta, item.doctype);
+            const statusFilter = item.pendingStatuses
+              ? { [statusField]: ["in", item.pendingStatuses] }
+              : { [statusField]: pendingStatus };
 
             const pendingRes = await get("method/frappe.client.get_count", {
               doctype: item.doctype,
-              filters: JSON.stringify({ [statusField]: pendingStatus }),
+              filters: JSON.stringify(statusFilter),
             });
 
             const approvedRes = await get("method/frappe.client.get_count", {

@@ -35,12 +35,12 @@
 	"purchase": {
 		"header": {
 			"title": "क्रय",
-			"subtitle": "सप्लायर्स, परचेज ऑर्डर और इनवॉइस"
+			"subtitle": "सप्लायर प्रबंधित करें, दरें माँगें, ऑर्डर दें, माल प्राप्त करें और इनवॉइस सँभालें"
 		},
 		"tiles": {
 			"supplier": { "title": "सप्लायर", "description": "सप्लायर रिकॉर्ड प्रबंधित करें" },
 			"purchaseOrder": { "title": "परचेज ऑर्डर", "description": "परचेज ऑर्डर बनाएँ" },
-			"purchaseReceipt": { "title": "परचेज रसीद", "description": "माल प्राप्ति दर्ज करें" },
+			"purchaseReceipt": { "title": "परचेज रसीद", "description": "माल प्राप्त करने के लिए सप्लायर और बाकी परचेज ऑर्डर चुनें" },
 			"purchaseInvoice": { "title": "परचेज इनवॉइस", "description": "सप्लायर इनवॉइस" },
 			"supplierQuotation": { "title": "सप्लायर कोटेशन", "description": "सप्लायर कोटेशन" },
 			"requestForQuotation": { "title": "कोटेशन अनुरोध", "description": "सप्लायरों से कोटेशन माँगें" }

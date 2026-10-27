@@ -8,11 +8,13 @@ import DefaultPreview from "./types/DefaultPreview";
 import { get } from "../../../../services/api";
 import QuotationPreview from "./types/QuotationPreview";
 import OvertimeLogPreview from "./types/OvertimeLogPreview";
+import AttendanceRequestPreview from "./types/AttendanceRequestPreview";
 
 const PREVIEW_MAP = {
   "Purchase Order": PurchaseOrderPreview,
   "Expense Claim": ExpensePreview,
   "Leave Application": LeavePreview,
+  "Attendance Request": AttendanceRequestPreview,
   Quotation: QuotationPreview,
   "Overtime Log": OvertimeLogPreview,
 };

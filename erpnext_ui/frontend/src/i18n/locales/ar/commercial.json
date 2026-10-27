@@ -35,12 +35,12 @@
 	"purchase": {
 		"header": {
 			"title": "المشتريات",
-			"subtitle": "الموردون وأوامر الشراء والفواتير"
+			"subtitle": "إدارة الموردين وطلب الأسعار وإنشاء الطلبات واستلام البضائع ومعالجة الفواتير"
 		},
 		"tiles": {
 			"supplier": { "title": "المورد", "description": "إدارة سجلات الموردين" },
 			"purchaseOrder": { "title": "أمر شراء", "description": "إنشاء أوامر الشراء" },
-			"purchaseReceipt": { "title": "إيصال شراء", "description": "تسجيل استلام البضائع" },
+			"purchaseReceipt": { "title": "إيصال شراء", "description": "اختر مورداً وأوامر الشراء المتبقية لاستلام البضائع" },
 			"purchaseInvoice": { "title": "فاتورة شراء", "description": "فواتير الموردين" },
 			"supplierQuotation": { "title": "عرض سعر مورّد", "description": "عروض أسعار الموردين" },
 			"requestForQuotation": { "title": "طلب عرض سعر", "description": "طلب عروض أسعار من الموردين" }

@@ -13,6 +13,7 @@ SPA_APPROVAL_DOCTYPES = (
     "Purchase Order",
     "Expense Claim",
     "Leave Application",
+    "Attendance Request",
     "Quotation",
     "Overtime Log",
 )

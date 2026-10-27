@@ -68,6 +68,10 @@ const APPROVAL_CONFIG = {
     type: "workflow",
     titleKey: "approvals.preview.leaveApproval",
   },
+  "Attendance Request": {
+    type: "workflow",
+    titleKey: "approvals.preview.attendanceRequestApproval",
+  },
 
   "Expense Claim": {
     type: "workflow", // if workflow exists (likely yes)

@@ -35,12 +35,12 @@
 	"purchase": {
 		"header": {
 			"title": "Purchase",
-			"subtitle": "Suppliers, purchase orders & invoices"
+			"subtitle": "Manage suppliers, request quotes, place orders, receive goods, and process invoices"
 		},
 		"tiles": {
 			"supplier": { "title": "Supplier", "description": "Manage supplier records" },
 			"purchaseOrder": { "title": "Purchase Order", "description": "Create purchase orders" },
-			"purchaseReceipt": { "title": "Purchase Receipt", "description": "Record goods receipt" },
+			"purchaseReceipt": { "title": "Purchase Receipt", "description": "Select a supplier and outstanding purchase orders to receive goods" },
 			"purchaseInvoice": { "title": "Purchase Invoice", "description": "Supplier invoices" },
 			"supplierQuotation": { "title": "Supplier Quotation", "description": "Supplier quotations" },
 			"requestForQuotation": { "title": "Request for Quotation", "description": "Request supplier quotes" }

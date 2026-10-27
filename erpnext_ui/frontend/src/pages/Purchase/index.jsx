@@ -30,8 +30,8 @@ const MODULE_DEFS = [
   {
     key: "purchaseReceipt",
     icon: Package,
-    route: "/purchase/Purchase Receipt",
-    createRoute: "/purchase/Purchase Receipt/new",
+    route: "/store/purchase-receipt",
+    createRoute: "/store/purchase-receipt/new",
   },
   {
     key: "purchaseInvoice",
