@@ -25,8 +25,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { gridCorners } from "../../lib/gridCorners";
 import {
+  getApprovalStatusField,
   getApprovalMeta,
-  resolveStatusField,
 } from "../../lib/approvalMeta";
 
 const GRID_BREAKPOINTS = [{ cols: 1 }, { min: "sm", cols: 2 }, { min: "lg", cols: 3 }];
@@ -171,7 +171,8 @@ export default function Approval() {
             // Claim where it is `approval_status`. Resolve from meta so the
             // counts don't silently read a column that doesn't exist.
             const meta = await getApprovalMeta(item.doctype);
-            const statusField = resolveStatusField(meta, item.doctype);
+            const statusField = await getApprovalStatusField(meta, item.doctype);
+            if (!statusField) throw new Error(`Unable to resolve approval field for ${item.doctype}`);
             const statusFilter = item.pendingStatuses
               ? { [statusField]: ["in", item.pendingStatuses] }
               : { [statusField]: pendingStatus };

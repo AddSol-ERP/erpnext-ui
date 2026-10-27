@@ -1,4 +1,5 @@
 import { get } from "../services/api";
+import { hasConfiguredWorkflow } from "./docTransition";
 
 /**
  * DocType meta for the approval screens.
@@ -110,7 +111,10 @@ export function pickFields(meta, fields) {
  * Resolve the fieldname holding this doctype's approval status.
  */
 export function resolveStatusField(meta, doctype) {
-  if (!meta) return DEFAULT_STATUS_FIELD;
+  if (!meta) return null;
+  if (meta.hasWorkflow && meta.fieldSet.has("workflow_state")) {
+    return "workflow_state";
+  }
 
   const preferred = PREFERRED_STATUS_FIELD[doctype] || DEFAULT_STATUS_FIELD;
 
@@ -120,6 +124,13 @@ export function resolveStatusField(meta, doctype) {
   if (meta.fieldSet.has("workflow_state")) return "workflow_state";
 
   return DEFAULT_STATUS_FIELD;
+}
+
+/** Resolve the active approval field from Workflow config or DocType schema. */
+export async function getApprovalStatusField(meta, doctype) {
+  const hasWorkflow = await hasConfiguredWorkflow(doctype);
+  if (hasWorkflow) return "workflow_state";
+  return resolveStatusField(meta, doctype);
 }
 
 /**

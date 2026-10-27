@@ -13,6 +13,7 @@ import { StatusBadge } from "../../List/StatusBadge";
 import useListPagination from "../../../hooks/useListPagination";
 import { listFilterHandlers } from "../../../lib/filterChips";
 import {
+  getApprovalStatusField,
   getApprovalMeta,
   pickFields,
   resolveStatusField,
@@ -309,7 +310,10 @@ const ApprovalListPage = () => {
       const meta = await getApprovalMeta(doctype);
       setMeta(meta);
 
-      const statusField = resolveStatusField(meta, doctype);
+      const statusField = await getApprovalStatusField(meta, doctype);
+      if (!statusField) {
+        throw new Error(`Unable to resolve approval field for ${doctype}`);
+      }
       const fields = getFields(meta);
       const filters = buildFilters(meta, statusField);
       const or_filters = buildOrFilters(meta);
