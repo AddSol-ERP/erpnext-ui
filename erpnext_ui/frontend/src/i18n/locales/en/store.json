@@ -900,7 +900,7 @@
       "tileDescription": "See every item still held for quality inspection",
       "warehouse": "Warehouse (optional)",
       "allWarehouses": "All accessible warehouses",
-      "warehouseHint": "Leave warehouse blank to include all warehouses you can access, or select one to filter. Quantities are calculated as of the selected date. Submitted Incoming Inspections clear only the matching reference document and item, batch, or serial.",
+      "warehouseHint": "Leave warehouse blank to use the configured pending inspection warehouse, or select a warehouse to filter. Stock remains listed while it is in that warehouse and disappears after QC moves it elsewhere. Quantities are calculated as of the selected date.",
       "asOfDate": "As of date",
       "batch": "Batch",
       "serial": "Serial No.",

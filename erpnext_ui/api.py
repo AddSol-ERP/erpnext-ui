@@ -2507,105 +2507,6 @@ def _pending_inspection_source_refs(warehouses, rows, as_of_date):
 	return exact, item_refs
 
 
-def _completed_pending_inspection_tracking(rows, as_of_date):
-	"""Return tracking identities inspected for each row's exact reference document."""
-	if not rows:
-		return set(), set(), set()
-
-	if not _can_read("Quality Inspection"):
-		frappe.throw(
-			frappe._("You do not have permission to check completed quality inspections."),
-			frappe.PermissionError,
-		)
-
-	completed_batches = set()
-	completed_serials = set()
-	completed_items = set()
-	groups = {}
-	for row in rows:
-		reference_type = row.get("_reference_type")
-		reference_name = row.get("_reference_name")
-		if not reference_type or not reference_name:
-			continue
-		groups.setdefault((reference_type, reference_name), []).append(row)
-
-	for (reference_type, reference_name), reference_rows in groups.items():
-		item_codes = {row["item_code"] for row in reference_rows if row.get("item_code")}
-		batches = {row["batch_no"] for row in reference_rows if row.get("batch_no")}
-		serials = {row["serial_no"] for row in reference_rows if row.get("serial_no")}
-		item_level_codes = {
-			row["item_code"] for row in reference_rows
-			if row.get("item_code") and not row.get("batch_no") and not row.get("serial_no")
-		}
-		if not item_codes:
-			continue
-		for item_chunk in _pending_inspection_chunks(item_codes):
-			item_placeholders = ", ".join(["%s"] * len(item_chunk))
-			tracking_clauses = []
-			tracking_params = []
-			if batches:
-				for values in _pending_inspection_chunks(batches):
-					placeholders = ", ".join(["%s"] * len(values))
-					tracking_clauses.append(f"qi.`batch_no` in ({placeholders})")
-					tracking_params.extend(values)
-			if serials:
-				for values in _pending_inspection_chunks(serials):
-					placeholders = ", ".join(["%s"] * len(values))
-					tracking_clauses.append(f"qi.`item_serial_no` in ({placeholders})")
-					tracking_params.extend(values)
-			if item_level_codes:
-				tracking_clauses.append(
-					"(ifnull(qi.`batch_no`, '') = '' and ifnull(qi.`item_serial_no`, '') = '')"
-				)
-			tracking_condition = f"({' or '.join(tracking_clauses)})" if tracking_clauses else "1 = 0"
-			for inspection in frappe.db.sql(
-				f"""
-				select qi.`item_code`, qi.`batch_no`, qi.`item_serial_no`
-				from `tabQuality Inspection` qi
-				where qi.`docstatus` = 1
-				  and qi.`inspection_type` = 'Incoming'
-				  and qi.`reference_type` = %s and qi.`reference_name` = %s
-				  and date(qi.`modified`) <= %s
-				  and qi.`item_code` in ({item_placeholders})
-				  and {tracking_condition}
-				""",
-				(reference_type, reference_name, as_of_date, *item_chunk, *tracking_params),
-				as_dict=True,
-			):
-				if inspection.item_serial_no:
-					completed_serials.add((
-						reference_type, reference_name, inspection.item_code, inspection.item_serial_no
-					))
-				elif inspection.batch_no:
-					completed_batches.add((
-						reference_type, reference_name, inspection.item_code, inspection.batch_no
-					))
-				else:
-					completed_items.add((reference_type, reference_name, inspection.item_code))
-
-	return completed_items, completed_batches, completed_serials
-
-
-def _pending_row_has_completed_inspection(row, completed_items, completed_batches, completed_serials):
-	"""Match completion at the exact reference and most-specific selected scope."""
-	reference_type = row.get("_reference_type")
-	reference_name = row.get("_reference_name")
-	if not reference_type or not reference_name:
-		return False
-	item_code = row.get("item_code")
-	if row.get("serial_no"):
-		return (
-			(reference_type, reference_name, item_code, row["serial_no"]) in completed_serials
-			or (
-				row.get("batch_no")
-				and (reference_type, reference_name, item_code, row["batch_no"]) in completed_batches
-			)
-		)
-	if row.get("batch_no"):
-		return (reference_type, reference_name, item_code, row["batch_no"]) in completed_batches
-	return (reference_type, reference_name, item_code) in completed_items
-
-
 @frappe.whitelist(allow_guest=False)
 def get_pending_inspection_items(
 	warehouse=None,
@@ -2616,11 +2517,11 @@ def get_pending_inspection_items(
 	limit=50,
 	as_of_date=None,
 ):
-	"""Stock awaiting inspection across warehouses the user can access.
+	"""Stock still held in pending inspection warehouses the user can access.
 
-	The warehouse filter is optional. When omitted, the report includes all
-	accessible leaf warehouses; this supports sites where pending inspection
-	stock is held in multiple locations. A selected warehouse narrows the report.
+	The warehouse filter is optional. When omitted, the configured pending
+	inspection warehouse is used. Users can request all accessible leaf
+	warehouses explicitly or select one warehouse.
 
 	Only positive balances as of `as_of_date` are returned. The date defaults to
 	today. Stock Ledger Entry movements are summed per item and warehouse through
@@ -2633,15 +2534,18 @@ def get_pending_inspection_items(
 	records cannot be found keeps an item-level row for the unaccounted quantity
 	rather than hiding stock from the person who has to inspect it.
 
-	A submitted Incoming Quality Inspection clears the exact batch or serial it
-	identifies from the pending list. Draft inspections do not clear stock.
+	The warehouse is the source of truth for pending action: stock remains on
+	the list while it is in the selected warehouse, and drops off after QC moves
+	it to another warehouse.
 
-	Permission model: requires read on `Item`, `Serial No`, `Batch`,
-	`Stock Ledger Entry` and `Quality Inspection`. Warehouse list permissions
+	Permission model: requires read on `Item`, `Serial No`, `Batch` and
+	`Stock Ledger Entry`. Warehouse list permissions
 	limit the default report; an explicitly selected warehouse is checked too.
 
 	Args:
-		warehouse (str, optional): Restricts results to one accessible warehouse.
+		warehouse (str, optional): Restricts results to one accessible warehouse;
+			`__all_warehouses__` requests every accessible warehouse. When omitted,
+			the configured pending inspection warehouse is used.
 		item_code (str, optional): Restrict to one item.
 		batch_no (str, optional): Restrict to one batch.
 		serial_no (str, optional): Restrict to one serial number.
@@ -2664,7 +2568,13 @@ def get_pending_inspection_items(
 			)
 
 	default_warehouse = _pending_inspection_default_warehouse()
-	selected = (warehouse or "").strip()
+	requested_warehouse = (warehouse or "").strip()
+	all_warehouses_requested = requested_warehouse == "__all_warehouses__"
+	selected = (
+		requested_warehouse
+		if requested_warehouse and not all_warehouses_requested
+		else ("" if all_warehouses_requested else default_warehouse)
+	)
 	as_of_date = str(getdate(as_of_date or nowdate()))
 	batch_no = (batch_no or "").strip()
 	serial_no = (serial_no or "").strip()
@@ -2678,12 +2588,12 @@ def get_pending_inspection_items(
 		"total": 0,
 		"stock_value": 0,
 		"currency": "",
-		"all_warehouses": not bool(selected),
+		"all_warehouses": all_warehouses_requested or not bool(selected),
 		"start": max(cint(start), 0),
 		"limit": min(max(cint(limit) or 50, 1), 200),
 	}
 
-	if selected:
+	if selected and requested_warehouse:
 		if not frappe.db.exists("Warehouse", selected):
 			frappe.throw(
 				frappe._("Warehouse {0} does not exist.").format(selected),
@@ -2705,6 +2615,15 @@ def get_pending_inspection_items(
 		fields=["name", "company"], limit_page_length=0,
 	)
 	accessible_warehouses = [row.name for row in accessible_warehouse_rows]
+	if selected and selected not in accessible_warehouses:
+		if requested_warehouse:
+			frappe.throw(
+				frappe._("You do not have permission to view this warehouse."),
+				frappe.PermissionError,
+			)
+		selected = ""
+		payload["warehouse"] = ""
+		payload["all_warehouses"] = True
 	warehouse_rows = (
 		[row for row in accessible_warehouse_rows if row.name == selected]
 		if selected
@@ -2838,10 +2757,8 @@ def get_pending_inspection_items(
 	if serial_no:
 		rows = [row for row in rows if row["serial_no"] == serial_no]
 
-	# A submitted Incoming Quality Inspection clears only stock with the same
-	# source reference and the specific item, batch, or serial scope it names.
-	# Keep unrelated and untracked stock visible; remove only identities that
-	# already have a completed inspection as of the selected report date.
+	# Preserve the source voucher for a convenient Quality Inspection link, but
+	# warehouse stock alone determines whether an item remains pending.
 	exact_refs, item_refs = _pending_inspection_source_refs(warehouses, rows, as_of_date)
 	for row in rows:
 		ref = None
@@ -2852,17 +2769,6 @@ def get_pending_inspection_items(
 		ref = ref or item_refs.get((row["item_code"], row["warehouse"]))
 		row["_reference_type"] = ref.voucher_type if ref else ""
 		row["_reference_name"] = ref.voucher_no if ref else ""
-
-	completed_items, completed_batches, completed_serials = _completed_pending_inspection_tracking(
-		rows, as_of_date
-	)
-	rows = [
-		row
-		for row in rows
-		if not _pending_row_has_completed_inspection(
-			row, completed_items, completed_batches, completed_serials
-		)
-	]
 
 	rows.sort(key=lambda row: (
 		row["item_name"] or row["item_code"],

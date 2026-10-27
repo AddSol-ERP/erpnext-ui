@@ -123,10 +123,10 @@ export default function InspectionPendingReport() {
       setTotal(payload.total || 0);
       if (!warehouseDefaultApplied.current) {
         warehouseDefaultApplied.current = true;
-        if (payload.default_warehouse &&
-            (payload.available_warehouses || []).includes(payload.default_warehouse)) {
-          setWarehouse(payload.default_warehouse);
-        }
+        setWarehouse(
+          payload.warehouse ||
+            (payload.all_warehouses ? "__all_warehouses__" : ""),
+        );
       }
 
     } catch (e) {
@@ -257,9 +257,7 @@ export default function InspectionPendingReport() {
             </label>
             <Select
               value={warehouse || "__all_warehouses__"}
-              onValueChange={(next) =>
-                changeWarehouse(next === "__all_warehouses__" ? "" : next)
-              }
+              onValueChange={changeWarehouse}
             >
               <SelectTrigger className="w-full">
                 <SelectValue
