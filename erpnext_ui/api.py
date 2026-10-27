@@ -2645,10 +2645,14 @@ def get_pending_inspection_items(
 		payload["currency"] = next(iter(unique_currencies))
 	payload["configured"] = True
 
+	warehouse_condition = (
+		"sle.`warehouse` = %s"
+		if len(warehouses) == 1
+		else f"sle.`warehouse` in ({warehouse_placeholders})"
+	)
 	conditions = [
-		f"sle.`warehouse` in ({warehouse_placeholders})",
+		warehouse_condition,
 		"sle.`posting_date` <= %s",
-		"sle.`docstatus` < 2",
 		"ifnull(sle.`is_cancelled`, 0) = 0",
 	]
 	params = [*warehouses, as_of_date]
@@ -2660,18 +2664,14 @@ def get_pending_inspection_items(
 		f"""
 		select sle.`item_code`, sle.`warehouse`,
 		       sum(sle.`actual_qty`) as `actual_qty`,
-		       sum(sle.`stock_value_difference`) as `stock_value`,
-		       case when sum(sle.`actual_qty`) != 0
-		            then sum(sle.`stock_value_difference`) / sum(sle.`actual_qty`)
-		            else 0 end as `valuation_rate`,
-		       wh.`company`, i.`item_name`, i.`item_group`, i.`stock_uom`,
+		       i.`item_name`, i.`item_group`, i.`stock_uom`,
 		       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
 		       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
 		from `tabStock Ledger Entry` sle
 		inner join `tabWarehouse` wh on wh.`name` = sle.`warehouse`
 		left join `tabItem` i on i.`name` = sle.`item_code`
 		where {where}
-		group by sle.`item_code`, sle.`warehouse`, wh.`company`, i.`item_name`,
+		group by sle.`item_code`, sle.`warehouse`, i.`item_name`,
 		         i.`item_group`, i.`stock_uom`, i.`has_batch_no`, i.`has_serial_no`
 		having sum(sle.`actual_qty`) != 0
 		order by sle.`item_code`
@@ -2686,7 +2686,6 @@ def get_pending_inspection_items(
 
 	rows = []
 	for stock in stock_rows:
-		rate = flt(stock.valuation_rate)
 		actual_qty = flt(stock.actual_qty)
 		tracked_qty = 0.0
 		base = {
@@ -2695,7 +2694,6 @@ def get_pending_inspection_items(
 			"item_name": stock.item_name,
 			"item_group": stock.item_group,
 			"stock_uom": stock.stock_uom,
-			"valuation_rate": rate,
 			"currency": currencies.get(stock.warehouse, ""),
 			"batch_no": "",
 			"serial_no": "",
@@ -2708,10 +2706,9 @@ def get_pending_inspection_items(
 			if len(item_serials) <= actual_qty:
 				for serial_no, batch_no in item_serials:
 					rows.append({
-						**base,
-						"actual_qty": 1.0,
-						"stock_value": rate,
-						"batch_no": batch_no,
+					**base,
+					"actual_qty": 1.0,
+					"batch_no": batch_no,
 						"serial_no": serial_no,
 						"tracking": "serial",
 					})
@@ -2724,7 +2721,6 @@ def get_pending_inspection_items(
 					rows.append({
 						**base,
 						"actual_qty": qty,
-						"stock_value": flt(rate * qty),
 						"batch_no": batch_no,
 						"tracking": "batch",
 					})
@@ -2737,7 +2733,6 @@ def get_pending_inspection_items(
 			rows.append({
 				**base,
 				"actual_qty": actual_qty,
-				"stock_value": flt(rate * actual_qty),
 			})
 		else:
 			remaining = flt(actual_qty - tracked_qty, 6)
@@ -2745,7 +2740,6 @@ def get_pending_inspection_items(
 				rows.append({
 					**base,
 					"actual_qty": remaining,
-					"stock_value": flt(rate * remaining),
 				})
 
 	# Batch and serial are properties of the expanded rows, not of the ledger
@@ -2782,14 +2776,11 @@ def get_pending_inspection_items(
 		row["reference_type"] = row.pop("_reference_type", "")
 		row["reference_name"] = row.pop("_reference_name", "")
 		row["actual_qty"] = flt(row["actual_qty"])
-		row["stock_value"] = flt(row["stock_value"])
 
 	payload["rows"] = page_rows
 	payload["total"] = len(rows)
 	payload["mixed_currency"] = len(unique_currencies) > 1
-	payload["stock_value"] = (
-		flt(sum(row["stock_value"] for row in rows)) if payload["currency"] else None
-	)
+	payload["stock_value"] = None
 	return payload
 
 
