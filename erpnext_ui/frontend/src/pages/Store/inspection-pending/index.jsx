@@ -55,17 +55,11 @@ const fmtMoney = (value, currency) => {
 };
 
 /**
- * Items held in the warehouse that stands between goods receipt and put-away.
+ * Items still awaiting Incoming Quality Inspection, across accessible warehouses.
  *
- * This is deliberately warehouse-driven rather than inspection-record-driven.
- * "Pending" here means the stock has arrived but has not been cleared into
- * usable stock, so the question is answered by what is still in that warehouse.
- * It also means the report works before anyone has created a Quality
- * Inspection record.
- *
- * The warehouse is configured once in Quality Inspection settings and is still
- * selectable on the page, because a site can run more than one pending-QC
- * warehouse and another company will use a different name entirely.
+ * The warehouse filter is optional. With it blank, all warehouses the current
+ * user can read are included. The API checks completed inspections against the
+ * exact source reference and item/batch/serial scope.
  */
 export default function InspectionPendingReport() {
   const { t } = useTranslation();
@@ -85,8 +79,7 @@ export default function InspectionPendingReport() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // Rapid filter changes can leave an older response in flight. Without this
-  // guard it can overwrite a newer selection's rows -- and, worse, the initial
-  // default-warehouse response can reset a user's choice.
+  // guard it can overwrite the rows for the latest filter selection.
   const requestId = useRef(0);
 
   const {
@@ -121,14 +114,6 @@ export default function InspectionPendingReport() {
       setMeta(payload);
       setTotal(payload.total || 0);
 
-      // Seed the selector from the configured default on the first load. The
-      // next request then carries the value explicitly, so clicking Refresh
-      // cannot silently fall back to a different warehouse if configuration
-      // changed underneath the page. The functional update avoids resetting a
-      // choice the user made while this first response was in flight.
-      if (!warehouse && payload.warehouse) {
-        setWarehouse((current) => current || payload.warehouse);
-      }
     } catch (e) {
       if (id !== requestId.current) return;
       setError(e);
@@ -189,8 +174,8 @@ export default function InspectionPendingReport() {
 
   const changeWarehouse = (next) => {
     setWarehouse(next);
-    // Batch and serial are warehouse-specific: keeping a value chosen in the
-    // old warehouse would turn the next request into a guaranteed empty result.
+    // Batch and serial can belong to different stock in another warehouse;
+    // clear them when the warehouse scope changes.
     setBatchNo("");
     setSerialNo("");
     resetPage();
@@ -244,7 +229,7 @@ export default function InspectionPendingReport() {
     navigate(`/quality/inspection/new?${params.toString()}`);
   };
 
-  const hasWarehouse = Boolean(meta.warehouse);
+  const hasWarehouse = Boolean(meta.configured || meta.all_warehouses || meta.warehouse);
   const canRenderTable = !error && hasWarehouse;
 
   return (
@@ -260,7 +245,7 @@ export default function InspectionPendingReport() {
               value={warehouse}
               onChange={changeWarehouse}
               filters={{ is_group: 0 }}
-              placeholder={t("store.inspectionPending.warehouse")}
+              placeholder={t("store.inspectionPending.allWarehouses")}
             />
           </div>
           <div className="space-y-1.5">
@@ -377,14 +362,16 @@ export default function InspectionPendingReport() {
             </div>
             <div>
               <span className="font-semibold tabular-nums">
-                {fmtMoney(meta.stock_value, meta.currency)}
+                {meta.mixed_currency
+                  ? t("store.inspectionPending.multipleCurrencies")
+                  : fmtMoney(meta.stock_value, meta.currency)}
               </span>{" "}
               <span className="text-muted-foreground">
                 {t("store.inspectionPending.stockValue")}
               </span>
             </div>
             <div className="min-w-0 truncate text-muted-foreground">
-              {meta.warehouse}
+              {meta.warehouse || t("store.inspectionPending.allWarehouses")}
             </div>
           </div>
 
@@ -400,6 +387,9 @@ export default function InspectionPendingReport() {
                   </th>
                   <th className="px-4 py-2.5 font-medium">
                     {t("store.inspectionPending.serial")}
+                  </th>
+                  <th className="px-4 py-2.5 font-medium">
+                    {t("store.inspectionPending.warehouse")}
                   </th>
                   <th className="px-4 py-2.5 font-medium">
                     {t("store.inspectionPending.itemGroup")}
@@ -420,7 +410,7 @@ export default function InspectionPendingReport() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("common.loading")}
@@ -429,7 +419,7 @@ export default function InspectionPendingReport() {
                 ) : rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("store.inspectionPending.empty")}
@@ -457,6 +447,9 @@ export default function InspectionPendingReport() {
                         {row.serial_no || "—"}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
+                        {row.warehouse || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
                         {row.item_group || "—"}
                       </td>
                       <td className="px-4 py-3 text-end font-medium tabular-nums">
@@ -466,7 +459,7 @@ export default function InspectionPendingReport() {
                         {row.stock_uom || "—"}
                       </td>
                       <td className="px-4 py-3 text-end tabular-nums">
-                        {fmtMoney(row.stock_value, meta.currency)}
+                        {fmtMoney(row.stock_value, row.currency || meta.currency)}
                       </td>
                       <td className="px-4 py-3 text-end">
                         <Button

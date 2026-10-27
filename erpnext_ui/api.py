@@ -2372,8 +2372,8 @@ def _pending_inspection_chunks(values, size=400):
 		yield unique[offset:offset + size]
 
 
-def _pending_inspection_tracking(selected, item_codes, as_of_date):
-	"""Serial numbers and batch quantities held in a warehouse as of a date.
+def _pending_inspection_tracking(warehouses, item_codes, as_of_date):
+	"""Serial numbers and batch quantities held in allowed warehouses as of a date.
 
 	Serial and batch balances are reconstructed from signed bundle entries joined
 	to Stock Ledger Entries, so historical reports do not rely on today's
@@ -2389,55 +2389,56 @@ def _pending_inspection_tracking(selected, item_codes, as_of_date):
 	"""
 	serials = {}
 	batches = {}
+	warehouse_placeholders = ", ".join(["%s"] * len(warehouses))
 
 	for chunk in _pending_inspection_chunks(item_codes):
 		placeholders = ", ".join(["%s"] * len(chunk))
 		for row in frappe.db.sql(
 			f"""
-			select sle.`item_code`, sbe.`serial_no`, max(sbe.`batch_no`) as `batch_no`
+		select sle.`item_code`, sle.`warehouse`, sbe.`serial_no`, max(sbe.`batch_no`) as `batch_no`
 			from `tabSerial and Batch Entry` sbe
 			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
-			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			where sle.`warehouse` in ({warehouse_placeholders}) and sle.`posting_date` <= %s
 			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
 			  and ifnull(sbe.`serial_no`, '') != ''
 			  and sle.`item_code` in ({placeholders})
-			group by sle.`item_code`, sbe.`serial_no`
+			group by sle.`item_code`, sle.`warehouse`, sbe.`serial_no`
 			having sum(sbe.`qty`) > 0
-			order by sle.`item_code`, max(sbe.`batch_no`), sbe.`serial_no`
+			order by sle.`item_code`, sle.`warehouse`, max(sbe.`batch_no`), sbe.`serial_no`
 			""",
-			(selected, as_of_date, *chunk),
+			(*warehouses, as_of_date, *chunk),
 			as_dict=True,
 		):
-			serials.setdefault(row.item_code, []).append((row.serial_no, row.batch_no or ""))
+			serials.setdefault((row.item_code, row.warehouse), []).append((row.serial_no, row.batch_no or ""))
 
 		for row in frappe.db.sql(
 			f"""
-			select sle.`item_code`, sbe.`batch_no`, sum(sbe.`qty`) as `qty`
+		select sle.`item_code`, sle.`warehouse`, sbe.`batch_no`, sum(sbe.`qty`) as `qty`
 			from `tabSerial and Batch Entry` sbe
 			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
-			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			where sle.`warehouse` in ({warehouse_placeholders}) and sle.`posting_date` <= %s
 			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sbb.`docstatus` = 1 and sbe.`docstatus` = 1
 			  and sbe.`batch_no` is not null and sbe.`batch_no` != ''
 			  and sle.`item_code` in ({placeholders})
-			group by sle.`item_code`, sbe.`batch_no`
+			group by sle.`item_code`, sle.`warehouse`, sbe.`batch_no`
 			having sum(sbe.`qty`) > 0
-			order by sle.`item_code`, sbe.`batch_no`
+			order by sle.`item_code`, sle.`warehouse`, sbe.`batch_no`
 			""",
-			(selected, as_of_date, *chunk),
+			(*warehouses, as_of_date, *chunk),
 			as_dict=True,
 		):
-			batches.setdefault(row.item_code, []).append((row.batch_no, flt(row.qty)))
+			batches.setdefault((row.item_code, row.warehouse), []).append((row.batch_no, flt(row.qty)))
 
 	return serials, batches
 
 
-def _pending_inspection_source_refs(selected, rows, as_of_date):
+def _pending_inspection_source_refs(warehouses, rows, as_of_date):
 	"""Find the document that most recently brought each row into the warehouse.
 
 	Quality Inspection requires `reference_type` and `reference_name`. The
@@ -2451,12 +2452,13 @@ def _pending_inspection_source_refs(selected, rows, as_of_date):
 	"""
 	exact = {}
 	items = {row["item_code"] for row in rows}
+	warehouse_placeholders = ", ".join(["%s"] * len(warehouses))
 	serials = {row["serial_no"] for row in rows if row.get("serial_no")}
 	batches = {row["batch_no"] for row in rows if row.get("batch_no")}
 
 	if serials or batches:
 		clauses = []
-		params = [selected]
+		params = list(warehouses)
 		if serials:
 			clauses.append(f"sbe.`serial_no` in ({', '.join(['%s'] * len(serials))})")
 			params.extend(sorted(serials))
@@ -2466,49 +2468,49 @@ def _pending_inspection_source_refs(selected, rows, as_of_date):
 
 		for row in frappe.db.sql(
 			f"""
-			select sle.`item_code`, sbe.`serial_no`, sbe.`batch_no`,
+		select sle.`item_code`, sle.`warehouse`, sbe.`serial_no`, sbe.`batch_no`,
 			       sle.`voucher_type`, sle.`voucher_no`
 			from `tabSerial and Batch Entry` sbe
 			inner join `tabSerial and Batch Bundle` sbb on sbb.`name` = sbe.`parent`
 			inner join `tabStock Ledger Entry` sle
 			        on sle.`serial_and_batch_bundle` = sbb.`name`
-			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			where sle.`warehouse` in ({warehouse_placeholders}) and sle.`posting_date` <= %s
 			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sle.`actual_qty` > 0 and ({' or '.join(clauses)})
 			order by sle.`posting_datetime` desc, sle.`creation` desc
 			""",
-			tuple([selected, as_of_date, *params[1:]]),
+			tuple([*warehouses, as_of_date, *params[len(warehouses):]]),
 			as_dict=True,
 		):
 			if row.serial_no:
-				exact.setdefault(("serial", row.item_code, row.serial_no), row)
+				exact.setdefault(("serial", row.item_code, row.serial_no, row.warehouse), row)
 			if row.batch_no:
-				exact.setdefault(("batch", row.item_code, row.batch_no), row)
+				exact.setdefault(("batch", row.item_code, row.batch_no, row.warehouse), row)
 
 	item_refs = {}
 	for chunk in _pending_inspection_chunks(items):
 		placeholders = ", ".join(["%s"] * len(chunk))
 		for row in frappe.db.sql(
 			f"""
-			select sle.`item_code`, sle.`voucher_type`, sle.`voucher_no`
+			select sle.`item_code`, sle.`warehouse`, sle.`voucher_type`, sle.`voucher_no`
 			from `tabStock Ledger Entry` sle
-			where sle.`warehouse` = %s and sle.`posting_date` <= %s
+			where sle.`warehouse` in ({warehouse_placeholders}) and sle.`posting_date` <= %s
 			  and ifnull(sle.`is_cancelled`, 0) = 0
 			  and sle.`actual_qty` > 0 and sle.`item_code` in ({placeholders})
 			order by sle.`posting_datetime` desc, sle.`creation` desc
 			""",
-			(selected, as_of_date, *chunk),
+			(*warehouses, as_of_date, *chunk),
 			as_dict=True,
 		):
-			item_refs.setdefault(row.item_code, row)
+			item_refs.setdefault((row.item_code, row.warehouse), row)
 
 	return exact, item_refs
 
 
 def _completed_pending_inspection_tracking(rows, as_of_date):
-	"""Return batch and serial identifiers already covered by submitted Incoming QIs."""
+	"""Return tracking identities inspected for each row's exact reference document."""
 	if not rows:
-		return set(), set()
+		return set(), set(), set()
 
 	if not _can_read("Quality Inspection"):
 		frappe.throw(
@@ -2516,49 +2518,92 @@ def _completed_pending_inspection_tracking(rows, as_of_date):
 			frappe.PermissionError,
 		)
 
-	item_codes = {row["item_code"] for row in rows if row.get("item_code")}
-	batches = {row["batch_no"] for row in rows if row.get("batch_no")}
-	serials = {row["serial_no"] for row in rows if row.get("serial_no")}
-	if not item_codes or not (batches or serials):
-		return set(), set()
-
 	completed_batches = set()
 	completed_serials = set()
-	for item_chunk in _pending_inspection_chunks(item_codes):
-		item_placeholders = ", ".join(["%s"] * len(item_chunk))
-		tracking_clauses = []
-		tracking_params = []
-		if batches:
-			batch_chunk = list(batches)
-			for values in _pending_inspection_chunks(batch_chunk):
-				placeholders = ", ".join(["%s"] * len(values))
-				tracking_clauses.append(f"qi.`batch_no` in ({placeholders})")
-				tracking_params.extend(values)
-		if serials:
-			serial_chunk = list(serials)
-			for values in _pending_inspection_chunks(serial_chunk):
-				placeholders = ", ".join(["%s"] * len(values))
-				tracking_clauses.append(f"qi.`item_serial_no` in ({placeholders})")
-				tracking_params.extend(values)
-		for inspection in frappe.db.sql(
-			f"""
-			select qi.`item_code`, qi.`batch_no`, qi.`item_serial_no`
-			from `tabQuality Inspection` qi
-			where qi.`docstatus` = 1
-			  and qi.`inspection_type` = 'Incoming'
-			  and date(qi.`modified`) <= %s
-			  and qi.`item_code` in ({item_placeholders})
-			  and ({' or '.join(tracking_clauses)})
-			""",
-			(as_of_date, *item_chunk, *tracking_params),
-			as_dict=True,
-		):
-			if inspection.item_serial_no:
-				completed_serials.add((inspection.item_code, inspection.item_serial_no))
-			elif inspection.batch_no:
-				completed_batches.add((inspection.item_code, inspection.batch_no))
+	completed_items = set()
+	groups = {}
+	for row in rows:
+		reference_type = row.get("_reference_type")
+		reference_name = row.get("_reference_name")
+		if not reference_type or not reference_name:
+			continue
+		groups.setdefault((reference_type, reference_name), []).append(row)
 
-	return completed_batches, completed_serials
+	for (reference_type, reference_name), reference_rows in groups.items():
+		item_codes = {row["item_code"] for row in reference_rows if row.get("item_code")}
+		batches = {row["batch_no"] for row in reference_rows if row.get("batch_no")}
+		serials = {row["serial_no"] for row in reference_rows if row.get("serial_no")}
+		item_level_codes = {
+			row["item_code"] for row in reference_rows
+			if row.get("item_code") and not row.get("batch_no") and not row.get("serial_no")
+		}
+		if not item_codes:
+			continue
+		for item_chunk in _pending_inspection_chunks(item_codes):
+			item_placeholders = ", ".join(["%s"] * len(item_chunk))
+			tracking_clauses = []
+			tracking_params = []
+			if batches:
+				for values in _pending_inspection_chunks(batches):
+					placeholders = ", ".join(["%s"] * len(values))
+					tracking_clauses.append(f"qi.`batch_no` in ({placeholders})")
+					tracking_params.extend(values)
+			if serials:
+				for values in _pending_inspection_chunks(serials):
+					placeholders = ", ".join(["%s"] * len(values))
+					tracking_clauses.append(f"qi.`item_serial_no` in ({placeholders})")
+					tracking_params.extend(values)
+			if item_level_codes:
+				tracking_clauses.append(
+					"(ifnull(qi.`batch_no`, '') = '' and ifnull(qi.`item_serial_no`, '') = '')"
+				)
+			tracking_condition = f"({' or '.join(tracking_clauses)})" if tracking_clauses else "1 = 0"
+			for inspection in frappe.db.sql(
+				f"""
+				select qi.`item_code`, qi.`batch_no`, qi.`item_serial_no`
+				from `tabQuality Inspection` qi
+				where qi.`docstatus` = 1
+				  and qi.`inspection_type` = 'Incoming'
+				  and qi.`reference_type` = %s and qi.`reference_name` = %s
+				  and date(qi.`modified`) <= %s
+				  and qi.`item_code` in ({item_placeholders})
+				  and {tracking_condition}
+				""",
+				(reference_type, reference_name, as_of_date, *item_chunk, *tracking_params),
+				as_dict=True,
+			):
+				if inspection.item_serial_no:
+					completed_serials.add((
+						reference_type, reference_name, inspection.item_code, inspection.item_serial_no
+					))
+				elif inspection.batch_no:
+					completed_batches.add((
+						reference_type, reference_name, inspection.item_code, inspection.batch_no
+					))
+				else:
+					completed_items.add((reference_type, reference_name, inspection.item_code))
+
+	return completed_items, completed_batches, completed_serials
+
+
+def _pending_row_has_completed_inspection(row, completed_items, completed_batches, completed_serials):
+	"""Match completion at the exact reference and most-specific selected scope."""
+	reference_type = row.get("_reference_type")
+	reference_name = row.get("_reference_name")
+	if not reference_type or not reference_name:
+		return False
+	item_code = row.get("item_code")
+	if row.get("serial_no"):
+		return (
+			(reference_type, reference_name, item_code, row["serial_no"]) in completed_serials
+			or (
+				row.get("batch_no")
+				and (reference_type, reference_name, item_code, row["batch_no"]) in completed_batches
+			)
+		)
+	if row.get("batch_no"):
+		return (reference_type, reference_name, item_code, row["batch_no"]) in completed_batches
+	return (reference_type, reference_name, item_code) in completed_items
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2571,13 +2616,11 @@ def get_pending_inspection_items(
 	limit=50,
 	as_of_date=None,
 ):
-	"""Stock currently held in the pending-inspection warehouse.
+	"""Stock awaiting inspection across warehouses the user can access.
 
-	The report is warehouse-driven by definition: "pending inspection" on this
-	site is the stock sitting in the warehouse that separates goods receipt from
-	put-away. The warehouse is configurable because another company will use a
-	different one; the report also accepts an explicit warehouse so a user can
-	look at a second pending-QC location without changing the site default.
+	The warehouse filter is optional. When omitted, the report includes all
+	accessible leaf warehouses; this supports sites where pending inspection
+	stock is held in multiple locations. A selected warehouse narrows the report.
 
 	Only positive balances as of `as_of_date` are returned. The date defaults to
 	today. Today's balance comes from `Bin`, matching ERPNext Stock Balance;
@@ -2593,11 +2636,11 @@ def get_pending_inspection_items(
 	identifies from the pending list. Draft inspections do not clear stock.
 
 	Permission model: requires read on `Item`, `Serial No`, `Batch`,
-	`Stock Ledger Entry` and `Quality Inspection`, plus permission on the
-	selected `Warehouse`. Fails closed on any probe error.
+	`Stock Ledger Entry` and `Quality Inspection`. Warehouse list permissions
+	limit the default report; an explicitly selected warehouse is checked too.
 
 	Args:
-		warehouse (str, optional): Overrides the configured default.
+		warehouse (str, optional): Restricts results to one accessible warehouse.
 		item_code (str, optional): Restrict to one item.
 		batch_no (str, optional): Restrict to one batch.
 		serial_no (str, optional): Restrict to one serial number.
@@ -2607,10 +2650,10 @@ def get_pending_inspection_items(
 		limit (int): Page size, capped at 200.
 
 	Returns:
-		dict: {"warehouse", "default_warehouse", "configured", "as_of_date", "rows",
+		dict: {"warehouse", "all_warehouses", "as_of_date", "rows",
 		       "total", "stock_value", "currency", "start", "limit"}
 	"""
-	for doctype in ("Bin", "Item", "Serial No", "Batch", "Stock Ledger Entry"):
+	for doctype in ("Bin", "Item", "Serial No", "Batch", "Stock Ledger Entry", "Warehouse"):
 		if not _can_read(doctype):
 			frappe.throw(
 				frappe._("You do not have permission to view pending inspection stock ({0}).").format(
@@ -2620,7 +2663,7 @@ def get_pending_inspection_items(
 			)
 
 	default_warehouse = _pending_inspection_default_warehouse()
-	selected = (warehouse or "").strip() or default_warehouse
+	selected = (warehouse or "").strip()
 	as_of_date = str(getdate(as_of_date or nowdate()))
 	batch_no = (batch_no or "").strip()
 	serial_no = (serial_no or "").strip()
@@ -2634,42 +2677,58 @@ def get_pending_inspection_items(
 		"total": 0,
 		"stock_value": 0,
 		"currency": "",
+		"all_warehouses": not bool(selected),
 		"start": max(cint(start), 0),
 		"limit": min(max(cint(limit) or 50, 1), 200),
 	}
 
-	if not selected:
+	if selected:
+		if not frappe.db.exists("Warehouse", selected):
+			frappe.throw(
+				frappe._("Warehouse {0} does not exist.").format(selected),
+				frappe.DoesNotExistError,
+			)
+		if frappe.db.get_value("Warehouse", selected, "is_group"):
+			frappe.throw(frappe._("Choose a warehouse, not a warehouse group."))
+		try:
+			warehouse_allowed = frappe.has_permission("Warehouse", "read", doc=selected)
+		except Exception:
+			warehouse_allowed = False
+		if not warehouse_allowed:
+			frappe.throw(
+				frappe._("You do not have permission to view this warehouse."),
+				frappe.PermissionError,
+			)
+		warehouse_rows = frappe.get_list(
+			"Warehouse", filters={"name": selected, "is_group": 0},
+			fields=["name", "company"], limit_page_length=1,
+		)
+	else:
+		warehouse_rows = frappe.get_list(
+			"Warehouse", filters={"is_group": 0},
+			fields=["name", "company"], limit_page_length=0,
+		)
+	warehouses = [row.name for row in warehouse_rows]
+	if not warehouses:
+		payload["configured"] = True
 		return payload
-
-	if not frappe.db.exists("Warehouse", selected):
-		frappe.throw(
-			frappe._("Warehouse {0} does not exist.").format(selected),
-			frappe.DoesNotExistError,
-		)
-	if frappe.db.get_value("Warehouse", selected, "is_group"):
-		frappe.throw(frappe._("Choose a warehouse, not a warehouse group."))
-
-	try:
-		warehouse_allowed = frappe.has_permission("Warehouse", "read", doc=selected)
-	except Exception:
-		warehouse_allowed = False
-	if not warehouse_allowed:
-		frappe.throw(
-			frappe._("You do not have permission to view this warehouse."),
-			frappe.PermissionError,
-		)
-
-	company = frappe.db.get_value("Warehouse", selected, "company")
-	payload["currency"] = (
-		frappe.db.get_value("Company", company, "default_currency") if company else ""
-	) or ""
+	warehouse_placeholders = ", ".join(["%s"] * len(warehouses))
+	currencies = {}
+	for row in warehouse_rows:
+		currencies[row.name] = (
+			frappe.db.get_value("Company", row.company, "default_currency") if row.company else ""
+		) or ""
+	unique_currencies = set(currencies.values()) - {""}
+	if len(unique_currencies) == 1:
+		payload["currency"] = next(iter(unique_currencies))
+	payload["configured"] = True
 
 	if as_of_date == nowdate():
 		# ERPNext's Stock Balance uses Bin.actual_qty for today's closing balance.
 		# Use the same snapshot here; rebuilding today's total from SLE movements
 		# can disagree with Bin after legacy imports or stock reposting.
-		conditions = ["b.`warehouse` = %s", "b.`actual_qty` > 0"]
-		params = [selected]
+		conditions = [f"b.`warehouse` in ({warehouse_placeholders})", "b.`actual_qty` > 0"]
+		params = list(warehouses)
 		if item_code:
 			conditions.append("b.`item_code` = %s")
 			params.append(item_code)
@@ -2678,10 +2737,12 @@ def get_pending_inspection_items(
 			f"""
 			select b.`item_code`, b.`warehouse`, b.`actual_qty`,
 			       b.`stock_value`, b.`valuation_rate`,
+			       wh.`company`,
 			       i.`item_name`, i.`item_group`, i.`stock_uom`,
 			       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
 			       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
 			from `tabBin` b
+			inner join `tabWarehouse` wh on wh.`name` = b.`warehouse`
 			left join `tabItem` i on i.`name` = b.`item_code`
 			where {where}
 			order by coalesce(i.`item_name`, b.`item_code`), b.`item_code`
@@ -2691,11 +2752,11 @@ def get_pending_inspection_items(
 		)
 	else:
 		conditions = [
-			"sle.`warehouse` = %s",
+			f"sle.`warehouse` in ({warehouse_placeholders})",
 			"sle.`posting_date` <= %s",
 			"ifnull(sle.`is_cancelled`, 0) = 0",
 		]
-		params = [selected, as_of_date]
+		params = [*warehouses, as_of_date]
 		if item_code:
 			conditions.append("sle.`item_code` = %s")
 			params.append(item_code)
@@ -2708,11 +2769,12 @@ def get_pending_inspection_items(
 			       case when sum(sle.`actual_qty`) != 0
 			            then sum(sle.`stock_value_difference`) / sum(sle.`actual_qty`)
 			            else 0 end as `valuation_rate`,
-			       i.`item_name`, i.`item_group`, i.`stock_uom`,
+			       wh.`company`, i.`item_name`, i.`item_group`, i.`stock_uom`,
 			       ifnull(i.`has_batch_no`, 0) as `has_batch_no`,
 			       ifnull(i.`has_serial_no`, 0) as `has_serial_no`
 			from `tabStock Ledger Entry` sle
 			left join `tabItem` i on i.`name` = sle.`item_code`
+			inner join `tabWarehouse` wh on wh.`name` = sle.`warehouse`
 			where {where}
 			group by sle.`item_code`, sle.`warehouse`, i.`item_name`, i.`item_group`,
 			         i.`stock_uom`, i.`has_batch_no`, i.`has_serial_no`
@@ -2724,7 +2786,7 @@ def get_pending_inspection_items(
 		)
 
 	serials, batches = _pending_inspection_tracking(
-		selected, [row.item_code for row in stock_rows], as_of_date
+		warehouses, [row.item_code for row in stock_rows], as_of_date
 	)
 
 	rows = []
@@ -2739,13 +2801,15 @@ def get_pending_inspection_items(
 			"item_group": stock.item_group,
 			"stock_uom": stock.stock_uom,
 			"valuation_rate": rate,
+			"currency": currencies.get(stock.warehouse, ""),
 			"batch_no": "",
 			"serial_no": "",
 			"tracking": "item",
 		}
 
-		if cint(stock.has_serial_no) and serials.get(stock.item_code):
-			item_serials = serials[stock.item_code]
+		stock_key = (stock.item_code, stock.warehouse)
+		if cint(stock.has_serial_no) and serials.get(stock_key):
+			item_serials = serials[stock_key]
 			if len(item_serials) <= actual_qty:
 				for serial_no, batch_no in item_serials:
 					rows.append({
@@ -2757,8 +2821,8 @@ def get_pending_inspection_items(
 						"tracking": "serial",
 					})
 				tracked_qty = float(len(item_serials))
-		elif cint(stock.has_batch_no) and batches.get(stock.item_code):
-			item_batches = batches[stock.item_code]
+		elif cint(stock.has_batch_no) and batches.get(stock_key):
+			item_batches = batches[stock_key]
 			batch_total = sum(qty for _batch_no, qty in item_batches)
 			if batch_total <= actual_qty + 0.000001:
 				for batch_no, qty in item_batches:
@@ -2798,25 +2862,29 @@ def get_pending_inspection_items(
 	if serial_no:
 		rows = [row for row in rows if row["serial_no"] == serial_no]
 
-	# The pending warehouse identifies stock awaiting QC, but a submitted
-	# Incoming Quality Inspection clears the specific batch or serial it names.
+	# A submitted Incoming Quality Inspection clears only stock with the same
+	# source reference and the specific item, batch, or serial scope it names.
 	# Keep unrelated and untracked stock visible; remove only identities that
 	# already have a completed inspection as of the selected report date.
-	completed_batches, completed_serials = _completed_pending_inspection_tracking(
+	exact_refs, item_refs = _pending_inspection_source_refs(warehouses, rows, as_of_date)
+	for row in rows:
+		ref = None
+		if row["serial_no"]:
+			ref = exact_refs.get(("serial", row["item_code"], row["serial_no"], row["warehouse"]))
+		elif row["batch_no"]:
+			ref = exact_refs.get(("batch", row["item_code"], row["batch_no"], row["warehouse"]))
+		ref = ref or item_refs.get((row["item_code"], row["warehouse"]))
+		row["_reference_type"] = ref.voucher_type if ref else ""
+		row["_reference_name"] = ref.voucher_no if ref else ""
+
+	completed_items, completed_batches, completed_serials = _completed_pending_inspection_tracking(
 		rows, as_of_date
 	)
 	rows = [
 		row
 		for row in rows
-		if not (
-			(row["serial_no"] and (
-				(row["item_code"], row["serial_no"]) in completed_serials
-				or (row["batch_no"] and (row["item_code"], row["batch_no"]) in completed_batches)
-			))
-			or (
-				row["batch_no"]
-				and (row["item_code"], row["batch_no"]) in completed_batches
-			)
+		if not _pending_row_has_completed_inspection(
+			row, completed_items, completed_batches, completed_serials
 		)
 	]
 
@@ -2828,22 +2896,18 @@ def get_pending_inspection_items(
 	))
 
 	page_rows = rows[payload["start"]:payload["start"] + payload["limit"]]
-	exact_refs, item_refs = _pending_inspection_source_refs(selected, page_rows, as_of_date)
 	for row in page_rows:
-		ref = None
-		if row["serial_no"]:
-			ref = exact_refs.get(("serial", row["item_code"], row["serial_no"]))
-		elif row["batch_no"]:
-			ref = exact_refs.get(("batch", row["item_code"], row["batch_no"]))
-		ref = ref or item_refs.get(row["item_code"])
-		row["reference_type"] = ref.voucher_type if ref else ""
-		row["reference_name"] = ref.voucher_no if ref else ""
+		row["reference_type"] = row.pop("_reference_type", "")
+		row["reference_name"] = row.pop("_reference_name", "")
 		row["actual_qty"] = flt(row["actual_qty"])
 		row["stock_value"] = flt(row["stock_value"])
 
 	payload["rows"] = page_rows
 	payload["total"] = len(rows)
-	payload["stock_value"] = flt(sum(row["stock_value"] for row in rows))
+	payload["mixed_currency"] = len(unique_currencies) > 1
+	payload["stock_value"] = (
+		flt(sum(row["stock_value"] for row in rows)) if payload["currency"] else None
+	)
 	return payload
 
 

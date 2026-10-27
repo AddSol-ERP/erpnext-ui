@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   BarChart3,
+  ClipboardCheck,
   ClipboardList,
   Factory,
   PackageCheck,
@@ -84,8 +85,15 @@ export default function QualityDashboard() {
     {
       key: "reports",
       title: t("quality.sectionReports"),
-      cols: 1,
+      cols: 2,
       items: [
+        {
+          key: "inspection-pending",
+          title: t("store.inspectionPending.title"),
+          icon: ClipboardCheck,
+          route: "/store/inspection-pending",
+          description: t("store.inspectionPending.tileDescription"),
+        },
         {
           key: "reports",
           title: t("nav.reports"),
