@@ -2754,8 +2754,8 @@ def get_pending_inspection_items(
 		where {where}
 		group by sle.`item_code`, sle.`warehouse`, wh.`company`, i.`item_name`,
 		         i.`item_group`, i.`stock_uom`, i.`has_batch_no`, i.`has_serial_no`
-		having sum(sle.`actual_qty`) > 0
-		order by coalesce(i.`item_name`, sle.`item_code`), sle.`item_code`
+		having sum(sle.`actual_qty`) != 0
+		order by sle.`item_code`
 		""",
 		tuple(params),
 		as_dict=True,
