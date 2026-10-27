@@ -271,6 +271,7 @@
   "referenceName": "Reference Document",
   "referenceNameHint": "The document this inspection is raised against.",
   "noItemsForReference": "No items were found on this reference document.",
+  "allReferenceItemsInspected": "All tracked items on this reference already have a submitted Incoming Quality Inspection.",
   "referenceItemsLoadFailed": "Could not load items from this reference document.",
   "batchNo": "Batch number",
   "selectBatch": "Select a batch…",

@@ -118,6 +118,34 @@ function getReferenceItemRows(reference) {
   return rows;
 }
 
+function filterCompletedReferenceRows(rows, completedRows) {
+  if (!completedRows?.length) return rows;
+  const completedBatches = new Set();
+  const completedSerials = new Set();
+  const completedItemOnly = new Set();
+  completedRows.forEach((row) => {
+    if (row.batch_no) completedBatches.add(`${row.item_code}\u0000${row.batch_no}`);
+    if (row.item_serial_no) completedSerials.add(`${row.item_code}\u0000${row.item_serial_no}`);
+    if (!row.batch_no && !row.item_serial_no && row.item_code) {
+      completedItemOnly.add(row.item_code);
+    }
+  });
+
+  return rows.flatMap((row) => {
+    const batchKey = row.batch_no ? `${row.item_code}\u0000${row.batch_no}` : "";
+    if (batchKey && completedBatches.has(batchKey)) return [];
+    const serials = splitSerialNumbers(row.serial_no);
+    if (serials.length) {
+      const pendingSerials = serials.filter((serial) =>
+        !completedSerials.has(`${row.item_code}\u0000${serial}`),
+      );
+      return pendingSerials.length ? [{ ...row, serial_no: pendingSerials }] : [];
+    }
+    if (!row.batch_no && completedItemOnly.has(row.item_code)) return [];
+    return [row];
+  });
+}
+
 
 export default function InspectionForm() {
   const { name } = useParams();
@@ -185,7 +213,12 @@ export default function InspectionForm() {
   const [initialAttachment, setInitialAttachment] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [additionalFields, setAdditionalFields] = useState([]);
-  const [referenceItemsState, setReferenceItemsState] = useState({ key: "", rows: [], error: false });
+  const [referenceItemsState, setReferenceItemsState] = useState({
+    key: "",
+    rows: [],
+    completedRows: [],
+    error: false,
+  });
   const referenceRequestId = useRef(0);
   const referenceKey = doc.reference_type && doc.reference_name
     ? `${doc.reference_type}\u0000${doc.reference_name}`
@@ -221,10 +254,18 @@ export default function InspectionForm() {
             row.serial_no = row.serial_no || matchingEntries.map((entry) => entry.serial_no).filter(Boolean);
           }
         }
+        const completedPayload = await getMethod(
+          "method/erpnext_ui.quality_inspection.get_completed_incoming_inspections",
+          {
+            reference_type: doc.reference_type,
+            reference_name: doc.reference_name,
+          },
+        );
         if (requestId === referenceRequestId.current) {
           setReferenceItemsState({
             key: `${doc.reference_type}\u0000${doc.reference_name}`,
             rows,
+            completedRows: completedPayload.rows || [],
             error: false,
           });
         }
@@ -234,6 +275,7 @@ export default function InspectionForm() {
           setReferenceItemsState({
             key: `${doc.reference_type}\u0000${doc.reference_name}`,
             rows: [],
+            completedRows: [],
             error: true,
           });
         }
@@ -246,12 +288,22 @@ export default function InspectionForm() {
 
   const referenceItemRows = useMemo(
     () => referenceItemsState.key === referenceKey
-      ? referenceItemsState.rows
+      ? isEdit
+        ? referenceItemsState.rows
+        : filterCompletedReferenceRows(
+          referenceItemsState.rows,
+          referenceItemsState.completedRows,
+        )
       : EMPTY_REFERENCE_ITEMS,
-    [referenceItemsState, referenceKey],
+    [isEdit, referenceItemsState, referenceKey],
   );
   const referenceItemsLoading = Boolean(referenceKey) && referenceItemsState.key !== referenceKey;
   const referenceItemsError = referenceItemsState.key === referenceKey && referenceItemsState.error;
+  const allReferenceItemsInspected =
+    !isEdit &&
+    referenceItemsState.key === referenceKey &&
+    referenceItemsState.rows.length > 0 &&
+    referenceItemRows.length === 0;
 
   const referenceItemCodes = useMemo(
     () => [...new Set(referenceItemRows.map((row) => row.item_code).filter(Boolean))],
@@ -1214,7 +1266,13 @@ export default function InspectionForm() {
             />
             {doc.reference_name && !referenceItemsLoading && !referenceItemCodes.length ? (
               <p className="mt-1 text-xs text-muted-foreground">
-                {t(referenceItemsError ? "quality.referenceItemsLoadFailed" : "quality.noItemsForReference")}
+                {t(
+                  referenceItemsError
+                    ? "quality.referenceItemsLoadFailed"
+                    : allReferenceItemsInspected
+                      ? "quality.allReferenceItemsInspected"
+                      : "quality.noItemsForReference",
+                )}
               </p>
             ) : null}
           </FormField>

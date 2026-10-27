@@ -109,6 +109,36 @@ def get_quality_inspection_field_config():
 
 
 @frappe.whitelist(allow_guest=False)
+def get_completed_incoming_inspections(reference_type, reference_name):
+	"""Return submitted Incoming Inspection identities for one source document."""
+	if not reference_type or not reference_name:
+		return {"rows": []}
+	if not frappe.has_permission("Quality Inspection", "read"):
+		frappe.throw(_("You do not have permission to read Quality Inspections."), frappe.PermissionError)
+	if not frappe.db.exists("DocType", reference_type):
+		frappe.throw(_("Reference type {0} does not exist.").format(reference_type))
+	if not frappe.db.exists(reference_type, reference_name):
+		frappe.throw(_("Reference document {0} does not exist.").format(reference_name))
+	reference_doc = frappe.get_doc(reference_type, reference_name)
+	if not frappe.has_permission(reference_type, "read", doc=reference_doc):
+		frappe.throw(_("You do not have permission to read this reference document."), frappe.PermissionError)
+
+	return {
+		"rows": frappe.get_list(
+			"Quality Inspection",
+			filters={
+				"inspection_type": "Incoming",
+				"reference_type": reference_type,
+				"reference_name": reference_name,
+				"docstatus": 1,
+			},
+			fields=["item_code", "batch_no", "item_serial_no"],
+			limit_page_length=0,
+		),
+	}
+
+
+@frappe.whitelist(allow_guest=False)
 def save_quality_inspection_field_config(payload=None, pending_inspection_warehouse=None):
 	"""Save field visibility, requiredness and the pending-inspection warehouse.
 

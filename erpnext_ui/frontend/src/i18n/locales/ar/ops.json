@@ -271,6 +271,7 @@
   "referenceName": "مستند المرجع",
   "referenceNameHint": "المستند الذي أُنشئ هذا الفحص بشأنه.",
   "noItemsForReference": "لم يتم العثور على أصناف في المستند المرجعي.",
+  "allReferenceItemsInspected": "تم بالفعل تقديم فحص جودة وارد لجميع الأصناف المتتبعة في هذا المستند المرجعي.",
   "referenceItemsLoadFailed": "تعذر تحميل الأصناف من المستند المرجعي.",
   "batchNo": "رقم الدفعة",
   "selectBatch": "اختر دفعة…",
