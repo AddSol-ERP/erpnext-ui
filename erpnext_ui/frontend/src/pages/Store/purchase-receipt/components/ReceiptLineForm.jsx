@@ -16,6 +16,7 @@ import {
   batchRule,
   conversionPreview,
   computeFactor,
+  estimatedLineWeight,
   needsMeasuredTotal,
   needsSerials,
   perSerialFigures,
@@ -180,6 +181,21 @@ export default function ReceiptLineForm({
    */
   const edit = (patch) => {
     const next = { ...row, ...patch };
+    if ("custom_supplier_weight_kg" in patch) {
+      next.supplier_weight_defaulted = false;
+    }
+    if (
+      isPlate &&
+      "custom_weighbridge_weight_kg" in patch &&
+      Number(patch.custom_weighbridge_weight_kg) > 0 &&
+      row.supplier_weight_defaulted
+    ) {
+      next.custom_supplier_weight_kg = "";
+      next.supplier_weight_defaulted = false;
+    }
+    if (isPlate && "qty" in patch && row.supplier_weight_defaulted) {
+      next.custom_supplier_weight_kg = estimatedLineWeight(next) ?? "";
+    }
     if (isPlate && "qty" in patch) next.custom_weight_decision = "";
     if ("qty" in patch && !(patch.measured_total > 0)) {
       onSave(applyQuantity(next, next.qty, fallback));
@@ -407,8 +423,7 @@ export default function ReceiptLineForm({
               step="any"
               value={row.custom_supplier_weight_kg ?? ""}
               onChange={(e) =>
-                onSave({
-                  ...row,
+                edit({
                   custom_supplier_weight_kg: e.target.value,
                   custom_weight_decision: "",
                 })
@@ -422,7 +437,10 @@ export default function ReceiptLineForm({
               step="any"
               value={row.custom_weighbridge_weight_kg ?? ""}
               onChange={(e) =>
-                onSave({ ...row, custom_weighbridge_weight_kg: e.target.value })
+                edit({
+                  custom_weighbridge_weight_kg: e.target.value,
+                  custom_weight_decision: "",
+                })
               }
             />
           </FormField>
@@ -502,13 +520,12 @@ export default function ReceiptLineForm({
             </>
           ) : null}
 
-          <FormField label={t("store.receipt.ratePerKg")} required>
+          <FormField label={t("store.receipt.ratePerKg")} hint={t("store.receipt.ratePerKgHint")} required>
             <Input
               type="number"
               min="0"
               step="any"
               value={row.custom_rate_per_kg ?? ""}
-              disabled={isPoRow}
               onChange={(e) =>
                 onSave({ ...row, custom_rate_per_kg: e.target.value })
               }

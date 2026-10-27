@@ -276,47 +276,6 @@ export function estimatedLineWeight(row) {
   return null;
 }
 
-/**
- * Start a newly added weighed line from the weight already on the purchase
- * order, in BOTH measurement fields.
- *
- * The estimated weight is what the order was priced on, so using it as the
- * initial supplier and weighbridge reading makes the common case (the delivery
- * matches the order) a zero-variance save instead of six typed digits. Both
- * fields are ordinary editable inputs afterwards; this only supplies a default.
- *
- * A value already present is never replaced. That matters when the helper is
- * called for a row that came back from the server: overwriting a stored
- * measurement with the estimate would silently discard what was actually
- * weighed. It is deliberately not wired into `loadPlateStatus`, whose refresh
- * runs immediately before submit and would otherwise turn a missing
- * measurement into an accepted one.
- */
-export function withDefaultPlateWeights(row) {
-  // `custom_unit_weight_kg` is fetched from the item master on every line, not
-  // only plate lines. Without this gate an ordinary weighted item would also
-  // acquire supplier/weighbridge readings that the plate reports would then
-  // treat as real measurements.
-  if (!row?.custom_is_plate) return row;
-
-  const estimate = estimatedLineWeight(row);
-  if (estimate === null) return row;
-
-  const supplier = Number(row?.custom_supplier_weight_kg);
-  const weighbridge = Number(row?.custom_weighbridge_weight_kg);
-  return {
-    ...row,
-    custom_supplier_weight_kg:
-      Number.isFinite(supplier) && supplier > 0
-        ? row.custom_supplier_weight_kg
-        : estimate,
-    custom_weighbridge_weight_kg:
-      Number.isFinite(weighbridge) && weighbridge > 0
-        ? row.custom_weighbridge_weight_kg
-        : estimate,
-  };
-}
-
 /** Which basis the live factor on a row rests on. Drives the UI strip. */
 export function conversionBasis(row) {
   if (row?.conversion_source === CONVERSION_SOURCE.MEASURED) return "measured";

@@ -38,7 +38,7 @@ import {
   validateBatch,
   validateLineRow,
   validateSerials,
-  withDefaultPlateWeights,
+  estimatedLineWeight,
 } from "../../../../lib/receiptConversion";
 import ReceiptItemWorkbench from "../components/ReceiptItemWorkbench";
 import ReceiptLineDialog from "../components/ReceiptLineDialog";
@@ -120,6 +120,7 @@ const RECEIPT_ITEM_CLIENT_FIELDS = [
   "received_stock_qty",
   "tracking_serials",
   "tracking_batches",
+  "supplier_weight_defaulted",
 ];
 
 /** Strip everything that must not leave the browser. */
@@ -609,8 +610,7 @@ export default function PurchaseReceiptForm() {
     const current = docRef.current;
     const total = Number(Number(current.custom_truck_net_weight_kg).toFixed(3));
     const weighedRows = current.items.filter((row) => plateItems[row._rid] || row.custom_is_plate);
-    const estimates = weighedRows.map((row) => Number(row.custom_est_weight_kg) ||
-      Number(row.qty) * Number(row.custom_unit_weight_kg || row.item_weight_per_unit || row.weight_per_unit));
+    const estimates = weighedRows.map((row) => estimatedLineWeight(row) || 0);
     const estimateTotal = estimates.reduce((sum, value) => sum + (value > 0 ? value : 0), 0);
     if (!(total > 0) || !weighedRows.length || !(estimateTotal > 0) || estimates.some((value) => !(value > 0))) {
       setError(t("store.receipt.truckWeightAllocationError"));
@@ -626,6 +626,9 @@ export default function PurchaseReceiptForm() {
       const variance = estimates[index] > 0 ? Math.abs((weight - estimates[index]) / estimates[index] * 100) : 0;
       updates.set(row._rid, {
         custom_weighbridge_weight_kg: weight,
+        ...(row.supplier_weight_defaulted
+          ? { custom_supplier_weight_kg: "", supplier_weight_defaulted: false }
+          : {}),
         custom_weight_decision: variance > Number(plateConfig.weight_tolerance_pct || 0) && plateConfig.can_decide_weight
           ? "Accept Weighbridge Weight"
           : "",
@@ -644,12 +647,16 @@ export default function PurchaseReceiptForm() {
   const pickLine = (line) => {
     if (line.purchase_order) setActivePurchaseOrder(line.purchase_order);
     const rid = nextRid();
+    const sourceOrder = purchaseOrderSourceValues[line.purchase_order || poName || ""];
+    const sourceOrderItem = (sourceOrder?.items || []).find(
+      (item) => item.name === line.purchase_order_item,
+    );
     // A factor of 0 or missing is not a rate. `TEST-KG-NOS` carries 0.0 on its
     // Nos conversion row precisely because the real factor is a measurement, so
     // this must be a presence test and not a truthiness one.
     const poFactor = Number(line.conversion_factor);
     const hasPoFactor = Number.isFinite(poFactor) && poFactor > 0;
-    const row = withDefaultPlateWeights({
+    const row = {
       ...line,
       _rid: rid,
       item_code: line.item_code,
@@ -673,6 +680,10 @@ export default function PurchaseReceiptForm() {
       stock_qty: hasPoFactor ? Number(line.qty) * poFactor : line.stock_qty ?? "",
       rate: line.rate ?? "",
       warehouse: line.warehouse || docRef.current.set_warehouse || "",
+      custom_rate_per_kg:
+        line.custom_rate_per_kg ?? sourceOrderItem?.custom_rate_per_kg ?? "",
+      custom_unit_weight_kg:
+        line.custom_unit_weight_kg ?? sourceOrderItem?.custom_unit_weight_kg ?? "",
       rejected_warehouse:
         line.rejected_warehouse ||
         purchaseOrderDrafts[line.purchase_order || poName || ""]?.rejected_warehouse ||
@@ -686,12 +697,17 @@ export default function PurchaseReceiptForm() {
       purchase_order: line.purchase_order || poName || "",
       purchase_order_item: line.purchase_order_item || "",
       rate_from_po: line.rate ?? "",
+      // The supplier weight starts at the estimate and remains editable.
+      custom_supplier_weight_kg: "",
+      supplier_weight_defaulted: true,
+      custom_weighbridge_weight_kg: "",
+      custom_weight_decision: "",
       // Remembered so clearing a measured weight returns the ordered rate
       // instead of dropping the row to factor 1.
       factor_from_po: hasPoFactor ? poFactor : null,
       factor_source_po: hasPoFactor ? "purchase_order" : null,
       pending_qty: line.pending_qty,
-    });
+    };
     // A picked line is no longer offered by the picker. Dropping it from the
     // catalogue here (rather than relying on a "picked" check at render time)
     // keeps the catalogue and doc.items in step even if a row is removed again.
@@ -704,14 +720,42 @@ export default function PurchaseReceiptForm() {
     );
     setDoc((p) => ({ ...p, items: [...p.items, row] }));
     if (row.item_code) loadUomInfo(rid, row.item_code);
-    if (row.item_code) loadPlateStatus(rid, row.item_code);
+    if (row.item_code) {
+      loadPlateStatus(rid, row.item_code).then((isPlate) => {
+        if (!isPlate) return;
+        const estimate = estimatedLineWeight(row);
+        if (!(estimate > 0)) return;
+        setDoc((previous) => ({
+          ...previous,
+          items: previous.items.map((current) =>
+            current._rid === rid && current.supplier_weight_defaulted
+              ? { ...current, custom_supplier_weight_kg: estimate }
+              : current,
+          ),
+        }));
+      });
+    }
     setEditing(rid);
   };
 
   /** Item chosen by hand on a direct (no PO) receipt. */
   const handleItemChange = async (rid, itemCode) => {
     if (!itemCode) {
-      patchById(rid, { item_code: "", item_name: "", uom: "", stock_uom: "" });
+      patchById(rid, {
+        item_code: "",
+        item_name: "",
+        uom: "",
+        stock_uom: "",
+        custom_is_plate: 0,
+        custom_unit_weight_kg: "",
+        custom_est_weight_kg: "",
+        custom_supplier_weight_kg: "",
+        supplier_weight_defaulted: true,
+        custom_weighbridge_weight_kg: "",
+        custom_weight_decision: "",
+        custom_weight_per_plate_kg: "",
+        custom_rate_per_kg: "",
+      });
       loadPlateStatus(rid, "");
       return;
     }
@@ -741,23 +785,38 @@ export default function PurchaseReceiptForm() {
         stock_uom: stockUom,
         rate: d.rate || d.last_purchase_rate || "",
         custom_unit_weight_kg: d.weight_per_unit || "",
+        custom_is_plate: 0,
+        custom_est_weight_kg: "",
+        custom_supplier_weight_kg: "",
+        supplier_weight_defaulted: true,
+        custom_weighbridge_weight_kg: "",
+        custom_weight_decision: "",
+        custom_weight_per_plate_kg: "",
+        custom_rate_per_kg: "",
         warehouse: current.set_warehouse || d.warehouse || "",
       });
       await loadUomInfo(rid, itemCode);
       const isPlate = await loadPlateStatus(rid, itemCode);
       if (isPlate) {
-        // A direct-entry plate row has no PO to copy from, so its "original"
-        // weight is the item's theoretical weight at the quantity entered.
+        // Prefill the required supplier-weight field from the estimate; keep it
+        // editable so receiving staff can correct it to the supplier reading.
         setDoc((previous) => ({
           ...previous,
           items: previous.items.map((row) =>
             row._rid === rid
-              ? withDefaultPlateWeights({
+              ? {
                   ...row,
                   custom_is_plate: 1,
                   custom_unit_weight_kg:
                     row.custom_unit_weight_kg || d.weight_per_unit || "",
-                })
+                  custom_supplier_weight_kg:
+                    row.custom_supplier_weight_kg || estimatedLineWeight({
+                      ...row,
+                      custom_unit_weight_kg:
+                        row.custom_unit_weight_kg || d.weight_per_unit || "",
+                    }) || "",
+                  supplier_weight_defaulted: true,
+                }
               : row,
           ),
         }));
@@ -865,8 +924,7 @@ export default function PurchaseReceiptForm() {
       if (forSubmit && isPlate) {
         const supplierWeight = Number(row.custom_supplier_weight_kg) || 0;
         const weighbridgeWeight = Number(row.custom_weighbridge_weight_kg) || 0;
-        const truckWeightAllocated = Number(d.custom_truck_net_weight_kg) > 0 && weighbridgeWeight > 0;
-        if (!(supplierWeight > 0) && !truckWeightAllocated) {
+        if (!(supplierWeight > 0) && !(weighbridgeWeight > 0)) {
           errs.items = t("store.receipt.validation.plateSupplierWeightRequired");
           break;
         }

@@ -42,7 +42,6 @@ import {
   validateLineRow,
   validateSerials,
   wholeNumberRules,
-  withDefaultPlateWeights,
 } from "../src/lib/receiptConversion.js";
 import { DOCTYPE_CONFIG } from "../src/config/doctypes.js";
 import {
@@ -1679,116 +1678,65 @@ ok(
     ),
 );
 
-// A new weighed line starts from the weight the PO was priced on, in BOTH
-// measurement fields. They remain editable; the default only saves the common
-// case (delivery matches the order) from being typed twice.
+// Estimates must remain distinct from actual supplier / weighbridge readings.
 ok(
-  "weight default: the PO's estimated weight fills supplier and weighbridge",
+  "weight measurements: a PO estimate does not fill supplier or weighbridge readings",
   (() => {
-    const row = withDefaultPlateWeights({
+    const row = {
       custom_is_plate: 1,
       qty: 10,
       custom_est_weight_kg: 2453.125,
       custom_supplier_weight_kg: "",
       custom_weighbridge_weight_kg: "",
-    });
-    return row.custom_supplier_weight_kg === 2453.125 &&
-      row.custom_weighbridge_weight_kg === 2453.125;
+      custom_unit_weight_kg: 245.3125,
+    };
+    return estimatedLineWeight(row) === 2453.125 &&
+      row.custom_supplier_weight_kg === "" &&
+      row.custom_weighbridge_weight_kg === "";
   })(),
-  "both fields should start from the same original weight",
+  "the estimated total is available separately while both measured fields stay blank",
 );
 ok(
-  "weight default: a typed measurement is never overwritten",
+  "weight measurements: values already entered are retained",
   (() => {
-    const row = withDefaultPlateWeights({
+    const row = {
       custom_is_plate: 1,
       qty: 10,
       custom_est_weight_kg: 2453.125,
       custom_supplier_weight_kg: 2400,
       custom_weighbridge_weight_kg: 2395,
-    });
+    };
     return row.custom_supplier_weight_kg === 2400 &&
       row.custom_weighbridge_weight_kg === 2395;
   })(),
-  "loading an existing receipt must keep what was actually weighed",
+  "real existing measurements are not replaced with an estimate",
 );
 ok(
-  "weight default: qty x theoretical weight is used when the estimate is absent",
-  (() => {
-    const row = withDefaultPlateWeights({
-      custom_is_plate: 1,
-      qty: 10,
-      custom_est_weight_kg: "",
-      custom_unit_weight_kg: 2.54,
-      custom_supplier_weight_kg: "",
-      custom_weighbridge_weight_kg: "",
-    });
-    return estimatedLineWeight(row) === 25.4 &&
-      row.custom_supplier_weight_kg === 25.4 &&
-      row.custom_weighbridge_weight_kg === 25.4;
-  })(),
-  "the PO mapper can omit the derived field; the theoretical figure still gives the same default",
-);
-ok(
-  "weight default: a partial receipt uses its own quantity, not the PO's full estimate",
+  "weight estimate: a partial receipt uses received quantity, not PO quantity",
   (() => {
     // The mapper reduces qty to the outstanding six pieces but copies the PO's
     // 25.4 Kg estimate, which was for ten. Ten plates' weight on six pieces is
     // the exact silent overstatement this guard exists to stop.
-    const row = withDefaultPlateWeights({
+    const row = {
       custom_is_plate: 1,
       qty: 6,
       custom_est_weight_kg: 25.4,
       custom_unit_weight_kg: 2.54,
       custom_supplier_weight_kg: "",
       custom_weighbridge_weight_kg: "",
-    });
-    return estimatedLineWeight(row) === 15.24 &&
-      row.custom_supplier_weight_kg === 15.24 &&
-      row.custom_weighbridge_weight_kg === 15.24;
+    };
+    return estimatedLineWeight(row) === 15.24;
   })(),
-  "the prefill must match the quantity actually being received",
+  "the displayed estimate is quantity-adjusted and is not a measured value",
 );
 ok(
-  "weight default: an ordinary weighted item does not get plate readings",
-  (() => {
-    // Every item with a weight_per_unit fetches custom_unit_weight_kg, so the
-    // gate must be the plate flag -- otherwise the plate reports get
-    // "measurements" nobody took.
-    const row = withDefaultPlateWeights({
-      custom_is_plate: 0,
-      qty: 10,
-      custom_unit_weight_kg: 2.54,
-      custom_supplier_weight_kg: "",
-      custom_weighbridge_weight_kg: "",
-    });
-    return row.custom_supplier_weight_kg === "" &&
-      row.custom_weighbridge_weight_kg === "";
-  })(),
-  "the field exists on every receipt item; only plate rows are measured",
-);
-ok(
-  "weight default: no usable estimate leaves the fields blank instead of guessing",
-  (() => {
-    const row = withDefaultPlateWeights({
-      custom_is_plate: 1,
-      qty: 10,
-      custom_est_weight_kg: "",
-      custom_unit_weight_kg: "",
-      custom_supplier_weight_kg: "",
-      custom_weighbridge_weight_kg: "",
-    });
-    return row.custom_supplier_weight_kg === "" &&
-      row.custom_weighbridge_weight_kg === "";
-  })(),
-  "a missing weight must not become 0 and look like a measured zero",
-);
-ok(
-  "weight default: a newly picked PO line goes through the helper",
-  /withDefaultPlateWeights\(\{\s*\.\.\.line/.test(
+  "weight measurements: PO lines leave measured values blank",
+  /custom_supplier_weight_kg:\s*""[\s\S]*?custom_weighbridge_weight_kg:\s*""/.test(
+    readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx"),
+  ) && !/withDefaultPlateWeights/.test(
     readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx"),
   ),
-  "otherwise the helper exists but the receipt never uses it",
+  "PO estimates stay out of actual measurement fields",
 );
 ok(
   "conversion: the PO UOM stays locked, because ERPNext compares it",
