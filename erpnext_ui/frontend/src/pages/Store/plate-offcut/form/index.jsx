@@ -153,6 +153,7 @@ export default function PlateOffcutForm() {
   // mistaken for user edits.
   const [dirty, setDirty] = useState(false);
   const docRef = useRef(doc);
+  const submitInFlight = useRef(false);
   const estimateSeq = useRef(0);
   const debounceTimer = useRef(null);
 
@@ -390,7 +391,9 @@ export default function PlateOffcutForm() {
   const validate = useCallback(() => {
     const errors = {};
     if (!doc?.source_serial_no) errors.source_serial_no = t("store.plateOffcut.errNoSerial");
-    if (!doc?.project) errors.project = t("store.plateOffcut.errNoProject");
+    if (!(docRef.current?.project || doc?.project)) {
+      errors.project = t("store.plateOffcut.errNoProject");
+    }
     const scrapWeight = doc?.scrap_weight_kg === "" ? 0 : Number(doc?.scrap_weight_kg ?? 0);
     if (!Number.isFinite(scrapWeight) || scrapWeight < 0) {
       errors.scrap_weight_kg = t("store.plateOffcut.errScrapNegative");
@@ -429,7 +432,7 @@ export default function PlateOffcutForm() {
   const buildPayload = useCallback(() => {
     const out = stripSystemFields(doc || {});
     out.doctype = DOCTYPE;
-    out.project = doc?.project || "";
+    out.project = docRef.current?.project || doc?.project || "";
     out.scrap_weight_kg = num(doc?.scrap_weight_kg);
     // `pieces` becomes real child rows. Nothing client-only survives: the server
     // recomputes offcut_item / theoretical_weight_kg / weight_kg / value in
@@ -469,18 +472,11 @@ export default function PlateOffcutForm() {
 
   /* ---------------------------------------------------------------- submit */
   const submitNow = useCallback(async () => {
+    if (submitInFlight.current) return;
     const errors = validate();
     setFieldErrors(errors);
     if (Object.keys(errors).length) return;
-
-    // Open synchronously from the user's Submit click so the browser allows
-    // the QR print report after the server registers serials on submission.
-    const reportWindow = window.open("", "_blank", "width=900,height=720");
-    if (reportWindow) {
-      reportWindow.document.write("<!doctype html><title>Offcut QR labels</title><p>Preparing QR labels…</p>");
-      reportWindow.document.close();
-    }
-
+    submitInFlight.current = true;
     setSaving(true);
     setError("");
     try {
@@ -499,27 +495,9 @@ export default function PlateOffcutForm() {
         doc: payload,
         initialAttachment: isEdit ? undefined : initialAttachment,
       });
-      if (reportWindow) {
-        try {
-          const registeredDoc = await fetchDocument(DOCTYPE, saved.data.name);
-          const serials = [...new Set((registeredDoc.offcuts || []).map((row) => row.serial_no).filter(Boolean))];
-          const pieces = await Promise.all(serials.map(async (serial) => {
-            const result = await fetchOffcutStock({ search: serial, limitStart: 0, pageLength: 200 });
-            return result.pieces.find((piece) => piece.serial === serial);
-          }));
-          if (pieces.length && pieces.every((piece) => piece?.qr_svg_base64)) {
-            printOffcutLabels(reportWindow, pieces);
-          } else {
-            reportWindow.close();
-          }
-        } catch {
-          reportWindow.close();
-        }
-      }
       setDirty(false);
       navigate(`/store/plate-offcut/${encodeURIComponent(saved.data.name)}`);
     } catch (e) {
-      reportWindow?.close();
       if (e?.savedDocName) {
         setError(e.message || t("attachments.uploadFailed"));
         navigate(`/store/plate-offcut/${encodeURIComponent(e.savedDocName)}`);
@@ -527,6 +505,7 @@ export default function PlateOffcutForm() {
       }
       setError(e.message || t("common.submitFailed"));
     } finally {
+      submitInFlight.current = false;
       setSaving(false);
     }
   }, [buildPayload, initialAttachment, isEdit, name, navigate, t, validate]);
@@ -765,7 +744,15 @@ export default function PlateOffcutForm() {
             doctype="Project"
             value={doc?.project || ""}
             onChange={(project) => {
-              setDoc((prev) => ({ ...prev, project: project || "" }));
+              const selectedProject = project || "";
+              docRef.current = { ...docRef.current, project: selectedProject };
+              setDoc((prev) => ({ ...prev, project: selectedProject }));
+              setFieldErrors((prev) => {
+                if (!prev.project) return prev;
+                const next = { ...prev };
+                delete next.project;
+                return next;
+              });
               setDirty(true);
             }}
             placeholder={t("store.plateOffcut.project")}

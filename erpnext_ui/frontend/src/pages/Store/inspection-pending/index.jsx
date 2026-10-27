@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ClipboardCheck, RefreshCw, Settings2 } from "lucide-react";
@@ -38,28 +38,56 @@ const fmtQty = (value) =>
         maximumFractionDigits: 3,
       });
 
-const fmtMoney = (value, currency) => {
-  if (value === null || value === undefined || value === "") return "—";
-  const amount = Number(value);
-  if (!currency) {
-    return amount.toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    });
+const combineIdentifiers = (values) =>
+  [
+    ...new Set(
+      values.flatMap((value) => String(value || "").split(", ")).filter(Boolean),
+    ),
+  ]
+    .sort()
+    .join(", ");
+
+const groupInspectionRows = (items) => {
+  const grouped = new Map();
+  for (const row of items) {
+    // Keep batches distinct, but combine serial-level rows for the same item,
+    // warehouse, and batch into one balance row.
+    const key = [row.item_code, row.warehouse, row.batch_no || ""].join("|");
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        ...row,
+        serial_no: combineIdentifiers([row.serial_no]),
+        batch_no: combineIdentifiers([row.batch_no]),
+        actual_qty: Number(row.actual_qty) || 0,
+      });
+      continue;
+    }
+    existing.serial_no = combineIdentifiers([existing.serial_no, row.serial_no]);
+    existing.batch_no = combineIdentifiers([existing.batch_no, row.batch_no]);
+    existing.actual_qty += Number(row.actual_qty) || 0;
   }
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return amount.toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    });
-  }
+  return [...grouped.values()];
 };
+
+function IdentifierCell({ value }) {
+  const identifiers = String(value || "")
+    .split(", ")
+    .filter(Boolean);
+  if (identifiers.length === 0) return <span>—</span>;
+  const preview = identifiers.slice(0, 2).join(", ");
+  const remaining = identifiers.length - 2;
+  return (
+    <span className="inline-flex max-w-64 items-center gap-1" title={identifiers.join(", ")}>
+      <span className="truncate">{preview}</span>
+      {remaining > 0 ? (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          +{remaining} more
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 /**
  * Items still awaiting Incoming Quality Inspection, across accessible warehouses.
@@ -85,6 +113,7 @@ export default function InspectionPendingReport() {
   const [meta, setMeta] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const displayRows = useMemo(() => groupInspectionRows(rows), [rows]);
   // Rapid filter changes can leave an older response in flight. Without this
   // guard it can overwrite the rows for the latest filter selection.
   const requestId = useRef(0);
@@ -413,9 +442,6 @@ export default function InspectionPendingReport() {
                   <th className="px-4 py-2.5 font-medium">
                     {t("store.inspectionPending.warehouse")}
                   </th>
-                  <th className="px-4 py-2.5 font-medium">
-                    {t("store.inspectionPending.itemGroup")}
-                  </th>
                   <th className="px-4 py-2.5 text-end font-medium">
                     {t("store.inspectionPending.quantity")}
                   </th>
@@ -429,23 +455,23 @@ export default function InspectionPendingReport() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("common.loading")}
                     </td>
                   </tr>
-                ) : rows.length === 0 ? (
+                ) : displayRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("store.inspectionPending.empty")}
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => (
+                  displayRows.map((row) => (
                     <tr
                       key={`${row.item_code}|${row.batch_no || ""}|${row.serial_no || ""}|${row.warehouse}`}
                       className="cursor-pointer border-b border-border/40 last:border-0 hover:bg-accent/40"
@@ -460,16 +486,13 @@ export default function InspectionPendingReport() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {row.batch_no || "—"}
+                        <IdentifierCell value={row.batch_no} />
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {row.serial_no || "—"}
+                        <IdentifierCell value={row.serial_no} />
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {row.warehouse || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {row.item_group || "—"}
                       </td>
                       <td className="px-4 py-3 text-end font-medium tabular-nums">
                         {fmtQty(row.actual_qty)}
