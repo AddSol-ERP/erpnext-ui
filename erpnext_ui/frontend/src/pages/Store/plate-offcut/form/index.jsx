@@ -494,6 +494,34 @@ export default function PlateOffcutForm() {
         name: saved.data.name,
         initialAttachment: isEdit ? undefined : initialAttachment,
       });
+      // This route is already the document detail when submitting a saved
+      // draft, so navigating to the same URL does not remount the form. Reload
+      // the submitted document explicitly to update docstatus and generated
+      // offcut serials (including the post-submit QR print action).
+      const knownSubmittedDoc = { ...docRef.current, docstatus: 1 };
+      docRef.current = knownSubmittedDoc;
+      setDoc(knownSubmittedDoc);
+      try {
+        const submittedDoc = await fetchDocument(DOCTYPE, saved.data.name);
+        docRef.current = submittedDoc;
+        setDoc(submittedDoc);
+        setRows((submittedDoc.offcuts || []).map((row) => ({
+          _rid: nextRid(),
+          shape: row.shape || "Rectangle",
+          length_mm: row.length_mm ?? "",
+          width_mm: row.width_mm ?? "",
+          diameter_mm: row.diameter_mm ?? "",
+          serial_no: row.serial_no,
+          pieces: 1,
+          weight_kg: row.weight_kg,
+          theoretical_weight_kg: row.theoretical_weight_kg,
+          value: row.value,
+          saved_name: row.name,
+        })));
+      } catch {
+        // The submit already succeeded; keep the optimistic submitted state
+        // rather than showing an error that invites another submit attempt.
+      }
       setDirty(false);
       navigate(`/store/plate-offcut/${encodeURIComponent(saved.data.name)}`);
     } catch (e) {
