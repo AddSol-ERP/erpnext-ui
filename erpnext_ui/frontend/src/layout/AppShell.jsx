@@ -545,7 +545,7 @@ export default function AppShell({ children }) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="min-w-0">
+      <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
         {/* ================= SINGLE TOP BAR (solid light chrome) ================= */}
         <header
           className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-chrome px-2 pt-[env(safe-area-inset-top)] text-chrome-foreground print:hidden md:px-3"
@@ -571,7 +571,11 @@ export default function AppShell({ children }) {
         </header>
 
         <main
-          className={`min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4 ${
+          className={`min-h-0 flex-1 p-4 ${
+            shellMode === "list"
+              ? "overflow-hidden"
+              : "overflow-x-hidden overflow-y-auto"
+          } ${
             toolbarVisible ? "pb-24 print:pb-4" : "pb-4"
           }`}
         >

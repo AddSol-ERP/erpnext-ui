@@ -492,7 +492,6 @@ export default function PlateOffcutForm() {
       await submitDocument({
         doctype: DOCTYPE,
         name: saved.data.name,
-        doc: payload,
         initialAttachment: isEdit ? undefined : initialAttachment,
       });
       setDirty(false);

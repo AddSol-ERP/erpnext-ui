@@ -227,9 +227,9 @@ export default function PlateGroups({ groups, loading, onSelect }) {
   return (
     <>
       <div className="px-3 pb-3">
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="rounded-lg border border-border bg-card">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-table-header">
               <TableRow>
                 <TableHead>{t("store.plateOffcut.sourceItem")}</TableHead>
                 <TableHead className="hidden md:table-cell">
