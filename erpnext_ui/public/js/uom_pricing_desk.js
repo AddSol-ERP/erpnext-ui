@@ -1,21 +1,16 @@
 // Generic Desk behavior for the UOM pricing per-UOM rate column.
 //
-// - The column header reads "Rate per UOM" by default. When every priced item on
-//   the document shares one pricing UOM, relabel the column to "Rate per <UOM>"
-//   (e.g. "Rate per Kg"). Mixed UOMs fall back to the generic label.
-// - When no item on the document has UOM pricing enabled, the column is hidden
-//   so standard documents stay clean.
-//
-// Runs on every buying/selling doctype that carries a `custom_rate_per_pricing_uom`
-// field on its item child table.
+// The `custom_rate_per_pricing_uom` field is always visible in the item table
+// and edit modal. It is enabled only for items that actually have UOM pricing
+// configured (and only when the relevant feature switch is on); for all other
+// items it stays disabled, so users cannot type a per-UOM rate that would be
+// ignored. The column header reads "Rate per UOM" by default and becomes
+// "Rate per <UOM>" when every priced item on the document shares one UOM.
 
 const BUYING_DOCTYPES = ["Purchase Receipt", "Purchase Invoice", "Purchase Order", "Supplier Quotation"];
 const SELLING_DOCTYPES = ["Sales Invoice", "Sales Order", "Delivery Note", "Quotation", "POS Invoice"];
 const PRICED_DOCTYPES = BUYING_DOCTYPES.concat(SELLING_DOCTYPES);
 
-// Map each parent doctype to its item child doctype so we can react to
-// item_code changes on existing rows (selecting an item does not fire
-// items_add, so without this the per-UOM column stays hidden until refresh).
 const ITEM_CHILD_DOCTYPE = {
 	"Purchase Receipt": "Purchase Receipt Item",
 	"Purchase Invoice": "Purchase Invoice Item",
@@ -28,6 +23,35 @@ const ITEM_CHILD_DOCTYPE = {
 	"POS Invoice": "POS Invoice Item",
 };
 
+// Cache: item_code -> pricing_uom or null (whether pricing is enabled).
+const _pricing_cache = {};
+
+function side_for(frm) {
+	return BUYING_DOCTYPES.indexOf(frm.doctype) >= 0 ? "buying" : "selling";
+}
+
+function resolve_pricing(frm, item_code, cb) {
+	if (!item_code) {
+		cb(null);
+		return;
+	}
+	if (Object.prototype.hasOwnProperty.call(_pricing_cache, item_code)) {
+		cb(_pricing_cache[item_code]);
+		return;
+	}
+	frappe.call({
+		method: "erpnext_ui.api.get_item_pricing",
+		args: { item_code: item_code, side: side_for(frm) },
+		async: true,
+		callback: function (r) {
+			const msg = r && r.message;
+			const uom = (msg && msg.enabled && msg.pricing_uom) ? msg.pricing_uom : null;
+			_pricing_cache[item_code] = uom;
+			cb(uom);
+		},
+	});
+}
+
 function refresh_uom_rate_column(frm) {
 	if (!frm || !frm.fields_dict || !frm.fields_dict.items) return;
 	const grid = frm.fields_dict.items.grid;
@@ -35,50 +59,40 @@ function refresh_uom_rate_column(frm) {
 
 	const items = frm.doc.items || [];
 	if (!items.length) {
-		grid.set_column_disp("custom_rate_per_pricing_uom", false);
+		// Nothing to price: leave the column visible but disabled.
+		try { grid.update_docfield_property("custom_rate_per_pricing_uom", "label", __("Rate per UOM")); } catch (e) {}
 		return;
 	}
 
-	// Resolve pricing UOM per item via the backend; cache on the item row.
-	const side = BUYING_DOCTYPES.indexOf(frm.doctype) >= 0 ? "buying" : "selling";
-	const promises = items.map(function (row) {
-		if (!row.item_code) return Promise.resolve(null);
-		return new Promise(function (resolve) {
-			frappe.call({
-				method: "erpnext_ui.api.get_item_pricing",
-				args: { item_code: row.item_code, side: side },
-				async: true,
-				callback: function (r) {
-					const msg = r && r.message;
-					resolve((msg && msg.enabled && msg.pricing_uom) ? msg.pricing_uom : null);
-				},
-			});
-		});
-	});
-
-	Promise.all(promises).then(function (uoms) {
-		const priced = uoms.filter(Boolean);
-		if (!priced.length) {
-			grid.set_column_disp("custom_rate_per_pricing_uom", false);
-			return;
-		}
-		grid.set_column_disp("custom_rate_per_pricing_uom", true);
-		const unique = Array.from(new Set(priced));
-		let label = __("Rate per UOM");
-		if (unique.length === 1) {
-			label = __("Rate per {0}", [unique[0]]);
-		}
-		try {
-			grid.update_docfield_property("custom_rate_per_pricing_uom", "label", label);
-		} catch (e) {
-			// Fall back: try the form-level df property.
+	const uoms = [];
+	let pending = items.length;
+	items.forEach(function (row) {
+		resolve_pricing(frm, row.item_code, function (uom) {
+			// Enable/disable the field on this specific row.
 			try {
-				frm.set_df_property("custom_rate_per_pricing_uom", "label", label, "items");
-			} catch (e2) {
-				// no-op
+				const grid_row = grid.grid_rows_by_docname && grid.grid_rows_by_docname[row.name];
+				if (grid_row && typeof grid_row.toggle_enable === "function") {
+					grid_row.toggle_enable("custom_rate_per_pricing_uom", !!uom);
+				}
+			} catch (e) {
+				// Fall back to whole-grid toggle handled below.
 			}
-		}
-		frm.refresh_field("items");
+			if (uom) uoms.push(uom);
+			pending -= 1;
+			if (pending === 0) {
+				const unique = Array.from(new Set(uoms));
+				let label = __("Rate per UOM");
+				if (unique.length === 1) {
+					label = __("Rate per {0}", [unique[0]]);
+				}
+				try {
+					grid.update_docfield_property("custom_rate_per_pricing_uom", "label", label);
+				} catch (e) {
+					try { frm.set_df_property("custom_rate_per_pricing_uom", "label", label, "items"); } catch (e2) {}
+				}
+				frm.refresh_field("items");
+			}
+		});
 	});
 }
 
