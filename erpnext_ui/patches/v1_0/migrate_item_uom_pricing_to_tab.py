@@ -25,20 +25,21 @@ ITEM_UOM_PRICING_FIELDS = {
 def execute() -> None:
 	try:
 		meta = frappe.get_meta("Item")
-		if not meta.has_field("custom_uom_pricing_tab"):
-			create_custom_fields(ITEM_UOM_PRICING_FIELDS)
-			frappe.clear_cache(doctype="Item")
-			meta = frappe.get_meta("Item")
 
-		# Move the tab to the end of the form so it does not absorb the fields
-		# of the tab it was inserted into.
+		# Remove any existing tab field and recreate it at the very end of the
+		# form. A Tab Break inserted mid-form absorbs every subsequent field
+		# into the new tab, which is why unrelated fields were leaking in.
 		if meta.has_field("custom_uom_pricing_tab"):
 			cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": "custom_uom_pricing_tab"})
 			if cf_name:
-				cf = frappe.get_doc("Custom Field", cf_name)
-				if cf.insert_after:
-					cf.insert_after = ""
-					cf.save(ignore_permissions=True)
+				frappe.delete_doc("Custom Field", cf_name, ignore_permissions=True)
+			frappe.clear_cache(doctype="Item")
+			meta = frappe.get_meta("Item")
+
+		# Create the tab at the end (no insert_after => appended last).
+		create_custom_fields(ITEM_UOM_PRICING_FIELDS)
+		frappe.clear_cache(doctype="Item")
+		meta = frappe.get_meta("Item")
 
 		updates = {
 			"custom_uom_pricing_rule": "custom_uom_pricing_tab",
