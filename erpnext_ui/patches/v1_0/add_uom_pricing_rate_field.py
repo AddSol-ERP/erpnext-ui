@@ -12,6 +12,7 @@ RATE_FIELD = {
 	"fieldname": "custom_rate_per_pricing_uom",
 	"fieldtype": "Float",
 	"label": "Rate per UOM",
+	"insert_after": "rate",
 	"in_list_view": 1,
 	"description": "Rate per the configured pricing UOM. Standard rate/amount are derived from this.",
 }

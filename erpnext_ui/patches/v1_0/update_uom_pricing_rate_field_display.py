@@ -29,6 +29,9 @@ def execute() -> None:
 			if not cf.in_list_view:
 				cf.in_list_view = 1
 				changed = True
+			if cf.insert_after != "rate":
+				cf.insert_after = "rate"
+				changed = True
 			if changed:
 				cf.save(ignore_permissions=True)
 		frappe.clear_cache()
