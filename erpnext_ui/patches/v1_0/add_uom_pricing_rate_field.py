@@ -24,6 +24,8 @@ ITEM_TABLES = [
 	"Sales Order Item",
 	"Delivery Note Item",
 	"Quotation Item",
+	"Supplier Quotation Item",
+	"POS Invoice Item",
 ]
 
 FIELDS = {dt: [dict(RATE_FIELD)] for dt in ITEM_TABLES}

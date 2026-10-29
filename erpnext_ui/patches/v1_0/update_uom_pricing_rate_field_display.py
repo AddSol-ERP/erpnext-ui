@@ -10,6 +10,8 @@ ITEM_TABLES = [
 	"Sales Order Item",
 	"Delivery Note Item",
 	"Quotation Item",
+	"Supplier Quotation Item",
+	"POS Invoice Item",
 ]
 
 
