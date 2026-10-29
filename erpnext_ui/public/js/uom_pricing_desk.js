@@ -20,25 +20,22 @@ const FIELD = "custom_rate_per_pricing_uom";
 const CACHE = {};
 const REQUESTS = {};
 
-function side(frm) {
+// Determine buying or selling.
+function get_side(frm) {
 	return BUYING.includes(frm.doctype) ? "buying" : "selling";
 }
 
-// Resolve item pricing through API.
-// force=true always calls API on item selection.
+// Resolve pricing UOM.
 function resolve(frm, item_code, callback, force = false) {
 	if (!item_code) {
-		callback({
-			enabled: false,
-			pricing_uom: null,
-		});
+		callback({ enabled: false, pricing_uom: null });
 		return;
 	}
 
-	const cache_key = side(frm) + "::" + item_code;
+	const key = get_side(frm) + "::" + item_code;
 
-	if (!force && Object.prototype.hasOwnProperty.call(CACHE, cache_key)) {
-		callback(CACHE[cache_key]);
+	if (!force && Object.prototype.hasOwnProperty.call(CACHE, key)) {
+		callback(CACHE[key]);
 		return;
 	}
 
@@ -46,7 +43,7 @@ function resolve(frm, item_code, callback, force = false) {
 		method: "erpnext_ui.api.get_item_pricing",
 		args: {
 			item_code: item_code,
-			side: side(frm),
+			side: get_side(frm),
 		},
 		callback: function (r) {
 			const msg = (r && r.message) || {};
@@ -56,7 +53,7 @@ function resolve(frm, item_code, callback, force = false) {
 				pricing_uom: msg.pricing_uom || null,
 			};
 
-			CACHE[cache_key] = result;
+			CACHE[key] = result;
 			callback(result);
 		},
 		error: function () {
@@ -68,14 +65,73 @@ function resolve(frm, item_code, callback, force = false) {
 	});
 }
 
-// Get the appropriate label for the complete document.
-function relabel(frm) {
+// Get the actual GridRow instance.
+function get_grid_row(frm, row) {
+	if (!frm || !row || !frm.fields_dict.items) return null;
+
+	const grid = frm.fields_dict.items.grid;
+
+	return (grid.grid_rows || []).find(function (grid_row) {
+		return grid_row.doc && grid_row.doc.name === row.name;
+	});
+}
+
+// Apply properties to the actual child row and open modal.
+function set_row_field(frm, row, enabled) {
+	const grid_row = get_grid_row(frm, row);
+
+	if (!grid_row) return;
+
+	// Update the row-specific DocField.
+	const df = (grid_row.docfields || []).find(function (field) {
+		return field.fieldname === FIELD;
+	});
+
+	if (df) {
+		df.hidden = 0;
+		df.read_only = enabled ? 0 : 1;
+	}
+
+	// IMPORTANT:
+	// This updates both the open GridRowForm and grid controls.
+	// Frappe v15 implements this method on GridRow.
+	grid_row.toggle_editable(FIELD, enabled);
+
+	// Keep field visible in the row.
+	grid_row.toggle_display(FIELD, true);
+}
+
+// Update label in grid and every row's modal DocField.
+function update_label(frm, label) {
 	if (!frm || !frm.fields_dict.items) return;
 
 	const grid = frm.fields_dict.items.grid;
-	const items = frm.doc.items || [];
 
 	grid.update_docfield_property(FIELD, "hidden", 0);
+	grid.update_docfield_property(FIELD, "label", label);
+
+	(grid.grid_rows || []).forEach(function (grid_row) {
+		const df = (grid_row.docfields || []).find(function (field) {
+			return field.fieldname === FIELD;
+		});
+
+		if (df) {
+			df.hidden = 0;
+			df.label = label;
+		}
+
+		// Update the field if its modal is already open.
+		if (typeof grid_row.set_field_property === "function") {
+			grid_row.set_field_property(FIELD, "label", label);
+		}
+	});
+}
+
+// Best-effort dynamic column label.
+function relabel(frm) {
+	if (!frm || !frm.fields_dict.items) return;
+
+	const items = frm.doc.items || [];
 
 	if (!items.length) {
 		update_label(frm, __("Rate per UOM"));
@@ -108,87 +164,16 @@ function relabel(frm) {
 	});
 }
 
-// Update grid column and open item dialog label.
-function update_label(frm, label) {
-	const grid = frm.fields_dict.items.grid;
-
-	try {
-		grid.update_docfield_property(FIELD, "label", label);
-		grid.update_docfield_property(FIELD, "hidden", 0);
-	} catch (e) {
-		// Ignore grid refresh issues.
-	}
-
-	const open_row = grid.open_grid_row;
-
-	if (open_row && open_row.grid_form) {
-		const field = open_row.grid_form.fields_dict[FIELD];
-
-		if (field) {
-			field.df.label = label;
-			field.df.hidden = 0;
-			field.refresh();
-		}
-	}
-}
-
-// Enable or disable the field for a particular child row.
-function set_row_field(frm, row, enabled) {
-	if (!frm || !row || !frm.fields_dict.items) return;
-
-	const grid = frm.fields_dict.items.grid;
-
-	// Field must always remain visible.
-	grid.update_docfield_property(FIELD, "hidden", 0);
-
-	const grid_row = grid.grid_rows_by_docname && grid.grid_rows_by_docname[row.name];
-
-	if (grid_row) {
-		// Apply editability to this particular grid row.
-		if (typeof grid_row.toggle_editable === "function") {
-			grid_row.toggle_editable(FIELD, enabled);
-		}
-
-		// Update item edit dialog if it is already open.
-		const grid_form = grid_row.grid_form;
-
-		if (grid_form && grid_form.fields_dict[FIELD]) {
-			const field = grid_form.fields_dict[FIELD];
-
-			field.df.hidden = 0;
-			field.df.read_only = enabled ? 0 : 1;
-			field.refresh();
-		}
-	}
-
-	// Also handle currently open grid dialog.
-	const open_row = grid.open_grid_row;
-
-	if (
-		open_row &&
-		open_row.doc &&
-		open_row.doc.name === row.name &&
-		open_row.grid_form &&
-		open_row.grid_form.fields_dict[FIELD]
-	) {
-		const field = open_row.grid_form.fields_dict[FIELD];
-
-		field.df.hidden = 0;
-		field.df.read_only = enabled ? 0 : 1;
-		field.refresh();
-	}
-}
-
-// Fetch pricing and apply the result to the selected item.
+// Fetch and apply pricing for a particular item row.
 function apply_item_pricing(frm, row, force = false) {
 	if (!row) return;
 
 	const cdn = row.name;
+	const item_code = row.item_code;
 
 	REQUESTS[cdn] = (REQUESTS[cdn] || 0) + 1;
 
 	const request_id = REQUESTS[cdn];
-	const item_code = row.item_code;
 
 	if (!item_code) {
 		set_row_field(frm, row, false);
@@ -196,7 +181,7 @@ function apply_item_pricing(frm, row, force = false) {
 		return;
 	}
 
-	// Disable while resolving the selected item.
+	// Initially disable while pricing is being resolved.
 	set_row_field(frm, row, false);
 
 	resolve(
@@ -208,17 +193,16 @@ function apply_item_pricing(frm, row, force = false) {
 				return;
 			}
 
-			// Enable only when a valid pricing rule exists.
+			// Enable only when pricing rule is applicable.
 			set_row_field(frm, row, result.enabled);
 
-			// Recalculate common UOM label.
 			relabel(frm);
 		},
 		force,
 	);
 }
 
-// Register generic handlers for all doctypes.
+// Register handlers for all Buying and Selling doctypes.
 ALL.forEach(function (dt) {
 	const child = CHILD[dt];
 
@@ -226,7 +210,7 @@ ALL.forEach(function (dt) {
 		refresh(frm) {
 			const grid = frm.fields_dict.items.grid;
 
-			// Never hide the custom field.
+			// Always visible.
 			grid.update_docfield_property(FIELD, "hidden", 0);
 
 			(frm.doc.items || []).forEach(function (row) {
@@ -243,7 +227,10 @@ ALL.forEach(function (dt) {
 		items_add(frm, cdt, cdn) {
 			const row = locals[child][cdn];
 
-			set_row_field(frm, row, false);
+			if (row) {
+				set_row_field(frm, row, false);
+			}
+
 			relabel(frm);
 		},
 
@@ -253,18 +240,20 @@ ALL.forEach(function (dt) {
 	});
 
 	frappe.ui.form.on(child, {
-		// Called whenever an item is selected or changed.
+		// API call whenever item is selected or changed.
 		item_code(frm, cdt, cdn) {
 			const row = locals[cdt][cdn];
 
-			// Force API call on every item selection.
 			apply_item_pricing(frm, row, true);
 		},
 
-		// Reapply field properties when item dialog opens.
+		// IMPORTANT: Runs when the item edit modal is opened.
 		form_render(frm, cdt, cdn) {
 			const row = locals[cdt][cdn];
 
+			if (!row) return;
+
+			// Apply cached result or fetch pricing if necessary.
 			apply_item_pricing(frm, row, false);
 		},
 	});
