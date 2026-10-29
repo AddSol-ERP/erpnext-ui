@@ -13,6 +13,21 @@ const BUYING_DOCTYPES = ["Purchase Receipt", "Purchase Invoice", "Purchase Order
 const SELLING_DOCTYPES = ["Sales Invoice", "Sales Order", "Delivery Note", "Quotation", "POS Invoice"];
 const PRICED_DOCTYPES = BUYING_DOCTYPES.concat(SELLING_DOCTYPES);
 
+// Map each parent doctype to its item child doctype so we can react to
+// item_code changes on existing rows (selecting an item does not fire
+// items_add, so without this the per-UOM column stays hidden until refresh).
+const ITEM_CHILD_DOCTYPE = {
+	"Purchase Receipt": "Purchase Receipt Item",
+	"Purchase Invoice": "Purchase Invoice Item",
+	"Purchase Order": "Purchase Order Item",
+	"Sales Invoice": "Sales Invoice Item",
+	"Sales Order": "Sales Order Item",
+	"Delivery Note": "Delivery Note Item",
+	"Quotation": "Quotation Item",
+	"Supplier Quotation": "Supplier Quotation Item",
+	"POS Invoice": "POS Invoice Item",
+};
+
 function refresh_uom_rate_column(frm) {
 	if (!frm || !frm.fields_dict || !frm.fields_dict.items) return;
 	const grid = frm.fields_dict.items.grid;
@@ -79,4 +94,15 @@ PRICED_DOCTYPES.forEach(function (dt) {
 			refresh_uom_rate_column(frm);
 		},
 	});
+	const child_dt = ITEM_CHILD_DOCTYPE[dt];
+	if (child_dt) {
+		frappe.ui.form.on(child_dt, {
+			item_code: function (frm) {
+				refresh_uom_rate_column(frm);
+			},
+			custom_rate_per_pricing_uom: function (frm) {
+				refresh_uom_rate_column(frm);
+			},
+		});
+	}
 });
