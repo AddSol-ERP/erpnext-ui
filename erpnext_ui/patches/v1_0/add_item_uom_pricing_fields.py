@@ -16,8 +16,8 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 ITEM_UOM_PRICING_FIELDS = {
 	"Item": [
 		{
-			"fieldname": "custom_uom_pricing_section",
-			"fieldtype": "Section Break",
+			"fieldname": "custom_uom_pricing_tab",
+			"fieldtype": "Tab Break",
 			"label": "UOM Pricing",
 			"insert_after": "item_group",
 		},
@@ -27,7 +27,7 @@ ITEM_UOM_PRICING_FIELDS = {
 			"label": "UOM Pricing Rule (override)",
 			"options": "UI Uom Pricing Rule",
 			"description": "Leave blank to inherit the Item Group's rule.",
-			"insert_after": "custom_uom_pricing_section",
+			"insert_after": "custom_uom_pricing_tab",
 		},
 		{
 			"fieldname": "custom_uom_pricing_parameters",
@@ -42,6 +42,6 @@ ITEM_UOM_PRICING_FIELDS = {
 
 def execute() -> None:
 	meta = frappe.get_meta("Item")
-	if not meta.has_field("custom_uom_pricing_rule"):
+	if not meta.has_field("custom_uom_pricing_tab") or not meta.has_field("custom_uom_pricing_rule"):
 		create_custom_fields(ITEM_UOM_PRICING_FIELDS)
 		frappe.clear_cache(doctype="Item")
