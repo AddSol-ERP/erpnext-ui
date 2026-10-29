@@ -17,7 +17,6 @@ ITEM_UOM_PRICING_FIELDS = {
 			"fieldname": "custom_uom_pricing_tab",
 			"fieldtype": "Tab Break",
 			"label": "UOM Pricing",
-			"insert_after": "item_group",
 		},
 	]
 }
@@ -30,6 +29,16 @@ def execute() -> None:
 			create_custom_fields(ITEM_UOM_PRICING_FIELDS)
 			frappe.clear_cache(doctype="Item")
 			meta = frappe.get_meta("Item")
+
+		# Move the tab to the end of the form so it does not absorb the fields
+		# of the tab it was inserted into.
+		if meta.has_field("custom_uom_pricing_tab"):
+			cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": "custom_uom_pricing_tab"})
+			if cf_name:
+				cf = frappe.get_doc("Custom Field", cf_name)
+				if cf.insert_after:
+					cf.insert_after = ""
+					cf.save(ignore_permissions=True)
 
 		updates = {
 			"custom_uom_pricing_rule": "custom_uom_pricing_tab",
