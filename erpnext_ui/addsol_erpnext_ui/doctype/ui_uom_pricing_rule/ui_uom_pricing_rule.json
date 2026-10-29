@@ -5,6 +5,8 @@
  "custom": 0,
  "issingle": 0,
  "editable_grid": 1,
+ "autoname": "format:{item_group}-{pricing_uom}",
+ "title_field": "item_group",
  "fields": [
   {"fieldname": "item_group", "fieldtype": "Link", "label": "Item Group", "options": "Item Group", "reqd": 1},
   {"fieldname": "enabled", "fieldtype": "Check", "label": "Enabled", "default": "0"},
