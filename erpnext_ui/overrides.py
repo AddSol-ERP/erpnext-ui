@@ -76,6 +76,17 @@ def _apply_uom_pricing(doc, side):
 		if hasattr(row, "amount"):
 			row.amount = new_amount
 
+		# Prevent ERPNext from auto-deriving a discount from price_list_rate
+		# (which would re-introduce a discount the buyer did not ask for now that
+		# the standard rate differs from the list rate) and clear any stale
+		# auto-computed discount from super().validate().
+		if hasattr(row, "price_list_rate"):
+			row.price_list_rate = new_rate
+		if hasattr(row, "discount_percentage"):
+			row.discount_percentage = 0
+		if hasattr(row, "discount_amount"):
+			row.discount_amount = 0
+
 		# Scale the derived currency/net/stock fields so they agree with the new
 		# rate/amount instead of staying stale (which is what made Net Rate,
 		# Net Amount, base_* and Taxable Value not update).
@@ -109,6 +120,15 @@ def _apply_uom_pricing(doc, side):
 				if hasattr(row, field):
 					old_val = float((row.get(field) if hasattr(row, "get") else getattr(row, field, 0)) or 0)
 					setattr(row, field, old_val * factor)
+
+	# Recompute document totals/taxes from the new line amounts so priced lines
+	# actually contribute to the PO/PI/etc. total (super().validate() already ran
+	# with the pre-pricing amounts).
+	if hasattr(doc, "calculate_taxes_and_totals"):
+		try:
+			doc.calculate_taxes_and_totals()
+		except Exception:
+			pass
 
 
 class UomPricingPurchaseReceipt(PurchaseReceipt):
