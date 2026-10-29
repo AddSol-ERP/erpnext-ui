@@ -25,7 +25,16 @@ def get_uom_pricing_settings():
 	Returns:
 		dict: enable_uom_pricing / enable_buying / enable_selling booleans.
 	"""
-	settings = frappe.get_single(UOM_PRICING_SETTINGS_DOCTYPE)
+	try:
+		settings = frappe.get_single(UOM_PRICING_SETTINGS_DOCTYPE)
+	except (frappe.DoesNotExistError, ImportError):
+		# Pricing is opt-in. A site that has not synced this app's DocTypes yet
+		# must continue using standard ERPNext behavior instead of failing saves.
+		return {
+			"enable_uom_pricing": False,
+			"enable_buying": False,
+			"enable_selling": False,
+		}
 	return {
 		"enable_uom_pricing": bool(getattr(settings, "enable_uom_pricing", None)),
 		"enable_buying": bool(getattr(settings, "enable_buying", None)),
