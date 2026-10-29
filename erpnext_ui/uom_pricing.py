@@ -135,10 +135,16 @@ def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None, direct_entry_v
 	rule = pricing["rule"]
 	if not rule:
 		raise ValueError("No UOM pricing rule is resolved for this item.")
-	if (rule.get("formula_mode") or "") == "Direct Entry" and direct_entry_value is not None:
+	is_direct_with_value = (rule.get("formula_mode") or "") == "Direct Entry" and direct_entry_value is not None
+	if is_direct_with_value:
+		# The caller supplies the measured total for the whole line; do not
+		# multiply by the document quantity.
 		qty = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], direct_entry_value)
 	else:
-		qty = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], None)
+		# Formula (or direct-entry fallback) yields a per-document-unit quantity;
+		# scale it by the document quantity to get the line total.
+		per_unit = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], None)
+		qty = per_unit * float(doc_qty or 0) if doc_qty else per_unit
 	amount_info = calculate_pricing_line(qty, float(rate_per_uom or 0), float(doc_qty or 0))
 	return {
 		"item_code": item_code,
