@@ -108,7 +108,7 @@ export default function ReceiptLineForm({
       const handle = setTimeout(() => setPricingResult(null), 0);
       return () => clearTimeout(handle);
     }
-    const rate = row?.rate;
+    const rate = row?.custom_rate_per_pricing_uom;
     const qty = row?.qty;
     if (rate === "" || rate === null || rate === undefined || qty === "" || qty === null || qty === undefined) {
       const handle = setTimeout(() => setPricingResult(null), 0);
@@ -125,7 +125,21 @@ export default function ReceiptLineForm({
         });
         if (cancelled) return;
         const message = res?.message ?? res ?? {};
-        setPricingResult(message && Object.keys(message).length ? message : null);
+        if (message && Object.keys(message).length) {
+          setPricingResult(message);
+          // Update the standard rate/amount live so ERPNext's derived fields
+          // (rate, amount, net_*, taxable value) reflect the conversion while
+          // the user types, instead of waiting for save.
+          if (onSave && row?._rid) {
+            onSave({
+              ...row,
+              rate: message.standard_rate,
+              amount: message.amount,
+            });
+          }
+        } else {
+          setPricingResult(null);
+        }
       } catch {
         if (cancelled) return;
         setPricingResult(null);
@@ -135,7 +149,7 @@ export default function ReceiptLineForm({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [pricingUom, row?.item_code, row?.rate, row?.qty]);
+  }, [pricingUom, row?.item_code, row?.custom_rate_per_pricing_uom, row?.qty, row, onSave]);
 
   const isPoRow = !!(row && row.purchase_order_item);
   const receivedUom = row?.uom || info?.stock_uom || "";
@@ -606,19 +620,41 @@ export default function ReceiptLineForm({
       </div>
 
       {/* RATE */}
-      {!isPlate ? <FormField
-        label={t("store.receipt.rate")}
-        hint={rateEditable ? undefined : t("store.receipt.rateFromPo")}
-        required
-      >
-        <Input
-          type="number"
-          step="any"
-          value={row.rate ?? ""}
-          disabled={!rateEditable}
-          onChange={(e) => edit({ rate: e.target.value })}
-        />
-      </FormField> : null}
+      {!isPlate ? (pricingUom ? (
+        <FormField
+          label={rateLabel || t("store.receipt.rate")}
+          hint={undefined}
+          required
+        >
+          <Input
+            type="number"
+            step="any"
+            value={row.custom_rate_per_pricing_uom ?? ""}
+            onChange={(e) =>
+              onSave({ ...row, custom_rate_per_pricing_uom: e.target.value })
+            }
+          />
+          {row.rate !== "" && row.rate !== undefined ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("store.receipt.standardRate")}: {formatRupees(row.rate)}
+            </p>
+          ) : null}
+        </FormField>
+      ) : (
+        <FormField
+          label={t("store.receipt.rate")}
+          hint={rateEditable ? undefined : t("store.receipt.rateFromPo")}
+          required
+        >
+          <Input
+            type="number"
+            step="any"
+            value={row.rate ?? ""}
+            disabled={!rateEditable}
+            onChange={(e) => edit({ rate: e.target.value })}
+          />
+        </FormField>
+      )) : null}
 
       {/* UOM based pricing: live preview of the derived standard rate and
           amount. Only renders when a pricing UOM is resolved for the Item, so

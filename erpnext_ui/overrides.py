@@ -44,10 +44,19 @@ def _apply_uom_pricing(doc, side):
 		doc_qty = float((row.get("qty") if hasattr(row, "get") else getattr(row, "qty", 0)) or 0)
 		if not doc_qty:
 			continue
+		# Prefer the dedicated per-UOM rate field; fall back to `rate` for
+		# documents created before the field existed or when pricing is off.
+		per_uom_rate = None
+		if hasattr(row, "get"):
+			per_uom_rate = row.get("custom_rate_per_pricing_uom")
+		else:
+			per_uom_rate = getattr(row, "custom_rate_per_pricing_uom", None)
+		if not per_uom_rate:
+			per_uom_rate = row.get("rate") if hasattr(row, "get") else getattr(row, "rate", 0)
 		try:
 			pricing = uom_pricing.get_pricing_line(
 				item_code,
-				float((row.get("rate") if hasattr(row, "get") else getattr(row, "rate", 0)) or 0),
+				float(per_uom_rate or 0),
 				doc_qty,
 				side,
 			)
