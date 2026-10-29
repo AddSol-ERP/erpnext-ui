@@ -87,6 +87,9 @@ PRICED_DOCTYPES.forEach(function (dt) {
 		refresh: function (frm) {
 			refresh_uom_rate_column(frm);
 		},
+		after_save: function (frm) {
+			refresh_uom_rate_column(frm);
+		},
 		items_add: function (frm) {
 			refresh_uom_rate_column(frm);
 		},
