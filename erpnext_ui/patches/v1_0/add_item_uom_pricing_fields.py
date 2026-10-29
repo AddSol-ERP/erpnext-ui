@@ -1,18 +1,7 @@
 """Add UOM based pricing fields to the core Item doctype.
 
-The generic UOM pricing feature needs two pieces of per-Item state:
-  - an optional override pricing rule (Link to UI Uom Pricing Rule); when blank
-    the Item inherits its Item Group's rule.
-  - a child table of parameter values keyed by rule + symbol, storing only
-    values (and the rule reference) -- labels/formula definitions stay on the
-    rule so stale values cannot leak across rule changes.
-
 The configuration lives in its own "UOM Pricing" tab (Tab Break), not in the
 Item details section.
-
-Idempotent: creates missing fields and repairs insert_after ordering on
-existing ones. Removes the obsolete `custom_uom_pricing_section` field created
-by an earlier version of this patch.
 """
 
 import frappe
@@ -46,32 +35,32 @@ ITEM_UOM_PRICING_FIELDS = {
 
 
 def execute() -> None:
-	meta = frappe.get_meta("Item")
-	if not meta.has_field("custom_uom_pricing_tab"):
-		create_custom_fields(ITEM_UOM_PRICING_FIELDS)
-		frappe.clear_cache(doctype="Item")
+	try:
 		meta = frappe.get_meta("Item")
+		if not meta.has_field("custom_uom_pricing_tab"):
+			create_custom_fields(ITEM_UOM_PRICING_FIELDS)
+			frappe.clear_cache(doctype="Item")
+			meta = frappe.get_meta("Item")
 
-	# Repair insert_after ordering on fields that already existed from an earlier
-	# version of this patch (create_custom_fields skips them, so they would
-	# otherwise stay pinned to the old section break).
-	updates = {
-		"custom_uom_pricing_rule": "custom_uom_pricing_tab",
-		"custom_uom_pricing_parameters": "custom_uom_pricing_rule",
-	}
-	for fieldname, insert_after in updates.items():
-		if meta.has_field(fieldname):
-			cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": fieldname})
+		updates = {
+			"custom_uom_pricing_rule": "custom_uom_pricing_tab",
+			"custom_uom_pricing_parameters": "custom_uom_pricing_rule",
+		}
+		for fieldname, insert_after in updates.items():
+			if meta.has_field(fieldname):
+				cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": fieldname})
+				if cf_name:
+					cf = frappe.get_doc("Custom Field", cf_name)
+					if cf.insert_after != insert_after:
+						cf.insert_after = insert_after
+						cf.save(ignore_permissions=True)
+
+		if meta.has_field("custom_uom_pricing_section"):
+			cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": "custom_uom_pricing_section"})
 			if cf_name:
-				cf = frappe.get_doc("Custom Field", cf_name)
-				if cf.insert_after != insert_after:
-					cf.insert_after = insert_after
-					cf.save(ignore_permissions=True)
+				frappe.delete_doc("Custom Field", cf_name, ignore_permissions=True)
 
-	# Remove the obsolete section break from the earlier patch version.
-	if meta.has_field("custom_uom_pricing_section"):
-		cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": "custom_uom_pricing_section"})
-		if cf_name:
-			frappe.delete_doc("Custom Field", cf_name, ignore_permissions=True)
-
-	frappe.clear_cache(doctype="Item")
+		frappe.clear_cache(doctype="Item")
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "add_item_uom_pricing_fields failed")
+		raise
