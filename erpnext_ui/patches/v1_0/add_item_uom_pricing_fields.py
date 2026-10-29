@@ -61,13 +61,17 @@ def execute() -> None:
 	}
 	for fieldname, insert_after in updates.items():
 		if meta.has_field(fieldname):
-			cf = frappe.get_doc("Custom Field", {"dt": "Item", "fieldname": fieldname})
-			if cf.insert_after != insert_after:
-				cf.insert_after = insert_after
-				cf.save(ignore_permissions=True)
+			cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": fieldname})
+			if cf_name:
+				cf = frappe.get_doc("Custom Field", cf_name)
+				if cf.insert_after != insert_after:
+					cf.insert_after = insert_after
+					cf.save(ignore_permissions=True)
 
 	# Remove the obsolete section break from the earlier patch version.
 	if meta.has_field("custom_uom_pricing_section"):
-		frappe.delete_doc("Custom Field", {"dt": "Item", "fieldname": "custom_uom_pricing_section"}, ignore_permissions=True)
+		cf_name = frappe.db.get_value("Custom Field", {"dt": "Item", "fieldname": "custom_uom_pricing_section"})
+		if cf_name:
+			frappe.delete_doc("Custom Field", cf_name, ignore_permissions=True)
 
 	frappe.clear_cache(doctype="Item")
