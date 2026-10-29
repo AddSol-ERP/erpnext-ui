@@ -16,6 +16,15 @@ frappe.ui.form.on("Item", {
 	},
 });
 
+frappe.ui.form.on("UI Uom Pricing Item Parameter", {
+	value: function (frm) {
+		if (frm._uom_pricing_rule) update_preview(frm, frm._uom_pricing_rule);
+	},
+	value_uom: function (frm) {
+		if (frm._uom_pricing_rule) update_preview(frm, frm._uom_pricing_rule);
+	},
+});
+
 function render_uom_pricing(frm) {
 	// Remove any previously rendered parameter inputs.
 	frm.fields_dict.custom_uom_pricing_parameters.$wrapper
@@ -62,7 +71,7 @@ function render_uom_pricing(frm) {
 
 function show_params(frm, rule) {
 	const params = rule.parameters || rule.params || [];
-	if (!params.length) return;
+	frm._uom_pricing_rule = rule;
 
 	// Build a small preview block listing each parameter with an input bound to
 	// the child table row for that symbol (creating one if missing).
@@ -74,13 +83,15 @@ function show_params(frm, rule) {
 			" (" +
 			(rule.formula_mode || "") +
 			")</div>" +
-			'<div class="uom-pricing-params"></div>' +
+			'<div class="uom-pricing-formula" style="font-size:12px;color:#555;"></div>' +
 			'<div class="uom-pricing-derived" style="margin-top:8px;font-size:12px;color:#555;"></div>' +
 			"</div>",
 	);
+	if (rule.formula_expression) {
+		$box.find(".uom-pricing-formula").text("Formula: " + rule.formula_expression);
+	}
 	wrapper.prepend($box);
-
-	const $params = $box.find(".uom-pricing-params");
+	let added_row = false;
 	params.forEach(function (p) {
 		const symbol = p.symbol;
 		// find existing child row
@@ -91,35 +102,13 @@ function show_params(frm, rule) {
 			row = frm.add_child("custom_uom_pricing_parameters", {
 				rule: rule.name,
 				symbol: symbol,
+				value_uom: p.uom || null,
 			});
+			added_row = true;
 		}
-		const $row = $(
-			'<div style="display:flex;gap:8px;align-items:center;margin:4px 0;">' +
-				"<label style=\"min-width:140px;\">" +
-				(p.label || symbol) +
-				(p.required ? " *" : "") +
-				(p.uom ? " (" + p.uom + ")" : "") +
-				"</label>" +
-				'<input type="number" step="any" class="form-control uom-pricing-input" ' +
-				'data-symbol="' +
-				symbol +
-				'" style="max-width:200px;" />' +
-				"</div>",
-		);
-		const $input = $row.find("input");
-		$input.val(row.value);
-		$input.on("change", function () {
-			const v = parseFloat($input.val());
-			const target = (frm.doc.custom_uom_pricing_parameters || []).find(function (r) {
-				return r.symbol === symbol && r.rule === rule.name;
-			});
-			if (target) target.value = isNaN(v) ? null : v;
-			frm.dirty();
-			update_preview(frm, rule);
-		});
-		$params.append($row);
 	});
 
+	if (added_row) frm.refresh_field("custom_uom_pricing_parameters");
 	update_preview(frm, rule);
 }
 
@@ -136,7 +125,9 @@ function update_preview(frm, rule) {
 	params.forEach(function (p) {
 		if (p.required && bySymbol[p.symbol] === undefined) ok = false;
 	});
-	const $derived = $(".uom-pricing-preview .uom-pricing-derived");
+	const $derived = frm.fields_dict.custom_uom_pricing_parameters.$wrapper.find(
+		".uom-pricing-preview .uom-pricing-derived",
+	);
 	if (!ok) {
 		$derived.text("Fill required parameters to see derived quantity.");
 		return;

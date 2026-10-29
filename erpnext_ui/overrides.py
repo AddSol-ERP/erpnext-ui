@@ -1,10 +1,12 @@
 import frappe
 from erpnext.accounts.doctype.pos_invoice.pos_invoice import POSInvoice
+from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
-from erpnext.buying.doctype.purchase_receipt.purchase_receipt import PurchaseReceipt
+from erpnext.buying.doctype.purchase_order.purchase_order import PurchaseOrder
 from erpnext.selling.doctype.quotation.quotation import Quotation
 from erpnext.selling.doctype.sales_order.sales_order import SalesOrder
 from erpnext.stock.doctype.delivery_note.delivery_note import DeliveryNote
+from erpnext.stock.doctype.purchase_receipt.purchase_receipt import PurchaseReceipt
 from erpnext.stock.doctype.quality_inspection.quality_inspection import (
 	QualityInspection as StockQualityInspection,
 )
@@ -63,13 +65,13 @@ class UomPricingPurchaseReceipt(PurchaseReceipt):
 		_apply_uom_pricing(self, "buying")
 
 
-class UomPricingPurchaseInvoice(PurchaseReceipt):
+class UomPricingPurchaseInvoice(PurchaseInvoice):
 	def validate(self):
 		super().validate()
 		_apply_uom_pricing(self, "buying")
 
 
-class UomPricingPurchaseOrder(PurchaseReceipt):
+class UomPricingPurchaseOrder(PurchaseOrder):
 	def validate(self):
 		super().validate()
 		_apply_uom_pricing(self, "buying")
