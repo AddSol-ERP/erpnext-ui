@@ -1,7 +1,7 @@
 from frappe.model.document import Document
 
 
-class UIUomPricingSettings(Document):
+class UIUOMPricingSettings(Document):
 	"""Site level switches that turn the generic UOM based pricing on or off.
 
 	The master switch gates the feature; the Buying and Selling switches sit under

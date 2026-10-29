@@ -1,20 +1,72 @@
 {
- "doctype": "DocType",
- "name": "UI UOM Pricing Settings",
- "module": "Addsol Erpnext UI",
- "custom": 0,
- "issingle": 1,
- "editable_grid": 1,
- "fields": [
-  {"fieldname": "enable_uom_pricing", "fieldtype": "Check", "label": "Enable UOM Based Pricing", "default": "0"},
-  {"fieldname": "enable_buying", "fieldtype": "Check", "label": "Enable UOM Based Pricing for Buying", "default": "0"},
-  {"fieldname": "enable_selling", "fieldtype": "Check", "label": "Enable UOM Based Pricing for Selling", "default": "0"}
- ],
- "permissions": [
-  {"role": "System Manager", "read": 1, "write": 1, "create": 1},
-  {"role": "Administrator", "read": 1, "write": 1, "create": 1}
- ],
- "sort_field": "modified",
- "sort_order": "DESC",
- "track_changes": 1
+  "actions": [],
+  "allow_events_in_timeline": 0,
+  "allow_guest_to_view": 0,
+  "allow_import": 0,
+  "allow_rename": 0,
+  "creation": "2026-10-29 00:00:00.000000",
+  "custom": 0,
+  "docstatus": 0,
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "fields": [
+    {
+      "default": "0",
+      "fieldname": "enable_uom_pricing",
+      "fieldtype": "Check",
+      "label": "Enable UOM Based Pricing"
+    },
+    {
+      "default": "0",
+      "fieldname": "enable_buying",
+      "fieldtype": "Check",
+      "label": "Enable UOM Based Pricing for Buying"
+    },
+    {
+      "default": "0",
+      "fieldname": "enable_selling",
+      "fieldtype": "Check",
+      "label": "Enable UOM Based Pricing for Selling"
+    }
+  ],
+  "idx": 0,
+  "is_submittable": 0,
+  "issingle": 1,
+  "links": [],
+  "modified": "2026-10-29 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Addsol Erpnext UI",
+  "name": "UI UOM Pricing Settings",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Administrator",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
 }
