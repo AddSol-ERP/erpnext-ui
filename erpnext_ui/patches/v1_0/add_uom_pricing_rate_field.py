@@ -11,7 +11,8 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 RATE_FIELD = {
 	"fieldname": "custom_rate_per_pricing_uom",
 	"fieldtype": "Float",
-	"label": "Rate per Pricing UOM",
+	"label": "Rate per UOM",
+	"in_list_view": 1,
 	"description": "Rate per the configured pricing UOM. Standard rate/amount are derived from this.",
 }
 

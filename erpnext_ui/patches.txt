@@ -12,4 +12,5 @@ erpnext_ui.patches.v1_0.update_supplier_quotation_response_layout
 erpnext_ui.patches.v1_0.add_item_uom_pricing_fields
 erpnext_ui.patches.v1_0.migrate_item_uom_pricing_to_tab
 erpnext_ui.patches.v1_0.add_uom_pricing_rate_field
+erpnext_ui.patches.v1_0.update_uom_pricing_rate_field_display
 erpnext_ui.patches.v1_0.ensure_item_uom_pricing_tab_isolated
