@@ -62,10 +62,53 @@ def _apply_uom_pricing(doc, side):
 			)
 		except ValueError:
 			continue
+
+		new_rate = float(pricing["standard_rate"] or 0)
+		new_amount = float(pricing["amount"] or 0)
+
+		# Capture the values ERPNext already derived during super().validate()
+		# (from the pre-pricing rate) so we can scale them proportionally.
+		old_rate = float((row.get("rate") if hasattr(row, "get") else getattr(row, "rate", 0)) or 0)
+		old_amount = float((row.get("amount") if hasattr(row, "get") else getattr(row, "amount", 0)) or 0)
+
 		if hasattr(row, "rate"):
-			row.rate = pricing["standard_rate"]
+			row.rate = new_rate
 		if hasattr(row, "amount"):
-			row.amount = pricing["amount"]
+			row.amount = new_amount
+
+		# Scale the derived currency/net/stock fields so they agree with the new
+		# rate/amount instead of staying stale (which is what made Net Rate,
+		# Net Amount, base_* and Taxable Value not update).
+		if old_rate and old_rate != new_rate:
+			factor = new_rate / old_rate
+		elif old_amount and old_amount != new_amount:
+			factor = new_amount / old_amount
+		elif old_rate == 0 and new_rate:
+			# No prior derived values to scale: seed them from the new rate.
+			factor = None
+		else:
+			factor = 1.0
+
+		if factor is None:
+			exchange = float(getattr(doc, "conversion_rate", None) or getattr(doc, "exchange_rate", None) or 1.0)
+			for field, val in (("net_rate", new_rate), ("base_rate", new_rate * exchange), ("base_net_rate", new_rate * exchange)):
+				if hasattr(row, field):
+					setattr(row, field, val)
+			for field, val in (("net_amount", new_amount), ("base_amount", new_amount * exchange), ("base_net_amount", new_amount * exchange), ("taxable_value", new_amount)):
+				if hasattr(row, field):
+					setattr(row, field, val)
+			if hasattr(row, "stock_uom_rate"):
+				row.stock_uom_rate = new_rate
+
+		if factor is not None:
+			for field in ("net_rate", "base_rate", "base_net_rate", "stock_uom_rate"):
+				if hasattr(row, field):
+					old_val = float((row.get(field) if hasattr(row, "get") else getattr(row, field, 0)) or 0)
+					setattr(row, field, old_val * factor)
+			for field in ("net_amount", "base_amount", "base_net_amount", "taxable_value"):
+				if hasattr(row, field):
+					old_val = float((row.get(field) if hasattr(row, "get") else getattr(row, field, 0)) or 0)
+					setattr(row, field, old_val * factor)
 
 
 class UomPricingPurchaseReceipt(PurchaseReceipt):
