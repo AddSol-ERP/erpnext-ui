@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { get } from "../../../../services/api";
 import { Lock, Scale } from "lucide-react";
 import { FormField } from "../../../../components/FormField";
 import FormSelect from "../../../../components/FormSelect";
@@ -27,6 +28,7 @@ import {
   validateSerials,
   wholeNumberRules,
 } from "../../../../lib/receiptConversion";
+import { ratePerUomLabel } from "../../../../lib/uomPricing";
 
 function formatReceiptNumber(value, maximumFractionDigits = 3) {
   if (value === null || value === undefined || value === "") return "—";
@@ -85,10 +87,55 @@ export default function ReceiptLineForm({
   plateRow = false,
   plateConfig = {},
   company,
+  pricingUom = "",
   onItemChange,
   onSave,
 }) {
   const { t } = useTranslation();
+
+  // UOM based pricing: the rate label names the pricing UOM the effective rule
+  // picked, not a hardcoded "Kg". Falls back to the i18n key when no pricing UOM
+  // has been resolved yet, so the current kg flow keeps rendering unchanged.
+  const rateLabel = ratePerUomLabel(pricingUom);
+
+  // UOM based pricing: live preview of the derived standard rate and amount as
+  // the user types the rate per pricing UOM. The authoritative conversion
+  // happens on save (server side override); this preview only keeps the user
+  // oriented. Debounced so a keystroke does not fire a request per character.
+  const [pricingResult, setPricingResult] = useState(null);
+  useEffect(() => {
+    if (!pricingUom || !row?.item_code) {
+      const handle = setTimeout(() => setPricingResult(null), 0);
+      return () => clearTimeout(handle);
+    }
+    const rate = row?.rate;
+    const qty = row?.qty;
+    if (rate === "" || rate === null || rate === undefined || qty === "" || qty === null || qty === undefined) {
+      const handle = setTimeout(() => setPricingResult(null), 0);
+      return () => clearTimeout(handle);
+    }
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await get("method/erpnext_ui.api.calculate_uom_pricing_line", {
+          item_code: row.item_code,
+          rate_per_uom: rate,
+          doc_qty: qty,
+          side: "buying",
+        });
+        if (cancelled) return;
+        const message = res?.message ?? res ?? {};
+        setPricingResult(message && Object.keys(message).length ? message : null);
+      } catch {
+        if (cancelled) return;
+        setPricingResult(null);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [pricingUom, row?.item_code, row?.rate, row?.qty]);
 
   const isPoRow = !!(row && row.purchase_order_item);
   const receivedUom = row?.uom || info?.stock_uom || "";
@@ -520,7 +567,7 @@ export default function ReceiptLineForm({
             </>
           ) : null}
 
-          <FormField label={t("store.receipt.ratePerKg")} hint={t("store.receipt.ratePerKgHint")} required>
+          <FormField label={rateLabel || t("store.receipt.ratePerKg")} hint={t("store.receipt.ratePerKgHint")} required>
             <Input
               type="number"
               min="0"
@@ -572,6 +619,38 @@ export default function ReceiptLineForm({
           onChange={(e) => edit({ rate: e.target.value })}
         />
       </FormField> : null}
+
+      {/* UOM based pricing: live preview of the derived standard rate and
+          amount. Only renders when a pricing UOM is resolved for the Item, so
+          unconfigured Items keep the standard rate input unchanged. */}
+      {pricingUom && pricingResult ? (
+        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              {t("store.receipt.chargeableQty", { uom: pricingUom })}
+            </span>
+            <span className="font-medium tabular-nums">
+              {pricingResult.chargeable_qty ?? "—"} {pricingUom}
+            </span>
+          </div>
+          <div className="mt-1 flex justify-between">
+            <span className="text-muted-foreground">
+              {t("store.receipt.standardRate")}
+            </span>
+            <span className="font-medium tabular-nums">
+              {formatRupees(pricingResult.standard_rate)}
+            </span>
+          </div>
+          <div className="mt-1 flex justify-between font-medium">
+            <span className="text-muted-foreground">
+              {t("store.receipt.lineAmount")}
+            </span>
+            <span className="tabular-nums">
+              {formatRupees(pricingResult.amount)}
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       {/* WAREHOUSE */}
       <FormField label={t("store.receipt.acceptedWarehouse")} required>

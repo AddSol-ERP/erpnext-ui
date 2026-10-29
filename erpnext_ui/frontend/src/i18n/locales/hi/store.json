@@ -265,7 +265,8 @@
       "backToReceipts": "खरीद रसीदों पर वापस जाएँ",
       "receivedQty": "प्राप्त मात्रा",
       "uom": "इकाई",
-      "receivedQtyMustBeWithinPending": "स्वीकृत और अस्वीकृत मात्रा का योग शून्य से अधिक और शेष {pending} {uom} से कम या बराबर होना चाहिए।"
+      "receivedQtyMustBeWithinPending": "स्वीकृत और अस्वीकृत मात्रा का योग शून्य से अधिक और शेष {pending} {uom} से कम या बराबर होना चाहिए।",
+      "chargeableQty": "चार्ज योग्य मात्रा ({uom})"
     },
     "projectItems": {
       "title": "{project} के सामान",

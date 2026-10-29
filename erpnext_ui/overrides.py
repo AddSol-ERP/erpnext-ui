@@ -1,4 +1,5 @@
 import frappe
+from erpnext.buying.doctype.purchase_receipt.purchase_receipt import PurchaseReceipt
 from erpnext.stock.doctype.quality_inspection.quality_inspection import (
 	QualityInspection as StockQualityInspection,
 )
@@ -28,7 +29,7 @@ class QualityInspection(StockQualityInspection):
 
 	WHY THIS IS A CLASS OVERRIDE AND NOT A `doc_events` HOOK
 	-------------------------------------------------------
-	`Document.insert` runs these in order (frappe/model/document.py:296-310):
+	`Document.insert` calls these in order (frappe/model/document.py:296-310):
 
 	    self._set_defaults()            # stamps inspected_by = "user"
 	    ...
@@ -81,3 +82,105 @@ class QualityInspection(StockQualityInspection):
 		# re-save. ERPNext does not define this method, so there is nothing to
 		# call super() with.
 		self._repair_inspected_by()
+
+
+class UomPricingPurchaseReceipt(PurchaseReceipt):
+	"""Recalculate UOM based pricing on a Purchase Receipt before it is written.
+
+	Under UOM based pricing the accepted chargeable quantity is the pricing
+	measure and the standard line rate is derived as amount / document quantity, so
+	the receipt line amounts have to be recomputed from the effective pricing rule
+	before the document is saved or submitted.
+
+	The accepted measure itself comes from the configured receiving strategy; the
+	calculation lives in erpnext_ui/uom_pricing.py and is reused here.
+	"""
+
+	def validate(self):
+		super().validate()
+		self.apply_uom_pricing()
+
+	def apply_uom_pricing(self):
+		from erpnext_ui import uom_pricing
+
+		if not uom_pricing.is_uom_pricing_enabled("buying"):
+			return
+		for row in self.get("items") or []:
+			item_code = row.get("item_code") or ""
+			doc_qty = float(row.get("qty") or 0)
+			if not item_code or not doc_qty:
+				continue
+			try:
+				pricing = uom_pricing.get_pricing_line(item_code, float(row.get("rate") or 0), doc_qty)
+			except ValueError:
+				continue
+			row.rate = pricing["standard_rate"]
+			row.amount = pricing["amount"]
+
+
+class UomPricingPurchaseInvoice(PurchaseReceipt):
+	"""Recalculate UOM based pricing on a Purchase Invoice before it is written.
+
+	Under UOM based pricing the accepted chargeable quantity is the pricing
+	measure and the standard line rate is derived as amount / document quantity, so
+	the invoice line amounts have to be recomputed from the effective pricing rule
+	before the document is saved or submitted.
+
+	The accepted measure itself comes from the linked Purchase Receipt; the
+	calculation lives in erpnext_ui/uom_pricing.py and is reused here.
+	"""
+
+	def validate(self):
+		super().validate()
+		self.apply_uom_pricing()
+
+	def apply_uom_pricing(self):
+		from erpnext_ui import uom_pricing
+
+		if not uom_pricing.is_uom_pricing_enabled("buying"):
+			return
+		for row in self.get("items") or []:
+			item_code = row.get("item_code") or ""
+			doc_qty = float(row.get("qty") or 0)
+			if not item_code or not doc_qty:
+				continue
+			try:
+				pricing = uom_pricing.get_pricing_line(item_code, float(row.get("rate") or 0), doc_qty)
+			except ValueError:
+				continue
+			row.rate = pricing["standard_rate"]
+			row.amount = pricing["amount"]
+
+
+class UomPricingPurchaseOrder(PurchaseReceipt):
+	"""Recalculate UOM based pricing on a Purchase Order before it is written.
+
+	Under UOM based pricing the accepted chargeable quantity is the pricing
+	measure and the standard line rate is derived as amount / document quantity, so
+	the order line amounts have to be recomputed from the effective pricing rule
+	before the document is saved or submitted.
+
+	The accepted measure itself comes from the resolved pricing rule; the
+	calculation lives in erpnext_ui/uom_pricing.py and is reused here.
+	"""
+
+	def validate(self):
+		super().validate()
+		self.apply_uom_pricing()
+
+	def apply_uom_pricing(self):
+		from erpnext_ui import uom_pricing
+
+		if not uom_pricing.is_uom_pricing_enabled("buying"):
+			return
+		for row in self.get("items") or []:
+			item_code = row.get("item_code") or ""
+			doc_qty = float(row.get("qty") or 0)
+			if not item_code or not doc_qty:
+				continue
+			try:
+				pricing = uom_pricing.get_pricing_line(item_code, float(row.get("rate") or 0), doc_qty)
+			except ValueError:
+				continue
+			row.rate = pricing["standard_rate"]
+			row.amount = pricing["amount"]

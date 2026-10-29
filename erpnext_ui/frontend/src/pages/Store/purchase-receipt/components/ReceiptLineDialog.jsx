@@ -25,6 +25,7 @@ export default function ReceiptLineDialog({
   info,
   uomError,
   rateEditable,
+  pricingUom = "",
   plateEnabled,
   plateRow,
   plateConfig,
@@ -54,6 +55,7 @@ export default function ReceiptLineDialog({
           info={info}
           uomError={uomError}
           rateEditable={rateEditable}
+          pricingUom={pricingUom}
           plateEnabled={plateEnabled}
           plateRow={plateRow}
           plateConfig={plateConfig}

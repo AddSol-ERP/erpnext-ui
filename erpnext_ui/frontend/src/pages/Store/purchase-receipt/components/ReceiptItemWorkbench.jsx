@@ -60,6 +60,7 @@ export default function ReceiptItemWorkbench({
   info,
   uomError,
   rateEditable,
+  pricingUom,
   plateEnabled,
   plateRow,
   plateConfig,
@@ -289,6 +290,7 @@ export default function ReceiptItemWorkbench({
             info={info}
             uomError={uomError}
             rateEditable={rateEditable}
+            pricingUom={pricingUom}
             plateEnabled={plateEnabled}
             plateRow={plateRow}
             plateConfig={plateConfig}

@@ -208,6 +208,10 @@ export default function PurchaseReceiptForm() {
    * mutation resolves it through `docRef` rather than closing over an index.
    */
   const [uomInfo, setUomInfo] = useState({});
+  // UOM based pricing: per-row effective pricing UOM resolved from the Item
+  // Group rule (and the site feature switches). Empty when pricing is off or
+  // the Item has no rule, so the existing kg flow keeps rendering unchanged.
+  const [pricingUomByRid, setPricingUomByRid] = useState({});
 
   /** row id -> the failure text from its UOM lookup, surfaced in the tray. */
   const [uomErrors, setUomErrors] = useState({});
@@ -374,6 +378,35 @@ export default function PurchaseReceiptForm() {
     [t],
   );
 
+  // Resolve the effective UOM pricing UOM for an Item, if any. Mirrors
+  // `loadUomInfo`: fail closed so a missing backend deployment never reprices a
+  // line by accident, and a missing rule leaves the pricing UOM empty.
+  const loadPricingInfo = useCallback(
+    async (rid, itemCode) => {
+      if (!itemCode) {
+        setPricingUomByRid((p) => {
+          const next = { ...p };
+          delete next[rid];
+          return next;
+        });
+        return;
+      }
+      try {
+        const res = await get("method/erpnext_ui.api.get_item_pricing", {
+          item_code: itemCode,
+          side: "buying",
+        });
+        const message = res?.message ?? res ?? {};
+        const enabled = !!message.enabled;
+        const pricingUom = enabled ? message.pricing_uom || "" : "";
+        setPricingUomByRid((p) => ({ ...p, [rid]: pricingUom }));
+      } catch {
+        setPricingUomByRid((p) => ({ ...p, [rid]: "" }));
+      }
+    },
+    [],
+  );
+
   const loadDoc = useCallback(async () => {
     setLoading(true);
     setInspectionsLoading(true);
@@ -462,6 +495,7 @@ export default function PurchaseReceiptForm() {
         if (r.item_code) {
           await Promise.all([
             loadUomInfo(r._rid, r.item_code),
+            loadPricingInfo(r._rid, r.item_code),
             loadPlateStatus(r._rid, r.item_code),
           ]);
         }
@@ -473,7 +507,7 @@ export default function PurchaseReceiptForm() {
     } finally {
       setLoading(false);
     }
-  }, [name, t, loadUomInfo, loadPlateStatus]);
+  }, [name, t, loadUomInfo, loadPricingInfo, loadPlateStatus]);
 
   /* ================= ITEMS ================= */
 
@@ -522,6 +556,11 @@ export default function PurchaseReceiptForm() {
   const removeRow = (rid) => {
     setDoc((p) => ({ ...p, items: p.items.filter((r) => r._rid !== rid) }));
     setUomInfo((p) => {
+      const next = { ...p };
+      delete next[rid];
+      return next;
+    });
+    setPricingUomByRid((p) => {
       const next = { ...p };
       delete next[rid];
       return next;
@@ -754,6 +793,7 @@ export default function PurchaseReceiptForm() {
         custom_rate_per_kg: "",
       });
       loadPlateStatus(rid, "");
+      loadPricingInfo(rid, "");
       return;
     }
     try {
@@ -793,6 +833,7 @@ export default function PurchaseReceiptForm() {
         warehouse: current.set_warehouse || d.warehouse || "",
       });
       await loadUomInfo(rid, itemCode);
+      await loadPricingInfo(rid, itemCode);
       const isPlate = await loadPlateStatus(rid, itemCode);
       if (isPlate) {
         // Prefill the required supplier-weight field from the estimate; keep it
@@ -1923,6 +1964,7 @@ export default function PurchaseReceiptForm() {
           row={editingRow}
           info={editingRow ? uomInfo[editingRow._rid] : null}
           uomError={editingRow ? uomErrors[editingRow._rid] : null}
+          pricingUom={editingRow ? pricingUomByRid[editingRow._rid] || "" : ""}
           rateEditable={rateEditable || !editingRow?.purchase_order_item}
           plateEnabled={plateConfig.enabled}
           plateRow={!!editingRow && !!plateItems[editingRow._rid]}
@@ -1949,6 +1991,7 @@ export default function PurchaseReceiptForm() {
         row={editingRow}
         info={editingRow ? uomInfo[editingRow._rid] : null}
         uomError={editingRow ? uomErrors[editingRow._rid] : null}
+        pricingUom={editingRow ? pricingUomByRid[editingRow._rid] || "" : ""}
         rateEditable={rateEditable || !editingRow?.purchase_order_item}
         plateEnabled={plateConfig.enabled}
         plateRow={!!editingRow && !!plateItems[editingRow._rid]}

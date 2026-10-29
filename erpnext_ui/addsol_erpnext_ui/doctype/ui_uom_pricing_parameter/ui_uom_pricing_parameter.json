@@ -1,0 +1,23 @@
+{
+ "doctype": "DocType",
+ "name": "UI Uom Pricing Parameter",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "issingle": 0,
+ "istable": 1,
+ "editable_grid": 1,
+ "fields": [
+  {"fieldname": "symbol", "fieldtype": "Data", "label": "Symbol", "reqd": 1},
+  {"fieldname": "label", "fieldtype": "Data", "label": "Label"},
+  {"fieldname": "data_source", "fieldtype": "Data", "label": "Data Source"},
+  {"fieldname": "display_order", "fieldtype": "Int", "label": "Display Order", "default": "0"},
+  {"fieldname": "required", "fieldtype": "Check", "label": "Required", "default": "0"},
+  {"fieldname": "uom", "fieldtype": "Link", "label": "Parameter UOM", "options": "UOM"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "email": 1, "print": 1, "report": 1, "share": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

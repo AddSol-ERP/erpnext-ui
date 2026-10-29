@@ -265,7 +265,8 @@
       "backToReceipts": "Back to Purchase Receipts",
       "receivedQty": "Received quantity",
       "uom": "UOM",
-      "receivedQtyMustBeWithinPending": "Accepted quantity plus rejected quantity must be greater than zero and no more than the remaining {pending} {uom}."
+      "receivedQtyMustBeWithinPending": "Accepted quantity plus rejected quantity must be greater than zero and no more than the remaining {pending} {uom}.",
+      "chargeableQty": "Chargeable qty ({uom})"
     },
     "projectItems": {
       "title": "Items for {project}",

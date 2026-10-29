@@ -649,6 +649,134 @@ def get_doctype_workflow_transitions(doctype, name, doc):
 
 
 # ============================================================
+# UOM BASED PRICING
+# ============================================================
+
+
+@frappe.whitelist(allow_guest=False)
+def get_uom_pricing_settings():
+    """Return the effective UOM based pricing feature switches.
+
+    The feature is opt in and site level: a master switch with independent Buying
+    and Selling sub switches, all off by default. Until the master and the relevant
+    side are on, documents use standard ERPNext quantity and rate behaviour, so
+    unconfigured sites are never repriced.
+
+    Returns:
+        dict: {"enable_uom_pricing", "enable_buying", "enable_selling"} booleans.
+    """
+    from erpnext_ui import uom_pricing
+
+    settings = uom_pricing.get_uom_pricing_settings()
+    return {
+        "enable_uom_pricing": settings["enable_uom_pricing"],
+        "enable_buying": settings["enable_buying"],
+        "enable_selling": settings["enable_selling"],
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def get_item_pricing(item_code, side=None):
+    """Return the effective UOM pricing state for an Item.
+
+    Resolves the site feature switches and the enabled pricing rule attached to
+    the Item's Item Group. An Item level override lands with the Item override
+    configuration; until then the Item Group rule is the effective rule.
+
+    Args:
+        item_code (str): Item code to resolve pricing for.
+        side (str): "buying" or "selling".
+
+    Returns:
+        dict: effective pricing state for the resolved Item.
+    """
+    from erpnext_ui import uom_pricing
+
+    return uom_pricing.get_item_pricing(item_code, side)
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_uom_pricing_line(item_code, rate_per_uom, doc_qty, side=None):
+    """Calculate the UOM based pricing outcome for one transaction line.
+
+    Resolves the effective pricing rule for the Item and computes the chargeable
+    quantity, line amount and ERPNext standard line rate from it.
+
+    Args:
+        item_code (str): Item code to price.
+        rate_per_uom (float): Configured rate per pricing UOM.
+        doc_qty (float): Document quantity the standard rate is derived from.
+        side (str): "buying" or "selling".
+
+    Returns:
+        dict: chargeable_qty, rate_per_uom, doc_qty, amount and standard_rate.
+
+    Raises:
+        ValueError: When no pricing rule is resolved or the quantity is invalid.
+    """
+    from erpnext_ui import uom_pricing
+
+    return uom_pricing.get_pricing_line(item_code, rate_per_uom, doc_qty, side)
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_purchase_receipt_pricing(receipt_name, accepted_measurements=None):
+    """Calculate UOM pricing for a Purchase Receipt's lines.
+
+    Args:
+        receipt_name (str): Purchase Receipt to price.
+        accepted_measurements (dict): item_code to accepted chargeable quantity.
+
+    Returns:
+        dict: {"name": receipt_name, "lines": [...]} pricing per line.
+
+    Raises:
+        ValueError: When the Purchase Receipt cannot be read.
+    """
+    from erpnext_ui import uom_pricing
+
+    return uom_pricing.calculate_receipt_pricing(receipt_name, accepted_measurements)
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_purchase_invoice_pricing(invoice_name, receipt_accepted_measurements=None):
+    """Calculate UOM pricing for a Purchase Invoice's lines.
+
+    Args:
+        invoice_name (str): Purchase Invoice to price.
+        receipt_accepted_measurements (dict): item_code to accepted chargeable quantity.
+
+    Returns:
+        dict: {"name": invoice_name, "lines": [...]} pricing per line.
+
+    Raises:
+        ValueError: When the Purchase Invoice cannot be read.
+    """
+    from erpnext_ui import uom_pricing
+
+    return uom_pricing.calculate_invoice_pricing(invoice_name, receipt_accepted_measurements)
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_purchase_order_pricing(po_name, quotation_accepted_measurements=None):
+    """Calculate UOM pricing for a Purchase Order's lines.
+
+    Args:
+        po_name (str): Purchase Order to price.
+        quotation_accepted_measurements (dict): item_code to accepted chargeable quantity.
+
+    Returns:
+        dict: {"name": po_name, "lines": [...]} pricing per line.
+
+    Raises:
+        ValueError: When the Purchase Order cannot be read.
+    """
+    from erpnext_ui import uom_pricing
+
+    return uom_pricing.calculate_purchase_order_pricing(po_name, quotation_accepted_measurements)
+
+
+# ============================================================
 # LEAVE BALANCE REPORT
 # ============================================================
 

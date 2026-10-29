@@ -1,0 +1,23 @@
+{
+ "doctype": "DocType",
+ "name": "UI Uom Pricing Rule",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "issingle": 0,
+ "editable_grid": 1,
+ "fields": [
+  {"fieldname": "item_group", "fieldtype": "Link", "label": "Item Group", "options": "Item Group", "reqd": 1},
+  {"fieldname": "enabled", "fieldtype": "Check", "label": "Enabled", "default": "0"},
+  {"fieldname": "pricing_uom", "fieldtype": "Link", "label": "Pricing UOM", "options": "UOM"},
+  {"fieldname": "formula_mode", "fieldtype": "Select", "label": "Formula Mode", "options": "Direct Entry\nFormula", "default": "Formula"},
+  {"fieldname": "formula_expression", "fieldtype": "Data", "label": "Formula Expression"},
+  {"fieldname": "receiving_strategy", "fieldtype": "Select", "label": "Receiving Strategy", "options": "Estimated Only\nSupplier Measurement\nWeighbridge Total Allocation\nOther", "default": "Estimated Only"},
+  {"fieldname": "params", "fieldtype": "Table", "label": "Pricing Parameters", "options": "UI Uom Pricing Parameter"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "email": 1, "print": 1, "report": 1, "share": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

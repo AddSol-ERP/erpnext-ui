@@ -43,6 +43,12 @@ import {
   validateSerials,
   wholeNumberRules,
 } from "../src/lib/receiptConversion.js";
+import {
+  isFormulaMode,
+  lineAmount,
+  ratePerUomLabel,
+  requiredParamSymbols,
+} from "../src/lib/uomPricing.js";
 import { DOCTYPE_CONFIG } from "../src/config/doctypes.js";
 import {
   formatCell,
@@ -444,6 +450,22 @@ ok("computeFactor: qty 0 returns null rather than Infinity",
    computeFactor(0, 25.4) === null);
 ok("computeFactor: empty total returns null rather than defaulting to 1",
    computeFactor(10, "") === null && computeFactor(10, undefined) === null);
+
+// UOM based pricing helpers (frontend mirror of erpnext_ui/uom_pricing.py).
+ok("ratePerUomLabel: derives a dynamic rate-per-UOM label from the pricing UOM",
+   ratePerUomLabel("Kg") === "Rate per Kg", ratePerUomLabel("Kg"));
+ok("ratePerUomLabel: empty pricing UOM yields an empty label",
+   ratePerUomLabel("") === "" && ratePerUomLabel(undefined) === "");
+ok("isFormulaMode: true for the Formula mode",
+   isFormulaMode({ formula_mode: "Formula" }) === true);
+ok("isFormulaMode: false for Direct Entry and when unresolvable",
+   isFormulaMode({ formula_mode: "Direct Entry" }) === false && isFormulaMode(undefined) === false);
+ok("requiredParamSymbols: only the required params are surfaced",
+   JSON.stringify(requiredParamSymbols({
+     params: [{ symbol: "thickness", required: 1 }, { symbol: "width", required: 0 }],
+   })) === JSON.stringify(["thickness"]));
+ok("lineAmount: chargeable qty times rate per UOM",
+   lineAmount(0.15, 2.5) === 0.375, lineAmount(0.15, 2.5));
 
 // Rule: stock_controller.py:110-116 resets the factor to 1.0 when uom equals
 // stock_uom, so a measured total is only meaningful when they differ.

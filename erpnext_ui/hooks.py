@@ -151,7 +151,10 @@ doctype_js = {"Supplier Quotation": "public/js/supplier_quotation_desk.js"}
 # `_action in ("save", "submit")`. So no hook can run early enough. Overriding
 # `insert` can. See erpnext_ui/overrides.py for the full account.
 override_doctype_class = {
-	"Quality Inspection": "erpnext_ui.overrides.QualityInspection"
+	"Quality Inspection": "erpnext_ui.overrides.QualityInspection",
+	"Purchase Receipt": "erpnext_ui.overrides.UomPricingPurchaseReceipt",
+	"Purchase Invoice": "erpnext_ui.overrides.UomPricingPurchaseInvoice",
+	"Purchase Order": "erpnext_ui.overrides.UomPricingPurchaseOrder",
 }
 
 # Suppress ERPNext's standard footer for emails sent by our supplier quotation

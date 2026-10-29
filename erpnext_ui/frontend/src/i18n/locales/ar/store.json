@@ -265,7 +265,8 @@
       "backToReceipts": "العودة إلى إيصالات الاستلام",
       "receivedQty": "الكمية المستلمة",
       "uom": "وحدة القياس",
-      "receivedQtyMustBeWithinPending": "يجب أن يكون مجموع الكمية المقبولة والمرفوضة أكبر من صفر ولا يتجاوز المتبقي {pending} {uom}."
+      "receivedQtyMustBeWithinPending": "يجب أن يكون مجموع الكمية المقبولة والمرفوضة أكبر من صفر ولا يتجاوز المتبقي {pending} {uom}.",
+      "chargeableQty": "الكمية القابلة لل charging ({uom})"
     },
     "projectItems": {
       "title": "مواد المشروع {project}",
