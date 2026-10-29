@@ -11,7 +11,8 @@
   {"fieldname": "enable_selling", "fieldtype": "Check", "label": "Enable UOM Based Pricing for Selling", "default": "0"}
  ],
  "permissions": [
-  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "email": 1, "print": 1, "report": 1, "share": 1}
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1},
+  {"role": "Administrator", "read": 1, "write": 1, "create": 1}
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
