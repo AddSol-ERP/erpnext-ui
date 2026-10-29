@@ -101,14 +101,20 @@ def standard_line_rate(amount, doc_qty):
 	return float(amount) / float(doc_qty)
 
 
-def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None):
+def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None, direct_entry_value=None):
 	"""Resolve the effective pricing and compute the line pricing outcome.
+
+	For formula mode the chargeable quantity is derived from the Item's
+	parameters; for direct entry mode `direct_entry_value` is used (the quantity
+	the user measured). When `direct_entry_value` is None and the rule is direct
+	entry, the stored parameters are used as a fallback.
 
 	Args:
 		item_code (str): Item code to price.
 		rate_per_uom (float): Configured rate per pricing UOM.
 		doc_qty (float): Document quantity the standard rate is derived from.
 		side (str): "buying" or "selling".
+		direct_entry_value (float): Measured quantity for direct entry mode.
 
 	Returns:
 		dict: item, rule, chargeable_qty, rate_per_uom, doc_qty, amount, standard_rate.
@@ -120,7 +126,10 @@ def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None):
 	rule = pricing["rule"]
 	if not rule:
 		raise ValueError("No UOM pricing rule is resolved for this item.")
-	qty = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], None)
+	if (rule.get("formula_mode") or "") == "Direct Entry" and direct_entry_value is not None:
+		qty = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], direct_entry_value)
+	else:
+		qty = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], None)
 	amount_info = calculate_pricing_line(qty, float(rate_per_uom or 0), float(doc_qty or 0))
 	return {
 		"item_code": item_code,
@@ -199,8 +208,45 @@ def get_pricing_rule(item_group):
 	}
 
 
+def get_pricing_rule_by_name(rule_name):
+	"""Return a pricing rule by its document name, or None."""
+	if not rule_name:
+		return None
+	try:
+		rule_doc = frappe.get_doc("UI Uom Pricing Rule", rule_name)
+	except Exception:
+		return None
+	if not getattr(rule_doc, "enabled", 0):
+		return None
+	params = frappe.get_all(
+		"UI Uom Pricing Parameter",
+		filters={"parent": rule_name},
+		fields=["symbol", "label", "data_source", "display_order", "required", "uom"],
+		ignore_permissions=True,
+	)
+	return {
+		"name": rule_doc.name,
+		"item_group": getattr(rule_doc, "item_group", None),
+		"pricing_uom": getattr(rule_doc, "pricing_uom", None),
+		"formula_mode": getattr(rule_doc, "formula_mode", None),
+		"formula_expression": getattr(rule_doc, "formula_expression", None),
+		"receiving_strategy": getattr(rule_doc, "receiving_strategy", None),
+		"params": params,
+	}
+
+
 def get_item_pricing(item_code, side=None):
 	"""Resolve the effective UOM pricing state for an Item.
+
+	Resolution order for the rule:
+	  1. An explicit Item-level override (`custom_uom_pricing_rule`), if set.
+	  2. Otherwise the Item Group's enabled rule.
+
+	Parameter values come from the Item's `custom_uom_pricing_parameters` child
+	table (keyed by rule + symbol). A parameter whose `data_source` names a
+	native Item field takes that field's value instead, so dimensions already
+	stored on the Item are not re-entered. Stored values for symbols not present
+	in the effective rule are ignored, so a rule change cannot leak stale values.
 
 	Args:
 		item_code (str): Item code to resolve pricing for.
@@ -210,13 +256,63 @@ def get_item_pricing(item_code, side=None):
 		dict: effective pricing state (rule, pricing uom, formula, strategy, params).
 	"""
 	item_group = frappe.db.get_value("Item", item_code, "item_group") or ""
-	rule = get_pricing_rule(item_group)
+	override_rule_name = None
+	try:
+		override_rule_name = frappe.db.get_value("Item", item_code, "custom_uom_pricing_rule")
+	except Exception:
+		override_rule_name = None
+
+	rule = None
+	if override_rule_name:
+		rule = get_pricing_rule_by_name(override_rule_name)
+	if rule is None:
+		rule = get_pricing_rule(item_group)
+
 	feature_enabled = is_uom_pricing_enabled(side)
+
+	# Stored parameter values for this Item + effective rule.
+	stored = {}
+	if rule:
+		try:
+			rows = frappe.get_all(
+				"UI Uom Pricing Item Parameter",
+				filters={"parent": item_code, "rule": rule["name"]},
+				fields=["symbol", "value"],
+				ignore_permissions=True,
+			)
+			for r in rows or []:
+				if r.get("symbol"):
+					stored[r["symbol"]] = r.get("value")
+		except Exception:
+			stored = {}
+
+	# Resolve data_source against native Item fields where declared.
 	params_by_symbol = {}
-	for p in rule.get("params") or [] if rule else []:
+	item_doc = None
+	try:
+		item_doc = frappe.get_doc("Item", item_code)
+	except Exception:
+		item_doc = None
+	for p in (rule.get("params") or [] if rule else []):
 		symbol = p.get("symbol")
-		if symbol:
-			params_by_symbol[symbol] = float(p.get("value") or 0)
+		if not symbol:
+			continue
+		data_source = (p.get("data_source") or "").strip()
+		value = None
+		if data_source and item_doc is not None and hasattr(item_doc, data_source):
+			try:
+				value = getattr(item_doc, data_source, None)
+			except Exception:
+				value = None
+		if value is None:
+			value = stored.get(symbol)
+		if value is None:
+			continue
+		try:
+			params_by_symbol[symbol] = float(value)
+		except (TypeError, ValueError):
+			continue
+
 	return {
 		"item_code": item_code,
 		"item_group": item_group,
@@ -261,13 +357,14 @@ def calculate_chargeable_quantity(rule, params_by_symbol, direct_entry_value=Non
 	return qty
 
 
-def _calculate_pricing_lines(docname, doctype, accepted_measurements=None):
-	"""Calculate UOM pricing for the lines of a buying transaction document.
+def _calculate_pricing_lines(docname, doctype, accepted_measurements=None, side=None):
+	"""Calculate UOM pricing for the lines of a transaction document.
 
 	Args:
 		docname (str): Document name to price.
-		doctype (str): Document doctype (Purchase Receipt / Purchase Invoice).
+		doctype (str): Document doctype.
 		accepted_measurements (dict): item_code to accepted chargeable quantity.
+		side (str): "buying" or "selling" for feature resolution.
 
 	Returns:
 		dict: {"name": docname, "lines": [...]} pricing per line.
@@ -285,7 +382,7 @@ def _calculate_pricing_lines(docname, doctype, accepted_measurements=None):
 		pricing = None
 		if accepted and accepted > 0:
 			try:
-				pricing = get_pricing_line(item_code, float(row.get("rate") or 0), float(row.get("qty") or 0))
+				pricing = get_pricing_line(item_code, float(row.get("rate") or 0), float(row.get("qty") or 0), side=side)
 				pricing["chargeable_qty"] = accepted
 				pricing["amount"] = calculate_line_amount(accepted, float(pricing["rate_per_uom"] or 0))
 				pricing["standard_rate"] = standard_line_rate(pricing["amount"], float(row.get("qty") or 0))
@@ -338,6 +435,21 @@ def calculate_purchase_order_pricing(po_name, quotation_accepted_measurements=No
 		dict: {"name": po_name, "lines": [...]} pricing per line.
 	"""
 	return _calculate_pricing_lines(po_name, "Purchase Order", quotation_accepted_measurements)
+
+def calculate_selling_pricing(document_name, doctype, accepted_measurements=None):
+	"""Calculate UOM pricing for the lines of a selling transaction document.
+
+	Args:
+		document_name (str): Document name to price.
+		doctype (str): Selling doctype (Quotation / Sales Order / Delivery Note / Sales Invoice).
+		accepted_measurements (dict): item_code to accepted chargeable quantity.
+
+	Returns:
+		dict: {"name": document_name, "lines": [...]} pricing per line.
+	"""
+	return _calculate_pricing_lines(document_name, doctype, accepted_measurements, side="selling")
+
+
 
 
 def _tokenize(expression):

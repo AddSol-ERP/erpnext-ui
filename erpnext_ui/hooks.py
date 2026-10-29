@@ -46,7 +46,10 @@ app_include_js = ["/assets/erpnext_ui/js/addsol_ui_nav.js"]
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Supplier Quotation": "public/js/supplier_quotation_desk.js"}
+doctype_js = {
+	"Supplier Quotation": "public/js/supplier_quotation_desk.js",
+	"Item": "public/js/item_uom_pricing.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -155,6 +158,11 @@ override_doctype_class = {
 	"Purchase Receipt": "erpnext_ui.overrides.UomPricingPurchaseReceipt",
 	"Purchase Invoice": "erpnext_ui.overrides.UomPricingPurchaseInvoice",
 	"Purchase Order": "erpnext_ui.overrides.UomPricingPurchaseOrder",
+	"Quotation": "erpnext_ui.overrides.UomPricingSalesQuotation",
+	"Sales Order": "erpnext_ui.overrides.UomPricingSalesOrder",
+	"Delivery Note": "erpnext_ui.overrides.UomPricingDeliveryNote",
+	"Sales Invoice": "erpnext_ui.overrides.UomPricingSalesInvoice",
+	"POS Invoice": "erpnext_ui.overrides.UomPricingPOSInvoice",
 }
 
 # Suppress ERPNext's standard footer for emails sent by our supplier quotation

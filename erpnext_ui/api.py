@@ -696,17 +696,19 @@ def get_item_pricing(item_code, side=None):
 
 
 @frappe.whitelist(allow_guest=False)
-def calculate_uom_pricing_line(item_code, rate_per_uom, doc_qty, side=None):
+def calculate_uom_pricing_line(item_code, rate_per_uom, doc_qty, side=None, chargeable_qty=None):
     """Calculate the UOM based pricing outcome for one transaction line.
 
     Resolves the effective pricing rule for the Item and computes the chargeable
-    quantity, line amount and ERPNext standard line rate from it.
+    quantity, line amount and ERPNext standard line rate from it. For direct
+    entry rules the caller may pass the measured `chargeable_qty`.
 
     Args:
         item_code (str): Item code to price.
         rate_per_uom (float): Configured rate per pricing UOM.
         doc_qty (float): Document quantity the standard rate is derived from.
         side (str): "buying" or "selling".
+        chargeable_qty (float): Measured quantity for direct entry rules.
 
     Returns:
         dict: chargeable_qty, rate_per_uom, doc_qty, amount and standard_rate.
@@ -716,7 +718,9 @@ def calculate_uom_pricing_line(item_code, rate_per_uom, doc_qty, side=None):
     """
     from erpnext_ui import uom_pricing
 
-    return uom_pricing.get_pricing_line(item_code, rate_per_uom, doc_qty, side)
+    return uom_pricing.get_pricing_line(
+        item_code, rate_per_uom, doc_qty, side, direct_entry_value=chargeable_qty
+    )
 
 
 @frappe.whitelist(allow_guest=False)
@@ -774,6 +778,97 @@ def calculate_purchase_order_pricing(po_name, quotation_accepted_measurements=No
     from erpnext_ui import uom_pricing
 
     return uom_pricing.calculate_purchase_order_pricing(po_name, quotation_accepted_measurements)
+
+
+@frappe.whitelist(allow_guest=False)
+def get_item_group_pricing_rules(item_group):
+    """Return enabled UOM pricing rules attached to an Item Group.
+
+    Used by the Desk Item form to resolve the inherited rule when no Item-level
+    override is set. Returns an empty list when none exist, so unconfigured
+    Item Groups behave as standard ERPNext.
+
+    Args:
+        item_group (str): Item Group name.
+
+    Returns:
+        list[dict]: enabled rules with name, pricing_uom, formula_mode.
+    """
+    from erpnext_ui import uom_pricing
+
+    if not item_group:
+        return []
+    rules = frappe.get_all(
+        "UI Uom Pricing Rule",
+        filters={"item_group": item_group, "enabled": 1},
+        fields=["name", "pricing_uom", "formula_mode", "formula_expression"],
+        ignore_permissions=True,
+    )
+    return rules or []
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_sales_quotation_pricing(quotation_name):
+	"""Calculate UOM pricing for a Sales Quotation's lines."""
+	from erpnext_ui import uom_pricing
+
+	return uom_pricing.calculate_selling_pricing(quotation_name, "Quotation")
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_sales_order_pricing(order_name):
+	"""Calculate UOM pricing for a Sales Order's lines."""
+	from erpnext_ui import uom_pricing
+
+	return uom_pricing.calculate_selling_pricing(order_name, "Sales Order")
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_delivery_note_pricing(note_name):
+	"""Calculate UOM pricing for a Delivery Note's lines."""
+	from erpnext_ui import uom_pricing
+
+	return uom_pricing.calculate_selling_pricing(note_name, "Delivery Note")
+
+
+@frappe.whitelist(allow_guest=False)
+def calculate_sales_invoice_pricing(invoice_name):
+	"""Calculate UOM pricing for a Sales Invoice's lines."""
+	from erpnext_ui import uom_pricing
+
+	return uom_pricing.calculate_selling_pricing(invoice_name, "Sales Invoice")
+
+
+@frappe.whitelist(allow_guest=False)
+def preview_uom_pricing_formula(expression, params=None):
+    """Evaluate a pricing formula with supplied sample parameter values.
+
+    Server side only, so the client never evaluates arbitrary expressions.
+    Returns {"result": float} or raises ValueError on an invalid expression.
+
+    Args:
+        expression (str): formula expression.
+        params (dict|str): symbol -> value mapping (JSON string or dict).
+    """
+    import json as _json
+
+    from erpnext_ui import uom_pricing
+
+    if isinstance(params, str):
+        try:
+            params = _json.loads(params) if params else {}
+        except ValueError:
+            params = {}
+    params = params or {}
+    # coerce values to float where possible
+    clean = {}
+    for k, v in params.items():
+        try:
+            clean[k] = float(v)
+        except (TypeError, ValueError):
+            clean[k] = v
+    result = uom_pricing.evaluate_formula(expression or "", clean)
+    return {"result": result}
 
 
 # ============================================================

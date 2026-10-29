@@ -4275,7 +4275,7 @@ ok(
   );
   ok(
     "the desk button is registered and only appears for emailable saved quotations",
-    /doctype_js = \{"Supplier Quotation": "public\/js\/supplier_quotation_desk\.js"\}/.test(
+    /doctype_js\s*=\s*\{[^}]*"Supplier Quotation":\s*"public\/js\/supplier_quotation_desk\.js"/.test(
       hooksSrc,
     ) &&
       /frappe\.ui\.form\.on\("Supplier Quotation"/.test(supplierDeskSrc) &&
