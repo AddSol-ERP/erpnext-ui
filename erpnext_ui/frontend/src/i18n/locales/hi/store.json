@@ -516,6 +516,7 @@
       "purpose": "उद्देश्य",
       "requiredBy": "कब तक चाहिए",
       "rate": "दर",
+      "ratePerUom": "दर प्रति {uom}",
       "ratePerUomHint": "दर प्रति {uom} है। मानक दर इसी से निकाली जाती है।"
     },
     "validation": {

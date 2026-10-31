@@ -456,6 +456,20 @@ ok("ratePerUomLabel: derives a dynamic rate-per-UOM label from the pricing UOM",
    ratePerUomLabel("Kg") === "Rate per Kg", ratePerUomLabel("Kg"));
 ok("ratePerUomLabel: empty pricing UOM yields an empty label",
    ratePerUomLabel("") === "" && ratePerUomLabel(undefined) === "");
+// The label text moved to i18n (`store.form.ratePerUom`) so it can be
+// translated; without these two the hardcoded English would come back quietly.
+ok("ratePerUomLabel: with a translator it resolves the i18n key, not English",
+   (() => {
+     const t = (key, opts) => `${key}:${opts?.uom}`;
+     return ratePerUomLabel("Kg", t) === "store.form.ratePerUom:Kg";
+   })(),
+   ratePerUomLabel("Kg", (k, o) => `${k}:${o?.uom}`));
+ok("ratePerUomLabel: translator is only consulted once a pricing UOM exists",
+   (() => {
+     let calls = 0;
+     const t = () => { calls += 1; return "x"; };
+     return ratePerUomLabel("", t) === "" && calls === 0;
+   })());
 ok("isFormulaMode: true for the Formula mode",
    isFormulaMode({ formula_mode: "Formula" }) === true);
 ok("isFormulaMode: false for Direct Entry and when unresolvable",
@@ -3773,6 +3787,24 @@ const stockHookSrc = readSrc(
   "../../src/components/StockEntry/hooks/useStockEntry.js",
 );
 const prFormSrc = readSrc("../../src/pages/Store/purchase-receipt/form/index.jsx");
+
+// --- the per-UOM rate field must appear on a PO-picked line -----------------
+// `pickLine` mints a fresh `_rid`, and neither `loadDoc` (rows already on the
+// receipt) nor `handleItemChange` (an item chosen by hand) runs for it. If
+// `pickLine` does not resolve pricing itself the row has no `pricingUomByRid`
+// entry, so `pricingUom` arrives empty and ReceiptLineForm falls through to the
+// plain `Rate` input -- on PO picking, which is the primary Purchase Receipt
+// flow. Nothing errors; the per-UOM field simply never renders.
+const pickStart = prFormSrc.indexOf("const pickLine = (line) => {");
+const pickEnd = prFormSrc.indexOf("const handleItemChange", pickStart);
+const pickLineBody =
+  pickStart >= 0 && pickEnd > pickStart ? prFormSrc.slice(pickStart, pickEnd) : "";
+ok(
+  "purchase receipt: picking a PO line resolves its pricing UOM",
+  pickLineBody.length > 0 &&
+    /loadPricingInfo\(\s*rid,\s*row\.item_code\s*\)/.test(pickLineBody),
+  pickLineBody.slice(0, 100),
+);
 // ActionTile clamps its title AND its description with `truncate`, so a tile's
 // height comes from its icon block and padding, not its text. That is what makes
 // more columns a saving rather than a trade -- narrower clips the label instead

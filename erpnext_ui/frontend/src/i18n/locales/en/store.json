@@ -516,6 +516,7 @@
       "purpose": "Purpose",
       "requiredBy": "Required By",
       "rate": "Rate",
+      "ratePerUom": "Rate per {uom}",
       "ratePerUomHint": "Rate is per {uom}. Standard rate is derived from it."
     },
     "validation": {

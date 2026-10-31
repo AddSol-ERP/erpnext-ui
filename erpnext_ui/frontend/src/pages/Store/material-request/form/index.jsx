@@ -1084,7 +1084,7 @@ export default function MaterialRequestForm() {
               {/* Per-UOM rate input when a pricing UOM is resolved. */}
               {!doc.docstatus && pricingUomByRid[row._rid] ? (
                 <div className="md:col-span-3">
-                  <FormField label={ratePerUomLabel(pricingUomByRid[row._rid]) || t("store.form.rate")}>
+                  <FormField label={ratePerUomLabel(pricingUomByRid[row._rid], t) || t("store.form.rate")}>
                     <Input
                       type="number"
                       step="any"

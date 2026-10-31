@@ -516,6 +516,7 @@
       "purpose": "الغرض",
       "requiredBy": "المطلوب بحلول",
       "rate": "السعر",
+      "ratePerUom": "السعر لكل {uom}",
       "ratePerUomHint": "السعر لكل {uom}. ويُشتق السعر القياسي منه."
     },
     "validation": {

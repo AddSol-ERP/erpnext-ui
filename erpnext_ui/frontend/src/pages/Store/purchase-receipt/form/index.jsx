@@ -756,6 +756,13 @@ export default function PurchaseReceiptForm() {
     );
     setDoc((p) => ({ ...p, items: [...p.items, row] }));
     if (row.item_code) loadUomInfo(rid, row.item_code);
+    // A picked line mints a fresh `_rid`, and nothing else resolves pricing for
+    // it: `loadDoc` only covers rows already on the receipt and `handleItemChange`
+    // only covers an item chosen by hand. Without this the row has no entry in
+    // `pricingUomByRid`, so `pricingUom` arrives empty and the line falls back to
+    // the plain rate input -- PO picking being the primary flow, the per-UOM rate
+    // field then never appears at all.
+    if (row.item_code) loadPricingInfo(rid, row.item_code);
     if (row.item_code) {
       loadPlateStatus(rid, row.item_code).then((isPlate) => {
         if (!isPlate) return;

@@ -96,7 +96,7 @@ export default function ReceiptLineForm({
   // UOM based pricing: the rate label names the pricing UOM the effective rule
   // picked, not a hardcoded "Kg". Falls back to the i18n key when no pricing UOM
   // has been resolved yet, so the current kg flow keeps rendering unchanged.
-  const rateLabel = ratePerUomLabel(pricingUom);
+  const rateLabel = ratePerUomLabel(pricingUom, t);
 
   // UOM based pricing: live preview of the derived standard rate and amount as
   // the user types the rate per pricing UOM. The authoritative conversion
@@ -640,8 +640,12 @@ export default function ReceiptLineForm({
             </>
           ) : null}
 
+          {/* Binds `custom_rate_per_kg`, so it is per Kg whatever the effective
+              pricing rule resolved -- the hint below says "per Kg" too. Using
+              the resolved pricing UOM here would label this input with a unit
+              the field does not price in. */}
           <FormField
-            label={rateLabel || t("store.receipt.ratePerKg")}
+            label={t("store.receipt.ratePerKg")}
             hint={t("store.receipt.ratePerKgHint")}
             required
           >
@@ -689,8 +693,8 @@ export default function ReceiptLineForm({
       {!isPlate ? (
         pricingUom ? (
           <FormField
-            label={rateLabel || t("store.receipt.rate")}
-            hint={undefined}
+            label={rateLabel || t("store.form.rate")}
+            hint={t("store.form.ratePerUomHint", { uom: pricingUom })}
             required
           >
             <Input

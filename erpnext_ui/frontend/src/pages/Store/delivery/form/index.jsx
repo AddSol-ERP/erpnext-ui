@@ -590,7 +590,7 @@ export default function DeliveryNoteForm() {
 
         {doc.items.map((row, i) => {
           const pricingUom = pricingUomByRid[row._rid] || "";
-          const rateLabel = ratePerUomLabel(pricingUom);
+          const rateLabel = ratePerUomLabel(pricingUom, t);
           const hasPricing = !!pricingUom;
 
           return (

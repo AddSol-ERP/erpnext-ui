@@ -15,13 +15,21 @@
  * derived from it rather than hardcoded -- the same rule the server side applies
  * (`erpnext_ui/uom_pricing.py`).
  *
+ * The TEXT is an i18n string (`store.form.ratePerUom`) because "Rate per Kg" was
+ * previously returned as literal English and could never be translated to hi/ar.
+ * A translator is therefore passed in from the component; without one the plain
+ * English form is returned, which keeps this pure function assertable by the
+ * rules suite without mounting a component.
+ *
  * @param {string} pricingUom
+ * @param {Function} [t] i18n translator
  * @returns {string} label, or "" when no pricing UOM is resolved.
  */
-export function ratePerUomLabel(pricingUom) {
-  const uom = String(pricingUom || "").trim();
-  if (!uom) return "";
-  return `Rate per ${uom}`;
+export function ratePerUomLabel(pricingUom, t) {
+	const uom = String(pricingUom || "").trim();
+	if (!uom) return "";
+	if (typeof t === "function") return t("store.form.ratePerUom", { uom });
+	return `Rate per ${uom}`;
 }
 
 /**
@@ -31,7 +39,7 @@ export function ratePerUomLabel(pricingUom) {
  * @returns {boolean}
  */
 export function isFormulaMode(rule) {
-  return String(rule?.formula_mode || "") === "Formula";
+	return String(rule?.formula_mode || "") === "Formula";
 }
 
 /**
@@ -44,8 +52,8 @@ export function isFormulaMode(rule) {
  * @returns {string[]}
  */
 export function requiredParamSymbols(rule) {
-  const params = Array.isArray(rule?.params) ? rule.params : [];
-  return params.filter((p) => p && p.required).map((p) => p.symbol);
+	const params = Array.isArray(rule?.params) ? rule.params : [];
+	return params.filter((p) => p && p.required).map((p) => p.symbol);
 }
 
 /**
@@ -60,10 +68,10 @@ export function requiredParamSymbols(rule) {
  * @returns {number}
  */
 export function lineAmount(chargeableQty, ratePerUom) {
-  const qty = Number(chargeableQty);
-  const rate = Number(ratePerUom);
-  if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(rate) || rate < 0) {
-    return 0;
-  }
-  return qty * rate;
+	const qty = Number(chargeableQty);
+	const rate = Number(ratePerUom);
+	if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(rate) || rate < 0) {
+		return 0;
+	}
+	return qty * rate;
 }
