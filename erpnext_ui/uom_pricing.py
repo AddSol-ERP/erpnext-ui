@@ -182,6 +182,13 @@ def get_pricing_line(
 		"doc_qty": doc_qty,
 		"amount": amount_info["amount"],
 		"standard_rate": amount_info["standard_rate"],
+		# Flattened from `pricing` (see `get_item_pricing`) so `_apply_uom_pricing`'s
+		# submit-time enforcement and the SPA's live preview can read tolerance
+		# without reaching into `rule`. This was missing, which is why tolerance
+		# was never actually enforced: `overrides.py` read `pricing.get(
+		# "tolerance_plus")` off THIS dict, not off `rule`.
+		"tolerance_plus": pricing["tolerance_plus"],
+		"tolerance_minus": pricing["tolerance_minus"],
 	}
 
 
@@ -375,6 +382,16 @@ def get_item_pricing(item_code, side=None):
 		"formula_mode": rule["formula_mode"] if rule else None,
 		"formula_expression": rule["formula_expression"] if rule else None,
 		"receiving_strategy": rule["receiving_strategy"] if rule else None,
+		# Flattened from `rule` so callers (both `_apply_uom_pricing`'s submit-time
+		# enforcement and the SPA's live validation) can read tolerance without
+		# reaching into the nested `rule` dict -- the same convention already
+		# followed for `pricing_uom`/`formula_mode`/etc. above. Omitting this was
+		# the bug: both enforcement paths read `pricing.get("tolerance_plus")`,
+		# which always came back `None` -> 0, so tolerance was silently never
+		# enforced anywhere despite the Rule doctype and the check logic both
+		# being correct.
+		"tolerance_plus": (rule.get("tolerance_plus") or 0) if rule else 0,
+		"tolerance_minus": (rule.get("tolerance_minus") or 0) if rule else 0,
 		"params": rule["params"] if rule else [],
 		"params_by_symbol": params_by_symbol,
 	}

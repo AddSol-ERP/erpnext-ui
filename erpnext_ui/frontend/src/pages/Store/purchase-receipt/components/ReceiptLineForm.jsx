@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { get } from "../../../../services/api";
 import { Lock, Scale } from "lucide-react";
@@ -102,14 +102,22 @@ export default function ReceiptLineForm({
   // the user types the rate per pricing UOM. The authoritative conversion
   // happens on save (server side override); this preview only keeps the user
   // oriented. Debounced so a keystroke does not fire a request per character.
+  //
+  // NOTE: `row` and `onSave` are NOT in the dependency array. They are read via
+  // refs to avoid an infinite loop: `onSave` creates a new object on every call,
+  // which would re-trigger this effect and call the API endlessly.
+  const rowRef = useRef(row);
+  rowRef.current = row;
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
   const [pricingResult, setPricingResult] = useState(null);
   useEffect(() => {
-    if (!pricingUom || !row?.item_code) {
+    if (!pricingUom || !rowRef.current?.item_code) {
       const handle = setTimeout(() => setPricingResult(null), 0);
       return () => clearTimeout(handle);
     }
-    const rate = row?.custom_rate_per_pricing_uom;
-    const qty = row?.qty;
+    const rate = rowRef.current?.custom_rate_per_pricing_uom;
+    const qty = rowRef.current?.qty;
     if (
       rate === "" ||
       rate === null ||
@@ -127,7 +135,7 @@ export default function ReceiptLineForm({
         const res = await get(
           "method/erpnext_ui.api.calculate_uom_pricing_line",
           {
-            item_code: row.item_code,
+            item_code: rowRef.current.item_code,
             rate_per_uom: rate,
             doc_qty: qty,
             side: "buying",
@@ -140,9 +148,9 @@ export default function ReceiptLineForm({
           // Update the standard rate/amount live so ERPNext's derived fields
           // (rate, amount, net_*, taxable value) reflect the conversion while
           // the user types, instead of waiting for save.
-          if (onSave && row?._rid) {
-            onSave({
-              ...row,
+          if (onSaveRef.current && rowRef.current?._rid) {
+            onSaveRef.current({
+              ...rowRef.current,
               rate: message.standard_rate,
               amount: message.amount,
             });
@@ -161,12 +169,84 @@ export default function ReceiptLineForm({
     };
   }, [
     pricingUom,
-    row?.item_code,
-    row?.custom_rate_per_pricing_uom,
-    row?.qty,
-    row,
-    onSave,
+    rowRef.current?.item_code,
+    rowRef.current?.custom_rate_per_pricing_uom,
+    rowRef.current?.qty,
   ]);
+
+  // Chargeable qty tolerance validation (frontend, immediate feedback)
+  const [chargeableOverride, setChargeableOverride] = useState(null);
+  const [tolerancePlus, setTolerancePlus] = useState(0);
+  const [toleranceMinus, setToleranceMinus] = useState(0);
+  const [toleranceWarning, setToleranceWarning] = useState(null);
+
+  const validateChargeableQty = useCallback(() => {
+    if (chargeableOverride == null || (tolerancePlus === 0 && toleranceMinus === 0)) {
+      setToleranceWarning(null);
+      return;
+    }
+
+    const calcQty = pricingResult?.calculated_chargeable_qty ?? 0;
+    const overrideQty = chargeableOverride;
+
+    if (calcQty <= 0) {
+      setToleranceWarning(null);
+      return;
+    }
+
+    const ratio = overrideQty / calcQty;
+    const tooHigh = ratio > 1 + tolerancePlus / 100;
+    const tooLow = ratio < 1 - toleranceMinus / 100;
+
+    if (tooHigh || tooLow) {
+      setToleranceWarning({
+        type: "outside",
+        message: t("store.receipt.chargeableQtyOutsideTolerance", {
+          min: (100 - toleranceMinus).toFixed(1),
+          max: (100 + tolerancePlus).toFixed(1),
+          baseline: calcQty,
+          uom: pricingUom,
+        }),
+      });
+    } else {
+      setToleranceWarning(null);
+    }
+  }, [chargeableOverride, tolerancePlus, toleranceMinus, pricingResult?.calculated_chargeable_qty, pricingUom, t]);
+
+  // Fetch tolerance settings from server when pricing UOM changes
+  useEffect(() => {
+    if (!pricingUom || !row?.item_code) return;
+
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await get("method/erpnext_ui.api.get_item_pricing", {
+          item_code: row.item_code,
+          side: "buying",
+        });
+        const pricing = res?.message ?? res ?? {};
+        setTolerancePlus(pricing.tolerance_plus ?? 0);
+        setToleranceMinus(pricing.tolerance_minus ?? 0);
+      } catch {
+        setTolerancePlus(0);
+        setToleranceMinus(0);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [pricingUom, row?.item_code]);
+
+  // Re-validate when tolerance values load (user may have typed qty before tolerance arrived)
+  useEffect(() => {
+    if (chargeableOverride != null && (tolerancePlus > 0 || toleranceMinus > 0)) {
+      validateChargeableQty();
+    }
+  }, [chargeableOverride, tolerancePlus, toleranceMinus, validateChargeableQty]);
+
+  // Re-validate when calculated baseline arrives from server
+  useEffect(() => {
+    if (chargeableOverride != null && (tolerancePlus > 0 || toleranceMinus > 0) && pricingResult?.calculated_chargeable_qty) {
+      validateChargeableQty();
+    }
+  }, [chargeableOverride, tolerancePlus, toleranceMinus, pricingResult?.calculated_chargeable_qty, validateChargeableQty]);
 
   const isPoRow = !!(row && row.purchase_order_item);
   const receivedUom = row?.uom || info?.stock_uom || "";
@@ -728,25 +808,85 @@ export default function ReceiptLineForm({
         )
       ) : null}
 
+      {/* Chargeable qty input -- user-editable, below the rate field. */}
+      {pricingUom ? (
+        <FormField
+          label={t("store.form.chargeableQty")}
+          hint={t("store.form.chargeableQtyHint", { uom: pricingUom })}
+          required={false}
+        >
+          <Input
+            type="number"
+            step="any"
+            value={chargeableOverride ?? row.custom_chargeable_qty ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              const overrideQty = val ? Number(val) : null;
+              setChargeableOverride(overrideQty);
+
+              // Compute derived rate/amount from chargeable qty so ERPNext
+              // fields update live while the user types.
+              const ratePerUom = row?.custom_rate_per_pricing_uom ?? 0;
+              const docQty = Number(row?.qty) || 0;
+              if (overrideQty != null && docQty > 0) {
+                const amount = overrideQty * ratePerUom;
+                const standardRate = amount / docQty;
+                onSave({
+                  ...row,
+                  custom_chargeable_qty: val,
+                  rate: standardRate,
+                  amount: amount,
+                });
+              } else if (overrideQty != null && docQty === 0) {
+                onSave({ ...row, custom_chargeable_qty: val });
+              } else {
+                onSave({ ...row, custom_chargeable_qty: "" });
+              }
+              validateChargeableQty();
+            }}
+          />
+          {toleranceWarning ? (
+            <p className="mt-1 text-[11px] font-medium text-destructive">
+              {toleranceWarning.message}
+            </p>
+          ) : null}
+          {t("store.form.chargeableUomLabel", { uom: pricingUom })}
+        </FormField>
+      ) : null}
+
       {/* UOM based pricing: live preview of the derived standard rate and
           amount. Only renders when a pricing UOM is resolved for the Item, so
-          unconfigured Items keep the standard rate input unchanged. */}
-      {pricingUom && pricingResult ? (
+          unconfigured Items keep the standard rate input unchanged.
+          
+          Shows values from the user-entered chargeable qty when present,
+          otherwise from the server-calculated pricing result. */}
+      {pricingUom ? (
         <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
           <div className="flex justify-between">
             <span className="text-muted-foreground">
               {t("store.receipt.chargeableQty", { uom: pricingUom })}
             </span>
+            {/* User-entered chargeable qty takes precedence in preview */}
             <span className="font-medium tabular-nums">
-              {pricingResult.chargeable_qty ?? "—"} {pricingUom}
+              {chargeableOverride != null ? chargeableOverride : pricingResult?.chargeable_qty ?? "—"} {pricingUom}
             </span>
           </div>
+          {/* Tolerance warning */}
+          {toleranceWarning ? (
+            <div className="mt-1 flex justify-between">
+              <span className="text-destructive">
+                {toleranceWarning.message}
+              </span>
+            </div>
+          ) : null}
           <div className="mt-1 flex justify-between">
             <span className="text-muted-foreground">
               {t("store.receipt.standardRate")}
             </span>
             <span className="font-medium tabular-nums">
-              {formatRupees(pricingResult.standard_rate)}
+              {chargeableOverride != null && Number(row?.qty) > 0
+                ? formatRupees((chargeableOverride * Number(row.custom_rate_per_pricing_uom)) / Number(row.qty))
+                : formatRupees(pricingResult?.standard_rate ?? 0)}
             </span>
           </div>
           <div className="mt-1 flex justify-between font-medium">
@@ -754,7 +894,9 @@ export default function ReceiptLineForm({
               {t("store.receipt.lineAmount")}
             </span>
             <span className="tabular-nums">
-              {formatRupees(pricingResult.amount)}
+              {chargeableOverride != null
+                ? formatRupees(chargeableOverride * Number(row.custom_rate_per_pricing_uom || 0))
+                : formatRupees(pricingResult?.amount ?? 0)}
             </span>
           </div>
         </div>

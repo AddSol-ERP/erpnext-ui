@@ -517,7 +517,11 @@
       "requiredBy": "कब तक चाहिए",
       "rate": "दर",
       "ratePerUom": "दर प्रति {uom}",
-      "ratePerUomHint": "दर प्रति {uom} है। मानक दर इसी से निकाली जाती है।"
+      "ratePerUomHint": "दर प्रति {uom} है। मानक दर इसी से निकाली जाती है।",
+      "chargeableQty": "Chargeable qty",
+      "chargeableQtyHint": "Chargeable qty in the pricing UOM. Leave blank to use the calculated estimate.",
+      "chargeableUomLabel": "Chargeable qty in {uom}",
+      "chargeableQtyOutsideTolerance": "Qty is outside tolerance [{min}% — {max}%] of baseline {baseline} {uom}"
     },
     "validation": {
       "typeRequired": "प्रकार आवश्यक है",
