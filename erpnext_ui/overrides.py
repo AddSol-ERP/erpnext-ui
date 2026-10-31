@@ -54,12 +54,27 @@ def _apply_uom_pricing(doc, side):
 			per_uom_rate = getattr(row, "custom_rate_per_pricing_uom", None)
 		if not per_uom_rate:
 			per_uom_rate = row.get("rate") if hasattr(row, "get") else getattr(row, "rate", 0)
+		# User-entered chargeable qty in the pricing UOM; fall back to using
+		# the calculated value (which is what happens when the field was not yet
+		# added to the row form, so it stays blank).
+		chargeable_override = None
+		if hasattr(row, "get"):
+			cq = row.get("custom_chargeable_qty")
+		else:
+			cq = getattr(row, "custom_chargeable_qty", None)
+		if cq is not None and str(cq).strip():
+			try:
+				chargeable_override = float(cq)
+			except (TypeError, ValueError):
+				chargeable_override = None
 		try:
 			pricing = uom_pricing.get_pricing_line(
 				item_code,
 				float(per_uom_rate or 0),
 				doc_qty,
 				side,
+				direct_entry_value=None,
+				chargeable_override=chargeable_override,
 			)
 		except ValueError:
 			continue
@@ -87,6 +102,27 @@ def _apply_uom_pricing(doc, side):
 			row.discount_percentage = 0
 		if hasattr(row, "discount_amount"):
 			row.discount_amount = 0
+
+		# Enforce +/- tolerance from the enabled UI Uom Pricing Rule, if configured.
+		tolerance_plus = float(pricing.get("tolerance_plus") or 0)
+		tolerance_minus = float(pricing.get("tolerance_minus") or 0)
+		if tolerance_plus > 0 or tolerance_minus > 0:
+			calc_qty = float(pricing["calculated_chargeable_qty"] or 0)
+			override_qty = float(pricing["chargeable_qty"] or 0)
+			if calc_qty > 0:
+				ratio = override_qty / calc_qty
+				too_high = ratio > (1 + tolerance_plus / 100)
+				too_low = ratio < (1 - tolerance_minus / 100)
+				if too_high or too_low:
+					raise ValueError(
+						f"Chargeable qty {override_qty} "
+						f"(per {pricing['pricing_uom']}) "
+						f"is outside tolerance "
+						f"[{100 - tolerance_minus:.1f}% — {100 + tolerance_plus:.1f}%] "
+						f"of the calculated {calc_qty} "
+						f"(per {pricing['pricing_uom']}). "
+						f"Please adjust or obtain approval before submit."
+					)
 
 		# Scale the derived currency/net/stock fields so they agree with the new
 		# rate/amount instead of staying stale (which is what made Net Rate,

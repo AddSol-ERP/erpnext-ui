@@ -110,7 +110,9 @@ def standard_line_rate(amount, doc_qty):
 	return float(amount) / float(doc_qty)
 
 
-def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None, direct_entry_value=None):
+def get_pricing_line(
+	item_code, rate_per_uom, doc_qty, side=None, direct_entry_value=None, chargeable_override=None
+):
 	"""Resolve the effective pricing and compute the line pricing outcome.
 
 	For formula mode the chargeable quantity is derived from the Item's
@@ -118,15 +120,22 @@ def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None, direct_entry_v
 	the user measured). When `direct_entry_value` is None and the rule is direct
 	entry, the stored parameters are used as a fallback.
 
+	A value the user typed wins in EITHER mode via `chargeable_override`: the
+	calculated weight is exactly what can differ from what actually arrived, so a
+	formula rule must be overridable too. Both are line TOTALS in the pricing UOM
+	and are never multiplied by the document quantity.
+
 	Args:
 		item_code (str): Item code to price.
 		rate_per_uom (float): Configured rate per pricing UOM.
 		doc_qty (float): Document quantity the standard rate is derived from.
 		side (str): "buying" or "selling".
 		direct_entry_value (float): Measured quantity for direct entry mode.
+		chargeable_override (float): User-entered chargeable qty for the line.
 
 	Returns:
-		dict: item, rule, chargeable_qty, rate_per_uom, doc_qty, amount, standard_rate.
+		dict: item, rule, chargeable_qty, calculated_chargeable_qty,
+		rate_per_uom, doc_qty, amount, standard_rate.
 
 	Raises:
 		ValueError: When no pricing rule is resolved or the quantity is invalid.
@@ -135,16 +144,30 @@ def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None, direct_entry_v
 	rule = pricing["rule"]
 	if not rule:
 		raise ValueError("No UOM pricing rule is resolved for this item.")
-	is_direct_with_value = (rule.get("formula_mode") or "") == "Direct Entry" and direct_entry_value is not None
-	if is_direct_with_value:
-		# The caller supplies the measured total for the whole line; do not
-		# multiply by the document quantity.
-		qty = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], direct_entry_value)
+	params = pricing["params_by_symbol"]
+
+	# The rule's own answer, before any human input: the baseline the +/- tolerance
+	# is measured against. It is None for a Direct Entry rule, which calculates
+	# nothing -- the measurement IS the quantity -- so such a line can never be
+	# "out of tolerance" against itself.
+	try:
+		per_unit = calculate_chargeable_quantity(rule, params, None)
+		baseline = per_unit * float(doc_qty or 0) if doc_qty else per_unit
+	except ValueError:
+		baseline = None
+
+	user_value = chargeable_override if chargeable_override is not None else direct_entry_value
+	if user_value is not None:
+		qty = float(user_value)
+		if not math.isfinite(qty) or qty <= 0:
+			raise ValueError("Chargeable quantity must be positive and finite.")
+	elif baseline is not None:
+		qty = baseline
 	else:
-		# Formula (or direct-entry fallback) yields a per-document-unit quantity;
-		# scale it by the document quantity to get the line total.
-		per_unit = calculate_chargeable_quantity(rule, pricing["params_by_symbol"], None)
-		qty = per_unit * float(doc_qty or 0) if doc_qty else per_unit
+		# Direct Entry with no measurement supplied. This still raises, exactly as
+		# before, so a line missing its measurement is never silently repriced.
+		qty = calculate_chargeable_quantity(rule, params, None)
+
 	amount_info = calculate_pricing_line(qty, float(rate_per_uom or 0), float(doc_qty or 0))
 	return {
 		"item_code": item_code,
@@ -154,6 +177,7 @@ def get_pricing_line(item_code, rate_per_uom, doc_qty, side=None, direct_entry_v
 		"enabled": pricing["enabled"],
 		"pricing_uom": pricing["pricing_uom"],
 		"chargeable_qty": qty,
+		"calculated_chargeable_qty": baseline,
 		"rate_per_uom": rate_per_uom,
 		"doc_qty": doc_qty,
 		"amount": amount_info["amount"],
@@ -189,17 +213,24 @@ def get_pricing_rule(item_group):
 	"""Return the enabled UOM pricing rule for an Item Group, if one exists."""
 	if not item_group:
 		return None
+	fields = [
+		"name",
+		"item_group",
+		"pricing_uom",
+		"formula_mode",
+		"formula_expression",
+		"receiving_strategy",
+	]
+	# The tolerance columns arrive with `add_chargeable_qty_field`'s sibling
+	# doctype sync. Asking a site that has not migrated yet for them would fail
+	# the WHOLE query and take pricing down with it, so add them only when the
+	# meta says they exist; a missing column then reads as "not configured".
+	if frappe.get_meta("UI Uom Pricing Rule").has_field("tolerance_plus"):
+		fields += ["tolerance_plus", "tolerance_minus"]
 	rules = frappe.get_all(
 		"UI Uom Pricing Rule",
 		filters={"item_group": item_group, "enabled": 1},
-		fields=[
-			"name",
-			"item_group",
-			"pricing_uom",
-			"formula_mode",
-			"formula_expression",
-			"receiving_strategy",
-		],
+		fields=fields,
 		limit=1,
 		ignore_permissions=True,
 	)
@@ -219,6 +250,8 @@ def get_pricing_rule(item_group):
 		"formula_mode": rule["formula_mode"],
 		"formula_expression": rule["formula_expression"],
 		"receiving_strategy": rule["receiving_strategy"],
+		"tolerance_plus": rule.get("tolerance_plus") or 0,
+		"tolerance_minus": rule.get("tolerance_minus") or 0,
 		"params": params,
 	}
 
@@ -246,6 +279,10 @@ def get_pricing_rule_by_name(rule_name):
 		"formula_mode": getattr(rule_doc, "formula_mode", None),
 		"formula_expression": getattr(rule_doc, "formula_expression", None),
 		"receiving_strategy": getattr(rule_doc, "receiving_strategy", None),
+		# `getattr` default covers a site that has not run the doctype sync yet:
+		# an absent column reads as "not configured", never as an error.
+		"tolerance_plus": getattr(rule_doc, "tolerance_plus", None) or 0,
+		"tolerance_minus": getattr(rule_doc, "tolerance_minus", None) or 0,
 		"params": params,
 	}
 
