@@ -9,90 +9,85 @@
  * To grant/revoke access, simply edit the roles array for any module.
  */
 import {
-  Users,
-  ShoppingCart,
-  Truck,
-  Package,
-  ShieldCheck,
-  UserSquare2,
-  CheckSquare,
-  BarChart3,
+	Users,
+	ShoppingCart,
+	Truck,
+	Package,
+	ShieldCheck,
+	UserSquare2,
+	CheckSquare,
+	BarChart3,
 } from "lucide-react";
 
 export const MODULE_ACCESS = {
-  HR: {
-    roles: ["HR Manager", "HR User", "Administrator"],
-    icon: Users,
-    color: "#4f46e5",
-    label: "HR",
-    description: "Employee master, attendance, payroll & recruitment",
-  },
-  Sales: {
-    roles: ["Sales Manager", "Sales User", "Administrator"],
-    icon: ShoppingCart,
-    color: "#0891b2",
-    label: "Sales",
-    description: "Customers, leads, opportunities & orders",
-  },
-  Purchase: {
-    roles: ["Purchase Manager", "Purchase User", "Administrator"],
-    icon: Truck,
-    color: "#d97706",
-    label: "Purchase",
-    description: "Suppliers, purchase orders & invoices",
-  },
-  Stock: {
-    roles: [
-      "Stock Manager",
-      "Stock User",
-      "Manufacturing User",
-      "Administrator",
-    ],
-    icon: Package,
-    color: "#059669",
-    label: "Stock",
-    description: "Inventory, material requests & stock entry",
-  },
-  Quality: {
-    roles: ["Quality Manager", "Quality User", "Administrator"],
-    icon: ShieldCheck,
-    color: "#7c3aed",
-    label: "Quality",
-    description: "Inspections, parameters & quality control",
-  },
-  ESS: {
-    roles: ["*"],
-    // ESS is the one surface every authenticated employee may reach, so it is
-    // the only module shown when we cannot determine permissions at all.
-    public: true,
-    icon: UserSquare2,
-    color: "#dc2626",
-    label: "Employee Self Service",
-    description: "My profile, attendance, leave & salary",
-  },
-  Approvals: {
-    // Deliberately NOT "*". This used to be "*", which handed the Approvals hub
-    // to every logged-in user. Access is now decided by real read permission on
-    // the backing doctypes -- see get_ui_access() in erpnext_ui/api.py and
-    // applyDoctypeAccess() below. The roles array stays as a coarse first pass
-    // so nothing is granted by role-name alone.
-    roles: ["*"],
-    gatedBy: "approvals",
-    icon: CheckSquare,
-    color: "#f59e0b",
-    label: "Approvals",
-    description: "Pending approvals across all modules",
-  },
-  Reports: {
-    // Same reasoning as Approvals: coarse pass here, real doctype read
-    // permission in applyDoctypeAccess().
-    roles: ["*"],
-    gatedBy: "reports",
-    icon: BarChart3,
-    color: "#6366f1",
-    label: "Reports",
-    description: "Analytics & operational reports",
-  },
+	HR: {
+		roles: ["HR Manager", "HR User", "Administrator"],
+		icon: Users,
+		color: "#4f46e5",
+		label: "HR",
+		description: "Employee master, attendance, payroll & recruitment",
+	},
+	Sales: {
+		roles: ["Sales Manager", "Sales User", "Administrator"],
+		icon: ShoppingCart,
+		color: "#0891b2",
+		label: "Sales",
+		description: "Customers, leads, opportunities & orders",
+	},
+	Purchase: {
+		roles: ["Purchase Manager", "Purchase User", "Administrator"],
+		icon: Truck,
+		color: "#d97706",
+		label: "Purchase",
+		description: "Suppliers, purchase orders & invoices",
+	},
+	Stock: {
+		roles: ["Stock Manager", "Stock User", "Manufacturing User", "Administrator"],
+		icon: Package,
+		color: "#059669",
+		label: "Stock",
+		description: "Inventory, material requests & stock entry",
+	},
+	Quality: {
+		roles: ["Quality Manager", "Quality User", "Administrator"],
+		icon: ShieldCheck,
+		color: "#7c3aed",
+		label: "Quality",
+		description: "Inspections, parameters & quality control",
+	},
+	ESS: {
+		roles: ["Employee Self Service"],
+		// ESS is the one surface every authenticated employee may reach, so it is
+		// the only module shown when we cannot determine permissions at all.
+		public: true,
+		icon: UserSquare2,
+		color: "#dc2626",
+		label: "Employee Self Service",
+		description: "My profile, attendance, leave & salary",
+	},
+	Approvals: {
+		// Deliberately NOT "*". This used to be "*", which handed the Approvals hub
+		// to every logged-in user. Access is now decided by real read permission on
+		// the backing doctypes -- see get_ui_access() in erpnext_ui/api.py and
+		// applyDoctypeAccess() below. The roles array stays as a coarse first pass
+		// so nothing is granted by role-name alone.
+		roles: ["*"],
+		gatedBy: "approvals",
+		icon: CheckSquare,
+		color: "#f59e0b",
+		label: "Approvals",
+		description: "Pending approvals across all modules",
+	},
+	Reports: {
+		// Same reasoning as Approvals: coarse pass here, real doctype read
+		// permission in applyDoctypeAccess().
+		roles: ["*"],
+		gatedBy: "reports",
+		icon: BarChart3,
+		color: "#6366f1",
+		label: "Reports",
+		description: "Analytics & operational reports",
+	},
 };
 
 /**
@@ -101,14 +96,14 @@ export const MODULE_ACCESS = {
  * @returns {string[]} Array of module keys (e.g. ["HR", "Sales"])
  */
 export function getAccessibleModules(userRoles) {
-  if (!userRoles || userRoles.length === 0) return [];
+	if (!userRoles || userRoles.length === 0) return [];
 
-  return Object.entries(MODULE_ACCESS)
-    .filter(([, config]) => {
-      if (config.roles.includes("*")) return true;
-      return config.roles.some((role) => userRoles.includes(role));
-    })
-    .map(([key]) => key);
+	return Object.entries(MODULE_ACCESS)
+		.filter(([, config]) => {
+			if (config.roles.includes("*")) return true;
+			return config.roles.some((role) => userRoles.includes(role));
+		})
+		.map(([key]) => key);
 }
 
 /**
@@ -124,9 +119,9 @@ export function getAccessibleModules(userRoles) {
  * @returns {string[]} Module keys safe to render with no permission data.
  */
 export function getFailClosedModules() {
-  return Object.entries(MODULE_ACCESS)
-    .filter(([, config]) => config.public)
-    .map(([key]) => key);
+	return Object.entries(MODULE_ACCESS)
+		.filter(([, config]) => config.public)
+		.map(([key]) => key);
 }
 
 /**
@@ -142,17 +137,17 @@ export function getFailClosedModules() {
  * @returns {string[]} Filtered module keys.
  */
 export function applyDoctypeAccess(modules, access) {
-  if (!Array.isArray(modules)) return [];
+	if (!Array.isArray(modules)) return [];
 
-  return modules.filter((key) => {
-    const gate = MODULE_ACCESS[key]?.gatedBy;
-    if (!gate) return true;
+	return modules.filter((key) => {
+		const gate = MODULE_ACCESS[key]?.gatedBy;
+		if (!gate) return true;
 
-    const permissions = access?.[gate];
+		const permissions = access?.[gate];
 
-    // No permission data at all -> withhold the gated module.
-    if (!permissions || typeof permissions !== "object") return false;
+		// No permission data at all -> withhold the gated module.
+		if (!permissions || typeof permissions !== "object") return false;
 
-    return Object.values(permissions).some(Boolean);
-  });
+		return Object.values(permissions).some(Boolean);
+	});
 }

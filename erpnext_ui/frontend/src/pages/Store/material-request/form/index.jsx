@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { localDateISO } from "../../../../utils/localDateTime";
 import RequestSupplierQuotesDialog from "./RequestSupplierQuotesDialog";
+import { nextRid } from "../../../../lib/childRows";
+import { ratePerUomLabel } from "../../../../lib/uomPricing";
 
 /**
  * Raise an indent (and the other four request purposes).
@@ -57,6 +59,17 @@ export default function MaterialRequestForm() {
   const [defaultTargetWarehouse, setDefaultTargetWarehouse] = useState("");
   const [showSupplierQuotes, setShowSupplierQuotes] = useState(false);
 
+  // Client-only fields that must be stripped before save. Note that
+  // `custom_rate_per_pricing_uom` is deliberately NOT here: it is the
+  // authoritative rate-per-pricing-UOM the server's `_apply_uom_pricing`
+  // reads to derive `rate`/`amount`. Stripping it would push the server onto
+  // the `rate` fallback (already the derived standard rate) and double-apply
+  // the per-unit factor.
+  const MR_ITEM_CLIENT_FIELDS = [
+    "_rid",
+    "pricing_uom",
+  ];
+
   const [doc, setDoc] = useState({
     // On edit the server value wins; on create the purpose supplies it.
     material_request_type: cfg?.materialRequestType || "",
@@ -70,6 +83,9 @@ export default function MaterialRequestForm() {
     items: [],
     docstatus: 0,
   });
+
+  // _rid -> pricing UOM resolved from the Item Group rule (buying side).
+  const [pricingUomByRid, setPricingUomByRid] = useState({});
 
   /**
    * project -> { loading, hasBom, items, error }
@@ -114,6 +130,34 @@ export default function MaterialRequestForm() {
 
   /* ================= HELPERS ================= */
 
+  // Resolve the effective UOM pricing UOM for an Item (buying side). Fail
+  // closed so a missing backend deployment never reprices a line by accident.
+  const loadPricingInfo = useCallback(
+    async (rid, itemCode) => {
+      if (!itemCode) {
+        setPricingUomByRid((p) => {
+          const next = { ...p };
+          delete next[rid];
+          return next;
+        });
+        return;
+      }
+      try {
+        const res = await get("method/erpnext_ui.api.get_item_pricing", {
+          item_code: itemCode,
+          side: "buying",
+        });
+        const message = res?.message ?? res ?? {};
+        const enabled = !!message.enabled;
+        const pricingUom = enabled ? message.pricing_uom || "" : "";
+        setPricingUomByRid((p) => ({ ...p, [rid]: pricingUom }));
+      } catch {
+        setPricingUomByRid((p) => ({ ...p, [rid]: "" }));
+      }
+    },
+    [],
+  );
+
   const autoCompany = useCallback(async () => {
     try {
       const res = await get("method/frappe.client.get_list", {
@@ -137,6 +181,10 @@ export default function MaterialRequestForm() {
       const res = await get(`resource/Material Request/${name}`);
       const d = res.data;
 
+      // Give every existing row a client key so per-UOM pricing state is
+      // keyed stably (row indices move when a row is removed).
+      const itemsWithRid = (d.items || []).map((r) => ({ ...r, _rid: nextRid() }));
+
       setDoc({
         material_request_type: d.material_request_type,
         company: d.company,
@@ -147,7 +195,7 @@ export default function MaterialRequestForm() {
         // Without this an existing production indent opens with an empty project
         // box, and clearing it would silently blank every row.
         project: (d.items || []).find((r) => r.project)?.project || "",
-        items: (d.items || []).map((r) => ({
+        items: itemsWithRid.map((r) => ({
           ...r,
           // Keep these as numbers/strings the inputs can bind to; the server
           // returns floats for qty and stock_qty which render fine either way.
@@ -168,12 +216,18 @@ export default function MaterialRequestForm() {
           ? warehouses[0]
           : "",
       );
+
+      // Warm the pricing UOM cache so an existing material request shows its
+      // per-UOM rate input.
+      await Promise.all(itemsWithRid.map(async (r) => {
+        if (r.item_code) await loadPricingInfo(r._rid, r.item_code);
+      }));
     } catch {
       setError(t("common.failedToLoad", { name: t("store.mr.title") }));
     } finally {
       setLoading(false);
     }
-  }, [name, t]);
+  }, [name, t, loadPricingInfo]);
 
   /**
    * Explode the project's BOM so its rows can offer only those items.
@@ -220,6 +274,9 @@ export default function MaterialRequestForm() {
     from_warehouse: "",
     warehouse: defaultTargetWarehouse,
     description: "",
+    _rid: nextRid(),
+    rate: "",
+    custom_rate_per_pricing_uom: "",
   });
 
   /**
@@ -266,7 +323,9 @@ export default function MaterialRequestForm() {
       setNewItemError(t("store.validation.sameWarehouse"));
       return;
     }
-    setDoc((p) => ({ ...p, items: [...p.items, row] }));
+    // Ensure a stable _rid for the new row.
+    const rowWithRid = { ...row, _rid: nextRid() };
+    setDoc((p) => ({ ...p, items: [...p.items, rowWithRid] }));
     setItemModalOpen(false);
     setNewItem(null);
     setNewItemError("");
@@ -289,6 +348,8 @@ export default function MaterialRequestForm() {
         stock_uom: item.stock_uom || "",
         conversion_factor: 1,
       }) : row);
+      // Load pricing info for the new item. The `_rid` is already set by `emptyItemRow`.
+      await loadPricingInfo(newItem._rid, itemCode);
     } catch (e) {
       console.error(e);
     }
@@ -372,7 +433,7 @@ export default function MaterialRequestForm() {
 
     setDoc((p) => {
       // Keep one spare empty row so the table never ends on a filled row.
-      const rows = p.items.length ? p.items : [{ item_code: "", qty: "", uom: "", stock_uom: "", conversion_factor: 1, schedule_date: p.schedule_date, project: next, from_warehouse: "", warehouse: "", description: "" }];
+      const rows = p.items.length ? p.items : [{ item_code: "", qty: "", uom: "", stock_uom: "", conversion_factor: 1, schedule_date: p.schedule_date, project: next, from_warehouse: "", warehouse: "", description: "", _rid: nextRid(), rate: "", custom_rate_per_pricing_uom: "" }];
       const withProject = rows.map((r) => ({ ...r, project: next }));
       const empties = withProject.filter((r) => !r.item_code);
       const filled = withProject.filter((r) => r.item_code);
@@ -402,6 +463,9 @@ export default function MaterialRequestForm() {
       project,
       from_warehouse: "",
       description: "",
+      _rid: nextRid(),
+      rate: "",
+      custom_rate_per_pricing_uom: "",
     };
   };
 
@@ -431,6 +495,8 @@ export default function MaterialRequestForm() {
                   ? row.qty
                   : String(outstanding > 0 ? outstanding : match.required_qty ?? ""),
               warehouse: row.warehouse || match.source_warehouse || "",
+              rate: "",
+              custom_rate_per_pricing_uom: "",
             }
           : row,
       ),
@@ -465,6 +531,7 @@ export default function MaterialRequestForm() {
             : row,
         ),
       }));
+      await loadPricingInfo(doc.items[i]?._rid || doc.items[i]?.name, itemCode);
     } catch (e) {
       console.error(e);
     }
@@ -563,6 +630,18 @@ export default function MaterialRequestForm() {
       // carries it on each item row (already set on every row), and posting an
       // unknown header field would send a key the doctype has no column for.
       const { project: _formProject, ...payload } = current;
+
+      // Strip client-only fields (`_rid`, `pricing_uom`) so ERPNext does not
+      // reject unknown attributes. `payload` is already a fresh shallow copy
+      // from the rest spread, and `map` builds new row objects, so the source
+      // `doc.items` rows are never mutated. `custom_rate_per_pricing_uom` is
+      // deliberately KEPT -- it is the authoritative rate-per-pricing-UOM the
+      // server reads; stripping it would double-apply the per-unit factor.
+      payload.items = payload.items.map((row) => {
+        const clean = { ...row };
+        MR_ITEM_CLIENT_FIELDS.forEach((f) => delete clean[f]);
+        return clean;
+      });
 
       const res = await saveDocument({
         doctype: "Material Request",
@@ -664,6 +743,9 @@ export default function MaterialRequestForm() {
   useEffect(() => {
     if (!isEdit) {
       // Mirror route/default values into the form on first mount.
+      // Same pattern as the delivery form: this only seeds state once, on
+      // mount, and the alternative (deriving in render) would fight loadDoc.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDoc((p) => ({
         ...p,
         material_request_type: cfg?.materialRequestType || "",
@@ -677,6 +759,10 @@ export default function MaterialRequestForm() {
 
   /* ================= LOAD ================= */
   useEffect(() => {
+    // loadDoc sets `loading` synchronously but only writes `doc` after its
+    // awaited fetch resolves, so this does not cascade a render per keystroke.
+    // Same reasoning as the delivery form's INIT effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isEdit) loadDoc();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
@@ -978,6 +1064,39 @@ export default function MaterialRequestForm() {
                   />
                 </FormField>
               </div>
+
+              {/* RATE -- standard ERPNext rate per document UOM. */}
+              {!doc.docstatus && (
+                <div className="md:col-span-2">
+                  <FormField label={t("store.form.rate")}>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={row.rate ?? ""}
+                      onChange={(e) => updateRow(i, "rate", e.target.value)}
+                    />
+                  </FormField>
+                </div>
+              )}
+
+              {/* Per-UOM rate input when a pricing UOM is resolved. */}
+              {!doc.docstatus && pricingUomByRid[row._rid] ? (
+                <div className="md:col-span-3">
+                  <FormField label={ratePerUomLabel(pricingUomByRid[row._rid]) || t("store.form.rate")}>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={row.custom_rate_per_pricing_uom ?? ""}
+                      onChange={(e) =>
+                        updateRow(i, "custom_rate_per_pricing_uom", e.target.value)
+                      }
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {t("store.form.ratePerUomHint", { uom: pricingUomByRid[row._rid] })}
+                    </p>
+                  </FormField>
+                </div>
+              ) : null}
 
               {/* DELETE */}
               {!doc.docstatus && (

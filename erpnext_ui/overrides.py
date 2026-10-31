@@ -6,6 +6,7 @@ from erpnext.buying.doctype.purchase_order.purchase_order import PurchaseOrder
 from erpnext.selling.doctype.quotation.quotation import Quotation
 from erpnext.selling.doctype.sales_order.sales_order import SalesOrder
 from erpnext.stock.doctype.delivery_note.delivery_note import DeliveryNote
+from erpnext.stock.doctype.material_request.material_request import MaterialRequest
 from erpnext.stock.doctype.purchase_receipt.purchase_receipt import PurchaseReceipt
 from erpnext.stock.doctype.quality_inspection.quality_inspection import (
 	QualityInspection as StockQualityInspection,
@@ -101,11 +102,22 @@ def _apply_uom_pricing(doc, side):
 			factor = 1.0
 
 		if factor is None:
-			exchange = float(getattr(doc, "conversion_rate", None) or getattr(doc, "exchange_rate", None) or 1.0)
-			for field, val in (("net_rate", new_rate), ("base_rate", new_rate * exchange), ("base_net_rate", new_rate * exchange)):
+			exchange = float(
+				getattr(doc, "conversion_rate", None) or getattr(doc, "exchange_rate", None) or 1.0
+			)
+			for field, val in (
+				("net_rate", new_rate),
+				("base_rate", new_rate * exchange),
+				("base_net_rate", new_rate * exchange),
+			):
 				if hasattr(row, field):
 					setattr(row, field, val)
-			for field, val in (("net_amount", new_amount), ("base_amount", new_amount * exchange), ("base_net_amount", new_amount * exchange), ("taxable_value", new_amount)):
+			for field, val in (
+				("net_amount", new_amount),
+				("base_amount", new_amount * exchange),
+				("base_net_amount", new_amount * exchange),
+				("taxable_value", new_amount),
+			):
 				if hasattr(row, field):
 					setattr(row, field, val)
 			if hasattr(row, "stock_uom_rate"):
@@ -177,3 +189,20 @@ class UomPricingPOSInvoice(POSInvoice):
 	def validate(self):
 		super().validate()
 		_apply_uom_pricing(self, "selling")
+
+
+class UomPricingMaterialRequest(MaterialRequest):
+	"""Reprice a Purchase indent's rows from the rate per pricing UOM.
+
+	Material Request is an unvalued requisition: it has `rate` and `amount` on
+	its items but no `calculate_taxes_and_totals`, so the shared helper skips the
+	totals pass and only writes the line values. That is deliberate -- an indent
+	carries the agreed rate so the Purchase Order made from it starts from the
+	figure the buyer negotiated instead of zero. `_apply_uom_pricing` already
+	gates on the Buying switch, so Transfer/Issue/Manufacture purposes (which
+	never resolve a buying rule) are left untouched.
+	"""
+
+	def validate(self):
+		super().validate()
+		_apply_uom_pricing(self, "buying")

@@ -121,6 +121,11 @@ const RECEIPT_ITEM_CLIENT_FIELDS = [
   "tracking_serials",
   "tracking_batches",
   "supplier_weight_defaulted",
+  // UOM based pricing: `custom_rate_per_pricing_uom` MUST be sent, never
+  // stripped. The server's `_apply_uom_pricing` reads it as the authoritative
+  // rate-per-pricing-UOM and derives `rate`/`amount` from it. Stripping it
+  // would push the server onto the `rate` fallback -- which is already the
+  // derived standard rate -- and double-apply the per-unit factor.
 ];
 
 /** Strip everything that must not leave the browser. */
@@ -144,11 +149,6 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#39;",
   })[character]);
-}
-
-function getInternalReceiptReturnTo(value) {
-  if (typeof value !== "string") return "";
-  return /^\/store\/purchase-receipt\/[^/?#]+$/.test(value) ? value : "";
 }
 
 export default function PurchaseReceiptForm() {

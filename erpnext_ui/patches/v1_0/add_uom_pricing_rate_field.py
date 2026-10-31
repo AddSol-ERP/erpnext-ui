@@ -27,6 +27,11 @@ ITEM_TABLES = [
 	"Quotation Item",
 	"Supplier Quotation Item",
 	"POS Invoice Item",
+	# Material Request is an unvalued requisition, but a Purchase indent may
+	# carry a rate so the resulting Purchase Order starts from the agreed
+	# figure instead of zero. The server override reprices it only when the
+	# Buying switch is on; otherwise the field stays inert on the row.
+	"Material Request Item",
 ]
 
 FIELDS = {dt: [dict(RATE_FIELD)] for dt in ITEM_TABLES}

@@ -514,7 +514,9 @@
       "dispatch": "الشحن",
       "basics": "المعلومات الأساسية",
       "purpose": "الغرض",
-      "requiredBy": "المطلوب بحلول"
+      "requiredBy": "المطلوب بحلول",
+      "rate": "السعر",
+      "ratePerUomHint": "السعر لكل {uom}. ويُشتق السعر القياسي منه."
     },
     "validation": {
       "typeRequired": "النوع مطلوب",

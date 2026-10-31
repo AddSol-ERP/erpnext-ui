@@ -514,7 +514,9 @@
       "dispatch": "डिस्पैच",
       "basics": "मूल जानकारी",
       "purpose": "उद्देश्य",
-      "requiredBy": "कब तक चाहिए"
+      "requiredBy": "कब तक चाहिए",
+      "rate": "दर",
+      "ratePerUomHint": "दर प्रति {uom} है। मानक दर इसी से निकाली जाती है।"
     },
     "validation": {
       "typeRequired": "प्रकार आवश्यक है",

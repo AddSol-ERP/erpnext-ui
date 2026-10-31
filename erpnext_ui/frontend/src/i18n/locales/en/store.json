@@ -514,7 +514,9 @@
       "dispatch": "Dispatch",
       "basics": "Basic Information",
       "purpose": "Purpose",
-      "requiredBy": "Required By"
+      "requiredBy": "Required By",
+      "rate": "Rate",
+      "ratePerUomHint": "Rate is per {uom}. Standard rate is derived from it."
     },
     "validation": {
       "typeRequired": "Type is required",

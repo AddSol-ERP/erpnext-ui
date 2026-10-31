@@ -17,7 +17,7 @@ add_to_apps_screen = [
 		"logo": "/assets/erpnext_ui/erp_ui/logo.png",
 		"title": "Addsol UI",
 		"route": "/addsol_ui",
-		"has_permission": "erpnext_ui.api.has_app_permission"
+		"has_permission": "erpnext_ui.api.has_app_permission",
 	}
 ]
 
@@ -163,6 +163,7 @@ override_doctype_class = {
 	"Delivery Note": "erpnext_ui.overrides.UomPricingDeliveryNote",
 	"Sales Invoice": "erpnext_ui.overrides.UomPricingSalesInvoice",
 	"POS Invoice": "erpnext_ui.overrides.UomPricingPOSInvoice",
+	"Material Request": "erpnext_ui.overrides.UomPricingMaterialRequest",
 }
 
 # Suppress ERPNext's standard footer for emails sent by our supplier quotation
@@ -267,14 +268,14 @@ make_email_body_message = "erpnext_ui.email_hooks.remove_erpnext_footer_from_sup
 # }
 
 after_migrate = [
-    "erpnext_ui.setup.workflows.setup_workflows",
-    "erpnext_ui.setup.attachment_settings.setup_attachment_settings",
-    "erpnext_ui.setup.supplier_quotation.setup_supplier_quotation_settings",
-    "erpnext_ui.setup.quality_inspection_settings.setup_quality_inspection_settings",
+	"erpnext_ui.setup.workflows.setup_workflows",
+	"erpnext_ui.setup.attachment_settings.setup_attachment_settings",
+	"erpnext_ui.setup.supplier_quotation.setup_supplier_quotation_settings",
+	"erpnext_ui.setup.quality_inspection_settings.setup_quality_inspection_settings",
 ]
 
 scheduler_events = {
-    "daily": [
-        "erpnext_ui.supplier_quotation.expire_supplier_quotation_invitations",
-    ],
+	"daily": [
+		"erpnext_ui.supplier_quotation.expire_supplier_quotation_invitations",
+	],
 }
