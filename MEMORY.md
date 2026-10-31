@@ -2263,6 +2263,29 @@ panel. The rules suite asserts the patch registration, because an
 unregistered patch fails silently in the other direction: the column never
 appears and every remark is dropped for ever with no error anywhere.
 
+### 9.8n Adding a Purchase Receipt item asked for two clicks and two screens (fixed 2026-10-31)
+
+**The add flow.** Picking an outstanding PO line used to land on a reduced
+"received qty only" pane inside the workbench, behind an `selectionOnly` flag
+that the Purchase Receipt form passed for every add-mode render (`!isEdit`).
+The reduced pane could not hold the per-UOM rate, the chargeable qty or the
+weighing fields, so reaching them meant closing the workbench and re-entering
+through the tray's Edit dialog — a second click and a second surface for the
+very same "fill in this item" job, which read as two screens for one add.
+
+**The fix.** The add flow now renders the FULL `ReceiptLineForm` for the picked
+line inside the single workbench surface; the reduced pane is gone and the
+`selectionOnly` prop is gone with it. Selecting an item and filling in its
+details (received qty, conversion/weight, per-UOM rate, chargeable qty,
+warehouse) now happens on one screen — the list pane is the only thing that
+changes on a pick, via the pane swap, not the depth of the form. The free-entry
+add path (blank row + line dialog) already asked for the item and its details on
+one surface and is unchanged.
+
+**Guards.** The rules suite gained the assertion that the add flow renders the
+full line form and never a reduced pane, so the two-screen regression cannot
+silently come back.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second
