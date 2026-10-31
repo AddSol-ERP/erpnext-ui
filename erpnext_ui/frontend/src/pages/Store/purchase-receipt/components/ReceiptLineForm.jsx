@@ -108,7 +108,6 @@ export default function ReceiptLineForm({
       const handle = setTimeout(() => setPricingResult(null), 0);
       return () => clearTimeout(handle);
     }
-    console.log(row?.custom_rate_per_pricing_uom, "===");
     const rate = row?.custom_rate_per_pricing_uom;
     const qty = row?.qty;
     if (
