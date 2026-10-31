@@ -108,21 +108,32 @@ export default function ReceiptLineForm({
       const handle = setTimeout(() => setPricingResult(null), 0);
       return () => clearTimeout(handle);
     }
+    console.log(row?.custom_rate_per_pricing_uom, "===");
     const rate = row?.custom_rate_per_pricing_uom;
     const qty = row?.qty;
-    if (rate === "" || rate === null || rate === undefined || qty === "" || qty === null || qty === undefined) {
+    if (
+      rate === "" ||
+      rate === null ||
+      rate === undefined ||
+      qty === "" ||
+      qty === null ||
+      qty === undefined
+    ) {
       const handle = setTimeout(() => setPricingResult(null), 0);
       return () => clearTimeout(handle);
     }
     let cancelled = false;
     const handle = setTimeout(async () => {
       try {
-        const res = await get("method/erpnext_ui.api.calculate_uom_pricing_line", {
-          item_code: row.item_code,
-          rate_per_uom: rate,
-          doc_qty: qty,
-          side: "buying",
-        });
+        const res = await get(
+          "method/erpnext_ui.api.calculate_uom_pricing_line",
+          {
+            item_code: row.item_code,
+            rate_per_uom: rate,
+            doc_qty: qty,
+            side: "buying",
+          },
+        );
         if (cancelled) return;
         const message = res?.message ?? res ?? {};
         if (message && Object.keys(message).length) {
@@ -149,7 +160,14 @@ export default function ReceiptLineForm({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [pricingUom, row?.item_code, row?.custom_rate_per_pricing_uom, row?.qty, row, onSave]);
+  }, [
+    pricingUom,
+    row?.item_code,
+    row?.custom_rate_per_pricing_uom,
+    row?.qty,
+    row,
+    onSave,
+  ]);
 
   const isPoRow = !!(row && row.purchase_order_item);
   const receivedUom = row?.uom || info?.stock_uom || "";
@@ -174,7 +192,9 @@ export default function ReceiptLineForm({
   const isPlate = plateEnabled && plateRow;
   const plateQty = Number(row?.qty);
   const unitWeight = Number(
-    row?.custom_unit_weight_kg || row?.item_weight_per_unit || row?.weight_per_unit,
+    row?.custom_unit_weight_kg ||
+      row?.item_weight_per_unit ||
+      row?.weight_per_unit,
   );
   const estimatedWeight =
     Number.isFinite(plateQty) && Number.isFinite(unitWeight) && unitWeight > 0
@@ -182,10 +202,16 @@ export default function ReceiptLineForm({
       : 0;
   const supplierWeight = Number(row?.custom_supplier_weight_kg);
   const weighbridgeWeight = Number(row?.custom_weighbridge_weight_kg);
-  const measuredWeight = supplierWeight > 0 ? supplierWeight : weighbridgeWeight;
+  const measuredWeight =
+    supplierWeight > 0 ? supplierWeight : weighbridgeWeight;
   const variancePct =
     estimatedWeight > 0 && Number.isFinite(measuredWeight) && measuredWeight > 0
-      ? Number((((measuredWeight - estimatedWeight) / estimatedWeight) * 100).toFixed(2))
+      ? Number(
+          (
+            ((measuredWeight - estimatedWeight) / estimatedWeight) *
+            100
+          ).toFixed(2),
+        )
       : null;
   const needsWeightDecision =
     variancePct !== null &&
@@ -211,7 +237,8 @@ export default function ReceiptLineForm({
   const plateAmount =
     acceptedWeight !== null && Number(row?.custom_rate_per_kg) > 0
       ? Math.round(
-          (acceptedWeight * Number(row.custom_rate_per_kg) + Number.EPSILON) * 100,
+          (acceptedWeight * Number(row.custom_rate_per_kg) + Number.EPSILON) *
+            100,
         ) / 100
       : null;
   const plateRate =
@@ -269,7 +296,10 @@ export default function ReceiptLineForm({
     onSave(next);
   };
 
-  const uomOptions = (info?.uoms || []).map((u) => ({ value: u.uom, label: u.uom }));
+  const uomOptions = (info?.uoms || []).map((u) => ({
+    value: u.uom,
+    label: u.uom,
+  }));
 
   const qtyHint =
     wantsTotal && factor !== null && Number.isFinite(Number(factor))
@@ -304,7 +334,11 @@ export default function ReceiptLineForm({
       {/* RECEIVED UOM */}
       <FormField
         label={t("store.receipt.receivedUom")}
-        hint={isPoRow ? t("store.receipt.uomFromPo") : t("store.receipt.uomPickHint")}
+        hint={
+          isPoRow
+            ? t("store.receipt.uomFromPo")
+            : t("store.receipt.uomPickHint")
+        }
       >
         {isPoRow ? (
           <div className="flex items-center gap-2">
@@ -428,7 +462,9 @@ export default function ReceiptLineForm({
             it". ERPNext writes back `received_qty` against the ordered `qty`, so
             taking one sheet of ten simply leaves nine outstanding. Say so,
             rather than leaving the user to guess whether they can reduce it. */}
-        {row.pending_qty !== undefined && row.pending_qty !== null && Number(row.pending_qty) > 0 ? (
+        {row.pending_qty !== undefined &&
+        row.pending_qty !== null &&
+        Number(row.pending_qty) > 0 ? (
           <p className="mt-1 text-[11px] text-muted-foreground">
             {(Number(row.qty) || 0) < Number(row.pending_qty)
               ? t("store.receipt.receivingOf", {
@@ -476,8 +512,13 @@ export default function ReceiptLineForm({
 
       {isPlate ? (
         <section className="flex flex-col gap-3 rounded-md border border-border p-3">
-          <h4 className="text-sm font-semibold">{t("store.receipt.plateDetails")}</h4>
-          <FormField label={t("store.receipt.supplierWeight")} hint={t("store.receipt.supplierWeightOptional")}>
+          <h4 className="text-sm font-semibold">
+            {t("store.receipt.plateDetails")}
+          </h4>
+          <FormField
+            label={t("store.receipt.supplierWeight")}
+            hint={t("store.receipt.supplierWeightOptional")}
+          >
             <Input
               type="number"
               min="0"
@@ -516,7 +557,9 @@ export default function ReceiptLineForm({
             <div className="mt-1 flex justify-between gap-3">
               <span>{t("store.receipt.estimatedWeight")}</span>
               <span className="font-medium tabular-nums">
-                {estimatedWeight > 0 ? `${formatReceiptNumber(estimatedWeight)} Kg` : "—"}
+                {estimatedWeight > 0
+                  ? `${formatReceiptNumber(estimatedWeight)} Kg`
+                  : "—"}
               </span>
             </div>
             <div className="mt-1 flex justify-between gap-3">
@@ -533,18 +576,24 @@ export default function ReceiptLineForm({
             <div className="mt-1 flex justify-between gap-3">
               <span>{t("store.receipt.acceptedWeight")}</span>
               <span className="font-medium tabular-nums">
-                {acceptedWeight === null ? "—" : `${formatReceiptNumber(acceptedWeight)} Kg`}
+                {acceptedWeight === null
+                  ? "—"
+                  : `${formatReceiptNumber(acceptedWeight)} Kg`}
               </span>
             </div>
             <div className="mt-1 flex justify-between gap-3">
               <span>{t("store.receipt.weightPerPlate")}</span>
               <span className="font-medium tabular-nums">
-                {weightPerPlate === null ? "—" : `${formatReceiptNumber(weightPerPlate)} Kg`}
+                {weightPerPlate === null
+                  ? "—"
+                  : `${formatReceiptNumber(weightPerPlate)} Kg`}
               </span>
             </div>
             <div className="mt-1 flex justify-between gap-3">
               <span>{t("store.receipt.standardRate")}</span>
-              <span className="font-medium tabular-nums">{formatRupees(plateRate)}</span>
+              <span className="font-medium tabular-nums">
+                {formatRupees(plateRate)}
+              </span>
             </div>
             <div className="mt-1 flex justify-between gap-3 font-medium">
               <span>{t("store.receipt.lineAmount")}</span>
@@ -562,10 +611,21 @@ export default function ReceiptLineForm({
                       placeholder={t("store.receipt.chooseWeightDecision")}
                       options={[
                         ...(supplierWeight > 0
-                          ? [{ value: "Accept Supplier Weight", label: t("store.receipt.acceptSupplierWeight") }]
+                          ? [
+                              {
+                                value: "Accept Supplier Weight",
+                                label: t("store.receipt.acceptSupplierWeight"),
+                              },
+                            ]
                           : []),
-                        { value: "Accept Estimated Weight", label: t("store.receipt.acceptEstimatedWeight") },
-                        { value: "Accept Weighbridge Weight", label: t("store.receipt.acceptWeighbridgeWeight") },
+                        {
+                          value: "Accept Estimated Weight",
+                          label: t("store.receipt.acceptEstimatedWeight"),
+                        },
+                        {
+                          value: "Accept Weighbridge Weight",
+                          label: t("store.receipt.acceptWeighbridgeWeight"),
+                        },
                       ]}
                       onChange={(value) =>
                         onSave({ ...row, custom_weight_decision: value })
@@ -581,7 +641,11 @@ export default function ReceiptLineForm({
             </>
           ) : null}
 
-          <FormField label={rateLabel || t("store.receipt.ratePerKg")} hint={t("store.receipt.ratePerKgHint")} required>
+          <FormField
+            label={rateLabel || t("store.receipt.ratePerKg")}
+            hint={t("store.receipt.ratePerKgHint")}
+            required
+          >
             <Input
               type="number"
               min="0"
@@ -614,47 +678,52 @@ export default function ReceiptLineForm({
           <span className="font-medium">
             {row.conversion_factor === "" || row.conversion_factor === undefined
               ? "—"
-              : Number(row.conversion_factor).toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}
+              : Number(row.conversion_factor)
+                  .toFixed(6)
+                  .replace(/0+$/, "")
+                  .replace(/\.$/, "")}
           </span>
         </div>
       </div>
 
       {/* RATE */}
-      {!isPlate ? (pricingUom ? (
-        <FormField
-          label={rateLabel || t("store.receipt.rate")}
-          hint={undefined}
-          required
-        >
-          <Input
-            type="number"
-            step="any"
-            value={row.custom_rate_per_pricing_uom ?? ""}
-            onChange={(e) =>
-              onSave({ ...row, custom_rate_per_pricing_uom: e.target.value })
-            }
-          />
-          {row.rate !== "" && row.rate !== undefined ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              {t("store.receipt.standardRate")}: {formatRupees(row.rate)}
-            </p>
-          ) : null}
-        </FormField>
-      ) : (
-        <FormField
-          label={t("store.receipt.rate")}
-          hint={rateEditable ? undefined : t("store.receipt.rateFromPo")}
-          required
-        >
-          <Input
-            type="number"
-            step="any"
-            value={row.rate ?? ""}
-            disabled={!rateEditable}
-            onChange={(e) => edit({ rate: e.target.value })}
-          />
-        </FormField>
-      )) : null}
+      {!isPlate ? (
+        pricingUom ? (
+          <FormField
+            label={rateLabel || t("store.receipt.rate")}
+            hint={undefined}
+            required
+          >
+            <Input
+              type="number"
+              step="any"
+              value={row.custom_rate_per_pricing_uom ?? ""}
+              onChange={(e) =>
+                onSave({ ...row, custom_rate_per_pricing_uom: e.target.value })
+              }
+            />
+            {row.rate !== "" && row.rate !== undefined ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("store.receipt.standardRate")}: {formatRupees(row.rate)}
+              </p>
+            ) : null}
+          </FormField>
+        ) : (
+          <FormField
+            label={t("store.receipt.rate")}
+            hint={rateEditable ? undefined : t("store.receipt.rateFromPo")}
+            required
+          >
+            <Input
+              type="number"
+              step="any"
+              value={row.rate ?? ""}
+              disabled={!rateEditable}
+              onChange={(e) => edit({ rate: e.target.value })}
+            />
+          </FormField>
+        )
+      ) : null}
 
       {/* UOM based pricing: live preview of the derived standard rate and
           amount. Only renders when a pricing UOM is resolved for the Item, so
@@ -704,7 +773,10 @@ export default function ReceiptLineForm({
           count is measured in stock, never in transaction UOM. */}
       {serialised ? (
         <FormField
-          label={t("store.receipt.serialNumbers", { count: serials, uom: info?.stock_uom })}
+          label={t("store.receipt.serialNumbers", {
+            count: serials,
+            uom: info?.stock_uom,
+          })}
           hint={
             autoSerials
               ? t("store.receipt.serialAuto", { count: serials })
@@ -717,7 +789,9 @@ export default function ReceiptLineForm({
             <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
               <BadgeCheck className="size-4 shrink-0 text-emerald-600" />
               <span className="text-sm text-muted-foreground">
-                {t("store.receipt.serialWillGenerate", { series: info.serial_no_series })}
+                {t("store.receipt.serialWillGenerate", {
+                  series: info.serial_no_series,
+                })}
               </span>
             </div>
           ) : (
@@ -725,7 +799,9 @@ export default function ReceiptLineForm({
               value={row.serial_no || ""}
               rows={Math.min(8, Math.max(3, serials))}
               onChange={(e) => onSave({ ...row, serial_no: e.target.value })}
-              placeholder={t("store.receipt.serialPlaceholder", { count: serials })}
+              placeholder={t("store.receipt.serialPlaceholder", {
+                count: serials,
+              })}
               aria-label={t("store.receipt.serialNumbers", {
                 count: serials,
                 uom: info?.stock_uom,
@@ -756,7 +832,8 @@ export default function ReceiptLineForm({
                   {Number(figures.ratePerSerial.toFixed(6))}
                 </span>
               </div>
-              {!autoSerials && parseSerials(row.serial_no).length !== serials ? (
+              {!autoSerials &&
+              parseSerials(row.serial_no).length !== serials ? (
                 <p className="mt-1 text-[11px] text-amber-600">
                   {t("store.receipt.serialProgress", {
                     entered: parseSerials(row.serial_no).length,
@@ -789,7 +866,9 @@ export default function ReceiptLineForm({
       ) : batch === "auto" ? (
         <FormField
           label={t("store.receipt.batchNo")}
-          hint={t("store.receipt.batchAuto", { series: info.batch_number_series })}
+          hint={t("store.receipt.batchAuto", {
+            series: info.batch_number_series,
+          })}
         >
           <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
             <BadgeCheck className="size-4 shrink-0 text-emerald-600" />

@@ -323,9 +323,11 @@ export default function MaterialRequestForm() {
       setNewItemError(t("store.validation.sameWarehouse"));
       return;
     }
-    // Ensure a stable _rid for the new row.
-    const rowWithRid = { ...row, _rid: nextRid() };
-    setDoc((p) => ({ ...p, items: [...p.items, rowWithRid] }));
+    // Keep the `_rid` `emptyItemRow` assigned when the modal opened.
+    // `handleNewItemChange` resolved the pricing UOM under that id, so re-keying
+    // here would orphan the lookup and the per-UOM rate input would never appear
+    // on the committed row.
+    setDoc((p) => ({ ...p, items: [...p.items, row] }));
     setItemModalOpen(false);
     setNewItem(null);
     setNewItemError("");
