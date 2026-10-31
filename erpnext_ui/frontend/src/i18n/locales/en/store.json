@@ -266,7 +266,9 @@
       "receivedQty": "Received quantity",
       "uom": "UOM",
       "receivedQtyMustBeWithinPending": "Accepted quantity plus rejected quantity must be greater than zero and no more than the remaining {pending} {uom}.",
-      "chargeableQty": "Chargeable qty ({uom})"
+      "chargeableQty": "Chargeable qty ({uom})",
+      "chargeableQtyOutsideTolerance": "Chargeable qty {entered} {uom} deviates by {deviationPct}% ({deviationQty} {uom}) from the calculated {baseline} {uom} -- outside the allowed {min}% - {max}% range.",
+      "calculatedChargeableQty": "Calculated (estimated) qty"
     },
     "projectItems": {
       "title": "Items for {project}",
@@ -518,10 +520,8 @@
       "rate": "Rate",
       "ratePerUom": "Rate per {uom}",
       "ratePerUomHint": "Rate is per {uom}. Standard rate is derived from it.",
-      "chargeableQty": "Chargeable qty",
-      "chargeableQtyHint": "Chargeable qty in the pricing UOM. Leave blank to use the calculated estimate.",
-      "chargeableUomLabel": "Chargeable qty in {uom}",
-      "chargeableQtyOutsideTolerance": "Qty is outside tolerance [{min}% — {max}%] of baseline {baseline} {uom}"
+      "actualChargeableQty": "Actual chargeable qty",
+      "actualChargeableQtyHint": "The quantity actually received or measured in the pricing UOM -- for example, from a weighbridge reading or supplier slip. Leave blank to use the calculated estimate shown below."
     },
     "validation": {
       "typeRequired": "Type is required",

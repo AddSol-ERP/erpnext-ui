@@ -266,7 +266,9 @@
       "receivedQty": "الكمية المستلمة",
       "uom": "وحدة القياس",
       "receivedQtyMustBeWithinPending": "يجب أن يكون مجموع الكمية المقبولة والمرفوضة أكبر من صفر ولا يتجاوز المتبقي {pending} {uom}.",
-      "chargeableQty": "الكمية القابلة لل charging ({uom})"
+      "chargeableQty": "الكمية القابلة لل charging ({uom})",
+      "chargeableQtyOutsideTolerance": "الكمية القابلة للتحصيل {entered} {uom} تنحرف بنسبة {deviationPct}% ({deviationQty} {uom}) عن القيمة المحسوبة {baseline} {uom} — خارج النطاق المسموح {min}% - {max}%.",
+      "calculatedChargeableQty": "الكمية المحسوبة (المقدرة)"
     },
     "projectItems": {
       "title": "مواد المشروع {project}",
@@ -518,10 +520,8 @@
       "rate": "السعر",
       "ratePerUom": "السعر لكل {uom}",
       "ratePerUomHint": "السعر لكل {uom}. ويُشتق السعر القياسي منه.",
-      "chargeableQty": "Chargeable qty",
-      "chargeableQtyHint": "Chargeable qty in the pricing UOM. Leave blank to use the calculated estimate.",
-      "chargeableUomLabel": "Chargeable qty in {uom}",
-      "chargeableQtyOutsideTolerance": "Qty is outside tolerance [{min}% — {max}%] of baseline {baseline} {uom}"
+      "actualChargeableQty": "الكمية الفعلية القابلة للتحصيل",
+      "actualChargeableQtyHint": "الكمية الفعلية المستلمة أو المقاسة بوحدة التسعير — مثلاً من قراءة الميزان الجسري أو إيصال المورد. اتركه فارغاً لاستخدام التقدير المحسوب أدناه."
     },
     "validation": {
       "typeRequired": "النوع مطلوب",

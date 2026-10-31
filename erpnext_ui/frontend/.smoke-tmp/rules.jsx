@@ -1303,6 +1303,19 @@ ok(
   "receipt picker: the modal scrolls internally so the page never grows",
   /width="xl"/.test(workbenchCode) && /max-h-\[/.test(workbenchCode),
 );
+// The ADD flow must complete the picked line with the FULL detail form, not a
+// reduced pane. A reduced "received qty only" pane behind an `selectionOnly`
+// flag is how the add came to feel like two screens: picking an item landed on a
+// details surface that could not hold the per-UOM rate / chargeable qty / weighing
+// fields, so reaching them meant closing the surface and re-entering through the
+// tray Edit dialog -- a second click and a second surface for the same job.
+ok(
+  "receipt picker: the add flow renders the full line form, not a reduced pane",
+  /<ReceiptLineForm/.test(workbenchCode) &&
+    !/selectionOnly/.test(workbenchCode) &&
+    !/received qty only/i.test(workbenchCode),
+  "a reduced add-mode pane would hide the per-UOM rate / chargeable qty behind a second screen",
+);
 // Mutually exclusive on OPEN STATE, not on purpose. Gating the line dialog on
 // `fromPo` shipped a dead Edit button: on a PO receipt the button set `editing`,
 // and the only surface reading `editing` for that purpose was the workbench,

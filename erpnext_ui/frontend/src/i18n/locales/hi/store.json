@@ -266,7 +266,9 @@
       "receivedQty": "प्राप्त मात्रा",
       "uom": "इकाई",
       "receivedQtyMustBeWithinPending": "स्वीकृत और अस्वीकृत मात्रा का योग शून्य से अधिक और शेष {pending} {uom} से कम या बराबर होना चाहिए।",
-      "chargeableQty": "चार्ज योग्य मात्रा ({uom})"
+      "chargeableQty": "चार्ज योग्य मात्रा ({uom})",
+      "chargeableQtyOutsideTolerance": "चार्ज योग्य मात्रा {entered} {uom}, गणना की गई मात्रा {baseline} {uom} से {deviationPct}% ({deviationQty} {uom}) भिन्न है — यह स्वीकृत सीमा {min}% – {max}% से बाहर है।",
+      "calculatedChargeableQty": "गणना की गई (अनुमानित) मात्रा"
     },
     "projectItems": {
       "title": "{project} के सामान",
@@ -518,10 +520,8 @@
       "rate": "दर",
       "ratePerUom": "दर प्रति {uom}",
       "ratePerUomHint": "दर प्रति {uom} है। मानक दर इसी से निकाली जाती है।",
-      "chargeableQty": "Chargeable qty",
-      "chargeableQtyHint": "Chargeable qty in the pricing UOM. Leave blank to use the calculated estimate.",
-      "chargeableUomLabel": "Chargeable qty in {uom}",
-      "chargeableQtyOutsideTolerance": "Qty is outside tolerance [{min}% — {max}%] of baseline {baseline} {uom}"
+      "actualChargeableQty": "वास्तविक चार्ज योग्य मात्रा",
+      "actualChargeableQtyHint": "वास्तव में प्राप्त या मापी गई मात्रा, pricing UOM में — उदाहरण के लिए वेब्रिज रीडिंग या सप्लायर पर्ची से। खाली छोड़ने पर नीचे दिखाया गया अनुमानित मान उपयोग होगा।"
     },
     "validation": {
       "typeRequired": "प्रकार आवश्यक है",

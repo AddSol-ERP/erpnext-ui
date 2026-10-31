@@ -1979,7 +1979,6 @@ export default function PurchaseReceiptForm() {
           company={doc.company}
           onItemChange={handleItemChange}
           onSave={(next) => patchById(next._rid, next)}
-          selectionOnly={!isEdit}
         />
       ) : null}
 

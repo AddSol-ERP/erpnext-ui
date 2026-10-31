@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, Check, Package, Search } from "lucide-react";
 import AppModal from "../../../../components/AppModal";
 import { FormField } from "../../../../components/FormField";
-import LinkField from "../../../../components/LinkField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ReceiptLineForm from "./ReceiptLineForm";
@@ -67,7 +66,6 @@ export default function ReceiptItemWorkbench({
   company,
   onItemChange,
   onSave,
-  selectionOnly = false,
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
@@ -252,39 +250,19 @@ export default function ReceiptItemWorkbench({
           </h3>
         </div>
 
-        {row && selectionOnly ? (
-          <div className="flex flex-col gap-3">
-            <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
-              <p className="font-medium">{row.item_name || row.item_code}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{row.purchase_order} · {row.pending_qty ?? row.qty} {row.uom}</p>
-            </div>
-            <FormField label={t("store.receipt.receivedQty")} required>
-              <Input
-                type="number"
-                min="0"
-                max={row.pending_qty}
-                step="any"
-                value={row.qty ?? ""}
-                onChange={(event) => {
-                  const qty = event.target.value;
-                  const factor = Number(row.conversion_factor) || 1;
-                  onSave({ ...row, qty, stock_qty: Number(qty) * factor });
-                }}
-              />
-            </FormField>
-            <FormField label={t("store.receipt.uom")}>
-              <Input value={row.uom || ""} readOnly disabled />
-            </FormField>
-            <FormField label={t("store.receipt.acceptedWarehouse")} required>
-              <LinkField
-                doctype="Warehouse"
-                value={row.warehouse || ""}
-                filters={{ company, is_group: 0 }}
-                onChange={(warehouse) => onSave({ ...row, warehouse: warehouse || "" })}
-              />
-            </FormField>
-          </div>
-        ) : row ? (
+        {/* The picked line's FULL detail form -- never a reduced pane. This
+            surface is the ADD flow (the workbench renders only while the receipt
+            is being built, never while editing a stored row), and the reduced
+            "received qty only" pane used to live here behind an `selectionOnly`
+            flag. That split is what produced the two-screen add: picking an item
+            landed on a details pane that could not hold the per-UOM rate, the
+            chargeable qty or the weighing fields, so reaching them meant closing
+            the workbench and going through the tray Edit dialog instead -- a
+            second click, a second surface, for the very same "fill in this item"
+            job. Selecting an item and being able to fill in all of it now happen
+            on this one screen; the list pane is the only thing that changes on a
+            pick, via the pane swap, not the depth of the form. */}
+        {row ? (
           <ReceiptLineForm
             row={row}
             info={info}

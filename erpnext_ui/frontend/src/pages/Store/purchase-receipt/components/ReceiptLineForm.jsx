@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { get } from "../../../../services/api";
 import { Lock, Scale } from "lucide-react";
@@ -104,20 +104,31 @@ export default function ReceiptLineForm({
   // oriented. Debounced so a keystroke does not fire a request per character.
   //
   // NOTE: `row` and `onSave` are NOT in the dependency array. They are read via
-  // refs to avoid an infinite loop: `onSave` creates a new object on every call,
-  // which would re-trigger this effect and call the API endlessly.
+  // refs (written in effects, read inside the debounced callback) and mirrored
+  // onto plain values below, so a fresh `onSave` identity per render can never
+  // re-trigger this effect in a loop: `onSave` patches the doc, the patch is what
+  // re-renders, and a dep on the function itself would loop forever.
   const rowRef = useRef(row);
-  rowRef.current = row;
   const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
+  useEffect(() => {
+    rowRef.current = row;
+  }, [row]);
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+  // Primitive mirrors of the row fields this effect keys on -- read straight off
+  // the props (a render input, not a ref) so the dependency array holds values.
+  const itemCode = row?.item_code ?? "";
+  const ratePerUom = row?.custom_rate_per_pricing_uom;
+  const docQty = row?.qty;
   const [pricingResult, setPricingResult] = useState(null);
   useEffect(() => {
-    if (!pricingUom || !rowRef.current?.item_code) {
+    if (!pricingUom || !itemCode) {
       const handle = setTimeout(() => setPricingResult(null), 0);
       return () => clearTimeout(handle);
     }
-    const rate = rowRef.current?.custom_rate_per_pricing_uom;
-    const qty = rowRef.current?.qty;
+    const rate = ratePerUom;
+    const qty = docQty;
     if (
       rate === "" ||
       rate === null ||
@@ -135,7 +146,7 @@ export default function ReceiptLineForm({
         const res = await get(
           "method/erpnext_ui.api.calculate_uom_pricing_line",
           {
-            item_code: rowRef.current.item_code,
+            item_code: itemCode,
             rate_per_uom: rate,
             doc_qty: qty,
             side: "buying",
@@ -167,60 +178,65 @@ export default function ReceiptLineForm({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [
-    pricingUom,
-    rowRef.current?.item_code,
-    rowRef.current?.custom_rate_per_pricing_uom,
-    rowRef.current?.qty,
-  ]);
+  }, [pricingUom, itemCode, ratePerUom, docQty]);
 
-  // Chargeable qty tolerance validation (frontend, immediate feedback)
+  // Chargeable qty tolerance validation (frontend, immediate feedback).
+  // The warning is DERIVED during render from the override + the loaded tolerance
+  // + the server-computed baseline, rather than stored in state and recomputed by
+  // effects. Deriving means it is automatically correct when the user types, when
+  // the tolerance lands, or when the calculated baseline arrives -- without a
+  // setState-in-effect to push it.
   const [chargeableOverride, setChargeableOverride] = useState(null);
   const [tolerancePlus, setTolerancePlus] = useState(0);
   const [toleranceMinus, setToleranceMinus] = useState(0);
-  const [toleranceWarning, setToleranceWarning] = useState(null);
 
-  const validateChargeableQty = useCallback(() => {
+  const toleranceWarning = useMemo(() => {
     if (chargeableOverride == null || (tolerancePlus === 0 && toleranceMinus === 0)) {
-      setToleranceWarning(null);
-      return;
+      return null;
     }
 
     const calcQty = pricingResult?.calculated_chargeable_qty ?? 0;
     const overrideQty = chargeableOverride;
 
     if (calcQty <= 0) {
-      setToleranceWarning(null);
-      return;
+      return null;
     }
 
     const ratio = overrideQty / calcQty;
     const tooHigh = ratio > 1 + tolerancePlus / 100;
     const tooLow = ratio < 1 - toleranceMinus / 100;
 
-    if (tooHigh || tooLow) {
-      setToleranceWarning({
-        type: "outside",
-        message: t("store.receipt.chargeableQtyOutsideTolerance", {
-          min: (100 - toleranceMinus).toFixed(1),
-          max: (100 + tolerancePlus).toFixed(1),
-          baseline: calcQty,
-          uom: pricingUom,
-        }),
-      });
-    } else {
-      setToleranceWarning(null);
+    if (!tooHigh && !tooLow) {
+      return null;
     }
-  }, [chargeableOverride, tolerancePlus, toleranceMinus, pricingResult?.calculated_chargeable_qty, pricingUom, t]);
+
+    // How far outside the band the entered value is, in both percentage and qty
+    // terms -- not just that it is outside, but by how much.
+    const deviationPct = (ratio - 1) * 100;
+    const deviationQty = overrideQty - calcQty;
+    const sign = (n) => (n >= 0 ? "+" : "");
+    return {
+      type: "outside",
+      message: t("store.receipt.chargeableQtyOutsideTolerance", {
+        entered: overrideQty,
+        deviationPct: `${sign(deviationPct)}${deviationPct.toFixed(1)}`,
+        deviationQty: `${sign(deviationQty)}${deviationQty.toFixed(2)}`,
+        min: (100 - toleranceMinus).toFixed(1),
+        max: (100 + tolerancePlus).toFixed(1),
+        baseline: calcQty,
+        uom: pricingUom,
+      }),
+    };
+  }, [chargeableOverride, tolerancePlus, toleranceMinus, pricingResult, pricingUom, t]);
 
   // Fetch tolerance settings from server when pricing UOM changes
   useEffect(() => {
-    if (!pricingUom || !row?.item_code) return;
+    if (!pricingUom || !itemCode) return;
 
     const timeout = setTimeout(async () => {
       try {
         const res = await get("method/erpnext_ui.api.get_item_pricing", {
-          item_code: row.item_code,
+          item_code: itemCode,
           side: "buying",
         });
         const pricing = res?.message ?? res ?? {};
@@ -232,21 +248,7 @@ export default function ReceiptLineForm({
       }
     }, 300);
     return () => clearTimeout(timeout);
-  }, [pricingUom, row?.item_code]);
-
-  // Re-validate when tolerance values load (user may have typed qty before tolerance arrived)
-  useEffect(() => {
-    if (chargeableOverride != null && (tolerancePlus > 0 || toleranceMinus > 0)) {
-      validateChargeableQty();
-    }
-  }, [chargeableOverride, tolerancePlus, toleranceMinus, validateChargeableQty]);
-
-  // Re-validate when calculated baseline arrives from server
-  useEffect(() => {
-    if (chargeableOverride != null && (tolerancePlus > 0 || toleranceMinus > 0) && pricingResult?.calculated_chargeable_qty) {
-      validateChargeableQty();
-    }
-  }, [chargeableOverride, tolerancePlus, toleranceMinus, pricingResult?.calculated_chargeable_qty, validateChargeableQty]);
+  }, [pricingUom, itemCode]);
 
   const isPoRow = !!(row && row.purchase_order_item);
   const receivedUom = row?.uom || info?.stock_uom || "";
@@ -809,10 +811,17 @@ export default function ReceiptLineForm({
       ) : null}
 
       {/* Chargeable qty input -- user-editable, below the rate field. */}
+      {/* Actual chargeable qty -- the REAL quantity the line is charged on, as
+          received or physically measured (weighbridge reading, supplier slip,
+          etc). The server's formula below is a theoretical estimate built from
+          item parameters; it assumes nominal dimensions and can legitimately
+          differ from what actually arrived. This field is therefore where a real
+          measurement overrides the assumption, never the other way round --
+          leaving it blank keeps the theoretical estimate in effect. */}
       {pricingUom ? (
         <FormField
-          label={t("store.form.chargeableQty")}
-          hint={t("store.form.chargeableQtyHint", { uom: pricingUom })}
+          label={t("store.form.actualChargeableQty")}
+          hint={t("store.form.actualChargeableQtyHint", { uom: pricingUom })}
           required={false}
         >
           <Input
@@ -842,7 +851,6 @@ export default function ReceiptLineForm({
               } else {
                 onSave({ ...row, custom_chargeable_qty: "" });
               }
-              validateChargeableQty();
             }}
           />
           {toleranceWarning ? (
@@ -850,19 +858,33 @@ export default function ReceiptLineForm({
               {toleranceWarning.message}
             </p>
           ) : null}
-          {t("store.form.chargeableUomLabel", { uom: pricingUom })}
         </FormField>
       ) : null}
 
       {/* UOM based pricing: live preview of the derived standard rate and
           amount. Only renders when a pricing UOM is resolved for the Item, so
           unconfigured Items keep the standard rate input unchanged.
-          
-          Shows values from the user-entered chargeable qty when present,
-          otherwise from the server-calculated pricing result. */}
+
+          The calculated row is the theoretical assumption (formula/parameters);
+          the chargeable-qty row below it is whichever value is actually being
+          priced on -- the user's measured override once one is entered, the same
+          theoretical figure otherwise. Showing both, always, is the point: a
+          figure that looks identical to the estimate is reassuring, and one that
+          does not match is exactly when the user needs to see why. */}
       {pricingUom ? (
         <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
           <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              {t("store.receipt.calculatedChargeableQty", { uom: pricingUom })}
+            </span>
+            <span className="font-medium tabular-nums">
+              {pricingResult?.calculated_chargeable_qty != null
+                ? pricingResult.calculated_chargeable_qty
+                : "—"}{" "}
+              {pricingUom}
+            </span>
+          </div>
+          <div className="mt-1 flex justify-between">
             <span className="text-muted-foreground">
               {t("store.receipt.chargeableQty", { uom: pricingUom })}
             </span>
