@@ -2329,6 +2329,19 @@ seeding) instead of letting the seeded value read as an operator entry, and the
 `custom_chargeable_qty` handler re-enables the field when the operator enters
 their own value — so the estimate is shown, and still overridable.
 
+### 9.8p Per-UOM pricing with no entered Rate per UOM now errors (fixed 2026-11-01)
+
+**The silent fallback.** When the UOM pricing feature was enabled for an item but
+the operator had not entered a Rate per UOM, `_apply_uom_pricing` silently fell
+back to the row's standard rate (e.g. a net price carried from the last purchase
+or an ordered rate) and netted the line anyway — no error, no confirmation.
+
+**The fix.** The submit-time pricing now raises a clear `ValueError` —
+`Rate per UOM is required for item <item> (pricing UOM <uom>)` — when the
+resolved pricing is enabled and no Rate per UOM was entered, instead of pricing
+on the fallback. Lines whose pricing is not enabled (or with no resolvable rule)
+keep the standard behaviour.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second

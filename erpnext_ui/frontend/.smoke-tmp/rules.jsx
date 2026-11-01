@@ -92,6 +92,24 @@ import {
   valueOf,
   withRunningBalance,
 } from "../src/lib/stockBalance.js";
+import {
+  COMPLETE_ARG_STATUS,
+  JOB_CARD_ACTIONS,
+  JOB_CARD_STATUS_UI,
+  JOB_CARD_TABS,
+  PAUSE_ARG_STATUS,
+  RESUME_ARG_STATUS,
+  STARTABLE_JOB_CARD_STATUSES,
+  STARTABLE_WORK_ORDER_STATUSES,
+  START_ACTION_KEYS,
+  START_ARG_STATUS,
+  TAB_KEYS,
+  WORK_ORDER_ACTIONS,
+  WORK_ORDER_STATUS_UI,
+  WORK_ORDER_TABS,
+  jobCardActionsFor,
+  workOrderActionsFor,
+} from "../src/pages/Production/actions.js";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => (c ? pass++ : (fail++, console.log("  FAIL:", n, "got:", JSON.stringify(got))));
@@ -4493,6 +4511,15 @@ ok(
     /def before_validate\(self\)/.test(overrideClass),
     "a draft already carrying \"user\" fails the same link check on every re-save",
   );
+  // The silent per-UOM fallback is now an error: when the resolved pricing is
+  // enabled but no Rate per UOM was entered, the save must fail with a clear
+  // message instead of netting the line on a fallback rate.
+  ok(
+    "per-UOM pricing without a Rate per UOM fails the save instead of falling back",
+    /if pricing\.get\("enabled"\) and not per_uom_rate_entered:/.test(overridesSource) &&
+      /Rate per UOM is required for item/.test(overridesSource),
+    "per-UOM pricing must not silently net on a fallback rate when none was entered",
+  );
   // The overwrite has to be NARROW. Setting this unconditionally would quietly
   // rewrite who performed the inspection to whoever last saved the document,
   // which for an audit field is worse than the bug being fixed.
@@ -4994,6 +5021,336 @@ ok(
     /return request\("GET", url\)/.test(apiJsx) &&
       !/function get\([\s\S]{0,400}return\s+\w+\.message/.test(apiJsx),
     "silently changing get() to unwrap would silently break every frappe.* caller that already does res.message",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Production: the start/stop flow and the endpoints behind it.
+//
+// The old JobCardPreviewModal posted to job_card.start_job / pause_job /
+// complete_job. None of the three exist in ERPNext v15 -- desk drives every
+// action through the whitelisted make_time_log -- so all three buttons
+// answered HTTP 404 behind a generic "Action failed", and the whole module
+// looked right while doing nothing. Nothing else in this suite can catch that:
+// these files are not rendered here, and no other check knows which endpoint
+// names ERPNext actually ships.
+// ---------------------------------------------------------------------------
+{
+  // Comments are prose: jobActions.js and the preview modal both RECORD the
+  // old endpoint names in their rationale (AGENTS §4 asks for exactly that),
+  // and a scan that flags the history it is meant to document would force the
+  // explanation out of the file to go green.
+  const stripComments = (src) =>
+    src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^[ \t]*(?:\/\/|\*).*$/gm, "");
+
+  const jobActionsSrc = stripComments(
+    readSrc("../../src/pages/Production/jobActions.js"),
+  );
+  const prodIndexSrc = readSrc("../../src/pages/Production/index.jsx");
+  const startWorkSrc = stripComments(
+    readSrc("../../src/pages/Production/StartWorkModal.jsx"),
+  );
+  const jcPreviewSrc = stripComments(
+    readSrc(
+      "../../src/pages/Production/job-cards/JobCardPreviewModal/index.jsx",
+    ),
+  );
+  const woPreviewSrc = readSrc(
+    "../../src/pages/Production/work-order/WorkOrderPreviewModal/index.jsx",
+  );
+
+  const phantom = [];
+  for (const file of walk(new URL("../../src", import.meta.url).pathname)) {
+    const src = stripComments(readFileSync(file, "utf8"));
+    for (const m of src.matchAll(
+      /job_card\.(start_job|pause_job|complete_job|resume_job)/g,
+    )) {
+      phantom.push(`${file.replace(/.*\/src\//, "")}: ${m[0]}`);
+    }
+  }
+  ok(
+    "production: no src file calls a job-card endpoint that v15 does not have",
+    phantom.length === 0,
+    phantom.join(", ") || "none",
+  );
+
+  ok(
+    "production: actions go through make_time_log and stop_unstop -- the two endpoints desk itself calls",
+    /job_card\.job_card\.make_time_log/.test(jobActionsSrc) &&
+      /work_order\.work_order\.stop_unstop/.test(jobActionsSrc) &&
+      !/(start_job|pause_job|complete_job|resume_job)/.test(jobActionsSrc),
+    "anything else is a guessed endpoint name",
+  );
+
+  // make_time_log reads `args.job_card_id` and nothing else names the card, so
+  // a renamed key reaches frappe.get_doc("Job Card", None).
+  ok(
+    "production: make_time_log is called with job_card_id plus the time/status fields it branches on",
+    /job_card_id: name/.test(jobActionsSrc) &&
+      /start_time: nowDateTime\(\)/.test(jobActionsSrc) &&
+      /complete_time: nowDateTime\(\)/.test(jobActionsSrc) &&
+      /completed_qty: completedQty/.test(jobActionsSrc) &&
+      /employees/.test(jobActionsSrc),
+    "the server reads args.job_card_id, args.status, start_time/complete_time and employees",
+  );
+
+  // --- the status matrix ---------------------------------------------------
+  // A wrong key ships either a button ERPNext rejects or a status with no way
+  // out of it.
+  ok(
+    "production: job-card matrix offers start / pause+complete / resume+complete",
+    jobCardActionsFor("Open").join() === "start" &&
+      jobCardActionsFor("Submitted").join() === "start" &&
+      jobCardActionsFor("Material Transferred").join() === "start" &&
+      jobCardActionsFor("Work In Progress").join() === "pause,complete" &&
+      jobCardActionsFor("On Hold").join() === "resume,complete" &&
+      jobCardActionsFor("Completed").join() === "",
+    JSON.stringify(JOB_CARD_ACTIONS),
+  );
+  ok(
+    "production: a submitted-but-untransferred card is startable -- set_status writes 'Submitted' on submit, so a dashboard keyed on 'Open' hides the normal WO-linked queue",
+    jobCardActionsFor("Submitted").includes("start"),
+    "Submitted -> " + jobCardActionsFor("Submitted").join(),
+  );
+  ok(
+    "production: a partially transferred card is actionless -- add_time_log's validate_transfer_qty throws while transferred_qty < for_quantity",
+    jobCardActionsFor("Partially Transferred").join() === "",
+    "Partially Transferred -> " + jobCardActionsFor("Partially Transferred").join(),
+  );
+  ok(
+    "production: a paused job card can be resumed -- the old preview offered nothing for On Hold, so a pause had no way back to work",
+    jobCardActionsFor("On Hold").includes("resume"),
+    "On Hold -> " + jobCardActionsFor("On Hold").join(),
+  );
+  ok(
+    "production: work-order matrix offers start-next+stop / re-open, and nothing once done",
+    workOrderActionsFor("Not Started").join() === "startNext,stop" &&
+      workOrderActionsFor("In Process").join() === "startNext,stop" &&
+      workOrderActionsFor("Stopped").join() === "reopen" &&
+      workOrderActionsFor("Completed").join() === "" &&
+      workOrderActionsFor("Closed").join() === "",
+    JSON.stringify(WORK_ORDER_ACTIONS),
+  );
+  ok(
+    "production: a stopped work order can only be re-opened, never stopped twice or started",
+    workOrderActionsFor("Stopped").join() === "reopen",
+    "Stopped -> " + workOrderActionsFor("Stopped").join(),
+  );
+
+  // --- the tabs ------------------------------------------------------------
+  // Each tab IS its server-side query. Three invariants: "ongoing" is exactly
+  // the running status (never paused work), every matrix status appears in
+  // exactly one tab (a card cannot be simultaneously running and finished, or
+  // vanish from all three), and the start-work dialog derives from the same
+  // matrix.
+  ok(
+    "production: the three tabs are ongoing / waiting / completed",
+    TAB_KEYS.join() === "ongoing,waiting,completed" &&
+      Object.keys(JOB_CARD_TABS).join() === "ongoing,waiting,completed" &&
+      Object.keys(WORK_ORDER_TABS).join() === "ongoing,waiting,completed",
+    `${TAB_KEYS} / ${Object.keys(JOB_CARD_TABS)} / ${Object.keys(WORK_ORDER_TABS)}`,
+  );
+  ok(
+    "production: ongoing is exactly the running status for each doctype -- paused work is not running and belongs in waiting",
+    JOB_CARD_TABS.ongoing.join() === "Work In Progress" &&
+      WORK_ORDER_TABS.ongoing.join() === "In Process",
+    `${JOB_CARD_TABS.ongoing} / ${WORK_ORDER_TABS.ongoing}`,
+  );
+  ok(
+    "production: every matrix status lands in exactly one tab, so no card vanishes or double-counts",
+    (() => {
+      const jcSeen = JOB_CARD_TABS.ongoing.concat(
+        JOB_CARD_TABS.waiting,
+        JOB_CARD_TABS.completed,
+      );
+      const woSeen = WORK_ORDER_TABS.ongoing.concat(
+        WORK_ORDER_TABS.waiting,
+        WORK_ORDER_TABS.completed,
+      );
+      return (
+        new Set(jcSeen).size === jcSeen.length &&
+        new Set(woSeen).size === woSeen.length &&
+        Object.keys(JOB_CARD_ACTIONS).every((s) => jcSeen.includes(s)) &&
+        Object.keys(WORK_ORDER_ACTIONS).every((s) => woSeen.includes(s))
+      );
+    })(),
+    JSON.stringify({ JOB_CARD_TABS, WORK_ORDER_TABS }),
+  );
+  ok(
+    "production: the start-work dialog offers exactly the statuses the matrix says can start/resume/reopen",
+    STARTABLE_JOB_CARD_STATUSES.join() ===
+      "Open,Submitted,Material Transferred,On Hold" &&
+      STARTABLE_WORK_ORDER_STATUSES.join() === "Not Started,In Process,Stopped" &&
+      !STARTABLE_JOB_CARD_STATUSES.includes("Partially Transferred"),
+    `${STARTABLE_JOB_CARD_STATUSES} / ${STARTABLE_WORK_ORDER_STATUSES}`,
+  );
+  ok(
+    "production: start-work filters to the startable statuses and the project",
+    /status", "in", STARTABLE_JOB_CARD_STATUSES/.test(startWorkSrc) &&
+      /status", "in", STARTABLE_WORK_ORDER_STATUSES/.test(startWorkSrc) &&
+      /\["project", "=", project\]/.test(startWorkSrc),
+    "the dialog must derive its query from the derived startable sets",
+  );
+  ok(
+    "production: the start-work dialog only offers begin-work actions, never pause/complete",
+    START_ACTION_KEYS.join() === "start,resume,startNext,reopen" &&
+      /START_ACTION_KEYS\.includes\(key\)/.test(startWorkSrc) &&
+      !/"pause"|"complete"/.test(startWorkSrc),
+    START_ACTION_KEYS,
+  );
+
+  // --- status literals -----------------------------------------------------
+  // The lists filter on these; a value ERPNext never writes empties the
+  // dashboard with no error anywhere.
+  const V15_JOB_CARD_STATUSES = [
+    "Open",
+    "Work In Progress",
+    "Partially Transferred",
+    "Material Transferred",
+    "On Hold",
+    "Submitted",
+    "Cancelled",
+    "Completed",
+  ];
+  const V15_WORK_ORDER_STATUSES = [
+    "Draft",
+    "Submitted",
+    "Not Started",
+    "In Process",
+    "Completed",
+    "Stopped",
+    "Closed",
+    "Cancelled",
+  ];
+  const unknownStatuses = [
+    ...Object.keys(JOB_CARD_ACTIONS).filter(
+      (s) => !V15_JOB_CARD_STATUSES.includes(s),
+    ),
+    ...Object.keys(WORK_ORDER_ACTIONS).filter(
+      (s) => !V15_WORK_ORDER_STATUSES.includes(s),
+    ),
+    ...Object.values(JOB_CARD_TABS).flat().filter(
+      (s) => !V15_JOB_CARD_STATUSES.includes(s),
+    ),
+    ...Object.values(WORK_ORDER_TABS).flat().filter(
+      (s) => !V15_WORK_ORDER_STATUSES.includes(s),
+    ),
+  ];
+  ok(
+    "production: every status used is a real ERPNext v15 Select option",
+    unknownStatuses.length === 0,
+    unknownStatuses.join(", ") || "none",
+  );
+  const allUiStatuses = [
+    ...Object.keys(JOB_CARD_STATUS_UI),
+    ...Object.keys(WORK_ORDER_STATUS_UI),
+  ];
+  ok(
+    "production: every status a tab can show has a label and tone, so none renders as a raw literal",
+    allUiStatuses.every(
+      (s) => JOB_CARD_STATUS_UI[s]?.labelKey || WORK_ORDER_STATUS_UI[s]?.labelKey,
+    ) &&
+      allUiStatuses.every(
+        (s) => JOB_CARD_STATUS_UI[s]?.tone || WORK_ORDER_STATUS_UI[s]?.tone,
+      ),
+    "missing: " +
+      allUiStatuses
+        .filter(
+          (s) =>
+            !(JOB_CARD_STATUS_UI[s]?.labelKey || WORK_ORDER_STATUS_UI[s]?.labelKey),
+        )
+        .join(", "),
+  );
+
+  // reset_timer_value() keeps accumulated elapsed time only for the literal
+  // "Resume Job" (it rewrites it to "Work In Progress" AFTER the reset);
+  // sending the destination status directly zeroes current_time on resume.
+  ok(
+    "production: the four status arguments are ERPNext's own literals, and resume carries 'Resume Job' rather than the status it lands on",
+    START_ARG_STATUS === "Work In Progress" &&
+      PAUSE_ARG_STATUS === "On Hold" &&
+      RESUME_ARG_STATUS === "Resume Job" &&
+      COMPLETE_ARG_STATUS === "Complete",
+    [START_ARG_STATUS, PAUSE_ARG_STATUS, RESUME_ARG_STATUS, COMPLETE_ARG_STATUS].join(" / "),
+  );
+
+  // The dashboard summarizes; each dedicated list owns its query and tabs.
+  const productionLists = ["work-order", "job-cards"].map((folder) =>
+    readFileSync(new URL(`../../src/pages/Production/${folder}/index.jsx`, import.meta.url), "utf8"),
+  );
+  ok(
+    "production: dashboard counts reuse the shared status groups",
+    /JOB_CARD_TABS/.test(prodIndexSrc) && /WORK_ORDER_TABS/.test(prodIndexSrc) &&
+      /get\("method\/frappe\.client\.get_count"/.test(prodIndexSrc),
+  );
+  ok(
+    "production: dashboard links to both dedicated pages and keeps start work",
+    prodIndexSrc.includes('path: "/production/job-cards"') &&
+      prodIndexSrc.includes('path: "/production/work-order"') &&
+      /<StartWorkModal/.test(prodIndexSrc) && /production.overviewAnalysis/.test(prodIndexSrc),
+  );
+  ok(
+    "production: both lists own status tabs, server filters, counts and pagination",
+    productionLists.every((src) => /<ProductionTabs/.test(src) && /baseFilters/.test(src) &&
+      /tabCounts/.test(src) && /or_filters/.test(src) && /<Pagination/.test(src) &&
+      /params.set\("tab", next\)/.test(src) && /resetPage\(\)/.test(src)),
+  );
+  ok(
+    "production: each list preserves project filtering and refreshes its current query",
+    productionLists.every((src) => /doctype: "Project"/.test(src) &&
+      /loadRef.current\(\)/.test(src)),
+  );
+  ok(
+    "production: preview and dashboard share one action implementation, so they cannot disagree",
+    /from "\.\.\/\.\.\/jobActions"/.test(jcPreviewSrc) &&
+      /from "\.\.\/jobActions"/.test(woPreviewSrc) &&
+      !/(start_job|pause_job|complete_job)/.test(jcPreviewSrc),
+    "each surface must call jobActions.js, not its own endpoint strings",
+  );
+
+  // --- i18n -----------------------------------------------------------------
+  // A key present in only one locale renders the raw key (i18next returns the
+  // key itself when the namespace has nothing), so an untranslated label shows
+  // `production.startNextJob` on a button.
+  const usedProdKeys = new Set();
+  for (const file of walk(new URL("../../src/pages/Production", import.meta.url).pathname)) {
+    const src = readFileSync(file, "utf8");
+    for (const m of src.matchAll(/"(production\.[A-Za-z0-9_.]+)"/g)) {
+      usedProdKeys.add(m[1]);
+    }
+  }
+  const locales = {};
+  for (const lang of ["en", "hi", "ar"]) {
+    const json = JSON.parse(
+      readFileSync(
+        new URL(`../../src/i18n/locales/${lang}/ops.json`, import.meta.url),
+        "utf8",
+      ),
+    );
+    locales[lang] = new Set(
+      Object.keys(json.production || {}).map((k) => `production.${k}`),
+    );
+  }
+  const missingKeys = [];
+  for (const key of usedProdKeys) {
+    for (const lang of ["en", "hi", "ar"]) {
+      if (!locales[lang].has(key)) missingKeys.push(`${lang}: ${key}`);
+    }
+  }
+  ok(
+    "production: every production.* key used by the UI exists in all three locales",
+    missingKeys.length === 0 && usedProdKeys.size > 40,
+    missingKeys.join(", ") || `${usedProdKeys.size} keys checked`,
+  );
+  const parity = ["hi", "ar"].flatMap((lang) =>
+    [...locales.en].filter((k) => !locales[lang].has(k)).map((k) => `${lang}: ${k}`),
+  );
+  ok(
+    "production: en/hi/ar production namespaces are identical",
+    parity.length === 0,
+    parity.join(", ") || "none",
   );
 }
 

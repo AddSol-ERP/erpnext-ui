@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../context/HeaderContext";
 import ActionBar from "../../../components/ActionBar";
@@ -11,6 +12,9 @@ import useListPagination from "../../../hooks/useListPagination";
 import { get } from "../../../services/api";
 import { listFilterHandlers } from "../../../lib/filterChips";
 import JobCardPreviewModal from "./JobCardPreviewModal";
+
+import ProductionTabs from "../ProductionTabs";
+import { JOB_CARD_TABS } from "../actions";
 
 const getStatus = (row, t) => {
   if (row.status === "Completed")
@@ -25,6 +29,9 @@ export default function JobCardsList() {
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = ["ongoing", "waiting", "completed"].includes(searchParams.get("tab")) ? searchParams.get("tab") : "all";
+  const [counts, setCounts] = useState({});
   const [data, setData] = useState([]);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -53,12 +60,7 @@ export default function JobCardsList() {
 
   const filterConfig = {
     filters: [
-      {
-        label: t("common.status"),
-        field: "status",
-        type: "select",
-        options: ["Open", "Work In Progress", "Completed"],
-      },
+      { label: t("production.projectFilter"), field: "project", type: "link", doctype: "Project" },
       {
         label: t("production.workOrder"),
         field: "work_order",
@@ -87,6 +89,9 @@ export default function JobCardsList() {
         if (v) filters.push([k, "=", v]);
       });
 
+      const baseFilters = [...filters];
+      if (tab !== "all") filters.push(["status", "in", JOB_CARD_TABS[tab]]);
+
       const params = {
         fields: JSON.stringify([
           "name",
@@ -112,15 +117,24 @@ export default function JobCardsList() {
         : [];
       if (orFilters.length) params.or_filters = JSON.stringify(orFilters);
 
-      const [listRes, countRes] = await Promise.all([
+      const [listRes, countRes, tabCounts] = await Promise.all([
         get("resource/Job Card", params),
         get("method/frappe.client.get_count", {
           doctype: "Job Card",
           filters: JSON.stringify(filters),
           ...(orFilters.length && { or_filters: JSON.stringify(orFilters) }),
         }),
+        Promise.all(["all", "ongoing", "waiting", "completed"].map(async (key) => {
+          const result = await get("method/frappe.client.get_count", {
+            doctype: "Job Card",
+            filters: JSON.stringify(key === "all" ? baseFilters : [...baseFilters, ["status", "in", JOB_CARD_TABS[key]]]),
+            ...(orFilters.length && { or_filters: JSON.stringify(orFilters) }),
+          });
+          return [key, result.message || 0];
+        })),
       ]);
 
+      setCounts(Object.fromEntries(tabCounts));
       setData(listRes.data || []);
       setTotal(countRes.message || 0);
     } catch (e) {
@@ -131,12 +145,16 @@ export default function JobCardsList() {
       setLoading(false);
     }
   }, [
+    tab,
     debouncedSearch,
     selectedFilters,
     limit_start,
     limit_page_length,
     setTotal,
   ]);
+
+  const loadRef = useRef(loadData);
+  useEffect(() => { loadRef.current = loadData; }, [loadData]);
 
   useEffect(() => {
     setHeader({
@@ -151,7 +169,7 @@ export default function JobCardsList() {
         {
           label: t("common.refresh"),
           variant: "btn-outline-primary",
-          onClick: loadData,
+          onClick: () => loadRef.current(),
         },
       ],
     });
@@ -234,6 +252,12 @@ export default function JobCardsList() {
       />
 
       <ListLayout
+        tabs={<ProductionTabs value={tab} counts={counts} onChange={(next) => {
+          const params = new URLSearchParams(searchParams);
+          params.set("tab", next);
+          setSearchParams(params, { replace: true });
+          resetPage();
+        }} />}
         contentMode="auto"
         loading={loading}
         error={error}

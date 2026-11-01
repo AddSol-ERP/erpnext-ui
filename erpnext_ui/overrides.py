@@ -52,6 +52,7 @@ def _apply_uom_pricing(doc, side):
 			per_uom_rate = row.get("custom_rate_per_pricing_uom")
 		else:
 			per_uom_rate = getattr(row, "custom_rate_per_pricing_uom", None)
+		per_uom_rate_entered = bool(str(per_uom_rate or "").strip())
 		if not per_uom_rate:
 			per_uom_rate = row.get("rate") if hasattr(row, "get") else getattr(row, "rate", 0)
 		# User-entered chargeable qty in the pricing UOM; fall back to using
@@ -78,6 +79,19 @@ def _apply_uom_pricing(doc, side):
 			)
 		except ValueError:
 			continue
+
+		# Per-UOM pricing is enabled for this item, but no Rate per UOM was
+		# entered: fail the save with a clear error instead of silently netting
+		# the line on a fallback rate (e.g. one carried from a previous purchase
+		# or the ordered net price). The operator must give the per-UOM rate.
+		if pricing.get("enabled") and not per_uom_rate_entered:
+			raise ValueError(
+				"Rate per UOM is required for item "
+				+ item_code
+				+ " (pricing UOM "
+				+ str(pricing.get("pricing_uom") or "")
+				+ ")."
+			)
 
 		new_rate = float(pricing["standard_rate"] or 0)
 		new_amount = float(pricing["amount"] or 0)
