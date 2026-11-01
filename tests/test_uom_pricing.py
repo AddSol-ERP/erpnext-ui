@@ -58,6 +58,33 @@ class PricingTests(unittest.TestCase):
 			self.calculate({**state(), "enabled": False})
 
 
+class EstimateTests(unittest.TestCase):
+	def test_estimate_is_independent_of_actual_measurement(self):
+		with patch.object(pricing, "get_item_pricing", return_value=state()):
+			estimate = pricing.get_pricing_estimate("SHEET", 10, "buying")
+			actual = pricing.get_pricing_line("SHEET", 80, 10, "buying", chargeable_override=19)
+		self.assertEqual(estimate["calculated_chargeable_qty"], 20)
+		self.assertEqual(actual["chargeable_qty"], 19)
+		self.assertEqual(actual["calculated_chargeable_qty"], estimate["calculated_chargeable_qty"])
+
+	def test_document_quantity_refreshes_estimate_without_a_rate(self):
+		with patch.object(pricing, "get_item_pricing", return_value=state()):
+			self.assertEqual(pricing.get_pricing_estimate("SHEET", 3)["calculated_chargeable_qty"], 6)
+
+	def test_direct_entry_has_no_invented_estimate(self):
+		with patch.object(pricing, "get_item_pricing", return_value=state(mode="Direct Entry")):
+			self.assertIsNone(pricing.get_pricing_estimate("SHEET", 10)["calculated_chargeable_qty"])
+
+	def test_disabled_or_invalid_item_formula(self):
+		with patch.object(pricing, "get_item_pricing", return_value={**state(), "enabled": False}):
+			self.assertFalse(pricing.get_pricing_estimate("SHEET", 10)["enabled"])
+		with (
+			patch.object(pricing, "get_item_pricing", return_value=state(expression="missing")),
+			self.assertRaises(ValueError),
+		):
+			pricing.get_pricing_estimate("SHEET", 10)
+
+
 class TransactionPricingTests(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
@@ -104,6 +131,13 @@ class TransactionPricingTests(unittest.TestCase):
 		self.run_pricing(doc)
 		self.assertEqual((row.rate, row.amount), (160, 1600))
 		self.assertEqual(row.custom_pricing_uom, "Square Metre")
+
+	def test_saved_estimate_stays_separate_from_actual(self):
+		doc, row = self.document(measurement=19)
+		self.run_pricing(doc)
+		self.assertEqual(row.custom_estimated_chargeable_qty, 20)
+		self.assertEqual(row.custom_estimated_pricing_amount, 1600)
+		self.assertEqual(row.amount, 1520)
 
 	def test_missing_rate_and_invalid_formula_fail_save(self):
 		for rate in (None, 0, -1):

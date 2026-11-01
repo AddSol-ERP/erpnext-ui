@@ -696,6 +696,15 @@ def get_item_pricing(item_code, side=None):
 
 
 @frappe.whitelist(allow_guest=False)
+def get_uom_pricing_estimate(item_code, doc_qty, side=None):
+    """Return the formula estimate without using an entered chargeable quantity."""
+    from erpnext_ui.uom_pricing import get_pricing_estimate
+
+    frappe.has_permission("Item", "read", doc=item_code, throw=True)
+    return get_pricing_estimate(item_code, doc_qty, side)
+
+
+@frappe.whitelist(allow_guest=False)
 def calculate_uom_pricing_line(item_code, rate_per_uom, doc_qty, side=None, chargeable_qty=None):
     """Calculate the UOM based pricing outcome for one transaction line.
 

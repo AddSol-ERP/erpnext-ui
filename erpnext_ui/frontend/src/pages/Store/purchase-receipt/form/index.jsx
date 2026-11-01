@@ -1,3 +1,4 @@
+import UomPricingEstimate from "../../../../components/UomPricingEstimate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -1881,6 +1882,7 @@ export default function PurchaseReceiptForm() {
                         </>
                       ) : null}
                     </div>
+                    <UomPricingEstimate row={row} side="buying" readOnly={!!doc.docstatus} />
                     {rowErr ? (
                       <p className="mt-1 text-xs text-destructive">{rowErr}</p>
                     ) : null}

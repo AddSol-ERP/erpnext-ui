@@ -795,10 +795,13 @@ export default function GenericFormPage() {
               <div key={rowIdx} className="mb-4">
                 <ChildTable
                   title={cf.label}
+                  pricingSide={["Purchase Order", "Purchase Receipt", "Purchase Invoice", "Supplier Quotation", "Material Request"].includes(decodedDoctype) ? "buying" : ["Sales Order", "Sales Invoice", "Delivery Note", "Quotation", "POS Invoice"].includes(decodedDoctype) ? "selling" : undefined}
                   columns={childFields
                     .filter(
                       (c) =>
                         c.fieldname &&
+                        !c.hidden &&
+                        !["custom_estimated_chargeable_qty", "custom_estimated_pricing_amount"].includes(c.fieldname) &&
                         c.fieldname !== "parent" &&
                         c.fieldname !== "parenttype" &&
                         c.fieldname !== "parentfield" &&
@@ -821,6 +824,7 @@ export default function GenericFormPage() {
                                 : "text",
                       options: c.options,
                       required: c.reqd,
+                      readOnly: !!c.read_only,
                       fetchFrom: c.fetch_from,
                     }))}
                   value={doc[cf.fieldname] || []}

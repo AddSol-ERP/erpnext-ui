@@ -521,7 +521,13 @@
       "ratePerUom": "Rate per {uom}",
       "ratePerUomHint": "Rate is per {uom}. Standard rate is derived from it.",
       "actualChargeableQty": "Actual chargeable qty in {uom}",
-      "actualChargeableQtyHint": "The quantity actually received or measured in the pricing UOM -- for example, from a weighbridge reading or supplier slip. Leave blank to use the calculated estimate shown below."
+      "actualChargeableQtyHint": "The quantity actually received or measured in the pricing UOM -- for example, from a weighbridge reading or supplier slip. Leave blank to use the calculated estimate shown below.",
+      "estimatedChargeableQty": "Estimated quantity ({uom})",
+      "estimatedPricingAmount": "Estimated amount",
+      "noFormulaEstimate": "No formula estimate",
+      "estimateLoading": "Calculating estimate…",
+      "estimateFailed": "Could not calculate the Item estimate.",
+      "estimateFromItem": "Based on the Item formula and document quantity; unaffected by the actual chargeable quantity."
     },
     "validation": {
       "typeRequired": "Type is required",

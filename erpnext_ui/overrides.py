@@ -84,12 +84,18 @@ def _apply_uom_pricing(doc, side):
 		except ValueError as exc:
 			raise ValueError(f"Item {item_code}: {exc}") from exc
 
-
+		row.custom_estimated_chargeable_qty = pricing["calculated_chargeable_qty"]
+		row.custom_estimated_pricing_amount = (
+			pricing["calculated_chargeable_qty"] * float(per_uom_rate)
+			if pricing["calculated_chargeable_qty"] is not None
+			else None
+		)
 		row.custom_pricing_uom = pricing["pricing_uom"]
 		row.custom_pricing_snapshot = frappe.as_json(
 			{
 				"pricing_uom": pricing["pricing_uom"],
 				"chargeable_qty": pricing["chargeable_qty"],
+				"calculated_chargeable_qty": pricing["calculated_chargeable_qty"],
 				"rule": pricing["rule"],
 				"params_by_symbol": uom_pricing.get_item_pricing(item_code, side)["params_by_symbol"],
 			}

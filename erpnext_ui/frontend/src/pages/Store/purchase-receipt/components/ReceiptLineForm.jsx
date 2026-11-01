@@ -1,3 +1,4 @@
+import UomPricingEstimate from "../../../../components/UomPricingEstimate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { get } from "../../../../services/api";
@@ -820,6 +821,8 @@ export default function ReceiptLineForm({
         )
       ) : null}
 
+      {pricingUom && <UomPricingEstimate row={row} side="buying" readOnly={!!row?.docstatus} />}
+
       {/* Chargeable qty input -- user-editable, below the rate field. */}
       {/* Actual chargeable qty -- the REAL quantity the line is charged on, as
           received or physically measured (weighbridge reading, supplier slip,
@@ -883,17 +886,6 @@ export default function ReceiptLineForm({
           does not match is exactly when the user needs to see why. */}
       {pricingUom ? (
         <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">
-              {t("store.receipt.calculatedChargeableQty", { uom: pricingUom })}
-            </span>
-            <span className="font-medium tabular-nums">
-              {pricingResult?.calculated_chargeable_qty != null
-                ? pricingResult.calculated_chargeable_qty
-                : "—"}{" "}
-              {pricingUom}
-            </span>
-          </div>
           <div className="mt-1 flex justify-between">
             <span className="text-muted-foreground">
               {t("store.receipt.chargeableQty", { uom: pricingUom })}

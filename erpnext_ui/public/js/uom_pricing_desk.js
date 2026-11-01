@@ -1,232 +1,81 @@
-const BUYING = ["Purchase Receipt", "Purchase Invoice", "Purchase Order", "Supplier Quotation"];
-
+// Keep the Item-configured estimate separate from the operator's actual measure.
+const BUYING = ["Purchase Receipt", "Purchase Invoice", "Purchase Order", "Supplier Quotation", "Material Request"];
 const SELLING = ["Sales Invoice", "Sales Order", "Delivery Note", "Quotation", "POS Invoice"];
-
-const ALL = BUYING.concat(SELLING);
-
-const CHILD = {
-	"Purchase Receipt": "Purchase Receipt Item",
-	"Purchase Invoice": "Purchase Invoice Item",
-	"Purchase Order": "Purchase Order Item",
-	"Sales Invoice": "Sales Invoice Item",
-	"Sales Order": "Sales Order Item",
-	"Delivery Note": "Delivery Note Item",
-	Quotation: "Quotation Item",
-	"Supplier Quotation": "Supplier Quotation Item",
-	"POS Invoice": "POS Invoice Item",
-};
-
-const FIELD = "custom_rate_per_pricing_uom";
-const CACHE = {};
 const REQUESTS = {};
 
-// Determine buying or selling.
-function get_side(frm) {
+function pricing_side(frm) {
 	return BUYING.includes(frm.doctype) ? "buying" : "selling";
 }
 
-// Resolve pricing UOM.
-function resolve(frm, item_code, callback, force = false) {
-	if (!item_code) {
-		callback({ enabled: false, pricing_uom: null });
-		return;
-	}
-
-	const key = get_side(frm) + "::" + item_code;
-
-	if (!force && Object.prototype.hasOwnProperty.call(CACHE, key)) {
-		callback(CACHE[key]);
-		return;
-	}
-
-	frappe.call({
-		method: "erpnext_ui.api.get_item_pricing",
-		args: {
-			item_code: item_code,
-			side: get_side(frm),
-		},
-		callback: function (r) {
-			const msg = (r && r.message) || {};
-
-			const result = {
-				enabled: !!(msg.enabled && msg.pricing_uom),
-				pricing_uom: msg.pricing_uom || null,
-			};
-
-			CACHE[key] = result;
-			callback(result);
-		},
-		error: function () {
-			callback({
-				enabled: false,
-				pricing_uom: null,
-			});
-		},
-	});
+function pricing_grid_row(frm, row) {
+	return frm.fields_dict.items?.grid?.grid_rows?.find((entry) => entry.doc.name === row.name);
 }
 
-// Get actual GridRow.
-function get_grid_row(frm, row) {
-	if (!frm || !row || !frm.fields_dict.items) return null;
-
-	const grid = frm.fields_dict.items.grid;
-
-	return (grid.grid_rows || []).find(function (grid_row) {
-		return grid_row.doc && grid_row.doc.name === row.name;
-	});
-}
-
-// Only control read-only / editable status.
-function set_row_field(frm, row, enabled) {
-	const grid_row = get_grid_row(frm, row);
-
-	if (!grid_row) return;
-
-	// Grid row editability
-	grid_row.toggle_editable(FIELD, enabled);
-
-	// Item edit modal editability
-	const modal_field = grid_row.grid_form?.fields_dict?.[FIELD];
-
-	if (modal_field) {
-		modal_field.df.hidden = 0;
-		modal_field.df.read_only = enabled ? 0 : 1;
-		modal_field.refresh();
+function show_pricing_estimate(frm, row, estimate) {
+	const gridRow = pricing_grid_row(frm, row);
+	if (gridRow) {
+		gridRow.toggle_editable("custom_rate_per_pricing_uom", !!estimate.enabled && !frm.doc.docstatus);
+		gridRow.toggle_editable("custom_chargeable_qty", !!estimate.enabled && !frm.doc.docstatus);
+		gridRow.toggle_editable("custom_estimated_chargeable_qty", false);
+		gridRow.toggle_editable("custom_estimated_pricing_amount", false);
+		const field = gridRow.grid_form?.fields_dict?.custom_estimated_chargeable_qty;
+		if (field) {
+			field.df.label = __("Estimated Chargeable Qty") + (estimate.pricing_uom ? ` (${estimate.pricing_uom})` : "");
+			field.refresh();
+		}
 	}
 }
 
-// Resolve the estimated chargeable quantity for one item row: what the line
-// will be charged on when the operator leaves Chargeable Qty blank. The
-// backend falls back to the document quantity for such lines, so the estimate
-// shown here is the value the submit will effectively price from.
-function resolve_item_estimate(frm, row, callback) {
-	frappe.call({
-		method: "erpnext_ui.api.calculate_uom_pricing_line",
-		args: {
-			item_code: row.item_code,
-			rate_per_uom: row.rate || 0,
-			doc_qty: row.qty || 0,
-			side: get_side(frm),
-			chargeable_qty: null,
-		},
-		callback: function (r) {
-			callback((r && r.message) || null);
-		},
-		error: function () {
-			callback(null);
-		},
-	});
-}
-
-// Apply pricing API response to item row.
-function apply_item_pricing(frm, row, force = false) {
+function update_pricing_estimate(frm, row) {
 	if (!row) return;
-
-	const cdn = row.name;
-	const item_code = row.item_code;
-
-	REQUESTS[cdn] = (REQUESTS[cdn] || 0) + 1;
-
-	const request_id = REQUESTS[cdn];
-
-	if (!item_code) {
-		set_row_field(frm, row, false);
+	const seq = REQUESTS[row.name] = (REQUESTS[row.name] || 0) + 1;
+	const item = row.item_code;
+	const qty = row.qty;
+	const current = () => REQUESTS[row.name] === seq && row.item_code === item && row.qty === qty && (frm.doc.items || []).includes(row);
+	if (frm.doc.docstatus) {
+		// Submitted documents show the stored baseline, even if Item rules changed.
+		show_pricing_estimate(frm, row, { enabled: !!row.custom_pricing_uom, pricing_uom: row.custom_pricing_uom });
 		return;
 	}
-
-	// Read-only until API response.
-	set_row_field(frm, row, false);
-
-	resolve(
-		frm,
-		item_code,
-		function (result) {
-			// Ignore outdated API responses.
-			if (REQUESTS[cdn] !== request_id || row.item_code !== item_code) {
-				return;
-			}
-
-			// Enable only when pricing rule exists.
-			set_row_field(frm, row, result.enabled);
-
-			if (!result.enabled) {
-				return;
-			}
-
-			// Chargeable Qty left blank: show the estimated value for this line
-			// and seed it so the desk surface displays what the line will be
-			// charged on. The user can still overwrite it afterwards.
-			if (!row.custom_chargeable_qty) {
-				resolve_item_estimate(frm, row, function (est) {
-					if (REQUESTS[cdn] !== request_id || row.item_code !== item_code) {
-						return;
-					}
-					if (est && est.chargeable_qty) {
-						row.custom_chargeable_qty = est.chargeable_qty;
-						const grid_row = get_grid_row(frm, row);
-						if (grid_row) {
-							grid_row.doc.custom_chargeable_qty = est.chargeable_qty;
-						}
-						// The seeded value is a computed estimate for a blank Chargeable
-						// Qty, not an operator entry: present it in the row field as a
-						// read-only figure (MEMORY §9.8o) so it cannot be mistaken for --
-						// or silently become -- the quantity the line is charged on. The
-						// custom_chargeable_qty handler re-enables the field when the
-						// operator enters their own value.
-						set_row_field(frm, row, false);
-					}
-				});
-			}
-		},
-		force,
-	);
-}
-
-// Register generic handlers for all doctypes.
-ALL.forEach(function (dt) {
-	const child = CHILD[dt];
-
-	frappe.ui.form.on(dt, {
-		refresh(frm) {
-			(frm.doc.items || []).forEach(function (row) {
-				apply_item_pricing(frm, row, false);
+	if (!item || !(Number(qty) > 0) || (frm.doctype === "Material Request" && frm.doc.material_request_type !== "Purchase")) {
+		show_pricing_estimate(frm, row, { enabled: false });
+		frappe.model.set_value(row.doctype, row.name, { custom_estimated_chargeable_qty: null, custom_estimated_pricing_amount: null });
+		return;
+	}
+	frappe.call({
+		method: "erpnext_ui.api.get_uom_pricing_estimate",
+		args: { item_code: item, doc_qty: qty, side: pricing_side(frm) },
+		callback(r) {
+			if (!current()) return;
+			const estimate = r.message || {};
+			const baseline = estimate.calculated_chargeable_qty ?? null;
+			const rate = row.custom_rate_per_pricing_uom;
+			frappe.model.set_value(row.doctype, row.name, {
+				custom_pricing_uom: estimate.pricing_uom || "",
+				custom_estimated_chargeable_qty: baseline,
+				custom_estimated_pricing_amount: baseline != null && rate !== "" && rate != null ? baseline * Number(rate) : null,
 			});
+			show_pricing_estimate(frm, row, estimate);
 		},
-
-		items_add(frm, cdt, cdn) {
-			const row = locals[child][cdn];
-
-			if (row) {
-				set_row_field(frm, row, false);
-			}
+		error() {
+			if (!current()) return;
+			frappe.model.set_value(row.doctype, row.name, { custom_estimated_chargeable_qty: null, custom_estimated_pricing_amount: null });
 		},
 	});
+}
 
+BUYING.concat(SELLING).forEach((doctype) => {
+	const child = doctype === "Quotation" ? "Quotation Item" : `${doctype} Item`;
+	frappe.ui.form.on(doctype, {
+		refresh(frm) { (frm.doc.items || []).forEach((row) => update_pricing_estimate(frm, row)); },
+		material_request_type(frm) { (frm.doc.items || []).forEach((row) => update_pricing_estimate(frm, row)); },
+	});
+	const refreshRow = (frm, cdt, cdn) => update_pricing_estimate(frm, locals[cdt]?.[cdn]);
 	frappe.ui.form.on(child, {
-		// Call API whenever item is selected or changed.
-		item_code(frm, cdt, cdn) {
-			const row = locals[cdt][cdn];
-
-			apply_item_pricing(frm, row, true);
-		},
-
-		// Reapply editability when item modal opens.
-		form_render(frm, cdt, cdn) {
-			const row = locals[cdt][cdn];
-
-			if (row) {
-				apply_item_pricing(frm, row, false);
-			}
-		},
-
-		// An operator-entered Chargeable Qty is the operator's own: re-enable the
-		// row field so a seeded estimate (presented read-only) can be overwritten.
-		custom_chargeable_qty(frm, cdt, cdn) {
-			const row = locals[cdt][cdn];
-
-			if (row) {
-				set_row_field(frm, row, true);
-			}
-		},
+		item_code: refreshRow,
+		qty: refreshRow,
+		custom_rate_per_pricing_uom: refreshRow,
+		custom_chargeable_qty: refreshRow,
+		form_render: refreshRow,
 	});
 });

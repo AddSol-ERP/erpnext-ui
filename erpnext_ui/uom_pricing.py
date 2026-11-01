@@ -113,6 +113,27 @@ def standard_line_rate(amount, doc_qty):
 	return float(amount) / float(doc_qty)
 
 
+def get_pricing_estimate(item_code, doc_qty, side=None):
+	"""The Item configuration's baseline, independent of any measured override."""
+	pricing = get_item_pricing(item_code, side)
+	if not pricing["enabled"]:
+		return {"enabled": False}
+	if not pricing["pricing_uom"]:
+		raise ValueError("The pricing rule needs a pricing UOM.")
+	qty = float(doc_qty)
+	if not math.isfinite(qty) or qty <= 0:
+		raise ValueError("Document quantity must be positive and finite.")
+	baseline = None
+	if pricing["rule"].get("formula_mode") != "Direct Entry":
+		baseline = calculate_chargeable_quantity(pricing["rule"], pricing["params_by_symbol"]) * qty
+	return {
+		"enabled": True,
+		"pricing_uom": pricing["pricing_uom"],
+		"calculated_chargeable_qty": baseline,
+		"formula_mode": pricing["rule"].get("formula_mode"),
+	}
+
+
 def get_pricing_line(
 	item_code, rate_per_uom, doc_qty, side=None, direct_entry_value=None, chargeable_override=None
 ):

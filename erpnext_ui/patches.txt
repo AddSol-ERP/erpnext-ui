@@ -16,3 +16,4 @@ erpnext_ui.patches.v1_0.add_chargeable_qty_field
 erpnext_ui.patches.v1_0.update_uom_pricing_rate_field_display
 erpnext_ui.patches.v1_0.ensure_item_uom_pricing_tab_isolated
 erpnext_ui.patches.v1_0.add_uom_pricing_snapshot
+erpnext_ui.patches.v1_0.add_uom_pricing_estimate_fields

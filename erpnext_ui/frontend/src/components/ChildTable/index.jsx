@@ -1,3 +1,4 @@
+import UomPricingEstimate from "../UomPricingEstimate";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2 } from "lucide-react";
@@ -19,6 +20,7 @@ export default function ChildTable({
   value = [],
   onChange,
   disabled = false,
+  pricingSide,
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState(value || []);
@@ -153,8 +155,9 @@ export default function ChildTable({
                         onChange={(val) =>
                           handleChange(rowIndex, col.field, val)
                         }
-                        disabled={disabled}
+                        disabled={disabled || col.readOnly}
                       />
+                      {pricingSide && col.field === "custom_chargeable_qty" && <UomPricingEstimate row={row} side={pricingSide} readOnly={disabled || !!row.docstatus} />}
                     </TableCell>
                   ))}
 
@@ -225,8 +228,9 @@ export default function ChildTable({
                       onChange={(val) =>
                         handleChange(rowIndex, col.field, val)
                       }
-                      disabled={disabled}
+                      disabled={disabled || col.readOnly}
                     />
+                    {pricingSide && col.field === "custom_chargeable_qty" && <UomPricingEstimate row={row} side={pricingSide} readOnly={disabled || !!row.docstatus} />}
                   </div>
                 ))}
               </div>

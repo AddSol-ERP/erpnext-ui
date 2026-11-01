@@ -3158,3 +3158,24 @@ quantity on transaction rows. `addsol_nl_custom` stamps per-piece snapshots and
 allocates the source serial's current inventory valuation to offcuts. Migrate
 ERP UI first, then the custom app. Legacy fields and historical Kg records stay.
 Local pricing tests: `python3 -m unittest discover -s tests -v`.
+
+
+## Estimated versus actual pricing quantity (2026-11-02)
+
+`custom_estimated_chargeable_qty` and `custom_estimated_pricing_amount` are
+read-only display fields on all ten pricing item tables. `_apply_uom_pricing`
+writes them from the formula baseline, separately from the operator's actual
+`custom_chargeable_qty`; the baseline also travels in the frozen snapshot.
+`get_uom_pricing_estimate` requires Item read permission and computes the baseline
+without a rate or a measured override. Direct Entry returns no formula estimate.
+
+Desk no longer seeds an estimate into the actual quantity field. Its handlers
+refresh the separate fields on Item/quantity/rate edits and discard stale replies.
+`UomPricingEstimate` supplies the same display to generic buying/selling item
+rows and the bespoke MR, Delivery Note and Purchase Receipt screens. Submitted
+rows use the saved baseline instead of today's Item rule. The migration backfills
+only from existing frozen snapshots, without touching booked amounts.
+
+Checks: `python3 -m unittest discover -s tests -v`,
+`node tests/test_uom_pricing_desk.mjs`, targeted frontend lint, `npm run build`.
+Deploy requires `bench migrate` to add/backfill the estimate fields.

@@ -1,3 +1,4 @@
+import UomPricingEstimate from "../../../../components/UomPricingEstimate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -650,6 +651,8 @@ export default function DeliveryNoteForm() {
                   </FormField>
                 </div>
               )}
+
+              {row.item_code ? <div className="col-span-2 md:col-span-12"><UomPricingEstimate row={row} side="selling" readOnly={!!doc.docstatus} /></div> : null}
 
               {/* Per-UOM rate input when a pricing UOM is resolved. */}
               {!doc.docstatus && hasPricing ? (
