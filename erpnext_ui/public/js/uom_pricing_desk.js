@@ -167,6 +167,13 @@ function apply_item_pricing(frm, row, force = false) {
 						if (grid_row) {
 							grid_row.doc.custom_chargeable_qty = est.chargeable_qty;
 						}
+						// The seeded value is a computed estimate for a blank Chargeable
+						// Qty, not an operator entry: present it in the row field as a
+						// read-only figure (MEMORY §9.8o) so it cannot be mistaken for --
+						// or silently become -- the quantity the line is charged on. The
+						// custom_chargeable_qty handler re-enables the field when the
+						// operator enters their own value.
+						set_row_field(frm, row, false);
 					}
 				});
 			}
@@ -209,6 +216,16 @@ ALL.forEach(function (dt) {
 
 			if (row) {
 				apply_item_pricing(frm, row, false);
+			}
+		},
+
+		// An operator-entered Chargeable Qty is the operator's own: re-enable the
+		// row field so a seeded estimate (presented read-only) can be overwritten.
+		custom_chargeable_qty(frm, cdt, cdn) {
+			const row = locals[cdt][cdn];
+
+			if (row) {
+				set_row_field(frm, row, true);
 			}
 		},
 	});
