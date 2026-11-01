@@ -157,18 +157,31 @@ def get_pricing_line(
 		baseline = None
 
 	user_value = chargeable_override if chargeable_override is not None else direct_entry_value
-	if user_value is not None:
-		qty = float(user_value)
-		if not math.isfinite(qty) or qty <= 0:
+	qty = None
+	if user_value is not None and str(user_value).strip():
+		# A blank measurement is "not entered" -- the same as a None one -- so it
+		# must fall through to the calculated baseline / document quantity below
+		# rather than reach float(). The strip() guard is load bearing: the RPC
+		# estimate path (`calculate_uom_pricing_line`) forwards the caller's
+		# Chargeable Qty verbatim, and an unentered value used to pass the
+		# `is not None` check as-is, reach `float("")`, and die with a raw
+		# `ValueError: could not convert string to float: ''` before the fallback
+		# could run -- taking the whole line pricing down with it.
+		try:
+			qty = float(user_value)
+		except (TypeError, ValueError):
+			qty = None
+		if qty is None or not math.isfinite(qty) or qty <= 0:
 			raise ValueError("Chargeable quantity must be positive and finite.")
-	elif baseline is not None and float(baseline) > 0:
-		qty = float(baseline)
-	else:
-		# No human value and no usable calculated baseline: fall back to the
-		# document quantity instead of resolving a non-positive chargeable
-		# quantity, which is what zeroed the line amount on a Purchase Order
-		# created from the desk UI with Chargeable Qty left blank.
-		qty = float(doc_qty or 0)
+	if qty is None:
+		if baseline is not None and float(baseline) > 0:
+			qty = float(baseline)
+		else:
+			# No human value and no usable calculated baseline: fall back to the
+			# document quantity instead of resolving a non-positive chargeable
+			# quantity, which is what zeroed the line amount on a Purchase Order
+			# created from the desk UI with Chargeable Qty left blank.
+			qty = float(doc_qty or 0)
 
 	amount_info = calculate_pricing_line(qty, float(rate_per_uom or 0), float(doc_qty or 0))
 	return {

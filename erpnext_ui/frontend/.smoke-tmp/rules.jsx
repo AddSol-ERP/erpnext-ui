@@ -481,6 +481,31 @@ ok("requiredParamSymbols: only the required params are surfaced",
 ok("lineAmount: chargeable qty times rate per UOM",
    lineAmount(0.15, 2.5) === 0.375, lineAmount(0.15, 2.5));
 
+// The backend resolution the mirror stands for: `get_pricing_line` treats a
+// blank measurement as "not entered" and falls through to the calculated
+// baseline / document quantity, instead of handing `float("")` to the parser.
+// The RPC estimate path (`calculate_uom_pricing_line`) forwards the caller's
+// Chargeable Qty verbatim, and a blank one used to die with a raw
+// `ValueError: could not convert string to float: ''` -- the line never priced
+// and the operator saw a server error where an estimate was expected.
+const UOM_PRICING_SOURCE_CANDIDATES = [
+  "../../../erpnext_ui/uom_pricing.py",
+  "../../../uom_pricing.py",
+];
+let uomPricingSource = "";
+for (const rel of UOM_PRICING_SOURCE_CANDIDATES) {
+  try {
+    uomPricingSource = readFileSync(new URL(rel, import.meta.url), "utf8");
+    break;
+  } catch {
+    /* try the next depth */
+  }
+}
+ok("get_pricing_line: a blank chargeable measurement is not entered",
+   uomPricingSource.includes("str(user_value).strip()") &&
+     uomPricingSource.includes("except (TypeError, ValueError)"),
+   "blank Chargeable Qty must fall through to the baseline, not float(')");
+
 // Rule: stock_controller.py:110-116 resets the factor to 1.0 when uom equals
 // stock_uom, so a measured total is only meaningful when they differ.
 const KG_NOS = {

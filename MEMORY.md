@@ -2301,6 +2301,27 @@ chargeable quantity per item row (`calculate_uom_pricing_line`) and seeds it
 into the row when Chargeable Qty is left blank, so the desk shows the estimated
 value for the line instead of leaving it empty.
 
+### 9.8o The UOM pricing estimate crashed on a blank Chargeable Qty (fixed 2026-11-01)
+
+**The crash.** A `POST /api/method/erpnext_ui.api.calculate_uom_pricing_line` for
+the Purchase Order form (`Form/Purchase Order/NLPO-2026-00015`; item
+`TEST GENERIC ITEM LTR`, `rate_per_uom: 240210000`, `doc_qty: 1, side: buying`)
+answered with `ValueError: could not convert string to float: ''` out of
+`uom_pricing.get_pricing_line`, so the desk estimate / live preview for the line
+could not resolve a chargeable quantity at all.
+
+**The cause.** The user-value branch only tested `is not None` before handing the
+measurement to `float()`. A blank measurement (`""`) slipped past that check,
+reached the unguarded `float("")`, and raised the raw conversion error — the
+"fall back to the calculated baseline / document quantity" resolution never ran.
+
+**The fix.** A blank measurement is now treated as *not entered* (the same as a
+`None` one) and falls through to the calculated baseline, or to the document
+quantity when no usable baseline exists; a measurement that is *present* but
+invalid still raises the friendly `Chargeable quantity must be positive and
+finite.` (`get_pricing_line` strips before testing and guards the parse). The
+rules suite asserts the guard so the unguarded `float()` cannot come back.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second
