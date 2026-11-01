@@ -134,6 +134,20 @@ def get_pricing_estimate(item_code, doc_qty, side=None):
 	}
 
 
+def get_pricing_preview(item_code, rate_per_uom, doc_qty, side=None, chargeable_qty=None):
+	"""Incomplete editor rows have no price yet; saved lines remain strict."""
+	if doc_qty is None or not str(doc_qty).strip() or float(doc_qty) == 0:
+		return {
+			"pending": True,
+			"reason": "quantity_required",
+			"calculated_chargeable_qty": None,
+			"chargeable_qty": None,
+			"standard_rate": None,
+			"amount": None,
+		}
+	return get_pricing_line(item_code, rate_per_uom, doc_qty, side, direct_entry_value=chargeable_qty)
+
+
 def get_pricing_line(
 	item_code, rate_per_uom, doc_qty, side=None, direct_entry_value=None, chargeable_override=None
 ):

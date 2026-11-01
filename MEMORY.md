@@ -3179,3 +3179,12 @@ only from existing frozen snapshots, without touching booked amounts.
 Checks: `python3 -m unittest discover -s tests -v`,
 `node tests/test_uom_pricing_desk.mjs`, targeted frontend lint, `npm run build`.
 Deploy requires `bench migrate` to add/backfill the estimate fields.
+
+
+### Blank-row preview compatibility
+
+`calculate_uom_pricing_line` delegates to `get_pricing_preview`: blank/zero
+quantity returns `pending: true` with null quantities/rates/amount, avoiding an
+error dialog while an Item is selected before Qty is entered (including older
+cached Desk scripts). `get_pricing_line` stays strict for saved transactions.
+Receipt/Delivery preview effects skip non-positive quantities and pending results.

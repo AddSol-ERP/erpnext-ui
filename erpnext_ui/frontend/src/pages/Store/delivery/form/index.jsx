@@ -218,7 +218,7 @@ export default function DeliveryNoteForm() {
         if (!pricingUom) return;
         const rate = row.custom_rate_per_pricing_uom;
         const qty = row.qty;
-        if (rate === "" || rate === null || rate === undefined || qty === "" || qty === null || qty === undefined) {
+        if (rate === "" || rate === null || rate === undefined || qty === "" || qty === null || qty === undefined || !Number.isFinite(Number(qty)) || Number(qty) <= 0) {
           setPricingPreviewByRid((p) => { const next = { ...p }; delete next[rid]; return next; });
           return;
         }
@@ -231,7 +231,7 @@ export default function DeliveryNoteForm() {
           });
           if (cancelled) return;
           const message = res?.message ?? res ?? {};
-          if (message && Object.keys(message).length) {
+          if (message && !message.pending && Object.keys(message).length) {
             setPricingPreviewByRid((p) => ({ ...p, [rid]: message }));
             // Update the standard rate on the row so it posts correctly.
             setDoc((p) => {

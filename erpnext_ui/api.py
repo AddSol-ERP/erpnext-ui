@@ -708,6 +708,9 @@ def get_uom_pricing_estimate(item_code, doc_qty, side=None):
 def calculate_uom_pricing_line(item_code, rate_per_uom, doc_qty, side=None, chargeable_qty=None):
     """Calculate the UOM based pricing outcome for one transaction line.
 
+    Blank/zero document quantity returns a pending preview without amounts.
+    Saved document validation continues to require a positive quantity.
+
     Resolves the effective pricing rule for the Item and computes the chargeable
     quantity, line amount and ERPNext standard line rate from it. For direct
     entry rules the caller may pass the measured `chargeable_qty`.
@@ -727,8 +730,8 @@ def calculate_uom_pricing_line(item_code, rate_per_uom, doc_qty, side=None, char
     """
     from erpnext_ui import uom_pricing
 
-    return uom_pricing.get_pricing_line(
-        item_code, rate_per_uom, doc_qty, side, direct_entry_value=chargeable_qty
+    return uom_pricing.get_pricing_preview(
+        item_code, rate_per_uom, doc_qty, side, chargeable_qty=chargeable_qty
     )
 
 

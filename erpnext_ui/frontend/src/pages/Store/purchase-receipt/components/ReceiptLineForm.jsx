@@ -136,7 +136,8 @@ export default function ReceiptLineForm({
       rate === undefined ||
       qty === "" ||
       qty === null ||
-      qty === undefined
+      qty === undefined ||
+      !Number.isFinite(Number(qty)) || Number(qty) <= 0
     ) {
       const handle = setTimeout(() => setPricingResult(null), 0);
       return () => clearTimeout(handle);
@@ -155,7 +156,7 @@ export default function ReceiptLineForm({
         );
         if (cancelled) return;
         const message = res?.message ?? res ?? {};
-        if (message && Object.keys(message).length) {
+        if (message && !message.pending && Object.keys(message).length) {
           setPricingResult(message);
           // Update the standard rate/amount live so ERPNext's derived fields
           // (rate, amount, net_*, taxable value) reflect the conversion while

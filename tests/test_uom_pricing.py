@@ -58,6 +58,34 @@ class PricingTests(unittest.TestCase):
 			self.calculate({**state(), "enabled": False})
 
 
+class PreviewTests(unittest.TestCase):
+	def test_new_row_does_not_price_or_resolve_configuration(self):
+		for qty in (None, "", "  ", 0, "0", "0.0"):
+			with self.subTest(qty=qty), patch.object(pricing, "get_item_pricing") as resolve:
+				result = pricing.get_pricing_preview("TEST GENERIC ITEM", 0, qty, "buying")
+				self.assertTrue(result["pending"])
+				self.assertIsNone(result["amount"])
+				self.assertIsNone(result["calculated_chargeable_qty"])
+				resolve.assert_not_called()
+
+	def test_complete_preview_calculates_normally(self):
+		with patch.object(pricing, "get_item_pricing", return_value=state()):
+			self.assertEqual(pricing.get_pricing_preview("SHEET", 80, 10, "buying")["amount"], 1600)
+
+	def test_strict_calculation_still_rejects_zero_quantity(self):
+		with patch.object(pricing, "get_item_pricing", return_value=state()), self.assertRaises(ValueError):
+			pricing.get_pricing_line("SHEET", 80, 0, "buying")
+
+	def test_negative_or_nonfinite_quantity_is_not_treated_as_blank(self):
+		for qty in (-1, float("nan"), float("inf")):
+			with (
+				self.subTest(qty=qty),
+				patch.object(pricing, "get_item_pricing", return_value=state()),
+				self.assertRaises(ValueError),
+			):
+				pricing.get_pricing_preview("SHEET", 80, qty, "buying")
+
+
 class EstimateTests(unittest.TestCase):
 	def test_estimate_is_independent_of_actual_measurement(self):
 		with patch.object(pricing, "get_item_pricing", return_value=state()):
