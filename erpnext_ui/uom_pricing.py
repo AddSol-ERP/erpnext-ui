@@ -81,7 +81,10 @@ def evaluate_formula(expression, params):
 	tokens = _tokenize(expression)
 	if not tokens:
 		raise ValueError("Pricing formula is empty.")
-	value, pos = _eval_tokens(tokens, 0, params)
+	try:
+		value, pos = _eval_tokens(tokens, 0, params)
+	except (IndexError, ZeroDivisionError, TypeError, OverflowError) as exc:
+		raise ValueError("Invalid pricing formula or parameter values.") from exc
 	if pos != len(tokens):
 		raise ValueError("Pricing formula has trailing tokens.")
 	if not math.isfinite(value):
@@ -117,8 +120,7 @@ def get_pricing_line(
 
 	For formula mode the chargeable quantity is derived from the Item's
 	parameters; for direct entry mode `direct_entry_value` is used (the quantity
-	the user measured). When `direct_entry_value` is None and the rule is direct
-	entry, the stored parameters are used as a fallback.
+	the user measured). Direct Entry requires a positive measurement.
 
 	A value the user typed wins in EITHER mode via `chargeable_override`: the
 	calculated weight is exactly what can differ from what actually arrived, so a
@@ -150,11 +152,21 @@ def get_pricing_line(
 	# is measured against. It is None for a Direct Entry rule, which calculates
 	# nothing -- the measurement IS the quantity -- so such a line can never be
 	# "out of tolerance" against itself.
-	try:
-		per_unit = calculate_chargeable_quantity(rule, params, None)
-		baseline = per_unit * float(doc_qty or 0) if doc_qty else per_unit
-	except ValueError:
-		baseline = None
+	if not pricing["enabled"]:
+		raise ValueError("UOM pricing is disabled for this item.")
+	if not pricing["pricing_uom"]:
+		raise ValueError("The pricing rule needs a pricing UOM.")
+	doc_qty = float(doc_qty)
+	rate_per_uom = float(rate_per_uom)
+	if not math.isfinite(doc_qty) or doc_qty <= 0:
+		raise ValueError("Document quantity must be positive and finite.")
+	if not math.isfinite(rate_per_uom) or rate_per_uom < 0:
+		raise ValueError("Rate per UOM must be non-negative and finite.")
+	# Direct entry has no theoretical baseline. Formula errors must surface;
+	# a piece count is never a substitute for missing metres, area or weight.
+	baseline = None
+	if rule.get("formula_mode") != "Direct Entry":
+		baseline = calculate_chargeable_quantity(rule, params, None) * doc_qty
 
 	user_value = chargeable_override if chargeable_override is not None else direct_entry_value
 	qty = None
@@ -177,11 +189,7 @@ def get_pricing_line(
 		if baseline is not None and float(baseline) > 0:
 			qty = float(baseline)
 		else:
-			# No human value and no usable calculated baseline: fall back to the
-			# document quantity instead of resolving a non-positive chargeable
-			# quantity, which is what zeroed the line amount on a Purchase Order
-			# created from the desk UI with Chargeable Qty left blank.
-			qty = float(doc_qty or 0)
+			raise ValueError("Enter the measured chargeable quantity in the pricing UOM.")
 
 	amount_info = calculate_pricing_line(qty, float(rate_per_uom or 0), float(doc_qty or 0))
 	return {
@@ -367,7 +375,7 @@ def get_item_pricing(item_code, side=None):
 		item_doc = frappe.get_doc("Item", item_code)
 	except Exception:
 		item_doc = None
-	for p in (rule.get("params") or [] if rule else []):
+	for p in rule.get("params") or [] if rule else []:
 		symbol = p.get("symbol")
 		if not symbol:
 			continue
@@ -457,23 +465,34 @@ def _calculate_pricing_lines(docname, doctype, accepted_measurements=None, side=
 		ValueError: When the document cannot be read.
 	"""
 	doc = frappe.get_doc(doctype, docname)
+	doc.check_permission("read")
+	side = side or "buying"
+	accepted_measurements = (
+		frappe.parse_json(accepted_measurements)
+		if isinstance(accepted_measurements, str)
+		else accepted_measurements
+	)
 	lines = []
 	for row in doc.get("items") or []:
 		item_code = row.item_code or ""
-		accepted = None
-		if accepted_measurements and item_code in accepted_measurements:
-			accepted = float(accepted_measurements[item_code] or 0)
+		# A row name disambiguates two lots of the same Item. Keep item-code
+		# input as a compatibility fallback for existing callers.
+		accepted = (accepted_measurements or {}).get(
+			row.name, (accepted_measurements or {}).get(item_code, row.get("custom_chargeable_qty"))
+		)
+		if accepted in (None, "", 0, 0.0):
+			accepted = None
 		pricing = None
-		if accepted and accepted > 0:
-			try:
-				pricing = get_pricing_line(item_code, float(row.get("rate") or 0), float(row.get("qty") or 0), side=side)
-				pricing["chargeable_qty"] = accepted
-				pricing["amount"] = calculate_line_amount(accepted, float(pricing["rate_per_uom"] or 0))
-				pricing["standard_rate"] = standard_line_rate(pricing["amount"], float(row.get("qty") or 0))
-			except ValueError:
-				pricing = None
+		if get_item_pricing(item_code, side)["enabled"]:
+			rate = float(row.get("custom_rate_per_pricing_uom") or 0)
+			if not math.isfinite(rate) or rate <= 0:
+				raise ValueError("Rate per UOM is required for item " + item_code)
+			pricing = get_pricing_line(
+				item_code, rate, row.get("qty"), side=side, chargeable_override=accepted
+			)
 		lines.append(
 			{
+				"row_name": row.name,
 				"item_code": item_code,
 				"accepted_chargeable_qty": accepted,
 				"pricing": pricing,
@@ -520,6 +539,7 @@ def calculate_purchase_order_pricing(po_name, quotation_accepted_measurements=No
 	"""
 	return _calculate_pricing_lines(po_name, "Purchase Order", quotation_accepted_measurements)
 
+
 def calculate_selling_pricing(document_name, doctype, accepted_measurements=None):
 	"""Calculate UOM pricing for the lines of a selling transaction document.
 
@@ -532,8 +552,6 @@ def calculate_selling_pricing(document_name, doctype, accepted_measurements=None
 		dict: {"name": document_name, "lines": [...]} pricing per line.
 	"""
 	return _calculate_pricing_lines(document_name, doctype, accepted_measurements, side="selling")
-
-
 
 
 def _tokenize(expression):

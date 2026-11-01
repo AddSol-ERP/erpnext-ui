@@ -206,8 +206,8 @@ export default function ReceiptLineForm({
     }
 
     const ratio = overrideQty / calcQty;
-    const tooHigh = ratio > 1 + tolerancePlus / 100;
-    const tooLow = ratio < 1 - toleranceMinus / 100;
+    const tooHigh = tolerancePlus > 0 && ratio > 1 + tolerancePlus / 100;
+    const tooLow = toleranceMinus > 0 && ratio < 1 - toleranceMinus / 100;
 
     if (!tooHigh && !tooLow) {
       return null;
@@ -280,7 +280,7 @@ export default function ReceiptLineForm({
   const conversion = conversionPreview(row, info, receivedUom);
   const basis = conversionBasis(row);
   const drift = conversionDrift(row);
-  const isPlate = plateEnabled && plateRow;
+  const isPlate = plateEnabled && plateRow && !pricingUom;
   const plateQty = Number(row?.qty);
   const unitWeight = Number(
     row?.custom_unit_weight_kg ||

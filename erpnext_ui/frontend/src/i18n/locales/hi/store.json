@@ -833,7 +833,11 @@
       "errCircleDiameter": "व्यास दर्ज करें।",
       "errCircleTooBig": "{diameter} mm व्यास का वृत्त {plate} प्लेट में फिट नहीं होता।",
       "errCircleTooSmall": "{diameter} mm व्यास का वृत्त रखने के लिए बहुत छोटा है — यह स्क्रैप बनेगा।",
-      "errRowTooSmall": "{length} x {width} mm रखने के लिए बहुत छोटा है — यह स्क्रैप बन जाएगा।"
+      "errRowTooSmall": "{length} x {width} mm रखने के लिए बहुत छोटा है — यह स्क्रैप बन जाएगा।",
+      "pricingBalance": "चार्ज योग्य शेष ({uom}): स्रोत {source}, ऑफकट {offcuts}, शेष {remainder}।",
+      "pricingOverage": "ऑफकट और स्क्रैप स्रोत से {qty} {uom} अधिक हैं।",
+      "scrapPricingQty": "स्क्रैप चार्ज योग्य मात्रा ({uom})",
+      "piecePricingQty": "प्रति टुकड़ा चार्ज योग्य मात्रा ({uom})"
     },
     "supplierQuotationSettings": {
       "title": "आपूर्तिकर्ता कोटेशन सेटिंग्स",

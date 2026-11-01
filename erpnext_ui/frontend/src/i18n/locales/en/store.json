@@ -833,7 +833,11 @@
       "errRowTooSmall": "{length} x {width} mm is too small to keep — it becomes scrap.",
       "errCircleDiameter": "Enter a diameter.",
       "errCircleTooBig": "A circle with diameter {diameter} mm does not fit inside the {plate} plate.",
-      "errCircleTooSmall": "A circle with diameter {diameter} mm is too small to keep — it becomes scrap."
+      "errCircleTooSmall": "A circle with diameter {diameter} mm is too small to keep — it becomes scrap.",
+      "pricingBalance": "Chargeable balance ({uom}): source {source}, offcuts {offcuts}, remainder {remainder}.",
+      "pricingOverage": "Offcuts and scrap exceed the source by {qty} {uom}.",
+      "scrapPricingQty": "Scrap chargeable quantity ({uom})",
+      "piecePricingQty": "Chargeable quantity per piece ({uom})"
     },
     "supplierQuotationSettings": {
       "title": "Supplier Quote Settings",

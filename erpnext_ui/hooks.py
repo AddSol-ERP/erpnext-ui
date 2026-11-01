@@ -158,6 +158,7 @@ override_doctype_class = {
 	"Purchase Receipt": "erpnext_ui.overrides.UomPricingPurchaseReceipt",
 	"Purchase Invoice": "erpnext_ui.overrides.UomPricingPurchaseInvoice",
 	"Purchase Order": "erpnext_ui.overrides.UomPricingPurchaseOrder",
+	"Supplier Quotation": "erpnext_ui.overrides.UomPricingSupplierQuotation",
 	"Quotation": "erpnext_ui.overrides.UomPricingSalesQuotation",
 	"Sales Order": "erpnext_ui.overrides.UomPricingSalesOrder",
 	"Delivery Note": "erpnext_ui.overrides.UomPricingDeliveryNote",
@@ -266,6 +267,8 @@ make_email_body_message = "erpnext_ui.email_hooks.remove_erpnext_footer_from_sup
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
+after_sync = ["erpnext_ui.patches.v1_0.add_uom_pricing_snapshot.execute"]
 
 after_migrate = [
 	"erpnext_ui.setup.workflows.setup_workflows",

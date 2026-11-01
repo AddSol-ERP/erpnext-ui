@@ -921,7 +921,7 @@ export default function PurchaseReceiptForm() {
         errs.items = t("store.receipt.validation.plateLookupFailed");
         break;
       }
-      const isPlate = plateConfig.enabled && plateStatus[row._rid];
+      const isPlate = plateConfig.enabled && plateStatus[row._rid] && !pricingUomByRid[row._rid];
       if (info?.failed) {
         errs.items = t("store.receipt.uomLookupFailed");
         break;

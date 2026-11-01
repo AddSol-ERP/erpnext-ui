@@ -3,6 +3,7 @@ from erpnext.accounts.doctype.pos_invoice.pos_invoice import POSInvoice
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from erpnext.buying.doctype.purchase_order.purchase_order import PurchaseOrder
+from erpnext.buying.doctype.supplier_quotation.supplier_quotation import SupplierQuotation
 from erpnext.selling.doctype.quotation.quotation import Quotation
 from erpnext.selling.doctype.sales_order.sales_order import SalesOrder
 from erpnext.stock.doctype.delivery_note.delivery_note import DeliveryNote
@@ -38,23 +39,26 @@ def _apply_uom_pricing(doc, side):
 		return
 	if not uom_pricing.is_uom_pricing_enabled(side):
 		return
+	if doc.doctype == "Material Request" and doc.get("material_request_type") != "Purchase":
+		return
 	for row in doc.get("items") or []:
 		item_code = row.get("item_code") if hasattr(row, "get") else getattr(row, "item_code", None)
 		if not item_code:
 			continue
+		if not uom_pricing.get_item_pricing(item_code, side)["enabled"]:
+			continue
 		doc_qty = float((row.get("qty") if hasattr(row, "get") else getattr(row, "qty", 0)) or 0)
 		if not doc_qty:
 			continue
-		# Prefer the dedicated per-UOM rate field; fall back to `rate` for
-		# documents created before the field existed or when pricing is off.
+		# A standard piece rate must never masquerade as a pricing-UOM rate.
 		per_uom_rate = None
 		if hasattr(row, "get"):
 			per_uom_rate = row.get("custom_rate_per_pricing_uom")
 		else:
 			per_uom_rate = getattr(row, "custom_rate_per_pricing_uom", None)
-		per_uom_rate_entered = bool(str(per_uom_rate or "").strip())
-		if not per_uom_rate:
-			per_uom_rate = row.get("rate") if hasattr(row, "get") else getattr(row, "rate", 0)
+		per_uom_rate_entered = bool(per_uom_rate) and float(per_uom_rate) > 0
+		if not per_uom_rate_entered:
+			raise ValueError("Rate per UOM is required for item " + item_code)
 		# User-entered chargeable qty in the pricing UOM; fall back to using
 		# the calculated value (which is what happens when the field was not yet
 		# added to the row form, so it stays blank).
@@ -63,11 +67,11 @@ def _apply_uom_pricing(doc, side):
 			cq = row.get("custom_chargeable_qty")
 		else:
 			cq = getattr(row, "custom_chargeable_qty", None)
-		if cq is not None and str(cq).strip():
+		if cq not in (None, "", 0, 0.0) and str(cq).strip():
 			try:
 				chargeable_override = float(cq)
-			except (TypeError, ValueError):
-				chargeable_override = None
+			except (TypeError, ValueError) as exc:
+				raise ValueError("Invalid chargeable quantity for item " + item_code) from exc
 		try:
 			pricing = uom_pricing.get_pricing_line(
 				item_code,
@@ -77,22 +81,19 @@ def _apply_uom_pricing(doc, side):
 				direct_entry_value=None,
 				chargeable_override=chargeable_override,
 			)
-		except ValueError:
-			continue
+		except ValueError as exc:
+			raise ValueError(f"Item {item_code}: {exc}") from exc
 
-		# Per-UOM pricing is enabled for this item, but no Rate per UOM was
-		# entered: fail the save with a clear error instead of silently netting
-		# the line on a fallback rate (e.g. one carried from a previous purchase
-		# or the ordered net price). The operator must give the per-UOM rate.
-		if pricing.get("enabled") and not per_uom_rate_entered:
-			raise ValueError(
-				"Rate per UOM is required for item "
-				+ item_code
-				+ " (pricing UOM "
-				+ str(pricing.get("pricing_uom") or "")
-				+ ")."
-			)
 
+		row.custom_pricing_uom = pricing["pricing_uom"]
+		row.custom_pricing_snapshot = frappe.as_json(
+			{
+				"pricing_uom": pricing["pricing_uom"],
+				"chargeable_qty": pricing["chargeable_qty"],
+				"rule": pricing["rule"],
+				"params_by_symbol": uom_pricing.get_item_pricing(item_code, side)["params_by_symbol"],
+			}
+		)
 		new_rate = float(pricing["standard_rate"] or 0)
 		new_amount = float(pricing["amount"] or 0)
 
@@ -125,8 +126,8 @@ def _apply_uom_pricing(doc, side):
 			override_qty = float(pricing["chargeable_qty"] or 0)
 			if calc_qty > 0:
 				ratio = override_qty / calc_qty
-				too_high = ratio > (1 + tolerance_plus / 100)
-				too_low = ratio < (1 - tolerance_minus / 100)
+				too_high = tolerance_plus > 0 and ratio > (1 + tolerance_plus / 100)
+				too_low = tolerance_minus > 0 and ratio < (1 - tolerance_minus / 100)
 				if too_high or too_low:
 					raise ValueError(
 						f"Chargeable qty {override_qty} "
@@ -187,10 +188,7 @@ def _apply_uom_pricing(doc, side):
 	# actually contribute to the PO/PI/etc. total (super().validate() already ran
 	# with the pre-pricing amounts).
 	if hasattr(doc, "calculate_taxes_and_totals"):
-		try:
-			doc.calculate_taxes_and_totals()
-		except Exception:
-			pass
+		doc.calculate_taxes_and_totals()
 
 
 class UomPricingPurchaseReceipt(PurchaseReceipt):
@@ -253,6 +251,12 @@ class UomPricingMaterialRequest(MaterialRequest):
 	never resolve a buying rule) are left untouched.
 	"""
 
+	def validate(self):
+		super().validate()
+		_apply_uom_pricing(self, "buying")
+
+
+class UomPricingSupplierQuotation(SupplierQuotation):
 	def validate(self):
 		super().validate()
 		_apply_uom_pricing(self, "buying")

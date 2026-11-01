@@ -851,7 +851,11 @@
       "errCircleDiameter": "أدخل القطر.",
       "errCircleTooBig": "الدائرة بقطر {diameter} مم لا تتسع داخل اللوح {plate}.",
       "errCircleTooSmall": "الدائرة بقطر {diameter} مم صغيرة جدًا للاحتفاظ بها — ستصبح خردة.",
-      "errRowTooSmall": "{length} x {width} مم أصغر من أن يُحتفظ به — وسيصبح خردة."
+      "errRowTooSmall": "{length} x {width} مم أصغر من أن يُحتفظ به — وسيصبح خردة.",
+      "pricingBalance": "رصيد الكمية ({uom}): المصدر {source}، القطع {offcuts}، المتبقي {remainder}.",
+      "pricingOverage": "تتجاوز القطع والخردة المصدر بمقدار {qty} {uom}.",
+      "scrapPricingQty": "كمية الخردة المحتسبة ({uom})",
+      "piecePricingQty": "الكمية المحتسبة لكل قطعة ({uom})"
     },
     "supplierQuotationSettings": {
       "title": "إعدادات عروض أسعار الموردين",

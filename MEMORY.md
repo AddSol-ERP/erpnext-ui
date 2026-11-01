@@ -3141,3 +3141,20 @@ reported existing issues in `.smoke-tmp/rules.jsx`, `.smoke-tmp/storecheck.jsx`,
 `.smoke-tmp/domShim.js`, `.smoke-tmp/entry.jsx`, and
 `src/pages/ESS/requests/expense/ExpenseClaimForm.jsx`; avoid changing those
 unless the task is to fix their lint errors.
+
+
+## Per-UOM validation and offcut snapshots (2026-11-02)
+
+Enabled items fail validation on broken/missing Formula inputs or a missing
+Direct Entry measurement. Document quantity never substitutes for another UOM.
+Blank Formula measurements use the calculated baseline; Frappe normalizes blank
+Float fields to zero, so stored zero `custom_chargeable_qty` means no override.
+The dedicated rate must be positive. Disabled items remain untouched; a zero
+plus/minus tolerance leaves that side unrestricted. Supplier Quotation has the
+same server-side override as other buying documents. Tax/total failures surface.
+
+`add_uom_pricing_snapshot` persists effective UOM, formula/parameters and measured
+quantity on transaction rows. `addsol_nl_custom` stamps per-piece snapshots and
+allocates the source serial's current inventory valuation to offcuts. Migrate
+ERP UI first, then the custom app. Legacy fields and historical Kg records stay.
+Local pricing tests: `python3 -m unittest discover -s tests -v`.

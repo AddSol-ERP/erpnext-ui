@@ -42,6 +42,7 @@ export function expandRows(rows) {
         // stops a slow answer landing on the wrong row.
         name: `${row._rid}#${i}`,
         shape: row.shape || "Rectangle",
+        pricing_qty: row.pricing_qty,
         ...(row.shape === "Circle"
           ? { diameter_mm: row.diameter_mm }
           : { length_mm: row.length_mm, width_mm: row.width_mm }),
@@ -77,10 +78,12 @@ export function aggregateEstimates(rows, estimates) {
       weight_kg: 0,
       theoretical_weight_kg: 0,
       value: 0,
+      pricing_qty: 0,
     };
     prev.weight_kg += Number(est.weight_kg) || 0;
     prev.theoretical_weight_kg += Number(est.theoretical_weight_kg) || 0;
     prev.value += Number(est.value) || 0;
+    prev.pricing_qty += Number(est.pricing_qty) || 0;
     out.set(rid, prev);
   }
   return out;
@@ -131,11 +134,12 @@ export function serverReason(err) {
  * @throws  whatever the server raised -- the caller decides whether to clear the
  *          numbers or surface the message
  */
-export async function fetchEstimate(sourceSerialNo, rows, scrapWeightKg = 0) {
+export async function fetchEstimate(sourceSerialNo, rows, scrapWeightKg = 0, scrapPricingQty = 0) {
   const res = await post(`method/${OFFCUT_ESTIMATE_METHOD}`, {
     source_serial_no: sourceSerialNo,
     rows: JSON.stringify(expandRows(rows)),
     scrap_weight_kg: scrapWeightKg,
+    scrap_pricing_qty: scrapPricingQty,
   });
   const payload = res?.message || {};
   return {

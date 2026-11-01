@@ -176,6 +176,7 @@ export default function PlateOffcutForm() {
             width_mm: row.width_mm ?? "",
             diameter_mm: row.diameter_mm ?? "",
             serial_no: row.serial_no,
+            pricing_qty: row.pricing_qty,
               pieces: 1,
               weight_kg: row.weight_kg,
               theoretical_weight_kg: row.theoretical_weight_kg,
@@ -193,6 +194,11 @@ export default function PlateOffcutForm() {
             });
           }
           setEstimate({
+            pricing_uom: full.pricing_uom,
+            source_pricing_qty: full.source_pricing_qty,
+            total_offcut_pricing_qty: full.total_offcut_pricing_qty,
+            consumed_pricing_qty: full.consumed_pricing_qty,
+            formula_mode: full.source_pricing_snapshot ? JSON.parse(full.source_pricing_snapshot).rule.formula_mode : "",
             source_weight_kg: full.source_weight_kg,
             total_offcut_weight_kg: full.total_offcut_weight_kg,
             total_offcut_value: full.total_offcut_value,
@@ -256,7 +262,7 @@ export default function PlateOffcutForm() {
       debounceTimer.current = setTimeout(() => {
         // A slow earlier reply must never overwrite a newer answer.
         const seq = ++estimateSeq.current;
-        fetchEstimate(serialNo, currentRows, scrapWeightKg)
+        fetchEstimate(serialNo, currentRows, scrapWeightKg, docRef.current?.scrap_pricing_qty || 0)
           .then((payload) => {
             if (seq !== estimateSeq.current) return;
             setPlateNotice("");
@@ -434,6 +440,7 @@ export default function PlateOffcutForm() {
     out.doctype = DOCTYPE;
     out.project = docRef.current?.project || doc?.project || "";
     out.scrap_weight_kg = num(doc?.scrap_weight_kg);
+    out.scrap_pricing_qty = num(doc?.scrap_pricing_qty);
     // `pieces` becomes real child rows. Nothing client-only survives: the server
     // recomputes offcut_item / theoretical_weight_kg / weight_kg / value in
     // validate(), so posting them back would be stale at best.
@@ -787,7 +794,7 @@ export default function PlateOffcutForm() {
           />
         </FormField>
 
-        <FormField
+        {!estimate?.pricing_uom && <FormField
           label={t("store.plateOffcut.scrapWeight")}
           error={fieldErrors.scrap_weight_kg}
           hint={t("store.plateOffcut.scrapHint")}
@@ -801,7 +808,21 @@ export default function PlateOffcutForm() {
             disabled={submitted}
             onChange={(event) => onScrapWeightChange(event.target.value)}
           />
-        </FormField>
+        </FormField>}
+
+        {estimate?.pricing_uom && <div className="space-y-3 rounded-lg border border-border p-3">
+          <p className="text-sm">{t("store.plateOffcut.pricingBalance", { uom: estimate.pricing_uom, source: estimate.source_pricing_qty, offcuts: estimate.total_offcut_pricing_qty, remainder: estimate.consumed_pricing_qty })}</p>
+          {estimate.over_by_pricing_qty > 0 && <p className="text-sm text-destructive">{t("store.plateOffcut.pricingOverage", { qty: estimate.over_by_pricing_qty, uom: estimate.pricing_uom })}</p>}
+          <FormField label={t("store.plateOffcut.scrapPricingQty", { uom: estimate.pricing_uom })}>
+            <Input type="number" min="0" step="any" disabled={submitted} value={doc?.scrap_pricing_qty ?? 0} onChange={(event) => {
+              const next = { ...docRef.current, scrap_pricing_qty: event.target.value };
+              docRef.current = next;
+              setDoc(next);
+              setDirty(true);
+              requestEstimate(next.source_serial_no, rows, next.scrap_weight_kg || 0);
+            }} />
+          </FormField>
+        </div>}
 
         {/* Everything below is DERIVED by the server from the serial
             (PlateOffcut.set_source) and is shown only to confirm what is about
@@ -992,6 +1013,14 @@ export default function PlateOffcutForm() {
                         </TableCell>
                         <TableCell className="text-end tabular-nums text-muted-foreground">
                           {shown ? shown.value.toFixed(2) : "—"}
+                          {estimate?.pricing_uom && <div className="mt-1 text-xs">
+                            {estimate.formula_mode === "Direct Entry" && !submitted ? <Input
+                              type="number" min="0" step="any" className="h-8" value={row.pricing_qty ?? ""}
+                              aria-label={t("store.plateOffcut.piecePricingQty", { uom: estimate.pricing_uom })}
+                              placeholder={estimate.pricing_uom}
+                              onChange={(event) => updateRowAndEstimate(row._rid, { pricing_qty: event.target.value })}
+                            /> : `${shown?.pricing_qty ?? row.pricing_qty ?? "—"} ${estimate.pricing_uom}`}
+                          </div>}
                         </TableCell>
                         <TableCell>
                           {!submitted ? (
@@ -1190,6 +1219,7 @@ function expandForSave(row) {
     const child = row.shape === "Circle"
       ? { shape: "Circle", diameter_mm: row.diameter_mm }
       : { shape: "Rectangle", length_mm: row.length_mm, width_mm: row.width_mm };
+    child.pricing_qty = row.pricing_qty;
     if (i === 0 && row.saved_name) child.name = row.saved_name;
     out.push(child);
   }

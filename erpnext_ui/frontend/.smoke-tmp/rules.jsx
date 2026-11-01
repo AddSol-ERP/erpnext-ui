@@ -501,7 +501,7 @@ ok("lineAmount: chargeable qty times rate per UOM",
 
 // The backend resolution the mirror stands for: `get_pricing_line` treats a
 // blank measurement as "not entered" and falls through to the calculated
-// baseline / document quantity, instead of handing `float("")` to the parser.
+// baseline, instead of handing `float("")` to the parser.
 // The RPC estimate path (`calculate_uom_pricing_line`) forwards the caller's
 // Chargeable Qty verbatim, and a blank one used to die with a raw
 // `ValueError: could not convert string to float: ''` -- the line never priced
@@ -4516,7 +4516,7 @@ ok(
   // message instead of netting the line on a fallback rate.
   ok(
     "per-UOM pricing without a Rate per UOM fails the save instead of falling back",
-    /if pricing\.get\("enabled"\) and not per_uom_rate_entered:/.test(overridesSource) &&
+    /if not per_uom_rate_entered:/.test(overridesSource) &&
       /Rate per UOM is required for item/.test(overridesSource),
     "per-UOM pricing must not silently net on a fallback rate when none was entered",
   );
