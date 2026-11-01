@@ -191,7 +191,10 @@ export default function ReceiptLineForm({
   const [toleranceMinus, setToleranceMinus] = useState(0);
 
   const toleranceWarning = useMemo(() => {
-    if (chargeableOverride == null || (tolerancePlus === 0 && toleranceMinus === 0)) {
+    if (
+      chargeableOverride == null ||
+      (tolerancePlus === 0 && toleranceMinus === 0)
+    ) {
       return null;
     }
 
@@ -227,7 +230,14 @@ export default function ReceiptLineForm({
         uom: pricingUom,
       }),
     };
-  }, [chargeableOverride, tolerancePlus, toleranceMinus, pricingResult, pricingUom, t]);
+  }, [
+    chargeableOverride,
+    tolerancePlus,
+    toleranceMinus,
+    pricingResult,
+    pricingUom,
+    t,
+  ]);
 
   // Fetch tolerance settings from server when pricing UOM changes
   useEffect(() => {
@@ -820,7 +830,7 @@ export default function ReceiptLineForm({
           leaving it blank keeps the theoretical estimate in effect. */}
       {pricingUom ? (
         <FormField
-          label={t("store.form.actualChargeableQty")}
+          label={t("store.form.actualChargeableQty", { uom: pricingUom })}
           hint={t("store.form.actualChargeableQtyHint", { uom: pricingUom })}
           required={false}
         >
@@ -890,7 +900,10 @@ export default function ReceiptLineForm({
             </span>
             {/* User-entered chargeable qty takes precedence in preview */}
             <span className="font-medium tabular-nums">
-              {chargeableOverride != null ? chargeableOverride : pricingResult?.chargeable_qty ?? "—"} {pricingUom}
+              {chargeableOverride != null
+                ? chargeableOverride
+                : (pricingResult?.chargeable_qty ?? "—")}{" "}
+              {pricingUom}
             </span>
           </div>
           {/* Tolerance warning */}
@@ -907,7 +920,11 @@ export default function ReceiptLineForm({
             </span>
             <span className="font-medium tabular-nums">
               {chargeableOverride != null && Number(row?.qty) > 0
-                ? formatRupees((chargeableOverride * Number(row.custom_rate_per_pricing_uom)) / Number(row.qty))
+                ? formatRupees(
+                    (chargeableOverride *
+                      Number(row.custom_rate_per_pricing_uom)) /
+                      Number(row.qty),
+                  )
                 : formatRupees(pricingResult?.standard_rate ?? 0)}
             </span>
           </div>
@@ -917,7 +934,10 @@ export default function ReceiptLineForm({
             </span>
             <span className="tabular-nums">
               {chargeableOverride != null
-                ? formatRupees(chargeableOverride * Number(row.custom_rate_per_pricing_uom || 0))
+                ? formatRupees(
+                    chargeableOverride *
+                      Number(row.custom_rate_per_pricing_uom || 0),
+                  )
                 : formatRupees(pricingResult?.amount ?? 0)}
             </span>
           </div>

@@ -95,6 +95,29 @@ function set_row_field(frm, row, enabled) {
 	}
 }
 
+// Resolve the estimated chargeable quantity for one item row: what the line
+// will be charged on when the operator leaves Chargeable Qty blank. The
+// backend falls back to the document quantity for such lines, so the estimate
+// shown here is the value the submit will effectively price from.
+function resolve_item_estimate(frm, row, callback) {
+	frappe.call({
+		method: "erpnext_ui.api.calculate_uom_pricing_line",
+		args: {
+			item_code: row.item_code,
+			rate_per_uom: row.rate || 0,
+			doc_qty: row.qty || 0,
+			side: get_side(frm),
+			chargeable_qty: null,
+		},
+		callback: function (r) {
+			callback((r && r.message) || null);
+		},
+		error: function () {
+			callback(null);
+		},
+	});
+}
+
 // Apply pricing API response to item row.
 function apply_item_pricing(frm, row, force = false) {
 	if (!row) return;
@@ -125,6 +148,28 @@ function apply_item_pricing(frm, row, force = false) {
 
 			// Enable only when pricing rule exists.
 			set_row_field(frm, row, result.enabled);
+
+			if (!result.enabled) {
+				return;
+			}
+
+			// Chargeable Qty left blank: show the estimated value for this line
+			// and seed it so the desk surface displays what the line will be
+			// charged on. The user can still overwrite it afterwards.
+			if (!row.custom_chargeable_qty) {
+				resolve_item_estimate(frm, row, function (est) {
+					if (REQUESTS[cdn] !== request_id || row.item_code !== item_code) {
+						return;
+					}
+					if (est && est.chargeable_qty) {
+						row.custom_chargeable_qty = est.chargeable_qty;
+						const grid_row = get_grid_row(frm, row);
+						if (grid_row) {
+							grid_row.doc.custom_chargeable_qty = est.chargeable_qty;
+						}
+					}
+				});
+			}
 		},
 		force,
 	);

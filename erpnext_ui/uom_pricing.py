@@ -161,12 +161,14 @@ def get_pricing_line(
 		qty = float(user_value)
 		if not math.isfinite(qty) or qty <= 0:
 			raise ValueError("Chargeable quantity must be positive and finite.")
-	elif baseline is not None:
-		qty = baseline
+	elif baseline is not None and float(baseline) > 0:
+		qty = float(baseline)
 	else:
-		# Direct Entry with no measurement supplied. This still raises, exactly as
-		# before, so a line missing its measurement is never silently repriced.
-		qty = calculate_chargeable_quantity(rule, params, None)
+		# No human value and no usable calculated baseline: fall back to the
+		# document quantity instead of resolving a non-positive chargeable
+		# quantity, which is what zeroed the line amount on a Purchase Order
+		# created from the desk UI with Chargeable Qty left blank.
+		qty = float(doc_qty or 0)
 
 	amount_info = calculate_pricing_line(qty, float(rate_per_uom or 0), float(doc_qty or 0))
 	return {

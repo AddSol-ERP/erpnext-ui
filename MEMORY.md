@@ -2286,6 +2286,21 @@ one surface and is unchanged.
 full line form and never a reduced pane, so the two-screen regression cannot
 silently come back.
 
+**The desk-UI net-amount zero.** A Purchase Order created from the Frappe Desk
+(that renders through `erpnext_ui/public/js/uom_pricing_desk.js` per Item) leaves
+`custom_chargeable_qty` blank, so `_apply_uom_pricing` priced the line from the
+resolved baseline / measurement. When neither was usable the resolved chargeable
+quantity was non-positive and the line amount came out **zero** — the operator
+had filled qty and rate, but an un-filled Chargeable Qty netted nothing. The
+resolution in `get_pricing_line` now falls back to the document quantity when no
+human value and no usable baseline exists, so a priced line still amounts to
+rate × qty.
+
+**Desk estimate display.** `uom_pricing_desk.js` now resolves the estimated
+chargeable quantity per item row (`calculate_uom_pricing_line`) and seeds it
+into the row when Chargeable Qty is left blank, so the desk shows the estimated
+value for the line instead of leaving it empty.
+
 ### 9.9 Logic bugs
 
 1. **`Quality/entry/InspectionForm` "Submit" calls `handleSave`** — it is a second

@@ -520,7 +520,7 @@
       "rate": "Rate",
       "ratePerUom": "Rate per {uom}",
       "ratePerUomHint": "Rate is per {uom}. Standard rate is derived from it.",
-      "actualChargeableQty": "Actual chargeable qty",
+      "actualChargeableQty": "Actual chargeable qty in {uom}",
       "actualChargeableQtyHint": "The quantity actually received or measured in the pricing UOM -- for example, from a weighbridge reading or supplier slip. Leave blank to use the calculated estimate shown below."
     },
     "validation": {
