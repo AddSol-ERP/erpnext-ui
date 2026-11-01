@@ -8,6 +8,16 @@ from erpnext_ui.uom_pricing import calculate_chargeable_quantity
 
 
 def execute():
+	# Existing sites may have logged the rate patch before ITEM_TABLES grew,
+	# and fresh installs mark historical patches complete without running them.
+	# Repair all prerequisites before the backfill SELECT names their columns.
+	from erpnext_ui.patches.v1_0.add_chargeable_qty_field import execute as add_chargeable_qty
+	from erpnext_ui.patches.v1_0.add_uom_pricing_rate_field import execute as add_rate
+	from erpnext_ui.patches.v1_0.add_uom_pricing_snapshot import execute as add_snapshot
+
+	add_rate()
+	add_chargeable_qty()
+	add_snapshot()
 	create_custom_fields(
 		{
 			dt: [
@@ -39,6 +49,20 @@ def execute():
 	# Old snapshots contain the original rule and parameter values. Use those,
 	# never today's Item configuration, to populate historical display fields.
 	for dt in ITEM_TABLES:
+		# A Custom Field record can exist after an interrupted schema update
+		# while its SQL column does not. create_custom_fields skips unchanged
+		# records, so explicitly repair that case through Frappe's schema API.
+		columns = (
+			"custom_rate_per_pricing_uom",
+			"custom_chargeable_qty",
+			"custom_pricing_snapshot",
+			"custom_pricing_uom",
+			"custom_estimated_chargeable_qty",
+			"custom_estimated_pricing_amount",
+		)
+		if any(not frappe.db.has_column(dt, field) for field in columns):
+			frappe.clear_cache(doctype=dt)
+			frappe.db.updatedb(dt)
 		for row in frappe.get_all(
 			dt,
 			filters={"custom_pricing_snapshot": ["is", "set"]},

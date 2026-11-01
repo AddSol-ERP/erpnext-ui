@@ -269,7 +269,6 @@ make_email_body_message = "erpnext_ui.email_hooks.remove_erpnext_footer_from_sup
 # }
 
 after_sync = [
-	"erpnext_ui.patches.v1_0.add_uom_pricing_snapshot.execute",
 	"erpnext_ui.patches.v1_0.add_uom_pricing_estimate_fields.execute",
 ]
 
