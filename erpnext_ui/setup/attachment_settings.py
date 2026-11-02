@@ -13,7 +13,9 @@ def setup_attachment_settings():
 	existing = {row.target_doctype for row in settings.doctype_rules}
 	changed = False
 	for doctype in DOCUMENT_ATTACHMENT_CONFIG:
-		if doctype in existing:
+		# Optional customer apps may not be installed; saving a Link to their
+		# missing DocType makes after_migrate fail link validation for the site.
+		if doctype in existing or not frappe.db.exists("DocType", doctype):
 			continue
 		settings.append(
 			"doctype_rules",
