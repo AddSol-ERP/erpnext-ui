@@ -193,7 +193,9 @@ def _apply_uom_pricing(doc, side):
 	# Recompute document totals/taxes from the new line amounts so priced lines
 	# actually contribute to the PO/PI/etc. total (super().validate() already ran
 	# with the pre-pricing amounts).
-	if hasattr(doc, "calculate_taxes_and_totals"):
+	# Material Request inherits this method through AccountsController, but its
+	# schema has no currency/tax fields. Method presence is not a capability check.
+	if doc.doctype != "Material Request" and hasattr(doc, "calculate_taxes_and_totals"):
 		doc.calculate_taxes_and_totals()
 
 
@@ -249,8 +251,9 @@ class UomPricingMaterialRequest(MaterialRequest):
 	"""Reprice a Purchase indent's rows from the rate per pricing UOM.
 
 	Material Request is an unvalued requisition: it has `rate` and `amount` on
-	its items but no `calculate_taxes_and_totals`, so the shared helper skips the
-	totals pass and only writes the line values. That is deliberate -- an indent
+	its items but no currency/tax fields. It inherits `calculate_taxes_and_totals`
+	through AccountsController, so the shared helper explicitly skips the
+	totals pass for this DocType and only writes the line values. That is deliberate -- an indent
 	carries the agreed rate so the Purchase Order made from it starts from the
 	figure the buyer negotiated instead of zero. `_apply_uom_pricing` already
 	gates on the Buying switch, so Transfer/Issue/Manufacture purposes (which

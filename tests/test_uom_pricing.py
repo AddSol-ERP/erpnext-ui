@@ -187,6 +187,27 @@ class TransactionPricingTests(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			self.run_pricing(self.document(measurement=25)[0])
 
+	def test_purchase_material_request_reprices_without_running_inherited_tax_method(self):
+		doc, row = self.document()
+		doc.doctype = "Material Request"
+		doc.material_request_type = "Purchase"
+
+		def inherited_tax_method():
+			raise AttributeError("Material Request has no currency")
+
+		doc.calculate_taxes_and_totals = inherited_tax_method
+		self.run_pricing(doc)
+		self.assertEqual((row.rate, row.amount), (160, 1600))
+		self.assertEqual(row.custom_pricing_uom, "Square Metre")
+
+	def test_nonpurchase_material_request_remains_unchanged(self):
+		doc, row = self.document()
+		doc.doctype = "Material Request"
+		doc.material_request_type = "Material Transfer"
+		before = dict(row)
+		self.run_pricing(doc)
+		self.assertEqual(row, before)
+
 	def test_tax_failure_is_not_silenced(self):
 		doc, _ = self.document()
 
