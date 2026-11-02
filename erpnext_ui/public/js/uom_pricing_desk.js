@@ -26,6 +26,19 @@ function show_pricing_estimate(frm, row, estimate) {
 	}
 }
 
+function show_saved_pricing_estimate(frm, row) {
+	show_pricing_estimate(frm, row, { enabled: !!row.custom_pricing_uom, pricing_uom: row.custom_pricing_uom });
+}
+
+function refresh_saved_pricing_estimates(frm) {
+	// Refresh also runs after Save. Never write previews back into saved rows:
+	// null versus a stored numeric zero alone can mark the document unsaved.
+	(frm.doc.items || []).forEach((row) => {
+		REQUESTS[row.name] = (REQUESTS[row.name] || 0) + 1;
+		show_saved_pricing_estimate(frm, row);
+	});
+}
+
 function update_pricing_estimate(frm, row) {
 	if (!row) return;
 	const seq = REQUESTS[row.name] = (REQUESTS[row.name] || 0) + 1;
@@ -67,7 +80,7 @@ function update_pricing_estimate(frm, row) {
 BUYING.concat(SELLING).forEach((doctype) => {
 	const child = doctype === "Quotation" ? "Quotation Item" : `${doctype} Item`;
 	frappe.ui.form.on(doctype, {
-		refresh(frm) { (frm.doc.items || []).forEach((row) => update_pricing_estimate(frm, row)); },
+		refresh: refresh_saved_pricing_estimates,
 		material_request_type(frm) { (frm.doc.items || []).forEach((row) => update_pricing_estimate(frm, row)); },
 	});
 	const refreshRow = (frm, cdt, cdn) => update_pricing_estimate(frm, locals[cdt]?.[cdn]);
@@ -76,6 +89,9 @@ BUYING.concat(SELLING).forEach((doctype) => {
 		qty: refreshRow,
 		custom_rate_per_pricing_uom: refreshRow,
 		custom_chargeable_qty: refreshRow,
-		form_render: refreshRow,
+		form_render(frm, cdt, cdn) {
+			const row = locals[cdt]?.[cdn];
+			if (row) show_saved_pricing_estimate(frm, row);
+		},
 	});
 });
