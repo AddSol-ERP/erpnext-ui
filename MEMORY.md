@@ -3188,3 +3188,23 @@ quantity returns `pending: true` with null quantities/rates/amount, avoiding an
 error dialog while an Item is selected before Qty is entered (including older
 cached Desk scripts). `get_pricing_line` stays strict for saved transactions.
 Receipt/Delivery preview effects skip non-positive quantities and pending results.
+
+## Configurable Item code patterns (2026-11-03)
+
+`item_naming.py` and **UI Item Code Rule** opt exact Item Groups into server-side
+code templates combining scalar Item fields (`{item_group}`, `{custom_project}`)
+and effective UOM parameters (`{param.L}`). Use live metadata, no eval/Jinja.
+The rule is disabled by default. Item fields may be combined without pricing.
+Unsaved Item parameters resolve by current override/group rule; mapped fields win.
+Numeric tokens normalize trailing zeroes. Missing values stop naming; duplicate
+combinations use native duplicate-key rejection, never invent a suffix.
+
+`before_naming` caches the generated code, `autoname` reasserts it after the stock
+Item controller, and `validate` covers Document Naming Rules bypassing autoname.
+Reasserting identity also resets child parent links. Existing Items, imports and
+cutting-generated Items keep their codes. Customer hooks in `addsol_nl_custom`
+defer naming when configured but retain plate weight/default logic. Deploy both
+apps and migrate ERP UI to install the new DocType. Desk provides a token picker
+on the rule and Generate Item Code on new Items. No React source/bundles change.
+Local coverage: `python3 -m unittest discover -s tests -v`; site-backed creation
+with both apps still requires deployment verification.

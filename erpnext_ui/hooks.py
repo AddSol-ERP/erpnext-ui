@@ -284,3 +284,13 @@ scheduler_events = {
 		"erpnext_ui.supplier_quotation.expire_supplier_quotation_invitations",
 	],
 }
+
+
+# Generate once before naming, then reassert before insert validation completes.
+doc_events = {
+	"Item": {
+		"before_naming": "erpnext_ui.item_naming.apply_item_code",
+		"autoname": "erpnext_ui.item_naming.apply_item_code",
+		"validate": "erpnext_ui.item_naming.apply_item_code",
+	}
+}

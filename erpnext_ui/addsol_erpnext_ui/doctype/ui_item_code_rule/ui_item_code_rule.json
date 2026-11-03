@@ -1,0 +1,45 @@
+{
+  "doctype": "DocType",
+  "name": "UI Item Code Rule",
+  "module": "Addsol Erpnext UI",
+  "autoname": "field:item_group",
+  "fields": [
+    {
+      "fieldname": "item_group",
+      "label": "Item Group",
+      "fieldtype": "Link",
+      "options": "Item Group",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "enabled",
+      "label": "Enabled",
+      "fieldtype": "Check",
+      "default": "0",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "pattern",
+      "label": "Item Code Pattern",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "description": "Combine Item fields and UOM parameters, e.g. {item_group}-{param.T}x{param.W}x{param.L}. Applies only to new Items in this exact group. Existing codes, imports and cutting-generated Items are preserved."
+    }
+  ],
+  "field_order": [
+    "item_group",
+    "enabled",
+    "pattern"
+  ],
+  "track_changes": 1,
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    }
+  ]
+}

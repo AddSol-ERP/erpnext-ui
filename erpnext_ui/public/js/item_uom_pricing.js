@@ -155,3 +155,21 @@ function update_preview(frm, rule) {
 		},
 	});
 }
+
+frappe.ui.form.on("Item", {
+	refresh(frm) {
+		if (!frm.is_new()) return;
+		frm.add_custom_button(__("Generate Item Code"), async () => {
+			const response = await frappe.call({
+				method: "erpnext_ui.item_naming.preview_item_code",
+				args: { doc: JSON.stringify(frm.doc) },
+			});
+			const code = response.message?.item_code;
+			if (!code) {
+				frappe.msgprint(__("No enabled Item Code Rule for this Item Group."));
+				return;
+			}
+			if (frm.is_new()) await frm.set_value("item_code", code);
+		});
+	},
+});
