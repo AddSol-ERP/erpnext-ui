@@ -1,117 +1,157 @@
 {
-  "doctype": "DocType",
-  "name": "UI Uom Pricing Rule",
-  "module": "Addsol Erpnext UI",
-  "custom": 0,
-  "issingle": 0,
-  "editable_grid": 1,
-  "autoname": "format:{item_group}-{pricing_uom}",
-  "title_field": "item_group",
-  "fields": [
-    {
-      "fieldname": "item_group",
-      "fieldtype": "Link",
-      "label": "Item Group",
-      "options": "Item Group",
-      "reqd": 1
-    },
-    {
-      "fieldname": "enabled",
-      "fieldtype": "Check",
-      "label": "Enabled",
-      "default": "0"
-    },
-    {
-      "fieldname": "pricing_uom",
-      "fieldtype": "Link",
-      "label": "Pricing UOM",
-      "options": "UOM"
-    },
-    {
-      "fieldname": "formula_mode",
-      "fieldtype": "Select",
-      "label": "Formula Mode",
-      "options": "Direct Entry\nFormula",
-      "default": "Formula"
-    },
-    {
-      "fieldname": "formula_expression",
-      "fieldtype": "Data",
-      "label": "Formula Expression"
-    },
-    {
-      "fieldname": "receiving_strategy",
-      "fieldtype": "Select",
-      "label": "Receiving Strategy",
-      "options": "Estimated Only\nSupplier Measurement\nWeighbridge Total Allocation\nOther",
-      "default": "Estimated Only"
-    },
-    {
-      "fieldname": "tolerance_section",
-      "fieldtype": "Section Break",
-      "label": "Chargeable Qty Tolerance"
-    },
-    {
-      "fieldname": "tolerance_plus",
-      "fieldtype": "Percent",
-      "label": "Tolerance Over (+)",
-      "default": "0",
-      "description": "How far the entered chargeable qty may EXCEED the calculated one, as a percentage of it. 0 means this side is not restricted."
-    },
-    {
-      "fieldname": "tolerance_col_break",
-      "fieldtype": "Column Break"
-    },
-    {
-      "fieldname": "tolerance_minus",
-      "fieldtype": "Percent",
-      "label": "Tolerance Under (-)",
-      "default": "0",
-      "description": "How far the entered chargeable qty may FALL SHORT of the calculated one, as a percentage of it. 0 means this side is not restricted."
-    },
-    {
-      "fieldname": "params",
-      "fieldtype": "Table",
-      "label": "Pricing Parameters",
-      "options": "UI Uom Pricing Parameter"
-    },
-    {
-      "fieldname": "item_naming_section",
-      "fieldtype": "Section Break",
-      "label": "Item Naming"
-    },
-    {
-      "fieldname": "enable_item_code",
-      "fieldtype": "Check",
-      "label": "Enable Item Code Generation",
-      "default": "0"
-    },
-    {
-      "fieldname": "item_code_pattern",
-      "fieldtype": "Data",
-      "label": "Item Code Pattern",
-      "depends_on": "eval:doc.enable_item_code",
-      "mandatory_depends_on": "eval:doc.enable_item_code",
-      "description": "Combine Item fields and parameters, e.g. {item_group}-{param.T}x{param.W}x{param.L}. Applies to new Items only."
-    }
-  ],
-  "permissions": [
-    {
-      "role": "System Manager",
-      "read": 1,
-      "write": 1,
-      "create": 1,
-      "delete": 1
-    },
-    {
-      "role": "Administrator",
-      "read": 1,
-      "write": 1,
-      "create": 1,
-      "delete": 1
-    }
-  ],
-  "sort_field": "modified",
-  "sort_order": "DESC",
-  "track_changes": 1
+ "actions": [],
+ "autoname": "format:{item_group}-{pricing_uom}",
+ "creation": "2026-11-03 12:24:00.591031",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_group",
+  "enabled",
+  "pricing_uom",
+  "column_break_yctj",
+  "formula_mode",
+  "formula_expression",
+  "receiving_strategy",
+  "tolerance_section",
+  "tolerance_plus",
+  "tolerance_col_break",
+  "tolerance_minus",
+  "item_naming_section",
+  "enable_item_code",
+  "column_break_ejjx",
+  "item_code_pattern",
+  "section_break_iaek",
+  "params"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Group",
+   "options": "Item Group",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "pricing_uom",
+   "fieldtype": "Link",
+   "label": "Pricing UOM",
+   "options": "UOM"
+  },
+  {
+   "default": "Formula",
+   "fieldname": "formula_mode",
+   "fieldtype": "Select",
+   "label": "Formula Mode",
+   "options": "Direct Entry\nFormula"
+  },
+  {
+   "fieldname": "formula_expression",
+   "fieldtype": "Data",
+   "label": "Formula Expression"
+  },
+  {
+   "default": "Estimated Only",
+   "fieldname": "receiving_strategy",
+   "fieldtype": "Select",
+   "label": "Receiving Strategy",
+   "options": "Estimated Only\nSupplier Measurement\nWeighbridge Total Allocation\nOther"
+  },
+  {
+   "fieldname": "tolerance_section",
+   "fieldtype": "Section Break",
+   "label": "Chargeable Qty Tolerance"
+  },
+  {
+   "default": "0",
+   "description": "How far the entered chargeable qty may EXCEED the calculated one, as a percentage of it. 0 means this side is not restricted.",
+   "fieldname": "tolerance_plus",
+   "fieldtype": "Percent",
+   "label": "Tolerance Over (+)"
+  },
+  {
+   "fieldname": "tolerance_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "How far the entered chargeable qty may FALL SHORT of the calculated one, as a percentage of it. 0 means this side is not restricted.",
+   "fieldname": "tolerance_minus",
+   "fieldtype": "Percent",
+   "label": "Tolerance Under (-)"
+  },
+  {
+   "fieldname": "params",
+   "fieldtype": "Table",
+   "label": "Pricing Parameters",
+   "options": "UI Uom Pricing Parameter"
+  },
+  {
+   "fieldname": "item_naming_section",
+   "fieldtype": "Section Break",
+   "label": "Item Naming"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_item_code",
+   "fieldtype": "Check",
+   "label": "Enable Item Code Generation"
+  },
+  {
+   "depends_on": "eval:doc.enable_item_code",
+   "description": "Combine Item fields and parameters, e.g. {item_group}-{param.T}x{param.W}x{param.L}. Applies to new Items only.",
+   "fieldname": "item_code_pattern",
+   "fieldtype": "Data",
+   "label": "Item Code Pattern",
+   "mandatory_depends_on": "eval:doc.enable_item_code"
+  },
+  {
+   "fieldname": "column_break_yctj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_iaek",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_ejjx",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-03 12:42:34.025445",
+ "modified_by": "Administrator",
+ "module": "Addsol Erpnext UI",
+ "name": "UI Uom Pricing Rule",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Administrator",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "item_group",
+ "track_changes": 1
 }
