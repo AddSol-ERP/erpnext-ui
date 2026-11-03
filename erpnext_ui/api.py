@@ -810,13 +810,9 @@ def get_item_group_pricing_rules(item_group):
 
     if not item_group:
         return []
-    rules = frappe.get_all(
-        "UI Uom Pricing Rule",
-        filters={"item_group": item_group, "enabled": 1},
-        fields=["name", "pricing_uom", "formula_mode", "formula_expression"],
-        ignore_permissions=True,
-    )
-    return rules or []
+    frappe.has_permission("Item", "read", throw=True)
+    rule = uom_pricing.get_pricing_rule(item_group)
+    return [rule] if rule else []
 
 
 @frappe.whitelist(allow_guest=False)

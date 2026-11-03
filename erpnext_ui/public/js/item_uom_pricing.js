@@ -166,7 +166,7 @@ frappe.ui.form.on("Item", {
 			});
 			const code = response.message?.item_code;
 			if (!code) {
-				frappe.msgprint(__("No enabled Item Code Rule for this Item Group."));
+				frappe.msgprint(__("Item code generation is not enabled on the effective UOM Pricing Rule."));
 				return;
 			}
 			if (frm.is_new()) await frm.set_value("item_code", code);

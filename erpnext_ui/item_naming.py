@@ -6,7 +6,7 @@ from string import Formatter
 
 import frappe
 
-RULE_DOCTYPE = "UI Item Code Rule"
+RULE_DOCTYPE = "UI Uom Pricing Rule"
 FIELD_TYPES = {"Data", "Link", "Select", "Int", "Float", "Currency", "Percent", "Check", "Date", "Datetime"}
 EXCLUDED_FIELDS = {"item_code", "name", "naming_series", "amended_from"}
 TOKEN = re.compile(r"^(?:param\.)?[A-Za-z_][A-Za-z0-9_]*$")
@@ -70,19 +70,31 @@ def available_item_fields():
 	]
 
 
-def get_item_code_rule(item_group):
-	if not item_group or not frappe.db.exists("DocType", RULE_DOCTYPE):
+def validate_naming_pattern(pattern, symbols):
+	allowed = {field.fieldname for field in available_item_fields()}
+	for _, token, _, _ in pattern_parts(pattern):
+		if token and token.startswith("param."):
+			if token[6:] not in symbols:
+				raise ValueError(f"Parameter {token} is not defined in this pricing rule.")
+		elif token and (token not in allowed or token in EXCLUDED_FIELDS):
+			raise ValueError(f"Item field {token} is unavailable for naming.")
+
+
+def get_item_code_rule(item_group, override_rule=None):
+	from erpnext_ui.uom_pricing import get_pricing_rule, get_pricing_rule_by_name
+
+	rule = get_pricing_rule_by_name(override_rule) if override_rule else None
+	rule = rule or get_pricing_rule(item_group)
+	if not rule or not rule.get("enable_item_code"):
 		return None
-	return frappe.db.get_value(
-		RULE_DOCTYPE, {"item_group": item_group, "enabled": 1}, ["name", "pattern"], as_dict=True
-	)
+	return frappe._dict(name=rule["name"], pattern=rule["item_code_pattern"])
 
 
 def uses_configured_item_code(doc):
 	# Cutting-generated inventory and imports already own stable external codes.
 	if frappe.flags.in_import or doc.get("custom_is_offcut") or doc.get("custom_is_remainder"):
 		return False
-	return bool(get_item_code_rule(doc.get("item_group")))
+	return bool(get_item_code_rule(doc.get("item_group"), doc.get("custom_uom_pricing_rule")))
 
 
 def numeric_token(value, token):
@@ -124,7 +136,7 @@ def effective_pricing_rule(doc):
 
 
 def generate_item_code(doc):
-	rule = get_item_code_rule(doc.get("item_group"))
+	rule = get_item_code_rule(doc.get("item_group"), doc.get("custom_uom_pricing_rule"))
 	if not rule:
 		return None
 	# A field-only pattern must work without any UOM pricing configuration.

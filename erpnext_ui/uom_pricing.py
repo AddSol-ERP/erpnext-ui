@@ -274,10 +274,40 @@ def calculate_pricing_line(chargeable_qty, rate_per_uom, doc_qty):
 	}
 
 
+def validate_single_enabled_rule(item_group, exclude_name=None, lock=False):
+	"""Serialize rule activation on the group; also reject legacy ambiguity on reads."""
+	if not item_group:
+		return
+	if lock:
+		# Two different UOM rules can be enabled concurrently. Lock their common
+		# group row so both cannot pass validation before either transaction commits.
+		frappe.db.sql("select name from `tabItem Group` where name=%s for update", (item_group,))
+	filters = {"item_group": item_group, "enabled": 1}
+	if exclude_name:
+		filters["name"] = ["!=", exclude_name]
+	if lock:
+		# Use a current locking read: a plain SELECT under REPEATABLE READ may
+		# still see a snapshot from before a concurrent activation committed.
+		query = "select name from `tabUI Uom Pricing Rule` where item_group=%s and enabled=1"
+		values = [item_group]
+		if exclude_name:
+			query += " and name!=%s"
+			values.append(exclude_name)
+		rules = [row[0] for row in frappe.db.sql(query + " limit 2 for update", tuple(values))]
+	else:
+		rules = frappe.get_all("UI Uom Pricing Rule", filters=filters, pluck="name", limit_page_length=2)
+	if (exclude_name and rules) or len(rules) > 1:
+		raise ValueError(
+			f'Item Group "{item_group}" already has enabled pricing rule(s): {", ".join(rules)}. '
+			"Only one rule may be enabled per Item Group. Disable the other rule(s) first."
+		)
+
+
 def get_pricing_rule(item_group):
 	"""Return the enabled UOM pricing rule for an Item Group, if one exists."""
 	if not item_group:
 		return None
+	validate_single_enabled_rule(item_group)
 	fields = [
 		"name",
 		"item_group",
@@ -286,6 +316,8 @@ def get_pricing_rule(item_group):
 		"formula_expression",
 		"receiving_strategy",
 	]
+	if frappe.get_meta("UI Uom Pricing Rule").has_field("enable_item_code"):
+		fields += ["enable_item_code", "item_code_pattern"]
 	# The tolerance columns arrive with `add_chargeable_qty_field`'s sibling
 	# doctype sync. Asking a site that has not migrated yet for them would fail
 	# the WHOLE query and take pricing down with it, so add them only when the
@@ -317,6 +349,8 @@ def get_pricing_rule(item_group):
 		"receiving_strategy": rule["receiving_strategy"],
 		"tolerance_plus": rule.get("tolerance_plus") or 0,
 		"tolerance_minus": rule.get("tolerance_minus") or 0,
+		"enable_item_code": rule.get("enable_item_code") or 0,
+		"item_code_pattern": rule.get("item_code_pattern") or "",
 		"params": params,
 	}
 
@@ -331,6 +365,7 @@ def get_pricing_rule_by_name(rule_name):
 		return None
 	if not getattr(rule_doc, "enabled", 0):
 		return None
+	validate_single_enabled_rule(rule_doc.item_group)
 	params = frappe.get_all(
 		"UI Uom Pricing Parameter",
 		filters={"parent": rule_name},
@@ -348,6 +383,8 @@ def get_pricing_rule_by_name(rule_name):
 		# an absent column reads as "not configured", never as an error.
 		"tolerance_plus": getattr(rule_doc, "tolerance_plus", None) or 0,
 		"tolerance_minus": getattr(rule_doc, "tolerance_minus", None) or 0,
+		"enable_item_code": getattr(rule_doc, "enable_item_code", 0) or 0,
+		"item_code_pattern": getattr(rule_doc, "item_code_pattern", "") or "",
 		"params": params,
 	}
 

@@ -3208,3 +3208,23 @@ apps and migrate ERP UI to install the new DocType. Desk provides a token picker
 on the rule and Generate Item Code on new Items. No React source/bundles change.
 Local coverage: `python3 -m unittest discover -s tests -v`; site-backed creation
 with both apps still requires deployment verification.
+
+## One enabled pricing rule per group; consolidated naming (2026-11-03)
+
+Supersedes the standalone naming configuration above: **UI Uom Pricing Rule**
+now has `enable_item_code` / `item_code_pattern`. Save validation enforces one
+ENABLED rule per Item Group, independent of pricing UOM. Disabled records remain.
+Activation takes a common Item Group lock plus a current locking rule read to
+avoid stale transaction snapshots during concurrent saves. Read-time resolution
+also rejects legacy duplicates, including explicit Item override rule lookups.
+The Desk group-rule endpoint delegates to this strict resolver.
+
+Naming uses the same effective override/group pricing rule and its parameter
+namespace. It does not fall back to a different naming rule when an override
+has naming disabled. The token picker is on the pricing rule and uses its unsaved
+parameter rows. `UI Item Code Rule` is retained as a read-only historical archive.
+`migrate_item_naming_to_pricing_rule` copies enabled legacy patterns only onto a
+single enabled pricing destination; missing/ambiguous/conflicting destinations
+stop migration for review, with legacy data intact. Both naming and pricing
+switches on the rule are opt-in. Global buying/selling pricing switches do not
+control naming. Existing Item codes/snapshots are never rewritten.

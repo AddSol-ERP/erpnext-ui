@@ -157,3 +157,47 @@ class ItemNamingTests(unittest.TestCase):
 		):
 			self.assertEqual(naming.generate_item_code(Doc(brand="ACME")), "ACME")
 			pricing.assert_not_called()
+
+
+class PricingRuleNamingTests(unittest.TestCase):
+	def test_naming_uses_group_pricing_rule_pattern(self):
+		from erpnext_ui import uom_pricing
+
+		with (
+			patch.object(
+				uom_pricing,
+				"get_pricing_rule",
+				return_value={"name": "Plate-Kg", "enable_item_code": 1, "item_code_pattern": "{param.L}"},
+			),
+			patch.object(frappe, "_dict", side_effect=lambda **values: Doc(**values), create=True),
+		):
+			self.assertEqual(naming.get_item_code_rule("Plate").pattern, "{param.L}")
+
+	def test_override_is_shared_by_pricing_and_naming(self):
+		from erpnext_ui import uom_pricing
+
+		with (
+			patch.object(
+				uom_pricing,
+				"get_pricing_rule_by_name",
+				return_value={"name": "Override", "enable_item_code": 1, "item_code_pattern": "OV-{param.W}"},
+			),
+			patch.object(uom_pricing, "get_pricing_rule") as group,
+			patch.object(frappe, "_dict", side_effect=lambda **values: Doc(**values), create=True),
+		):
+			self.assertEqual(naming.get_item_code_rule("Plate", "Override").name, "Override")
+			group.assert_not_called()
+
+	def test_naming_disabled_on_override_does_not_take_group_pattern(self):
+		from erpnext_ui import uom_pricing
+
+		with (
+			patch.object(
+				uom_pricing,
+				"get_pricing_rule_by_name",
+				return_value={"name": "Override", "enable_item_code": 0},
+			),
+			patch.object(uom_pricing, "get_pricing_rule") as group,
+		):
+			self.assertIsNone(naming.get_item_code_rule("Plate", "Override"))
+			group.assert_not_called()
