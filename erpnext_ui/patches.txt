@@ -19,3 +19,4 @@ erpnext_ui.patches.v1_0.add_uom_pricing_snapshot
 erpnext_ui.patches.v1_0.add_uom_pricing_estimate_fields
 
 erpnext_ui.patches.v1_0.migrate_item_naming_to_pricing_rule
+erpnext_ui.patches.v1_0.remove_legacy_item_code_rule

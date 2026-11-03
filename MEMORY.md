@@ -3228,3 +3228,11 @@ single enabled pricing destination; missing/ambiguous/conflicting destinations
 stop migration for review, with legacy data intact. Both naming and pricing
 switches on the rule are opt-in. Global buying/selling pricing switches do not
 control naming. Existing Item codes/snapshots are never rewritten.
+
+### Obsolete naming DocType removed
+
+The standalone `UI Item Code Rule` source files are removed. Upgrade patch
+`remove_legacy_item_code_rule` runs after `migrate_item_naming_to_pricing_rule`
+and deletes the old DocType metadata through Frappe, so it disappears from Desk.
+The patch is a no-op when absent. The earlier transfer still protects enabled
+legacy settings on upgrades. New installations only get UI Uom Pricing Rule.

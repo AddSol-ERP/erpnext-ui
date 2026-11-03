@@ -55,9 +55,10 @@ Duplicate code combinations use ERPNext's duplicate-code rejection. Patterns
 support literal text and tokens, not Python/Jinja expressions. Missing source
 values and unsupported fields stop generation.
 
-Deploy and run `bench --site <site> migrate`. Legacy **UI Item Code Rule** records
-are retained as read-only archives. Their enabled naming patterns migrate onto
+Deploy and run `bench --site <site> migrate`. Legacy **UI Item Code Rule** enabled naming patterns migrate onto
 the group's single enabled pricing rule. Migration stops on a missing/ambiguous
 pricing destination or conflicting pattern, preserving the records for review.
 Configure exactly one enabled pricing rule for each affected group, then retry.
+After the transfer, migration removes the obsolete **UI Item Code Rule** DocType
+from Desk. Fresh installations only contain the combined pricing/naming rule.
 Sites using `addsol_nl_custom` need its shared naming integration deployed too.
