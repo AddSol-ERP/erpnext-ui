@@ -1,24 +1,77 @@
 {
+ "actions": [],
+ "creation": "2026-10-29 14:11:17.294514",
  "doctype": "DocType",
- "name": "UI Uom Pricing Parameter",
- "module": "Addsol Erpnext UI",
- "custom": 0,
- "issingle": 0,
- "istable": 1,
  "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "symbol",
+  "label",
+  "required",
+  "column_break_buaj",
+  "display_order",
+  "data_source",
+  "uom"
+ ],
  "fields": [
-  {"fieldname": "symbol", "fieldtype": "Data", "label": "Symbol", "reqd": 1},
-  {"fieldname": "label", "fieldtype": "Data", "label": "Label"},
-  {"fieldname": "data_source", "fieldtype": "Data", "label": "Data Source"},
-  {"fieldname": "display_order", "fieldtype": "Int", "label": "Display Order", "default": "0"},
-  {"fieldname": "required", "fieldtype": "Check", "label": "Required", "default": "0"},
-  {"fieldname": "uom", "fieldtype": "Link", "label": "Parameter UOM", "options": "UOM"}
+  {
+   "fieldname": "symbol",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "Symbol",
+   "reqd": 1
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "Label",
+   "reqd": 1
+  },
+  {
+   "fieldname": "data_source",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Data Source"
+  },
+  {
+   "default": "0",
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "label": "Display Order"
+  },
+  {
+   "default": "0",
+   "fieldname": "required",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Required"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Parameter UOM",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "column_break_buaj",
+   "fieldtype": "Column Break"
+  }
  ],
- "permissions": [
-  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
-  {"role": "Administrator", "read": 1, "write": 1, "create": 1, "delete": 1}
- ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-03 12:41:57.450933",
+ "modified_by": "Administrator",
+ "module": "Addsol Erpnext UI",
+ "name": "UI Uom Pricing Parameter",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
  "track_changes": 1
 }
