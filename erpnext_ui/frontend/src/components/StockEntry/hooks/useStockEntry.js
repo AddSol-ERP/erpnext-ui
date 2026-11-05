@@ -1,13 +1,15 @@
+import { directIssueLineFields } from "../../../lib/directIssue";
+import { mergeScannedItem, scannedTrackingFields } from "../../../lib/itemQr";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { loadEntryTypesAPI } from "../api/LoadEntryType";
 import { get, post } from "../../../services/api";
 import { useToast } from "../../../context/ToastContext";
 import { localDateISO, localTimeHHMM } from "../../../utils/localDateTime";
-import { STOCK_ENTRY_PURPOSES, stockPurposeForType } from "../../../config/storePurposes";
+import { STOCK_ENTRY_PURPOSES, stockPurposeForType, storeWorkOrderFields } from "../../../config/storePurposes";
 import { fetchAttachmentConfig, uploadAttachment } from "../../../lib/attachments";
 
-export function useStockEntry() {
+export function useStockEntry({ directIssue = false } = {}) {
   const toast = useToast();
   const { t } = useTranslation();
 
@@ -16,7 +18,7 @@ export function useStockEntry() {
   const [toWarehouse, setToWarehouse] = useState("");
   const [entryTypes, setEntryTypes] = useState([]);
   const [showSource, setShowSource] = useState(false);
-  const [selectedType, setSelectedType] = useState("");
+  const [selectedType, setSelectedType] = useState(directIssue ? STOCK_ENTRY_PURPOSES.issue.stockEntryType : "");
 
   // Posting date and time default to now, in local time. Both were `null`
   // before, which rendered two blank inputs on a screen whose whole purpose is
@@ -26,6 +28,7 @@ export function useStockEntry() {
   const [showSubmit, setShowSubmit] = useState(false);
   const [project, setProject] = useState(null);
   const [workOrder, setWorkOrder] = useState(null);
+  const [requestedUser, setRequestedUser] = useState("");
 
   const [invalidItems, setInvalidItems] = useState([]);
   const [showFixModal, setShowFixModal] = useState(false);
@@ -42,12 +45,12 @@ export function useStockEntry() {
   const hasItems = items.length > 0;
 
   const canAddItems = isWarehouseValid;
-  const canSubmit = isWarehouseValid && hasItems;
+  const canSubmit = hasItems && (directIssue ? items.every(row => Boolean(row.issue_warehouse ?? fromWarehouse)) : isWarehouseValid);
 
   const [isSetupManuallyExpanded, setIsSetupManuallyExpanded] = useState(false);
 
   // FINAL VISIBILITY LOGIC
-  const showSetup = !hasItems || isSetupManuallyExpanded;
+  const showSetup = directIssue || !hasItems || isSetupManuallyExpanded;
   const isCompact = hasItems && !isSetupManuallyExpanded;
 
   const resetSetup = () => {
@@ -125,6 +128,15 @@ export function useStockEntry() {
   };
 
   const enrichStock = async (items, warehouse) => {
+    if (directIssue) {
+      const warehouses = [...new Set(items.map(row => row.issue_warehouse ?? warehouse).filter(Boolean))];
+      const results = await Promise.all(warehouses.map(async name => [name, await getStockBatch(items.filter(row => (row.issue_warehouse ?? warehouse) === name).map(row => row.code), name)]));
+      const byWarehouse = Object.fromEntries(results);
+      return items.map(row => {
+        const stock = byWarehouse[row.issue_warehouse ?? warehouse]?.[row.code] || {};
+        return { ...row, stockQty: stock.actual_qty || 0, reservedQty: stock.reserved_qty || 0 };
+      });
+    }
     if (!warehouse || !items.length) return items;
 
     const itemCodes = items.map((i) => i.code);
@@ -152,7 +164,7 @@ export function useStockEntry() {
 
     setItems((prev) =>
       prev.map((i) => {
-        if (i.code !== code) return i;
+        if (i.code !== code || i.qr_labels?.length) return i;
 
         const available = (i.stockQty || 0) - (i.reservedQty || 0);
 
@@ -197,6 +209,7 @@ export function useStockEntry() {
    * never moved and an indent looked owed forever even after goods were issued.
    */
   const loadMappedDocument = async (draft, { stockMode = "strict" } = {}) => {
+    setWorkOrder(draft?.custom_store_work_order || draft?.work_order || null);
     const rows = (draft?.items || []).map((r) => ({
       code: r.item_code,
       name: r.item_name,
@@ -224,6 +237,10 @@ export function useStockEntry() {
   /** Add a single item typed or picked by the user. */
   const addItemByCode = async (itemCode, qty = 1) => {
     if (!itemCode) return;
+    if (items.some(row => row.code === itemCode && row.qr_labels?.length)) {
+      toast.error(t("qr.useScanner"));
+      return;
+    }
 
     let item;
     try {
@@ -261,6 +278,16 @@ export function useStockEntry() {
     );
   };
 
+  const addScannedItem = async (scan) => {
+    if (!fromWarehouse) throw new Error("qr.chooseWarehouse");
+    const existing = items.find(row => row.code === scan.item_code);
+    if (directIssue && existing?.issue_warehouse != null && existing.issue_warehouse !== fromWarehouse) throw new Error("qr.warehouseMismatch");
+    const merged = mergeScannedItem(items, scan, fromWarehouse);
+    let enriched = await enrichStock(merged, fromWarehouse);
+    enriched = await enrichValuation(enriched);
+    setItems(enriched);
+  };
+
   useEffect(() => {
     if (!fromWarehouse || !items.length) return;
 
@@ -275,7 +302,7 @@ export function useStockEntry() {
       setItems((prev) =>
         prev.map((row) => {
           const next = updated.find((u) => u.code === row.code);
-          return next ? { ...row, ...next } : row;
+          return next ? { ...row, stockQty: next.stockQty, reservedQty: next.reservedQty, valuation_rate: next.valuation_rate, valuation_status: next.valuation_status } : row;
         }),
       );
     };
@@ -313,14 +340,20 @@ export function useStockEntry() {
       from_warehouse: fromWarehouse,
       to_warehouse: toWarehouse,
 
-      project: project || undefined,
-      work_order: workOrder || undefined,
+      project: directIssue ? undefined : project || undefined,
+      custom_store_project: directIssue ? project || undefined : undefined,
+      custom_store_requested_by: requestedUser || undefined,
+      custom_store_direct_issue: directIssue ? 1 : 0,
+      ...storeWorkOrderFields(stockPurposeForType(selectedType), workOrder),
 
       items: validItems.map((i) => {
         const item = {
           item_code: i.code,
           qty: i.qty,
           uom: i.uom,
+          ...scannedTrackingFields(i),
+          material_request: i.material_request || undefined,
+          material_request_item: i.material_request_item || undefined,
         };
 
         // Warehouse mapping. showFrom/showTo are not a UI nicety:
@@ -329,6 +362,9 @@ export function useStockEntry() {
         // sending both is not "safe" -- it is a field ERPNext silently drops,
         // which on screen looks like a warehouse that was set and then vanished.
         if (rules.showFromWarehouse) item.s_warehouse = fromWarehouse;
+        if (directIssue) Object.assign(item, directIssueLineFields(i, {
+          warehouse: fromWarehouse, project, workOrder, requestedUser,
+        }));
         if (rules.showToWarehouse) item.t_warehouse = toWarehouse;
 
         // Incoming valuation
@@ -354,6 +390,10 @@ export function useStockEntry() {
   };
 
   const submit = async (initialAttachment) => {
+    if (directIssue && items.some(row => !(row.issue_warehouse ?? fromWarehouse))) {
+      toast.error(t("qr.chooseWarehouse"));
+      return;
+    }
     const invalid = getInvalidItems();
 
     if (invalid.length) {
@@ -436,8 +476,25 @@ export function useStockEntry() {
   const expandSetup = () => setIsSetupManuallyExpanded(true);
   const compactSetup = () => setIsSetupManuallyExpanded(false);
 
+  const updateIssueLine = async (code, field, value) => {
+    const current = items.find(row => row.code === code);
+    if (!current) return;
+    const changed = { ...current, [field]: value };
+    if (field === "reset") {
+      for (const key of ["issue_warehouse", "issue_project", "issue_work_order", "issue_requested_user"]) delete changed[key];
+      delete changed.reset;
+    }
+    setItems(previous => previous.map(row => row.code === code ? changed : row));
+    if (field === "issue_warehouse" || field === "reset") {
+      const warehouse = changed.issue_warehouse ?? fromWarehouse;
+      const stock = warehouse ? await getStockBatch([code], warehouse) : {};
+      setItems(previous => previous.map(row => row.code === code && (row.issue_warehouse ?? fromWarehouse) === warehouse
+        ? { ...row, stockQty: stock[code]?.actual_qty || 0, reservedQty: stock[code]?.reserved_qty || 0 } : row));
+    }
+  };
+
   const updateUOM = (code, uom) => {
-    setItems((prev) => prev.map((i) => (i.code === code ? { ...i, uom } : i)));
+    setItems((prev) => prev.map((i) => (i.code === code && !i.qr_labels?.length ? { ...i, uom } : i)));
   };
 
   const removeInvalidItems = () => {
@@ -481,9 +538,11 @@ export function useStockEntry() {
     setItems,
     items,
     updateQty,
+    updateIssueLine,
     removeItem,
     loadMappedDocument,
     addItemByCode,
+    addScannedItem,
     submit,
     totalQty,
 
@@ -525,6 +584,8 @@ export function useStockEntry() {
     setProject,
     workOrder,
     setWorkOrder,
+    requestedUser,
+    setRequestedUser,
 
     invalidItems,
     removeInvalidItems,

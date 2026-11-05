@@ -242,5 +242,21 @@
     "open": "Attachments",
     "confirmDelete": "Remove {label} from this document?",
     "deleteConfirm": "Remove {label}?"
+  },
+  "qr": {
+    "scan": "Scan item QR",
+    "camera": "Use camera",
+    "link": "Scanned QR link",
+    "use": "Use label",
+    "hint": "Scan the item label with your camera, or paste its link. A USB scanner can enter it here.",
+    "cameraFailed": "Camera unavailable. Allow camera access over HTTPS, or paste the QR link.",
+    "invalid": "Scan a valid item QR label.",
+    "warehouseMismatch": "This serial is not available in the selected warehouse.",
+    "duplicate": "This label or serial has already been scanned.",
+    "batchMismatch": "This item already contains scans from another batch. Issue each batch separately.",
+    "chooseWarehouse": "Select the source warehouse before scanning.",
+    "scannedUnits_one": "{{count}} label scanned",
+    "scannedUnits_other": "{{count}} labels scanned",
+    "useScanner": "Use the scanner to add more units to this scanned item."
   }
 }

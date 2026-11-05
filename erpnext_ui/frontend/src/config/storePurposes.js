@@ -296,3 +296,13 @@ export function requestPurpose(key) {
 export const STORE_FULFILLABLE_TYPES = MATERIAL_REQUEST_TYPES.filter((type) =>
   REQUEST_PURPOSES[requestPurposeForType(type)]?.fulfillableByStore,
 );
+
+/** ERPNext clears work_order on Material Issue; keep an optional Store reference. */
+export function storeWorkOrderFields(purposeKey, workOrder) {
+  const cfg = STOCK_ENTRY_PURPOSES[purposeKey];
+  if (!cfg) throw new Error(`Unknown stock movement purpose: ${purposeKey}`);
+  if (cfg.requiresWorkOrder || purposeKey === "transfer") {
+    return { work_order: workOrder || undefined };
+  }
+  return { custom_store_work_order: workOrder || undefined };
+}

@@ -167,6 +167,7 @@ export default function App() {
           <Route path="/production/work-order" element={<WorkOrderList />} />
           <Route path="/store" element={<StoreDashboard />} />
           <Route path="/store/stock-entry" element={<StockEntryPage />} />
+          <Route path="/store/direct-issue" element={<StockEntryPage key="direct-issue" directIssue />} />
           {/* Store keeper's queue of indents waiting on material. */}
           <Route path="/store/indents" element={<IndentQueue />} />
 

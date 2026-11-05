@@ -2276,14 +2276,15 @@ def get_purchase_receipt_item_labels(name):
     """Build printable QR labels for each received stock unit or tracked lot."""
     from base64 import b64encode
     from io import BytesIO
-    from urllib.parse import quote
+    from erpnext_ui.item_qr import public_label_url
 
     import pyqrcode
     from erpnext.stock.serial_batch_bundle import get_batches_from_bundle, get_serial_nos_from_bundle
-    from frappe.utils import get_url
 
     receipt = frappe.get_doc("Purchase Receipt", name)
     receipt.check_permission("read")
+    if receipt.docstatus != 1:
+        frappe.throw("Submit the Purchase Receipt before printing item labels.")
     supplier = receipt.supplier_name or receipt.supplier
     labels = []
     for item in receipt.items:
@@ -2342,20 +2343,15 @@ def get_purchase_receipt_item_labels(name):
             frappe.throw(f"Item {item.item_code} has too many units to print labels at once.")
 
         for unit_index, unit in enumerate(units, start=1):
-            query = [
-                f"supplier={quote(supplier, safe='')}",
-                f"item={quote(item.name, safe='')}",
-                f"unit={unit_index}",
-            ]
-            if unit.get("batch_number"):
-                query.append(f"batch={quote(unit['batch_number'], safe='')}")
-            if unit.get("serial_number"):
-                query.append(f"serial={quote(unit['serial_number'], safe='')}")
-            query.append(f"qty={quote(str(unit['qty']), safe='')}")
-            tracking_url = (
-                f"{get_url()}/addsol_ui#/store/purchase-receipt/"
-                f"{quote(receipt.name, safe='')}?{'&'.join(query)}"
-            )
+            # New labels open a guest-safe projection, never the internal receipt.
+            stock_qty = unit["qty"]
+            if not unit.get("serial_number") and not (item.serial_and_batch_bundle and batch_quantities):
+                stock_qty *= float(item.conversion_factor or 1)
+            tracking_url = public_label_url({
+                "kind": "receipt", "receipt": receipt.name, "row": item.name, "unit": unit_index,
+                "serial": unit.get("serial_number") or "", "batch": unit.get("batch_number") or "",
+                "qty": stock_qty,
+            })
             qr = pyqrcode.create(tracking_url)
             stream = BytesIO()
             qr.svg(stream, scale=5, quiet_zone=2)

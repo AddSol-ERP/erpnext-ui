@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { directIssueLineFields } from "../erpnext_ui/frontend/src/lib/directIssue.js";
+const defaults={warehouse:"Store A",project:"P1",workOrder:"WO1",requestedUser:"user1@example.com"};
+assert.deepEqual(directIssueLineFields({},defaults),{s_warehouse:"Store A",project:"P1",custom_store_work_order:"WO1",custom_store_requested_by:"user1@example.com"});
+const line={issue_warehouse:"Store B",issue_project:"P2",issue_work_order:"",issue_requested_user:"user2@example.com"};
+assert.deepEqual(directIssueLineFields(line,defaults),{s_warehouse:"Store B",project:"P2",custom_store_work_order:"",custom_store_requested_by:"user2@example.com"});
+assert.equal(directIssueLineFields({issue_project:""},defaults).project,"");
+assert.equal(directIssueLineFields({}, {...defaults,project:"P3"}).project,"P3");
+assert.equal(directIssueLineFields(line,{...defaults,project:"P3"}).project,"P2");
+assert.equal(directIssueLineFields({},{}).custom_store_requested_by,"");
+assert.equal(directIssueLineFields({},{}).s_warehouse,"");
+console.log("Direct issue global and line override checks passed");

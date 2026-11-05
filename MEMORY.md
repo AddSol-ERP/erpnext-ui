@@ -3236,3 +3236,101 @@ The standalone `UI Item Code Rule` source files are removed. Upgrade patch
 and deletes the old DocType metadata through Frappe, so it disappears from Desk.
 The patch is a no-op when absent. The earlier transfer still protects enabled
 legacy settings on upgrades. New installations only get UI Uom Pricing Rule.
+
+## Store Work Order references (2026-11-05)
+
+Store Material Request forms now expose an optional Work Order selector, saved
+as `custom_store_work_order`, restored on edit. Stock Entry shows the selector in
+setup as well as the existing submit dialog. `loadMappedDocument` preserves the
+mapped header reference. `storeWorkOrderFields` routes manufacturing purposes
+and Material Transfer to standard `work_order`, and other purposes (especially
+Material Issue) to the Store reference. ERPNext's `validate_work_order` clears
+standard `work_order` for Material Issue, so using it there loses the selection.
+This reference does not turn an ordinary issue into manufacturing consumption.
+
+The Link Custom Field is created on Material Request and Stock Entry by
+`add_store_work_order_reference`, registered for upgrades and fresh installs.
+It remains copyable so ERPNext's MR -> Stock Entry mapper carries the header.
+Deploy requires `bench migrate`. Existing en/hi/ar Work Order labels are reused.
+
+Checks: targeted ESLint, production build, Work Order payload assertions passed.
+Broader rules smoke: 592 passed / 21 failed; Store SSR: 124 passed / 2 failed
+in checks outside the new behavior. Live-site save/reload and issue submission
+remain pending.
+
+## Physical QR labels, scanning and public item preview (2026-11-05)
+
+`item_qr.py` signs receipt-row/unit and serial locators with HMAC-SHA256 using
+the site encryption key. `/item-preview` is a no-cache guest website route; it
+accepts only verified signatures and renders an explicit projection of Item,
+dimensions/UOM, batch/serial, supplier display name, project/work-order IDs and
+submitted inspection status. No arbitrary-ID guest resolver/API, raw document
+payloads, costs, warehouse/balance or attachments. Output is HTML-escaped and
+noindex/no-referrer. Receipt sources must remain submitted. Serial labels use
+known source documents and bounded source-serial lineage for supplier context.
+
+Receipt and offcut label generators now use the public link. The authenticated
+`resolve_item_qr` endpoint also parses existing receipt/offcut URLs without ever
+fetching them; it rejects foreign hosts and validates source read permissions,
+serial/batch Item ownership and receipt-row membership. Supplied legacy qty is
+ignored. New signed quantities are in stock UOM; serial labels are one stock unit.
+
+`ItemQrScanner` reuses Frappe's same-origin html5-qrcode asset (camera HTTPS),
+provides paste/USB input and stops the camera on close/success/unmount. Store
+Material Issue has a scanner after warehouse selection. `itemQr.js` counts
+scanned units, rejects duplicates, other batches on the same Item row and serials
+from another warehouse, preserves MR linkage and sends standard serial/batch
+fields so ERPNext builds the bundle. Scanned qty/UOM cannot be manually adjusted
+or clamped; remove/rescan instead. Quality Inspection scanner fills item/tracking
+and its source reference without bypassing document save/submit validation.
+Old printed URLs work inside the scanner but must be reprinted for direct guest
+preview. Existing Work Order changes in the working tree remain part of this
+session. New UI strings are translated in en/hi/ar.
+
+Checks: 68 local ERP UI Python tests; 13 customer-app tests; QR payload tests;
+targeted JS/Python lint and production build. Phone camera, guest HTTP route and
+live-site issue/inspection submission remain deployment checks.
+
+### Public preview field expansion
+
+User approved exposing remaining readable item context while keeping stock
+quantities and pricing hidden. Public projection/template now also show item
+description/group, brand/manufacturer, current serial and original receipt
+warehouses (distinct labels), serial status, supplier ID, source type/ID/date,
+PO/MR IDs, heat/batch dates, and inspection ID/type/date where present. Raw
+quantities (including scanned label qty), balances, monetary values and pricing
+fields remain excluded from the public payload. Description is stripped of HTML
+and escaped. Other records' full payloads and private attachments are not exposed.
+
+### Scanner asset origin in local Vite development
+
+The QR decoder script must come from the Frappe backend origin, derived from
+`VITE_API_BASE_URL`, rather than the Vite origin. `frappeAssets.js` resolves the
+asset URL for absolute backend API bases and keeps same-origin deployments on
+their own origin. This fixes localhost:5173 returning 404 for Frappe's bundled
+html5-qrcode asset. Checks: asset URL assertions, targeted ESLint, production build.
+
+## POS-style direct Store issue (2026-11-05)
+
+`/store/direct-issue` reuses the Stock Entry engine with Material Issue fixed.
+It is discoverable on the Store dashboard and through a Direct Issue header
+action on `/store/indents`. Global setup stays open beside the item panel.
+Only a source warehouse is required; Project, Work Order and Requested User
+are optional globally and on every line. `directIssueLineFields` resolves
+nullish line overrides against global defaults; explicit blank optional values
+remain blank, and Use global details resets overrides. Stock is queried using
+each line's effective warehouse. Scan quantities remain tied to scanned labels.
+
+Header defaults are saved as `custom_store_project`, `custom_store_work_order`
+and `custom_store_requested_by`. Effective line values are saved as standard
+`s_warehouse` / `project` and custom Work Order / Requested User links. Direct
+issues omit the native header Project so ERPNext's stock-ledger fallback cannot
+reapply it to a line that explicitly cleared its Project. A direct-issue Check
+marks provenance. Server validation requires Material Issue and source warehouses;
+ERPNext continues enforcing stock/serial/batch and document permissions.
+
+`add_store_issue_recipient` installs header and detail fields on fresh sites;
+`add_store_issue_line_context` reruns it for upgrades that already recorded the
+header patch. Deploy requires migrate. EN/HI/AR labels are supplied. Checks:
+direct issue defaults/overrides, server validation, SSR screen and line rendering,
+targeted lint, production build. Live site submission is pending.

@@ -1,3 +1,5 @@
+import DirectIssueItems from "./components/DirectIssueItems";
+import ItemQrScanner from "../ItemQrScanner";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronUp, ChevronDown, PackageOpen } from "lucide-react";
@@ -12,6 +14,8 @@ import { AttachDialog, RequiredAttachmentDialog } from "@/components/Attachments
 import SubmitModal from "./components/SubmitModal";
 import StockFixModal from "./components/StockFixModal";
 import { Button } from "@/components/ui/button";
+import LinkField from "../LinkField";
+import { FormField } from "../FormField";
 import { Input } from "@/components/ui/input";
 
 const ENTRY_TYPE_LABEL_KEYS = {
@@ -28,8 +32,8 @@ const ENTRY_TYPE_LABEL_KEYS = {
     "store.entryTypes.materialConsumptionForMfg",
 };
 
-export default function StockEntryPage() {
-  const stock = useStockEntry();
+export default function StockEntryPage({ directIssue = false }) {
+  const stock = useStockEntry({ directIssue });
   const [initialAttachment, setInitialAttachment] = useState(null);
   const [showInitialAttachment, setShowInitialAttachment] = useState(false);
   const { setHeader } = useHeader();
@@ -97,7 +101,7 @@ export default function StockEntryPage() {
     }
 
     setHeader({
-      title: t("store.entry.title"),
+      title: t(directIssue ? "store.directIssue.title" : "store.entry.title"),
       subtitle: subtitle || t("store.tiles.stockEntry.description"),
 
       breadcrumbs: [
@@ -150,7 +154,10 @@ export default function StockEntryPage() {
     stock.fromWarehouse,
     stock.toWarehouse,
     stock.items.length,
+    stock.canSubmit,
     stock.attachTarget,
+    stock.requestedUser,
+    directIssue,
   ]);
 
   const selectedTypeLabel = stock.selectedType
@@ -198,15 +205,18 @@ export default function StockEntryPage() {
         addItemByCode={stock.addItemByCode}
       />
 
+      {directIssue && <p className="mb-3 text-sm text-muted-foreground">{t("store.directIssue.scanHint")}</p>}
+
+      <div className={directIssue ? "grid grid-cols-1 items-start gap-4 xl:grid-cols-[340px_minmax(0,1fr)]" : ""}>
       {/* SETUP */}
       {stock.showSetup ? (
         <div className="mb-2 rounded-none bg-card p-4 ring-1 ring-foreground/10">
           <div className="flex items-center justify-between border-b border-border pb-2">
             <div className="text-xs font-semibold text-muted-foreground">
-              {t("store.entry.basicConfig")}
+              {t(directIssue ? "store.directIssue.globalDetails" : "store.entry.basicConfig")}
             </div>
             {/* Show Compact only if items exist */}
-            {stock.items.length > 0 && (
+            {stock.items.length > 0 && !directIssue && (
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -219,12 +229,12 @@ export default function StockEntryPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 pt-3 md:grid-cols-2">
-            <StockEntryTypeSelector
+          <div className={directIssue ? "grid grid-cols-1 gap-3 pt-3" : "grid grid-cols-1 gap-3 pt-3 md:grid-cols-2"}>
+            {!directIssue && <StockEntryTypeSelector
               types={stock.entryTypes}
               selectedType={stock.selectedType}
               setSelectedType={stock.setSelectedType}
-            />
+            />}
 
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1.5">
@@ -258,7 +268,20 @@ export default function StockEntryPage() {
               </div>
             </div>
 
-            <WarehouseSelector {...stock} />
+            {directIssue ? <FormField label={t("store.entry.fromWarehouse")} required>
+              <LinkField doctype="Warehouse" value={stock.fromWarehouse} onChange={stock.setFromWarehouse} filters={{ is_group: 0 }} />
+            </FormField> : <WarehouseSelector {...stock} />}
+            {directIssue && <>
+              <FormField label={t("store.labels.project")}>
+                <LinkField doctype="Project" value={stock.project} onChange={stock.setProject} />
+              </FormField>
+              <FormField label={t("store.directIssue.requestedUser")}>
+                <LinkField doctype="User" value={stock.requestedUser} onChange={stock.setRequestedUser} filters={{ enabled: 1 }} />
+              </FormField>
+            </>}
+            <FormField label={t("store.labels.workOrder")}>
+              <LinkField doctype="Work Order" value={stock.workOrder} onChange={stock.setWorkOrder} />
+            </FormField>
           </div>
         </div>
       ) : (
@@ -290,15 +313,20 @@ export default function StockEntryPage() {
           <div className="text-xs font-semibold text-muted-foreground">
             {t("store.entry.items")}
           </div>
+          {purpose === "issue" && <div className="flex flex-wrap items-center gap-2">
+            {!stock.fromWarehouse && <span className="text-xs text-muted-foreground">{t("qr.chooseWarehouse")}</span>}
+            <ItemQrScanner disabled={!stock.fromWarehouse} onScan={stock.addScannedItem} />
+          </div>}
         </div>
 
-        <ItemList
+        {directIssue ? <DirectIssueItems stock={stock} /> : <ItemList
           items={stock.items}
           updateQty={stock.updateQty}
           removeItem={stock.removeItem}
           updateUOM={stock.updateUOM}
-        />
-        <div className="sticky bottom-0 z-10 -mx-4 mt-3 flex justify-end bg-card/95 px-4 py-2 backdrop-blur">
+        />}
+        <div className="sticky bottom-0 z-10 -mx-4 mt-3 flex justify-end gap-2 bg-card/95 px-4 py-2 backdrop-blur">
+          {directIssue && <Button disabled={!stock.canSubmit} onClick={stock.openSubmitModal}>{t("store.directIssue.issue")}</Button>}
           <Button
             variant="outline"
             size="sm"
@@ -311,6 +339,8 @@ export default function StockEntryPage() {
         </div>
       </div>
     </div>
+
+      </div>
 
       {/* Attach step, opened after the entry has been saved AND submitted --
           this flow has no draft stage to hang a file from. Browse mode: the

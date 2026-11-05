@@ -31,6 +31,7 @@ function StockFixModal({ show, onClose, invalidItems, onRemove, onAdjust }) {
 
         <Button
           className="w-full bg-amber-600 text-white hover:bg-amber-600/85"
+          disabled={invalidItems.some(item => item.qr_labels?.length)}
           onClick={onAdjust}
         >
           {t("store.fix.adjustQty")}

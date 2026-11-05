@@ -100,6 +100,13 @@ const STORE_TILES = [
     descriptionKey: "store.giveItems.description",
   },
   {
+    key: "direct-issue",
+    icon: HandHelping,
+    route: "/store/direct-issue",
+    titleKey: "store.directIssue.title",
+    descriptionKey: "store.directIssue.description",
+  },
+  {
     key: "stock-entry",
     icon: Package,
     route: "/store/stock-entry",

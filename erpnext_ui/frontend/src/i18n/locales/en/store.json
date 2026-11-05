@@ -935,6 +935,17 @@
       "loadFailedTitle": "Could not load pending inspection stock",
       "loadFailedHint": "Check your permissions and try again.",
       "configure": "Configure"
+    },
+    "directIssue": {
+      "title": "Direct Issue",
+      "description": "Scan and issue items to a user without an indent",
+      "requestedUser": "Requested User",
+      "scanHint": "Choose a warehouse, scan items and issue. Other details are optional; each line can override the global defaults.",
+      "quantity": "Quantity",
+      "overrideHint": "Line values inherit global details until edited. Clear an optional value to leave it blank.",
+      "resetDefaults": "Use global details",
+      "issue": "Issue items",
+      "globalDetails": "Global details"
     }
   }
 }

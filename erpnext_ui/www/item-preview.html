@@ -1,0 +1,26 @@
+{% extends "templates/web.html" %}
+{% block title %}Item preview{% endblock %}
+{% block page_content %}
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<style>
+.item-preview { max-width: 720px; margin: 32px auto; padding: 24px; border: 1px solid #ddd; border-radius: 12px; font-family: system-ui, sans-serif; }
+.item-preview h1 { font-size: 24px; overflow-wrap: anywhere; }
+.item-preview dl { display: grid; grid-template-columns: minmax(110px, 1fr) 2fr; gap: 12px; }
+.item-preview dt { color: #555; } .item-preview dd { margin: 0; overflow-wrap: anywhere; }
+</style>
+<main class="item-preview">
+<h1>{{ _("Item preview") }}</h1>
+{% if error %}<p role="alert">{{ _(error) | e }}</p>{% else %}
+<h2>{{ preview.item_name | e }}</h2>
+{% if preview.description %}<p>{{ preview.description | striptags | e }}</p>{% endif %}
+<dl>
+{% for key, label in [("item_code", "Item code"), ("item_group", "Item group"), ("brand", "Brand"), ("manufacturer", "Manufacturer"), ("manufacturer_part_no", "Manufacturer part number"), ("stock_uom", "Stock UOM"), ("warehouse", "Current serial warehouse"), ("receipt_warehouse", "Receipt warehouse"), ("serial_status", "Serial status"), ("supplier_id", "Supplier ID"), ("supplier", "Supplier"), ("project", "Project ID"), ("work_order", "Work Order ID"), ("batch_no", "Batch"), ("serial_no", "Serial number"), ("heat_number", "Heat number"), ("manufacturing_date", "Manufacturing date"), ("expiry_date", "Expiry date"), ("reference_type", "Source document type"), ("reference_name", "Source document ID"), ("receipt_date", "Receipt date"), ("purchase_order", "Purchase Order ID"), ("material_request", "Material Request ID"), ("inspection_status", "Inspection status"), ("inspection_id", "Inspection ID"), ("inspection_type", "Inspection type"), ("inspection_date", "Inspection date")] %}
+{% if preview[key] %}<dt>{{ _(label) }}</dt><dd>{{ preview[key] | e }}</dd>{% endif %}
+{% endfor %}
+{% for label, value in preview.specifications %}<dt>{{ _(label) }}</dt><dd>{{ value | e }}</dd>{% endfor %}
+</dl>
+<p>{{ _("Read-only item information") }}</p>
+{% endif %}
+</main>
+{% endblock %}

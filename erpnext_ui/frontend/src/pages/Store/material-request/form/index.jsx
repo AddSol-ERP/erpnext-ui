@@ -76,6 +76,7 @@ export default function MaterialRequestForm() {
     material_request_type: cfg?.materialRequestType || "",
     company: "",
     customer: "",
+    custom_store_work_order: "",
     schedule_date: "",
     // Form-level for the production purpose (see the `project` field in the
     // header). ERPNext still carries `project` on every Material Request Item,
@@ -190,6 +191,8 @@ export default function MaterialRequestForm() {
         material_request_type: d.material_request_type,
         company: d.company,
         customer: d.customer || "",
+        work_order: d.work_order || "",
+        custom_store_work_order: d.custom_store_work_order || "",
         schedule_date: d.schedule_date || "",
         // ERPNext stores the project per ITEM row, never on the header, so the
         // form-level value is recovered from the first row that carries one.
@@ -854,6 +857,14 @@ export default function MaterialRequestForm() {
             doctype="Company"
             value={doc.company}
             onChange={(v) => setDoc({ ...doc, company: v })}
+          />
+        </FormField>
+
+        <FormField label={t("store.labels.workOrder")} name="custom_store_work_order">
+          <LinkField
+            doctype="Work Order"
+            value={doc.custom_store_work_order}
+            onChange={(value) => setDoc((current) => ({ ...current, custom_store_work_order: value || "" }))}
           />
         </FormField>
 

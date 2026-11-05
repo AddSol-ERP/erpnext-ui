@@ -35,6 +35,9 @@ export default function ItemRow({ item, updateQty, removeItem, updateUOM }) {
         <div className="truncate text-xs text-muted-foreground">
           {item.code}
         </div>
+        {item.qr_labels?.length > 0 && <div className="text-xs text-muted-foreground">
+          {t("qr.scannedUnits", { count: item.qr_labels.length })} · {item.serial_no || item.batch_no || ""}
+        </div>}
       </div>
 
       {/* STOCK INFO */}
@@ -67,6 +70,7 @@ export default function ItemRow({ item, updateQty, removeItem, updateUOM }) {
         <Button
           variant="outline"
           size="icon-sm"
+          disabled={Boolean(item.qr_labels?.length)}
           onClick={() => updateQty(item.code, item.qty - 1)}
           aria-label={t("store.item.decrease")}
         >
@@ -76,12 +80,14 @@ export default function ItemRow({ item, updateQty, removeItem, updateUOM }) {
         <Input
           type="number"
           className="w-16"
+          disabled={Boolean(item.qr_labels?.length)}
           value={item.qty}
           onChange={(e) => updateQty(item.code, e.target.value)}
         />
 
         <FormSelect
           className="h-8 w-20"
+          disabled={Boolean(item.qr_labels?.length)}
           value={item.uom}
           onChange={(v) => updateUOM(item.code, v)}
           options={(item.uomOptions || ["Nos"]).map((u) => ({
@@ -93,6 +99,7 @@ export default function ItemRow({ item, updateQty, removeItem, updateUOM }) {
         <Button
           variant="outline"
           size="icon-sm"
+          disabled={Boolean(item.qr_labels?.length)}
           onClick={() => updateQty(item.code, item.qty + 1)}
           aria-label={t("store.item.increase")}
         >

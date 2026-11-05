@@ -269,6 +269,8 @@ make_email_body_message = "erpnext_ui.email_hooks.remove_erpnext_footer_from_sup
 # }
 
 after_sync = [
+	"erpnext_ui.patches.v1_0.add_store_issue_recipient.execute",
+	"erpnext_ui.patches.v1_0.add_store_work_order_reference.execute",
 	"erpnext_ui.patches.v1_0.add_uom_pricing_estimate_fields.execute",
 ]
 
@@ -288,6 +290,7 @@ scheduler_events = {
 
 # Generate once before naming, then reassert before insert validation completes.
 doc_events = {
+	"Stock Entry": {"validate": "erpnext_ui.store_issue.validate_direct_issue"},
 	"Item": {
 		"before_naming": "erpnext_ui.item_naming.apply_item_code",
 		"autoname": "erpnext_ui.item_naming.apply_item_code",

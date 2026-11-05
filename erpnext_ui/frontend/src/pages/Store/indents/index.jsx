@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, HandHelping } from "lucide-react";
@@ -40,6 +41,7 @@ function statusOf(request) {
 }
 
 export default function IndentQueue() {
+  const navigate = useNavigate();
   const { setHeader } = useHeader();
   const { t } = useTranslation();
 
@@ -69,6 +71,7 @@ export default function IndentQueue() {
 
   useEffect(() => {
     setHeader({
+      actions: [{ label: t("store.directIssue.title"), variant: "btn-primary", onClick: () => navigate("/store/direct-issue") }],
       title: t("store.giveItems.title"),
       subtitle: t("store.giveItems.description"),
       breadcrumbs: [

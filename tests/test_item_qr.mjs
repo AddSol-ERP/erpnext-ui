@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import { mergeScannedItem, scannedTrackingFields } from "../erpnext_ui/frontend/src/lib/itemQr.js";
+const scan = {item_code:"PLATE", item_name:"Plate", stock_uom:"Nos", qty:1, serial_no:"S1", warehouse:"Stores", batch_no:"B1", label_id:"label-1"};
+let rows=mergeScannedItem([{code:"PLATE",qty:10,material_request:"MR1",material_request_item:"MRI1"}],scan,"Stores");
+assert.equal(rows[0].qty,1);
+assert.equal(rows[0].material_request_item,"MRI1");
+assert.throws(()=>mergeScannedItem(rows,scan,"Stores"),/duplicate/);
+assert.throws(()=>mergeScannedItem(rows,{...scan,label_id:"2",serial_no:"S2",batch_no:"B2"},"Stores"),/batchMismatch/);
+assert.throws(()=>mergeScannedItem([],scan,"Other"),/warehouseMismatch/);
+rows=mergeScannedItem(rows,{...scan,serial_no:"S2",label_id:"label-2"},"Stores");
+assert.equal(rows[0].qty,2);
+assert.deepEqual(scannedTrackingFields(rows[0]),{use_serial_batch_fields:1,serial_no:"S1\nS2",batch_no:"B1"});
+assert.deepEqual(scannedTrackingFields({}),{});
+assert.throws(()=>mergeScannedItem([],{...scan,qty:0},"Stores"));
+console.log("QR issue identity and quantity checks passed");

@@ -1,0 +1,17 @@
+import "./domShim.js";
+import assert from "node:assert/strict";
+import { renderToString } from "react-dom/server";
+import { I18nextProvider } from "react-i18next";
+import { HeaderProvider } from "@/context/HeaderContext";
+import { ToastProvider } from "@/context/ToastContext";
+import i18n from "@/i18n/index.js";
+import StockEntryPage from "@/components/StockEntry/StockEntryPage.jsx";
+import DirectIssueItems from "@/components/StockEntry/components/DirectIssueItems.jsx";
+const screen=renderToString(<I18nextProvider i18n={i18n}><ToastProvider><HeaderProvider><StockEntryPage directIssue /></HeaderProvider></ToastProvider></I18nextProvider>);
+for(const label of ["Requested User","Work Order","Project","Scan item QR"]) assert.ok(screen.includes(label),label);
+assert.ok(!screen.includes("store.directIssue."));
+const stock={items:[{code:"PLATE",name:"Plate",qty:2,stockUOM:"Nos",serial_no:"S1\nS2",qr_labels:["a","b"]}],fromWarehouse:"Stores",project:"P1",workOrder:"WO1",requestedUser:"user@example.com"};
+const lines=renderToString(<I18nextProvider i18n={i18n}><DirectIssueItems stock={stock}/></I18nextProvider>);
+for(const label of ["Requested User","Work Order","Project","Use global details"]) assert.ok(lines.includes(label),label);
+assert.ok(!lines.includes("store.directIssue."));
+console.log("Direct issue screen and line controls render successfully");

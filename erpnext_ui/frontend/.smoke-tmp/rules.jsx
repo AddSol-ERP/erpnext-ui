@@ -20,6 +20,7 @@ import {
   buildStockEntryPayload,
   requestPurposeForType,
   stockPurposeForType,
+  storeWorkOrderFields,
 } from "../src/config/storePurposes.js";
 import {
   applyMeasuredTotal,
@@ -5353,6 +5354,11 @@ ok(
     parity.join(", ") || "none",
   );
 }
+
+// Ordinary issues must retain their Store reference; ERPNext clears work_order.
+ok("Store issue keeps Work Order reference", storeWorkOrderFields("issue", "WO-1").custom_store_work_order === "WO-1");
+ok("Store issue avoids manufacturing work_order", !("work_order" in storeWorkOrderFields("issue", "WO-1")));
+ok("Manufacturing keeps standard Work Order", storeWorkOrderFields("manufacture", "WO-1").work_order === "WO-1");
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1,3 +1,4 @@
+import ItemQrScanner from "../../../../components/ItemQrScanner";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -1154,6 +1155,19 @@ export default function InspectionForm() {
   /* ================= UI ================= */
   return (
     <div className="mx-auto w-full max-w-[1100px]">
+      <div className="mb-3">
+        <ItemQrScanner disabled={Boolean(doc.docstatus)} onScan={async scan => {
+          const patch = { item_code: scan.item_code, item_serial_no: scan.serial_no || "", batch_no: scan.batch_no || "" };
+          if (scan.reference_type && scan.reference_name) {
+            patch.reference_type = scan.reference_type;
+            patch.reference_name = scan.reference_name;
+            patch.inspection_type = scan.reference_type === "Purchase Receipt" ? "Incoming" : (doc.inspection_type || "In Process");
+          }
+          updateDoc(patch);
+          setDetailsOpen(true);
+          setFieldErrors({});
+        }} />
+      </div>
       {/* THE DETAILS
           A collapsible strip, not a screen. It starts open and remains open
           until the user collapses it. On a new inspection, Start inspection

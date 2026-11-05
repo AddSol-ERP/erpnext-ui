@@ -62,3 +62,48 @@ Configure exactly one enabled pricing rule for each affected group, then retry.
 After the transfer, migration removes the obsolete **UI Item Code Rule** DocType
 from Desk. Fresh installations only contain the combined pricing/naming rule.
 Sites using `addsol_nl_custom` need its shared naming integration deployed too.
+
+### Item QR scanning and public previews
+
+Receipt labels (submitted receipts only) and the customer app's offcut labels
+now contain a signed `/item-preview?token=...` link. Anyone holding the label
+can open its read-only preview without logging in. The public projection shows
+Item identity/specifications, stock UOM, batch/serial, supplier display name,
+Project ID, Work Order ID, warehouse/location, source document IDs/dates, brand,
+manufacturer, batch dates/heat number and submitted inspection details where available.
+It does not publish prices, stock balances, internal files or contact details.
+Receipt cancellation invalidates its preview. Site encryption-key rotation also
+invalidates existing signed labels. The page is not indexed or cached.
+
+In Store Material Issue, select the source warehouse, then **Scan item QR**.
+Use the camera or paste the decoded link (USB keyboard scanners can enter it).
+Scanning preserves serial/batch identifiers and counts actual scanned stock
+units; a mapped request's planned quantity becomes the scanned quantity on that
+line. Scan more labels to increase it. Duplicate labels/serials and serials from
+another warehouse are refused. One item row accepts a single batch; issue
+another batch separately. Scanned quantity/UOM are locked so identity and quantity
+cannot diverge; remove the row and rescan to correct it. Normal ERPNext stock
+and serial validation still controls submission.
+
+Quality Inspection has the same scanner. It fills Item, serial, batch and known
+receipt/Stock Entry reference; inspection type defaults from the reference. Fill
+any remaining inspection fields normally. Source documents and Items still need
+read permission for in-app scanning.
+
+Camera decoding reuses Frappe's bundled `html5-qrcode` asset on the same site.
+Camera access requires HTTPS and device permission. Paste/USB input remains
+available if the camera is unavailable. Existing receipt/offcut QR formats are
+recognized inside the app. Reprint old labels to make their links open the public
+preview directly; old printed login-only URLs cannot be changed in place.
+Deploy ERP UI and the customer app together, build assets and migrate as usual.
+Live phone-camera and site submission verification is still required.
+
+### Direct issue from Store
+
+Open **Store → Direct Issue**, or **Give Items → Direct Issue**, to issue without
+an indent. Choose the source warehouse, optionally fill Project, Work Order and
+Requested User in **Global details**, then scan or add items. Every item line can
+override those four fields. Untouched line fields follow the global values;
+clearing an optional line field leaves it blank. **Use global details** resets
+that line's overrides. Click **Issue items** to review and submit through the
+normal Stock Entry flow. New header and line fields require `bench migrate`.
