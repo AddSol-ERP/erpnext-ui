@@ -189,3 +189,53 @@ class PublicHiddenValueTests(unittest.TestCase):
 			(public["warehouse"], public["reference_name"], public["serial_status"]),
 			("Stores", "PR1", "Active"),
 		)
+
+
+class PreviewControllerTests(unittest.TestCase):
+	def controller(self, result=None, error=None):
+		import importlib
+
+		helper = types.ModuleType("erpnext_ui.item_qr")
+		helper.get_public_preview = Mock(return_value=result, side_effect=error)
+		# Frappe normalizes hyphens to underscores when importing a WWW controller.
+		with (
+			patch.dict(sys.modules, {"frappe": frappe, "erpnext_ui.item_qr": helper}),
+			patch.object(frappe, "form_dict", {"token": "label-token"}, create=True),
+			patch.object(frappe, "local", types.SimpleNamespace(response={}), create=True),
+			patch.object(frappe, "DoesNotExistError", type("MissingDocument", (Exception,), {}), create=True),
+		):
+			module = importlib.import_module("erpnext_ui.www.item_preview")
+			context = Doc()
+			module.get_context(context)
+			headers = dict(frappe.local.response["headers"])
+			helper.get_public_preview.assert_called_once_with("label-token")
+		return context, headers
+
+	def test_frappe_controller_import_populates_preview(self):
+		preview = {"item_name": "Plate", "item_code": "PLATE", "specifications": []}
+		context, headers = self.controller(result=preview)
+		self.assertEqual(context.preview, preview)
+		self.assertIsNone(context.error)
+		self.assertEqual(context.no_cache, 1)
+		self.assertEqual(headers["Referrer-Policy"], "no-referrer")
+
+	def test_invalid_labels_populate_friendly_error_context(self):
+		context, _ = self.controller(error=ValueError("bad signature"))
+		self.assertIsNone(context.preview)
+		self.assertIn("invalid", context.error)
+		self.assertNotIn("bad signature", context.error)
+
+
+class SharedQrRendererTests(unittest.TestCase):
+	def test_renderer_encodes_the_signed_public_link(self):
+		import base64
+
+		library = types.ModuleType("pyqrcode")
+		image = Mock()
+		image.svg.side_effect = lambda stream, **kwargs: stream.write(b"<svg>QR</svg>")
+		library.create = Mock(return_value=image)
+		locator = {"kind": "serial", "serial": "S1"}
+		with patch.dict(sys.modules, {"pyqrcode": library}):
+			result = qr.label_qr_svg_base64(locator)
+		self.assertEqual(base64.b64decode(result), b"<svg>QR</svg>")
+		self.assertEqual(qr.scan_locator(library.create.call_args.args[0]), locator)

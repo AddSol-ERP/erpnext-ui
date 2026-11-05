@@ -3334,3 +3334,22 @@ ERPNext continues enforcing stock/serial/batch and document permissions.
 header patch. Deploy requires migrate. EN/HI/AR labels are supplied. Checks:
 direct issue defaults/overrides, server validation, SSR screen and line rendering,
 targeted lint, production build. Live site submission is pending.
+
+### Public preview controller discovery fix
+
+Frappe's WWW TemplatePage resolves `item-preview.html` to the Python module
+`item_preview.py` (hyphens normalized to underscores). The original hyphenated
+controller filename was ignored, producing `preview is undefined` on QA.
+Renamed the controller to `www/item_preview.py`; the public URL stays unchanged.
+Tests now import the normalized controller and execute get_context for valid and
+invalid labels, including no-cache/error/header initialization. No QR reprinting
+is required for this filename fix. Clear website cache/restart after deploying.
+
+### QR ownership centralized in ERP UI
+
+`item_qr.label_qr_svg_base64` now owns SVG QR rendering as well as signing and
+public URL creation. Receipt labels call this helper. `addsol_nl_custom` only
+passes an offcut serial locator to it; no customer-side QR rendering, public
+route, preview API or signature implementation remains. The normalized public
+controller is `www/item_preview.py`, with `item-preview.html` unchanged.
+Checks: 77 ERP UI tests, 13 customer-app tests and touched Python lint passed.

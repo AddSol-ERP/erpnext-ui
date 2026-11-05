@@ -43,6 +43,17 @@ def public_label_url(locator):
 	return get_url() + "/item-preview?token=" + quote(encode_label(locator, get_encryption_key()), safe="")
 
 
+def label_qr_svg_base64(locator):
+	"""One shared QR renderer for receipt, serial and customer-app labels."""
+	from io import BytesIO
+
+	import pyqrcode
+
+	stream = BytesIO()
+	pyqrcode.create(public_label_url(locator)).svg(stream, scale=5, quiet_zone=2)
+	return base64.b64encode(stream.getvalue()).decode("ascii")
+
+
 def scan_locator(value):
 	"""Accept new labels and existing receipt/offcut links, never fetch a scanned URL."""
 	if not isinstance(value, str) or len(value) > 8192:

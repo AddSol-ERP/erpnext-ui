@@ -2274,11 +2274,7 @@ def get_purchase_receipt_capabilities():
 @frappe.whitelist(allow_guest=False)
 def get_purchase_receipt_item_labels(name):
     """Build printable QR labels for each received stock unit or tracked lot."""
-    from base64 import b64encode
-    from io import BytesIO
-    from erpnext_ui.item_qr import public_label_url
-
-    import pyqrcode
+    from erpnext_ui.item_qr import label_qr_svg_base64
     from erpnext.stock.serial_batch_bundle import get_batches_from_bundle, get_serial_nos_from_bundle
 
     receipt = frappe.get_doc("Purchase Receipt", name)
@@ -2347,14 +2343,11 @@ def get_purchase_receipt_item_labels(name):
             stock_qty = unit["qty"]
             if not unit.get("serial_number") and not (item.serial_and_batch_bundle and batch_quantities):
                 stock_qty *= float(item.conversion_factor or 1)
-            tracking_url = public_label_url({
+            qr_svg = label_qr_svg_base64({
                 "kind": "receipt", "receipt": receipt.name, "row": item.name, "unit": unit_index,
                 "serial": unit.get("serial_number") or "", "batch": unit.get("batch_number") or "",
                 "qty": stock_qty,
             })
-            qr = pyqrcode.create(tracking_url)
-            stream = BytesIO()
-            qr.svg(stream, scale=5, quiet_zone=2)
             labels.append(
                 {
                     "row": item.name,
@@ -2369,7 +2362,7 @@ def get_purchase_receipt_item_labels(name):
                     "serial_number": unit.get("serial_number"),
                     "unit_index": unit_index,
                     "unit_count": len(units),
-                    "qr_svg_base64": b64encode(stream.getvalue()).decode("ascii"),
+                    "qr_svg_base64": qr_svg,
                 }
             )
     return {"labels": labels}
