@@ -3353,3 +3353,17 @@ passes an offcut serial locator to it; no customer-side QR rendering, public
 route, preview API or signature implementation remains. The normalized public
 controller is `www/item_preview.py`, with `item-preview.html` unchanged.
 Checks: 77 ERP UI tests, 13 customer-app tests and touched Python lint passed.
+
+### Public item preview visual refresh
+
+The server-rendered preview now has a responsive item summary, semantic quality
+badges, serial/location/supplier summary, native jump links and grouped detail
+panels. Dimensions are prominent specification tiles; optional empty groups are
+omitted. Invalid labels have a dedicated error/retry view. Mobile layouts stack
+panels and retain wrapping for long IDs; print CSS omits navigation. All styling
+is scoped to the preview and uses no external fonts/assets or new JS dependencies.
+The projection/signature/public access rules remain unchanged; quantities and
+prices are not rendered. Controller suppresses Frappe's duplicate page title.
+Checks: 82 Python tests, sandboxed template rendering (full/sparse/rejected/error/
+HTML-injection cases), touched Python lint. Visual browser verification was not
+available in this session; actual-device verification remains pending.

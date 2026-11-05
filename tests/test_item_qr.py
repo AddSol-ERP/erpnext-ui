@@ -239,3 +239,99 @@ class SharedQrRendererTests(unittest.TestCase):
 			result = qr.label_qr_svg_base64(locator)
 		self.assertEqual(base64.b64decode(result), b"<svg>QR</svg>")
 		self.assertEqual(qr.scan_locator(library.create.call_args.args[0]), locator)
+
+
+class ModernPreviewTemplateTests(unittest.TestCase):
+	def render(self, preview=None, error=None):
+		from jinja2 import DictLoader
+		from jinja2.sandbox import SandboxedEnvironment
+
+		root = Path(__file__).resolve().parents[1]
+		environment = SandboxedEnvironment(
+			loader=DictLoader(
+				{
+					"templates/web.html": "{% block page_content %}{% endblock %}",
+					"preview": (root / "erpnext_ui/www/item-preview.html").read_text(),
+				}
+			),
+			autoescape=True,
+		)
+		environment.globals["_"] = lambda text: text
+		return environment.get_template("preview").render(preview=preview, error=error)
+
+	def test_sections_status_and_all_available_context_render(self):
+		html = self.render(
+			dict(
+				item_name="Steel plate",
+				item_code="PLATE-10x1250x2500",
+				stock_uom="Nos",
+				specifications=[("Thickness (mm)", 10), ("Width (mm)", 1250)],
+				serial_no="S1",
+				batch_no="B1",
+				warehouse="Stores",
+				supplier="Supplier",
+				project="P1",
+				work_order="WO1",
+				reference_name="PR1",
+				inspection_id="QI1",
+				inspection_status="Accepted",
+				inspection_date="2026-11-05",
+			)
+		)
+		for label in (
+			"Specifications",
+			"Traceability",
+			"Project &amp; work",
+			"Source details",
+			"Inspection record",
+			"WO1",
+			"PR1",
+			"QI1",
+		):
+			self.assertIn(label, html)
+		self.assertIn("ip-badge--accepted", html)
+		self.assertNotIn("<form", html)
+
+	def test_unrecorded_optional_sections_are_not_shown(self):
+		html = self.render(
+			dict(
+				item_name="Basic item",
+				item_code="BASIC",
+				stock_uom="Nos",
+				specifications=[],
+				inspection_status="Not inspected",
+			)
+		)
+		for section in ("traceability", "assignment", "source", "inspection"):
+			self.assertNotIn(f'id="{section}"', html)
+			self.assertNotIn(f'href="#{section}"', html)
+		self.assertIn("Not inspected", html)
+
+	def test_rejected_quality_status_is_distinct(self):
+		html = self.render(
+			dict(item_name="Plate", item_code="P", specifications=[], inspection_status="Rejected")
+		)
+		self.assertIn("ip-badge--rejected", html)
+
+	def test_invalid_label_has_retry_and_no_item_sections(self):
+		html = self.render(error="This label is invalid.")
+		self.assertIn('role="alert"', html)
+		self.assertIn("Try again", html)
+		self.assertNotIn('id="specifications"', html)
+
+	def test_unexpected_quantities_prices_and_html_are_not_displayed(self):
+		html = self.render(
+			dict(
+				item_name="<script>bad()</script>",
+				item_code="P",
+				specifications=[],
+				description="<img src=x onerror=bad()>Safe description",
+				stock_qty=987654,
+				purchase_rate=876543,
+			)
+		)
+		self.assertNotIn("987654", html)
+		self.assertNotIn("876543", html)
+		self.assertNotIn("<script>", html)
+		self.assertNotIn("<img", html)
+		self.assertIn("Safe description", html)

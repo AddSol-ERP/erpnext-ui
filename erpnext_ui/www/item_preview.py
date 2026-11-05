@@ -10,6 +10,7 @@ def get_context(context):
 	context.no_header = True
 	context.no_footer = True
 	context.no_sidebar = True
+	context.show_title = False
 	context.preview = None
 	context.error = None
 	# No raw IDs are accepted on the guest page. A signed label is the only key.
