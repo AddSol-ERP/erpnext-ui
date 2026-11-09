@@ -111,6 +111,7 @@ def _apply_uom_pricing(doc, side):
 				"params_by_symbol": pricing_state["params_by_symbol"],
 				"parameter_uoms": pricing_state.get("parameter_uoms", {}),
 				"preserve_contract": bool(contract),
+				"display_dimensions": contract["snapshot"].get("display_dimensions") if contract else None,
 				"baseline_per_unit": pricing["calculated_chargeable_qty"] / doc_qty
 				if pricing["calculated_chargeable_qty"] is not None
 				else None,

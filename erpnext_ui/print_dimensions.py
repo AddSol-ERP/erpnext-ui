@@ -15,6 +15,8 @@ def pricing_dimensions(row):
 		return row.get("custom_pricing_dimensions") or ""
 	if not isinstance(snapshot, dict):
 		return ""
+	if snapshot.get("display_dimensions") is not None:
+		return str(snapshot["display_dimensions"])
 	values = snapshot.get("params_by_symbol") or {}
 	units = snapshot.get("parameter_uoms") or {}
 	parameters = snapshot.get("rule", {}).get("params") or []

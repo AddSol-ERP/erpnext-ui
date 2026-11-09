@@ -3387,3 +3387,9 @@ for a historical print. Item-entered parameter units are frozen as `parameter_uo
 parameters resolved from native Item fields retain their rule unit. A read-only
 `custom_pricing_dimensions` Small Text column supports Print Format Builder and is
 backfilled from snapshots by `add_pricing_dimensions` (also runs after_sync).
+
+Legacy NL print correction: snapshots may carry an explicit display_dimensions
+string sourced from Item geometry during the customer migration. The shared print
+formatter prefers it to pricing parameters, and preserved-contract saves retain
+it. It affects display only; never replace the frozen financial/cutting params
+with this text or re-resolve the current Item rule for historical contracts.
