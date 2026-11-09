@@ -28,3 +28,7 @@ erpnext_ui.patches.v1_0.add_store_issue_recipient
 erpnext_ui.patches.v1_0.add_store_issue_line_context
 
 erpnext_ui.patches.v1_0.add_pricing_dimensions
+
+erpnext_ui.patches.v1_0.classify_dimension_parameters
+
+erpnext_ui.patches.v1_0.refresh_pricing_dimension_values

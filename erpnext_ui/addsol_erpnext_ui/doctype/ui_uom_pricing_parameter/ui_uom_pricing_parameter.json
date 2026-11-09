@@ -9,6 +9,7 @@
   "label",
   "required",
   "column_break_buaj",
+  "is_dimension",
   "display_order",
   "data_source",
   "uom"
@@ -59,6 +60,14 @@
   {
    "fieldname": "column_break_buaj",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "is_dimension",
+   "fieldtype": "Check",
+   "label": "Is Dimension",
+   "default": "0",
+   "in_list_view": 1,
+   "description": "Include this parameter in printed Dimensions. Calculation-only parameters can remain unchecked."
   }
  ],
  "istable": 1,

@@ -3393,3 +3393,20 @@ string sourced from Item geometry during the customer migration. The shared prin
 formatter prefers it to pricing parameters, and preserved-contract saves retain
 it. It affects display only; never replace the frozen financial/cutting params
 with this text or re-resolve the current Item rule for historical contracts.
+
+## Dimension-only pricing parameter display (2026-11-09)
+
+Pricing Parameter has an `is_dimension` checkbox, default off. Formula inputs
+remain available regardless of this flag; only checked parameters are printed as
+dimensions. Freeze flags with rule params in snapshots. For older snapshots with
+no flag, recognize only known Item geometry data_source fields (length, width,
+thickness, diameter), not labels/symbols/UOM guesses. Explicit off always wins.
+`classify_dimension_parameters` seeds existing known geometry parameters once and
+refreshes stored dimension displays. Other custom geometry must be checked by the
+user for new snapshots. Legacy NL display_dimensions continues using its explicit
+Item-derived T/L/W text without exposing calculation factors.
+
+Dimension display now contains values and their units only, with no parameter
+symbols. is_dimension still controls inclusion; configured order is unchanged.
+`refresh_pricing_dimension_values` updates persisted builder displays without
+repricing. Explicit legacy display_dimensions is refreshed by the NL patch.

@@ -343,7 +343,7 @@ def get_pricing_rule(item_group):
 	params = frappe.get_all(
 		"UI Uom Pricing Parameter",
 		filters={"parent": rule["name"]},
-		fields=["symbol", "label", "data_source", "display_order", "required", "uom"],
+		fields=["symbol", "label", "data_source", "display_order", "required", "uom", "is_dimension"],
 		ignore_permissions=True,
 	)
 	return {
@@ -375,7 +375,7 @@ def get_pricing_rule_by_name(rule_name):
 	params = frappe.get_all(
 		"UI Uom Pricing Parameter",
 		filters={"parent": rule_name},
-		fields=["symbol", "label", "data_source", "display_order", "required", "uom"],
+		fields=["symbol", "label", "data_source", "display_order", "required", "uom", "is_dimension"],
 		ignore_permissions=True,
 	)
 	return {
