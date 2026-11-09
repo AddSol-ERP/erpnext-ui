@@ -51,3 +51,32 @@ handlers["Purchase Order Item"].form_render(frm, row.doctype, row.name);
 assert.equal(writes, beforeRefresh, "opening a saved row must not dirty the document");
 assert.equal(requests.length, 4, "opening a row must not fetch a new preview");
 console.log("Desk estimate checks passed");
+// A newly opened row has no persisted pricing UOM yet. Rate editability must
+// resolve even before a positive quantity exists, without marking the PO dirty.
+row.custom_pricing_uom = "";
+row.qty = 0;
+const editable = {};
+frm.fields_dict.items = { grid: { grid_rows: [{ doc: row,
+  toggle_editable: (field, enabled) => { editable[field] = enabled; },
+}] } };
+const beforeOpen = writes;
+handlers["Purchase Order Item"].form_render(frm, row.doctype, row.name);
+const lookup = requests.at(-1);
+assert.equal(lookup.method, "erpnext_ui.api.get_item_pricing");
+lookup.callback({ message: { enabled: true, pricing_uom: "Kg" } });
+assert.equal(editable.custom_rate_per_pricing_uom, true);
+assert.equal(editable.custom_chargeable_qty, true);
+assert.equal(editable.custom_estimated_chargeable_qty, false);
+assert.equal(writes, beforeOpen, "resolving new-row editability must not dirty the PO");
+// A response for the previously selected Item must not unlock the replacement.
+handlers["Purchase Order Item"].form_render(frm, row.doctype, row.name);
+const stale = requests.at(-1);
+row.item_code = "OTHER";
+editable.custom_rate_per_pricing_uom = false;
+stale.callback({ message: { enabled: true, pricing_uom: "Kg" } });
+assert.equal(editable.custom_rate_per_pricing_uom, false);
+row.item_code = "SHEET";
+frm.doc.docstatus = 1;
+handlers["Purchase Order Item"].form_render(frm, row.doctype, row.name);
+assert.equal(editable.custom_rate_per_pricing_uom, false);
+console.log("Desk new-item rate editability checks passed");

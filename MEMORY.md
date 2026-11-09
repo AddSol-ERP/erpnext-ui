@@ -3410,3 +3410,10 @@ Dimension display now contains values and their units only, with no parameter
 symbols. is_dimension still controls inclusion; configured order is unchanged.
 `refresh_pricing_dimension_values` updates persisted builder displays without
 repricing. Explicit legacy display_dimensions is refreshed by the NL patch.
+
+Desk draft-row rate editability must resolve Item pricing independently of the
+estimate quantity. A new item's custom_pricing_uom may still be empty when its
+child form opens. `refresh_pricing_editability` performs a read-only lookup then,
+with stale Item/row/request guards; it does not dirty the PO. Keep expanded child
+form rate/actual controls in sync with inline grid editability. Submitted rows
+remain locked, as do Items without enabled UOM pricing.

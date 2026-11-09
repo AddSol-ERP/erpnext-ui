@@ -18,6 +18,15 @@ function show_pricing_estimate(frm, row, estimate) {
 		gridRow.toggle_editable("custom_chargeable_qty", !!estimate.enabled && !frm.doc.docstatus);
 		gridRow.toggle_editable("custom_estimated_chargeable_qty", false);
 		gridRow.toggle_editable("custom_estimated_pricing_amount", false);
+		// The expanded child form may hold its own field definition. Update it
+		// alongside the inline grid so opening a row cannot retain a stale lock.
+		["custom_rate_per_pricing_uom", "custom_chargeable_qty"].forEach((name) => {
+			const control = gridRow.grid_form?.fields_dict?.[name];
+			if (control) {
+				control.df.read_only = !(estimate.enabled && !frm.doc.docstatus);
+				control.refresh();
+			}
+		});
 		const field = gridRow.grid_form?.fields_dict?.custom_estimated_chargeable_qty;
 		if (field) {
 			field.df.label = __("Estimated Chargeable Qty") + (estimate.pricing_uom ? ` (${estimate.pricing_uom})` : "");
@@ -28,6 +37,29 @@ function show_pricing_estimate(frm, row, estimate) {
 
 function show_saved_pricing_estimate(frm, row) {
 	show_pricing_estimate(frm, row, { enabled: !!row.custom_pricing_uom, pricing_uom: row.custom_pricing_uom });
+}
+
+function refresh_pricing_editability(frm, row) {
+	if (frm.doc.docstatus || !row.item_code || (frm.doctype === "Material Request" && frm.doc.material_request_type !== "Purchase")) {
+		show_pricing_estimate(frm, row, { enabled: false });
+		return;
+	}
+	if (row.custom_pricing_uom) {
+		show_saved_pricing_estimate(frm, row);
+		return;
+	}
+	// Opening a newly selected row can precede the estimate response. Resolve
+	// editability separately from quantity/estimate, without dirtying the PO.
+	const item = row.item_code;
+	const seq = REQUESTS[row.name] || 0;
+	frappe.call({
+		method: "erpnext_ui.api.get_item_pricing",
+		args: { item_code: item, side: pricing_side(frm) },
+		callback(r) {
+			if (row.item_code !== item || (REQUESTS[row.name] || 0) !== seq || !(frm.doc.items || []).includes(row)) return;
+			show_pricing_estimate(frm, row, r.message || {});
+		},
+	});
 }
 
 function refresh_saved_pricing_estimates(frm) {
@@ -51,7 +83,7 @@ function update_pricing_estimate(frm, row) {
 		return;
 	}
 	if (!item || !(Number(qty) > 0) || (frm.doctype === "Material Request" && frm.doc.material_request_type !== "Purchase")) {
-		show_pricing_estimate(frm, row, { enabled: false });
+		refresh_pricing_editability(frm, row);
 		frappe.model.set_value(row.doctype, row.name, { custom_estimated_chargeable_qty: null, custom_estimated_pricing_amount: null });
 		return;
 	}
@@ -91,7 +123,7 @@ BUYING.concat(SELLING).forEach((doctype) => {
 		custom_chargeable_qty: refreshRow,
 		form_render(frm, cdt, cdn) {
 			const row = locals[cdt]?.[cdn];
-			if (row) show_saved_pricing_estimate(frm, row);
+			if (row) refresh_pricing_editability(frm, row);
 		},
 	});
 });
