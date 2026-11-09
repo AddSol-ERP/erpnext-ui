@@ -88,11 +88,20 @@ export default function ReceiptLineForm({
   plateRow = false,
   plateConfig = {},
   company,
-  pricingUom = "",
+  pricingUom: configuredPricingUom = "",
   onItemChange,
   onSave,
 }) {
   const { t } = useTranslation();
+  const savedSnapshot = row?.custom_pricing_snapshot;
+  const contract = useMemo(() => {
+    try {
+      const saved = typeof savedSnapshot === "string"
+        ? JSON.parse(savedSnapshot) : savedSnapshot;
+      return saved?.preserve_contract ? saved : null;
+    } catch { return null; }
+  }, [savedSnapshot]);
+  const pricingUom = contract?.pricing_uom || configuredPricingUom;
 
   // UOM based pricing: the rate label names the pricing UOM the effective rule
   // picked, not a hardcoded "Kg". Falls back to the i18n key when no pricing UOM
@@ -145,7 +154,16 @@ export default function ReceiptLineForm({
     let cancelled = false;
     const handle = setTimeout(async () => {
       try {
-        const res = await get(
+        const frozenMeasure = Number(rowRef.current?.custom_chargeable_qty)
+          || Number(contract?.actual_per_unit) * Number(qty);
+        const res = contract ? { message: {
+          pricing_uom: contract.pricing_uom,
+          chargeable_qty: frozenMeasure,
+          calculated_chargeable_qty: contract.baseline_per_unit == null
+            ? null : contract.baseline_per_unit * Number(qty),
+          amount: frozenMeasure * Number(rate),
+          standard_rate: frozenMeasure * Number(rate) / Number(qty),
+        }} : await get(
           "method/erpnext_ui.api.calculate_uom_pricing_line",
           {
             item_code: itemCode,
@@ -180,7 +198,7 @@ export default function ReceiptLineForm({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [pricingUom, itemCode, ratePerUom, docQty]);
+  }, [pricingUom, itemCode, ratePerUom, docQty, contract, row?.custom_chargeable_qty]);
 
   // Chargeable qty tolerance validation (frontend, immediate feedback).
   // The warning is DERIVED during render from the override + the loaded tolerance
@@ -243,7 +261,7 @@ export default function ReceiptLineForm({
 
   // Fetch tolerance settings from server when pricing UOM changes
   useEffect(() => {
-    if (!pricingUom || !itemCode) return;
+    if (!pricingUom || !itemCode || contract) return;
 
     const timeout = setTimeout(async () => {
       try {
@@ -260,7 +278,7 @@ export default function ReceiptLineForm({
       }
     }, 300);
     return () => clearTimeout(timeout);
-  }, [pricingUom, itemCode]);
+  }, [pricingUom, itemCode, contract]);
 
   const isPoRow = !!(row && row.purchase_order_item);
   const receivedUom = row?.uom || info?.stock_uom || "";
@@ -822,7 +840,7 @@ export default function ReceiptLineForm({
         )
       ) : null}
 
-      {pricingUom && <UomPricingEstimate row={row} side="buying" readOnly={!!row?.docstatus} />}
+      {pricingUom && <UomPricingEstimate row={row} side="buying" readOnly={!!row?.docstatus || !!contract} />}
 
       {/* Chargeable qty input -- user-editable, below the rate field. */}
       {/* Actual chargeable qty -- the REAL quantity the line is charged on, as

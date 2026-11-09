@@ -3367,3 +3367,23 @@ prices are not rendered. Controller suppresses Frappe's duplicate page title.
 Checks: 82 Python tests, sandboxed template rendering (full/sparse/rejected/error/
 HTML-injection cases), touched Python lint. Visual browser verification was not
 available in this session; actual-device verification remains pending.
+
+## Preserved historical UOM contracts (2026-11-09)
+
+`pricing_contracts.py` resolves `preserve_contract` pricing snapshots only from
+persisted matching rows or submitted upstream buying rows (SQ → PO → PR → PI).
+Client-supplied JSON cannot opt into historical pricing. NL's legacy-Kg retirement
+patch creates these frozen snapshots; new standalone rows keep live Item rules.
+Partial deliveries prorate copied source measures while respecting explicit
+measurements. Receipt line previews and mapped PO lines retain the frozen UOM.
+Do not replace the historical snapshot with today's Item rule during save.
+
+## Compact print dimensions (2026-11-09)
+
+`print_dimensions.pricing_dimensions` is registered as a Jinja method and reads
+snapshot parameter symbols/values/units in configured display order. Output uses
+short symbols, e.g. `L 2 m × W 1250 mm × T 10 mm`. Never look up current Item values
+for a historical print. Item-entered parameter units are frozen as `parameter_uoms`;
+parameters resolved from native Item fields retain their rule unit. A read-only
+`custom_pricing_dimensions` Small Text column supports Print Format Builder and is
+backfilled from snapshots by `add_pricing_dimensions` (also runs after_sync).

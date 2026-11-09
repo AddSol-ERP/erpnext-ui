@@ -79,6 +79,8 @@ doctype_js = {
 # Jinja
 # ----------
 
+jinja = {"methods": ["erpnext_ui.print_dimensions.pricing_dimensions"]}
+
 # add methods and filters to jinja environment
 # jinja = {
 # 	"methods": "erpnext_ui.utils.jinja_methods",
@@ -272,6 +274,7 @@ after_sync = [
 	"erpnext_ui.patches.v1_0.add_store_issue_recipient.execute",
 	"erpnext_ui.patches.v1_0.add_store_work_order_reference.execute",
 	"erpnext_ui.patches.v1_0.add_uom_pricing_estimate_fields.execute",
+	"erpnext_ui.patches.v1_0.add_pricing_dimensions.execute",
 ]
 
 after_migrate = [

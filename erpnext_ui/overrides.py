@@ -30,6 +30,7 @@ class QualityInspection(StockQualityInspection):
 
 def _apply_uom_pricing(doc, side):
 	from erpnext_ui import uom_pricing
+	from erpnext_ui.pricing_contracts import contract_measure, contract_state, preserved_contract
 
 	# Returns (credit/debit notes) must reverse the original transaction's pricing
 	# UOM, rate and measure snapshot. ERPNext's return creation already copies the
@@ -45,7 +46,11 @@ def _apply_uom_pricing(doc, side):
 		item_code = row.get("item_code") if hasattr(row, "get") else getattr(row, "item_code", None)
 		if not item_code:
 			continue
-		if not uom_pricing.get_item_pricing(item_code, side)["enabled"]:
+		contract = preserved_contract(doc, row)
+		pricing_state = (
+			contract_state(contract) if contract else uom_pricing.get_item_pricing(item_code, side)
+		)
+		if not pricing_state["enabled"]:
 			continue
 		doc_qty = float((row.get("qty") if hasattr(row, "get") else getattr(row, "qty", 0)) or 0)
 		if not doc_qty:
@@ -56,6 +61,9 @@ def _apply_uom_pricing(doc, side):
 			per_uom_rate = row.get("custom_rate_per_pricing_uom")
 		else:
 			per_uom_rate = getattr(row, "custom_rate_per_pricing_uom", None)
+		if contract and not per_uom_rate:
+			per_uom_rate = contract["source"].custom_rate_per_pricing_uom
+			row.custom_rate_per_pricing_uom = per_uom_rate
 		per_uom_rate_entered = bool(per_uom_rate) and float(per_uom_rate) > 0
 		if not per_uom_rate_entered:
 			raise ValueError("Rate per UOM is required for item " + item_code)
@@ -64,7 +72,7 @@ def _apply_uom_pricing(doc, side):
 		# added to the row form, so it stays blank).
 		chargeable_override = None
 		if hasattr(row, "get"):
-			cq = row.get("custom_chargeable_qty")
+			cq = contract_measure(contract, row) if contract else row.get("custom_chargeable_qty")
 		else:
 			cq = getattr(row, "custom_chargeable_qty", None)
 		if cq not in (None, "", 0, 0.0) and str(cq).strip():
@@ -80,6 +88,7 @@ def _apply_uom_pricing(doc, side):
 				side,
 				direct_entry_value=None,
 				chargeable_override=chargeable_override,
+				pricing_state=pricing_state,
 			)
 		except ValueError as exc:
 			raise ValueError(f"Item {item_code}: {exc}") from exc
@@ -91,15 +100,26 @@ def _apply_uom_pricing(doc, side):
 			else None
 		)
 		row.custom_pricing_uom = pricing["pricing_uom"]
+		if contract:
+			row.custom_chargeable_qty = pricing["chargeable_qty"]
 		row.custom_pricing_snapshot = frappe.as_json(
 			{
 				"pricing_uom": pricing["pricing_uom"],
 				"chargeable_qty": pricing["chargeable_qty"],
 				"calculated_chargeable_qty": pricing["calculated_chargeable_qty"],
 				"rule": pricing["rule"],
-				"params_by_symbol": uom_pricing.get_item_pricing(item_code, side)["params_by_symbol"],
+				"params_by_symbol": pricing_state["params_by_symbol"],
+				"parameter_uoms": pricing_state.get("parameter_uoms", {}),
+				"preserve_contract": bool(contract),
+				"baseline_per_unit": pricing["calculated_chargeable_qty"] / doc_qty
+				if pricing["calculated_chargeable_qty"] is not None
+				else None,
+				"actual_per_unit": pricing["chargeable_qty"] / doc_qty,
 			}
 		)
+		from erpnext_ui.print_dimensions import pricing_dimensions
+
+		row.custom_pricing_dimensions = pricing_dimensions(row)
 		new_rate = float(pricing["standard_rate"] or 0)
 		new_amount = float(pricing["amount"] or 0)
 

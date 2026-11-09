@@ -149,7 +149,13 @@ def get_pricing_preview(item_code, rate_per_uom, doc_qty, side=None, chargeable_
 
 
 def get_pricing_line(
-	item_code, rate_per_uom, doc_qty, side=None, direct_entry_value=None, chargeable_override=None
+	item_code,
+	rate_per_uom,
+	doc_qty,
+	side=None,
+	direct_entry_value=None,
+	chargeable_override=None,
+	pricing_state=None,
 ):
 	"""Resolve the effective pricing and compute the line pricing outcome.
 
@@ -177,7 +183,7 @@ def get_pricing_line(
 	Raises:
 		ValueError: When no pricing rule is resolved or the quantity is invalid.
 	"""
-	pricing = get_item_pricing(item_code, side)
+	pricing = pricing_state or get_item_pricing(item_code, side)
 	rule = pricing["rule"]
 	if not rule:
 		raise ValueError("No UOM pricing rule is resolved for this item.")
@@ -426,19 +432,23 @@ def get_item_pricing(item_code, side=None):
 
 	# Stored parameter values for this Item + effective rule.
 	stored = {}
+	stored_uoms = {}
 	if rule:
 		try:
 			rows = frappe.get_all(
 				"UI Uom Pricing Item Parameter",
 				filters={"parent": item_code, "rule": rule["name"]},
-				fields=["symbol", "value"],
+				fields=["symbol", "value", "value_uom"],
 				ignore_permissions=True,
 			)
 			for r in rows or []:
 				if r.get("symbol"):
 					stored[r["symbol"]] = r.get("value")
+					if r.get("value_uom"):
+						stored_uoms[r["symbol"]] = r["value_uom"]
 		except Exception:
 			stored = {}
+	parameter_uoms = {}
 
 	# Resolve data_source against native Item fields where declared.
 	params_by_symbol = {}
@@ -460,6 +470,8 @@ def get_item_pricing(item_code, side=None):
 				value = None
 		if value is None:
 			value = stored.get(symbol)
+			if stored_uoms.get(symbol):
+				parameter_uoms[symbol] = stored_uoms[symbol]
 		if value is None:
 			continue
 		try:
@@ -469,6 +481,7 @@ def get_item_pricing(item_code, side=None):
 
 	return {
 		"item_code": item_code,
+		"parameter_uoms": parameter_uoms,
 		"item_group": item_group,
 		"rule": rule,
 		"feature_enabled": feature_enabled,
@@ -554,13 +567,17 @@ def _calculate_pricing_lines(docname, doctype, accepted_measurements=None, side=
 		)
 		if accepted in (None, "", 0, 0.0):
 			accepted = None
+		from erpnext_ui.pricing_contracts import contract_state, preserved_contract
+
+		contract = preserved_contract(doc, row)
+		state = contract_state(contract) if contract else get_item_pricing(item_code, side)
 		pricing = None
-		if get_item_pricing(item_code, side)["enabled"]:
+		if state["enabled"]:
 			rate = float(row.get("custom_rate_per_pricing_uom") or 0)
 			if not math.isfinite(rate) or rate <= 0:
 				raise ValueError("Rate per UOM is required for item " + item_code)
 			pricing = get_pricing_line(
-				item_code, rate, row.get("qty"), side=side, chargeable_override=accepted
+				item_code, rate, row.get("qty"), side=side, chargeable_override=accepted, pricing_state=state
 			)
 		lines.append(
 			{

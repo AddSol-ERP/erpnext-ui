@@ -745,6 +745,22 @@ export default function PurchaseReceiptForm() {
       factor_source_po: hasPoFactor ? "purchase_order" : null,
       pending_qty: line.pending_qty,
     };
+    // A partial delivery retains the source contract, including its historical UOM.
+    try {
+      const raw = sourceOrderItem?.custom_pricing_snapshot || line.custom_pricing_snapshot;
+      const saved = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (saved?.preserve_contract) {
+        const units = Number(row.qty);
+        const measure = Number(saved.actual_per_unit) * units;
+        row.custom_pricing_uom = saved.pricing_uom;
+        row.custom_rate_per_pricing_uom = sourceOrderItem?.custom_rate_per_pricing_uom
+          ?? line.custom_rate_per_pricing_uom;
+        row.custom_chargeable_qty = measure;
+        row.custom_pricing_snapshot = JSON.stringify({ ...saved, chargeable_qty: measure,
+          calculated_chargeable_qty: saved.baseline_per_unit == null
+            ? null : saved.baseline_per_unit * units });
+      }
+    } catch { /* Server validates persisted source contracts on save. */ }
     // A picked line is no longer offered by the picker. Dropping it from the
     // catalogue here (rather than relying on a "picked" check at render time)
     // keeps the catalogue and doc.items in step even if a row is removed again.

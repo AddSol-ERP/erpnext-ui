@@ -26,3 +26,5 @@ erpnext_ui.patches.v1_0.add_store_work_order_reference
 erpnext_ui.patches.v1_0.add_store_issue_recipient
 
 erpnext_ui.patches.v1_0.add_store_issue_line_context
+
+erpnext_ui.patches.v1_0.add_pricing_dimensions
