@@ -275,9 +275,11 @@ after_sync = [
 	"erpnext_ui.patches.v1_0.add_store_work_order_reference.execute",
 	"erpnext_ui.patches.v1_0.add_uom_pricing_estimate_fields.execute",
 	"erpnext_ui.patches.v1_0.add_pricing_dimensions.execute",
+	"erpnext_ui.setup.uom_pricing_layout.execute",
 ]
 
 after_migrate = [
+	"erpnext_ui.setup.uom_pricing_layout.execute",
 	"erpnext_ui.setup.workflows.setup_workflows",
 	"erpnext_ui.setup.attachment_settings.setup_attachment_settings",
 	"erpnext_ui.setup.supplier_quotation.setup_supplier_quotation_settings",

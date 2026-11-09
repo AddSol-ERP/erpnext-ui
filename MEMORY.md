@@ -3417,3 +3417,17 @@ child form opens. `refresh_pricing_editability` performs a read-only lookup then
 with stale Item/row/request guards; it does not dirty the PO. Keep expanded child
 form rate/actual controls in sync with inline grid editability. Submitted rows
 remain locked, as do Items without enabled UOM pricing.
+
+## Shared Desk Pricing Details layout (2026-11-09)
+
+`setup.uom_pricing_layout.execute` applies the same child-form section across all
+ITEM_TABLES from add_uom_pricing_rate_field. Left: native rate, rate per UOM,
+estimated amount, native amount. Right: pricing UOM, chargeable qty, dimensions,
+estimated chargeable qty; snapshot remains hidden. Missing native fields are
+omitted. Preserve native rate permissions for ordinary Items. Dimensions is an
+inline Items grid column (2 units), Rate per UOM remains in_list_view. Existing
+personal grid column selections may still take precedence.
+The helper creates two layout breaks and updates field_order from live metadata,
+preserving unrelated fields and section order. It runs as a patch, after_sync
+and after_migrate; reruns must remain stable. Customer NL layout hooks may reorder
+whole quantity sections afterward but retain the shared pricing block.
