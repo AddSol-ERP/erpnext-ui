@@ -20,7 +20,7 @@ function Pager({ offset, total, size, onChange }) {
 export function EmployeeMappingPanel({ employees, mapping, company, locked, onChange }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
-  const [reviewOnly, setReviewOnly] = useState(true);
+  const [reviewOnly, setReviewOnly] = useState(false);
   const [offset, setOffset] = useState(0);
   const query = search.trim().toLocaleLowerCase();
   const filtered = employees.filter((emp) => (!reviewOnly || !mapping[emp.code]) &&

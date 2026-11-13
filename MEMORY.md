@@ -180,8 +180,8 @@ Mappings persist under the private DefaultValue parent `__erpnext_ui_essl_employ
 not global/user defaults. Explicit saves and import confirmation persist selections;
 preview never writes. Saved report names are checked before reuse and inaccessible or
 inactive targets are not disclosed. UI panels are tabbed, searched and paginated
-(8 mapping employees / 15 preview employees) with bounded scroll areas; unresolved
-mappings show first. Attendance preview is an employee-by-day monthly matrix with
+(8 mapping employees / 15 preview employees) with bounded scroll areas. Saved mappings remain visible and editable by default;
+the preview has an explicit Edit employee mappings action. Attendance preview is an employee-by-day monthly matrix with
 sticky employee column (logical `start-0` for RTL), sticky day headers and horizontal
 day scrolling. Selecting a cell reveals punches/shift/notes without changing records.
 Deployment and source/report semantics: `docs/essl-attendance-import.md`.

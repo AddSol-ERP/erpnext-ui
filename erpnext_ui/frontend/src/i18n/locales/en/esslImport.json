@@ -66,6 +66,7 @@
     "noReportDay": "No report entry for this day; no attendance will be created.",
     "filteredDay": "This day is hidden by the current filter.",
     "dayDetails": "Day details",
-    "closeDetails": "Close details"
+    "closeDetails": "Close details",
+    "editMappings": "Edit employee mappings"
   }
 }

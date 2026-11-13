@@ -133,6 +133,21 @@ class TestEmployeeMatching(unittest.TestCase):
 			mappings, _ = importer.employee_mappings(records, "Company")
 			self.assertTrue(all(row["employee"] is None for row in mappings))
 
+	def test_duplicate_selection_identifies_report_employees(self):
+		records = [
+			{"employee_code": "8", "employee_name": "First Person"},
+			{"employee_code": "9", "employee_name": "Second Person"},
+		]
+		with (
+			patch.object(importer.frappe, "get_list", return_value=[self.employee()]),
+			patch.object(importer.frappe, "throw", side_effect=ValueError) as throw,
+		):
+			with self.assertRaises(ValueError):
+				importer.employee_mappings(records, "Company", {"8": "HR-EMP-00002", "9": "HR-EMP-00002"})
+			message = throw.call_args.args[0]
+			for value in ("HR-EMP-00002", "8 (First Person)", "9 (Second Person)"):
+				self.assertIn(value, message)
+
 	def test_mapping_outside_company_rejected(self):
 		with (
 			patch.object(importer.frappe, "get_list", return_value=[self.employee()]),

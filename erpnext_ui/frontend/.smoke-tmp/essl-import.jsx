@@ -26,6 +26,10 @@ for (const language of ["en", "hi", "ar"]) {
   const mappingHtml = renderToString(<I18nextProvider i18n={i18n}><EmployeeMappingPanel employees={employees} mapping={{}} company="Company" locked={false} onChange={() => {}} /></I18nextProvider>);
   assert.equal((mappingHtml.match(/<tr/g) || []).length, 9, "Mapping renders only eight employees plus header");
   assert(mappingHtml.includes('data-testid="employee-mapping-scroll"'));
+  const savedMappingHtml = renderToString(<I18nextProvider i18n={i18n}><EmployeeMappingPanel employees={[{ code: "2", report_name: "Saved Person", employee: "EMP-SAVED", saved: true }]} mapping={{ "2": "EMP-SAVED" }} company="Company" locked={false} onChange={() => {}} /></I18nextProvider>);
+  assert(savedMappingHtml.includes("Saved Person"), "Already mapped employees are visible by default");
+  const savedInput = savedMappingHtml.match(/<input[^>]*value="EMP-SAVED"[^>]*>/)?.[0];
+  assert(savedInput && !/\sdisabled(?:\s|=|>)/.test(savedInput), "Saved mapping remains editable");
   const rows = Array.from({ length: 476 }, (_, index) => ({ employee_code: String(index), employee: `EMP-${index}`, attendance_date: "2026-09-01", status: "Present", working_hours: 8, warnings: [] }));
   const previewHtml = renderToString(<I18nextProvider i18n={i18n}><AttendancePreviewPanel preview={{ rows, errors: [], blocked: false }} /></I18nextProvider>);
   assert.equal((previewHtml.match(/<tr/g) || []).length, 16, "Preview renders only fifteen employees plus header");

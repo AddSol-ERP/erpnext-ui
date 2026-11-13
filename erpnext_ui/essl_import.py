@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from datetime import datetime, time
+from html import escape
 
 import frappe
 from frappe.utils import cint, getdate
@@ -173,9 +174,18 @@ def employee_mappings(records, company, mapping=None):
 		)
 	targets = [row["employee"] for row in mappings if row["employee"]]
 	if len(targets) != len(set(targets)):
-		if mapping is not None:
-			frappe.throw("Two report employees cannot be mapped to the same ERPNext employee")
 		duplicates = {target for target in targets if targets.count(target) > 1}
+		if mapping is not None:
+			conflicts = []
+			for target in sorted(duplicates):
+				reports = ", ".join(
+					f"{row['code']} ({row['report_name']})" for row in mappings if row["employee"] == target
+				)
+				conflicts.append(f"{target}: report employees {reports}")
+			frappe.throw(
+				"Each report employee must map to a different ERPNext Employee. "
+				"Correct these conflicting selections: " + escape("; ".join(conflicts))
+			)
 		for row in mappings:
 			if row["employee"] in duplicates:
 				row.update(

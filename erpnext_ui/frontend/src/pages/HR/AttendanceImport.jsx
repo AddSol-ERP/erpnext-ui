@@ -167,6 +167,7 @@ export default function AttendanceImport() {
             <Button role="tab" aria-selected={activeTab === "preview"} aria-controls="essl-preview-panel" disabled={!preview} variant={activeTab === "preview" ? "secondary" : "ghost"} onClick={() => setActiveTab("preview")}>{t("esslImport.attendancePreview")}</Button>
           </div>
           {activeTab === "mapping" && <Button variant="outline" onClick={saveMappings} disabled={locked || !fileUrl}>{t("esslImport.saveMappings")}</Button>}
+          {activeTab === "preview" && <Button variant="outline" onClick={() => setActiveTab("mapping")} disabled={locked}>{t("esslImport.editMappings")}</Button>}
         </div>
         <div className="p-4">
           {activeTab === "mapping" && <div role="tabpanel" id="essl-mapping-panel"><EmployeeMappingPanel employees={employees} mapping={mapping} company={company} locked={locked} onChange={(code, value) => {

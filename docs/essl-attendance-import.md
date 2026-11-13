@@ -53,8 +53,9 @@ Employee master data. They persist in the stock `DefaultValue` table under a pri
 app parent, separated from global/user defaults; no custom DocType is required.
 
 The review screen uses separate **Employee mapping** and **Attendance preview** tabs.
-Mapping opens with unresolved employees only, with search and eight rows per page;
-uncheck the filter to review saved or suggested matches. The preview has search,
+Mapping shows all employees, including saved selections, with search and eight rows
+per page. Optionally enable the unresolved-only filter. **Edit employee mappings**
+on the preview opens the editable mapping table; saving replaces the remembered choices. The preview has search,
 ready/skipped/warning filters and a monthly grid: one employee per row, one day per
 column, paginated by fifteen employees. The employee column stays fixed while days
 scroll horizontally; day headers stay visible during vertical scrolling. Cells show
