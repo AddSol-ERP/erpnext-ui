@@ -148,6 +148,45 @@ class TestEmployeeMatching(unittest.TestCase):
 			for value in ("HR-EMP-00002", "8 (First Person)", "9 (Second Person)"):
 				self.assertIn(value, message)
 
+	def test_previous_file_mapping_cannot_be_reused_for_another_person(self):
+		for code, name in (("2", "Different Person"), ("9", "Another Person")):
+			remembered = {
+				importer.mapping_key("Company", "2"): {
+					"code": "2",
+					"employee": "HR-EMP-00002",
+					"report_name": "Original Person",
+				}
+			}
+			with (
+				patch.object(importer, "saved_mappings", return_value=remembered),
+				patch.object(importer.frappe, "get_list", return_value=[self.employee()]),
+				patch.object(importer.frappe, "throw", side_effect=ValueError) as throw,
+			):
+				with self.assertRaises(ValueError):
+					importer.employee_mappings(
+						[{"employee_code": code, "employee_name": name}], "Company", {code: "HR-EMP-00002"}
+					)
+				self.assertIn("previous", throw.call_args.args[0])
+
+	def test_same_report_person_can_correct_saved_target(self):
+		remembered = {
+			importer.mapping_key("Company", "2"): {
+				"code": "2",
+				"employee": "OLD-EMP",
+				"report_name": "Example Employee",
+			}
+		}
+		with (
+			patch.object(importer, "saved_mappings", return_value=remembered),
+			patch.object(importer.frappe, "get_list", return_value=[self.employee()]),
+		):
+			rows, _ = importer.employee_mappings(
+				[{"employee_code": "2", "employee_name": "Example Employee"}],
+				"Company",
+				{"2": "HR-EMP-00002"},
+			)
+			self.assertEqual(rows[0]["employee"], "HR-EMP-00002")
+
 	def test_mapping_outside_company_rejected(self):
 		with (
 			patch.object(importer.frappe, "get_list", return_value=[self.employee()]),

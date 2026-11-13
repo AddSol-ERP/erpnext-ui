@@ -21,13 +21,16 @@ def mapping_key(company, code):
 	return hashlib.sha256(json.dumps([company, normalize_code(code)]).encode()).hexdigest()
 
 
-def saved_mappings(company, sources):
-	keys = [mapping_key(company, code) for code in sources]
-	if not keys:
+def saved_mappings(company, sources=None):
+	keys = [mapping_key(company, code) for code in sources] if sources is not None else None
+	if keys == []:
 		return {}
+	filters = {"parent": MAPPING_PARENT}
+	if keys is not None:
+		filters["defkey"] = ["in", keys]
 	rows = frappe.get_all(
 		"DefaultValue",
-		filters={"parent": MAPPING_PARENT, "defkey": ["in", keys]},
+		filters=filters,
 		fields=["defkey", "defvalue"],
 	)
 	result = {}
@@ -146,7 +149,8 @@ def employee_mappings(records, company, mapping=None):
 			frappe.throw(f"Employee code {code} has multiple names in the report")
 		sources[code] = row["employee_name"]
 	mappings = []
-	remembered = saved_mappings(company, sources)
+	# Check both directions across all previous files, not only codes in this upload.
+	remembered = saved_mappings(company)
 	for code, name in sources.items():
 		employee, reason = suggest_employee(code, name, employees)
 		saved = remembered.get(mapping_key(company, code))
@@ -169,6 +173,23 @@ def employee_mappings(records, company, mapping=None):
 			)
 		if employee and employee not in allowed:
 			frappe.throw(f"Employee mapped to {code} is not an accessible active employee in this company")
+		if employee:
+			conflict = None
+			if saved and normalize_name(saved.get("report_name")) != normalize_name(name):
+				conflict = f"Report code {code} was saved for a different report employee. Correct the source code or clear its previous mapping before reassigning it."
+			updates = {mapping_key(company, item): target for item, target in (mapping or {}).items()}
+			for other_key, previous in remembered.items():
+				if other_key == mapping_key(company, code) or previous.get("employee") != employee:
+					continue
+				if other_key in updates and updates[other_key] != employee:
+					continue
+				previous_code = previous.get("code", "another report code")
+				conflict = f"{employee} is already mapped to {previous_code} ({previous.get('report_name', '')}) in a previous file for {company}. Report employee {code} ({name}) must use a different ERPNext Employee, or the previous mapping must be cleared first."
+				break
+			if conflict:
+				if mapping is not None:
+					frappe.throw(escape(conflict))
+				employee, reason, is_saved = None, conflict, False
 		mappings.append(
 			{"code": code, "report_name": name, "employee": employee, "reason": reason, "saved": is_saved}
 		)
@@ -208,14 +229,19 @@ def save_mappings(file_url, company, employee_map):
 	mapping = frappe.parse_json(employee_map)
 	if not isinstance(mapping, dict):
 		frappe.throw("Employee mappings must be an object")
-	rows, _employees = employee_mappings(records, company, mapping)
 	# Serialise first-time writes as well as updates; DefaultValue has no unique key.
 	frappe.db.get_value("Company", company, "name", for_update=True)
+	rows, _employees = employee_mappings(records, company, mapping)
 	count = 0
 	for row in rows:
 		key = mapping_key(company, row["code"])
 		if row["employee"]:
-			value = {"company": company, "report_name": row["report_name"], "employee": row["employee"]}
+			value = {
+				"company": company,
+				"code": row["code"],
+				"report_name": row["report_name"],
+				"employee": row["employee"],
+			}
 			set_default(key, json.dumps(value), MAPPING_PARENT)
 			count += 1
 		else:

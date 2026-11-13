@@ -22,6 +22,11 @@ Employee Checkin and Attendance permissions are enforced on the server.
    report name changes or the employee becomes inactive/inaccessible, select again.
    Clear a selection and save to forget it. Changing a mapping still invalidates
    the preview and requires validation before importing.
+   Validation also checks previous files for the same company: an ERPNext Employee
+   already linked to another report code cannot be assigned again, and a saved code
+   cannot silently change to another report person's name. Clear the previous mapping
+   explicitly before reassigning an identity. Correcting the selected ERPNext Employee
+   for the same report code and name remains supported.
 4. Review dates, status, duration, missing punches, assigned ERPNext shifts and existing records.
    Shift codes in the file are ignored. Submitted active Shift Assignments for the date
    take precedence over the Employee default shift. Unresolvable multiple shifts block
