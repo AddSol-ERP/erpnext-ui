@@ -163,6 +163,7 @@ Endpoints all use `@frappe.whitelist(allow_guest=False)`:
 |---|---|
 | `erpnext_ui.essl_import.access()` | Fail-closed `{allowed, can_submit}` for the tile and deep-link guard |
 | `erpnext_ui.essl_import.preview(file_url, company, employee_map=None)` | Permission-checked file parsing, code/name suggestions, employee mapping, per-day actions |
+| `erpnext_ui.essl_import.save_mappings(file_url, company, employee_map)` | POST; saves or clears reviewed mappings in private DefaultValue entries per company/code; rechecks employee scope |
 | `erpnext_ui.essl_import.import_report(file_url, company, employee_map, submit_attendance=0)` | POST; enqueues the long-queue job; returns owner-checked status token |
 | `erpnext_ui.essl_import.import_status(token)` | Only the initiating user can read cached progress/results |
 
@@ -175,6 +176,14 @@ existing non-cancelled Attendance also skips the day. New/reused Checkins are li
 to Attendance and excluded from auto attendance. Each failed day rolls back together.
 
 The old Desk Page is retained only as a redirect, now owned by `Addsol Erpnext UI`.
+Mappings persist under the private DefaultValue parent `__erpnext_ui_essl_employee_mappings`,
+not global/user defaults. Explicit saves and import confirmation persist selections;
+preview never writes. Saved report names are checked before reuse and inaccessible or
+inactive targets are not disclosed. UI panels are tabbed, searched and paginated
+(8 mapping employees / 15 preview employees) with bounded scroll areas; unresolved
+mappings show first. Attendance preview is an employee-by-day monthly matrix with
+sticky employee column (logical `start-0` for RTL), sticky day headers and horizontal
+day scrolling. Selecting a cell reveals punches/shift/notes without changing records.
 Deployment and source/report semantics: `docs/essl-attendance-import.md`.
 
 ### 3.3 `_get_scope()` — the HR visibility model (`api.py:173-267`)

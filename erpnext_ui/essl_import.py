@@ -1,5 +1,7 @@
 """Permission-checked preview and import for eSSL monthly work duration reports."""
 
+import hashlib
+import json
 import re
 from datetime import datetime, time
 
@@ -8,6 +10,34 @@ from frappe.utils import cint, getdate
 from xlrd import XLRDError
 
 from erpnext_ui.essl_report import parse_report
+
+# A private DefaultValue parent keeps mappings out of global/user boot defaults.
+# This app deliberately uses stock doctypes rather than adding a mapping doctype.
+MAPPING_PARENT = "__erpnext_ui_essl_employee_mappings"
+
+
+def mapping_key(company, code):
+	return hashlib.sha256(json.dumps([company, normalize_code(code)]).encode()).hexdigest()
+
+
+def saved_mappings(company, sources):
+	keys = [mapping_key(company, code) for code in sources]
+	if not keys:
+		return {}
+	rows = frappe.get_all(
+		"DefaultValue",
+		filters={"parent": MAPPING_PARENT, "defkey": ["in", keys]},
+		fields=["defkey", "defvalue"],
+	)
+	result = {}
+	for row in rows:
+		try:
+			value = json.loads(row.defvalue)
+			if isinstance(value, dict) and value.get("company") == company:
+				result[row.defkey] = value
+		except (ValueError, TypeError):
+			continue
+	return result
 
 
 def normalize_name(value):
@@ -94,6 +124,7 @@ def load_report(file_url):
 def employee_mappings(records, company, mapping=None):
 	if not company:
 		frappe.throw("Select a company")
+	frappe.get_doc("Company", company).check_permission("read")
 	scope = get_import_scope()
 	if not scope.get("can_view_others"):
 		frappe.throw("Employee access denied", frappe.PermissionError)
@@ -114,14 +145,32 @@ def employee_mappings(records, company, mapping=None):
 			frappe.throw(f"Employee code {code} has multiple names in the report")
 		sources[code] = row["employee_name"]
 	mappings = []
+	remembered = saved_mappings(company, sources)
 	for code, name in sources.items():
 		employee, reason = suggest_employee(code, name, employees)
+		saved = remembered.get(mapping_key(company, code))
+		is_saved = False
+		if saved:
+			if normalize_name(saved.get("report_name")) != normalize_name(name):
+				employee, reason = None, "Report name changed; review saved mapping"
+			elif saved.get("employee") not in allowed:
+				employee, reason = None, "Saved employee is inactive or inaccessible; select again"
+			else:
+				employee, reason = saved["employee"], "Saved mapping"
+				is_saved = True
 		if mapping is not None:
 			employee = mapping.get(code)
 			reason = "Selected mapping" if employee else "Select an ERPNext employee"
+			is_saved = bool(
+				saved
+				and employee == saved.get("employee")
+				and normalize_name(saved.get("report_name")) == normalize_name(name)
+			)
 		if employee and employee not in allowed:
 			frappe.throw(f"Employee mapped to {code} is not an accessible active employee in this company")
-		mappings.append({"code": code, "report_name": name, "employee": employee, "reason": reason})
+		mappings.append(
+			{"code": code, "report_name": name, "employee": employee, "reason": reason, "saved": is_saved}
+		)
 	targets = [row["employee"] for row in mappings if row["employee"]]
 	if len(targets) != len(set(targets)):
 		if mapping is not None:
@@ -130,9 +179,38 @@ def employee_mappings(records, company, mapping=None):
 		for row in mappings:
 			if row["employee"] in duplicates:
 				row.update(
-					employee=None, reason="Multiple report employees suggest the same match; select manually"
+					employee=None,
+					saved=False,
+					reason="Multiple report employees suggest the same match; select manually",
 				)
 	return mappings, allowed
+
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def save_mappings(file_url, company, employee_map):
+	"""Save reviewed company/code mappings after rechecking employee scope and source."""
+	from frappe.defaults import clear_default, set_default
+
+	check_access()
+	if not frappe.has_permission("Attendance", "create"):
+		frappe.throw("Attendance create permission required to save import mappings", frappe.PermissionError)
+	records, _errors = load_report(file_url)
+	mapping = frappe.parse_json(employee_map)
+	if not isinstance(mapping, dict):
+		frappe.throw("Employee mappings must be an object")
+	rows, _employees = employee_mappings(records, company, mapping)
+	# Serialise first-time writes as well as updates; DefaultValue has no unique key.
+	frappe.db.get_value("Company", company, "name", for_update=True)
+	count = 0
+	for row in rows:
+		key = mapping_key(company, row["code"])
+		if row["employee"]:
+			value = {"company": company, "report_name": row["report_name"], "employee": row["employee"]}
+			set_default(key, json.dumps(value), MAPPING_PARENT)
+			count += 1
+		else:
+			clear_default(key, parent=MAPPING_PARENT)
+	return {"saved": count}
 
 
 def assigned_shift(employee, row):
@@ -354,8 +432,8 @@ def execute_import(file_url, company, employee_map, submit_attendance=0):
 @frappe.whitelist(allow_guest=False, methods=["POST"])
 def import_report(file_url, company, employee_map, submit_attendance=0):
 	check_access(bool(cint(submit_attendance)))
-	# Validate access to the source file before queueing any work.
-	load_report(file_url)
+	# Import is an explicit confirmation of the reviewed employee selections.
+	save_mappings(file_url, company, employee_map)
 	token = frappe.generate_hash(length=20)
 	frappe.cache.set_value(
 		f"essl_import:{token}",

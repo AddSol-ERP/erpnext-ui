@@ -94,6 +94,12 @@ class TestEmployeeMatching(unittest.TestCase):
 		)
 		patcher.start()
 		self.addCleanup(patcher.stop)
+		remembered = patch.object(importer, "saved_mappings", return_value={})
+		remembered.start()
+		self.addCleanup(remembered.stop)
+		company = patch.object(importer.frappe, "get_doc", return_value=Mock())
+		company.start()
+		self.addCleanup(company.stop)
 
 	def employee(self, name="HR-EMP-00002", employee_name="Example Employee", number=None):
 		return frappe._dict(name=name, employee_name=employee_name, employee_number=number)
@@ -152,6 +158,99 @@ class TestEmployeeMatching(unittest.TestCase):
 				[{"employee_code": "2", "employee_name": "Example Employee"}], "Company"
 			)
 			self.assertEqual(get_list.call_args.kwargs["filters"]["department"], ["in", ["HR"]])
+
+
+class TestSavedMappings(unittest.TestCase):
+	def setUp(self):
+		company = patch.object(importer.frappe, "get_doc", return_value=Mock())
+		company.start()
+		self.addCleanup(company.stop)
+
+	def test_import_confirmation_saves_mappings(self):
+		with (
+			patch.object(importer, "check_access"),
+			patch.object(importer, "save_mappings") as save,
+			patch.object(importer.frappe, "generate_hash", return_value="token"),
+			patch.object(importer.frappe, "cache", new=Mock()),
+			patch.object(importer.frappe, "session", new=SimpleNamespace(user="hr@example.com")),
+			patch.object(importer.frappe, "enqueue") as enqueue,
+		):
+			importer.import_report.__wrapped__("/private/files/report.xls", "Company", {"2": "EMP-1"})
+			save.assert_called_once_with("/private/files/report.xls", "Company", {"2": "EMP-1"})
+			enqueue.assert_called_once()
+
+	def resolve(self, remembered, name="External Name", company="Company"):
+		employee = frappe._dict(name="EMP-1", employee_name="ERP Name", employee_number="77")
+		with (
+			patch.object(
+				importer,
+				"get_import_scope",
+				return_value={"can_view_others": True, "allowed_departments": None},
+			),
+			patch.object(importer.frappe, "get_list", return_value=[employee]),
+			patch.object(importer, "saved_mappings", return_value=remembered),
+		):
+			rows, _ = importer.employee_mappings([{"employee_code": "2", "employee_name": name}], company)
+			return rows[0]
+
+	def test_remembered_manual_match_is_used_next_time(self):
+		row = self.resolve(
+			{importer.mapping_key("Company", "2"): {"employee": "EMP-1", "report_name": "External Name"}}
+		)
+		self.assertEqual(row["employee"], "EMP-1")
+		self.assertTrue(row["saved"])
+
+	def test_name_change_requires_review(self):
+		row = self.resolve(
+			{importer.mapping_key("Company", "2"): {"employee": "EMP-1", "report_name": "Old Name"}}
+		)
+		self.assertIsNone(row["employee"])
+		self.assertIn("name changed", row["reason"])
+
+	def test_inaccessible_saved_employee_not_disclosed(self):
+		row = self.resolve(
+			{
+				importer.mapping_key("Company", "2"): {
+					"employee": "PRIVATE-EMP",
+					"report_name": "External Name",
+				}
+			}
+		)
+		self.assertIsNone(row["employee"])
+		self.assertNotIn("PRIVATE-EMP", str(row))
+
+	def test_mappings_are_company_specific(self):
+		row = self.resolve(
+			{
+				importer.mapping_key("Other Company", "2"): {
+					"employee": "EMP-1",
+					"report_name": "External Name",
+				}
+			}
+		)
+		self.assertIsNone(row["employee"])
+		self.assertEqual(importer.mapping_key("Company", "02"), importer.mapping_key("Company", "2"))
+
+	def test_save_and_clear_use_private_persistent_storage(self):
+		rows = [
+			{"code": "2", "report_name": "External Name", "employee": "EMP-1"},
+			{"code": "3", "report_name": "Other", "employee": None},
+		]
+		with (
+			patch.object(importer, "check_access"),
+			patch.object(importer.frappe, "has_permission", return_value=True),
+			patch.object(importer, "load_report", return_value=([], [])),
+			patch.object(importer, "employee_mappings", return_value=(rows, {})),
+			patch.object(importer.frappe, "db", new=Mock()),
+			patch("frappe.defaults.set_default") as save,
+			patch("frappe.defaults.clear_default") as clear,
+		):
+			result = importer.save_mappings.__wrapped__("/private/files/test.xls", "Company", {})
+			self.assertEqual(result["saved"], 1)
+			self.assertEqual(save.call_args.args[2], importer.MAPPING_PARENT)
+			clear.assert_called_once_with(
+				importer.mapping_key("Company", "3"), parent=importer.MAPPING_PARENT
+			)
 
 
 class TestAccess(unittest.TestCase):

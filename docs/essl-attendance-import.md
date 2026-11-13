@@ -16,6 +16,12 @@ Employee Checkin and Attendance permissions are enforced on the server.
 3. Review every suggested employee and select ERPNext employees for unresolved matches.
    Conflicting codes/names and duplicate names need manual mapping. Mapping two report
    employees to the same ERPNext employee is blocked. Validate again after edits.
+   Reviewed mappings are saved automatically when importing, or immediately with
+   **Save mappings**. They are shared across authorised HR users for that company,
+   keyed by eSSL employee code. Future uploads prefer the saved selection. If the
+   report name changes or the employee becomes inactive/inaccessible, select again.
+   Clear a selection and save to forget it. Changing a mapping still invalidates
+   the preview and requires validation before importing.
 4. Review dates, status, duration, missing punches, assigned ERPNext shifts and existing records.
    Shift codes in the file are ignored. Submitted active Shift Assignments for the date
    take precedence over the Employee default shift. Unresolvable multiple shifts block
@@ -42,8 +48,20 @@ blank directions. Existing punch times/directions are preserved; reused Checkins
 write permission. Imported/reused Checkins are linked to the new Attendance and marked
 to skip auto attendance, preventing the scheduler from processing the same report day.
 Each failed day rolls back its records together and appears in the result; successful
-days remain imported. Re-imports skip those days. Employee mappings are reviewed per
-upload and do not alter Employee master data.
+days remain imported. Re-imports skip those days. Saved mappings do not alter
+Employee master data. They persist in the stock `DefaultValue` table under a private
+app parent, separated from global/user defaults; no custom DocType is required.
+
+The review screen uses separate **Employee mapping** and **Attendance preview** tabs.
+Mapping opens with unresolved employees only, with search and eight rows per page;
+uncheck the filter to review saved or suggested matches. The preview has search,
+ready/skipped/warning filters and a monthly grid: one employee per row, one day per
+column, paginated by fifteen employees. The employee column stays fixed while days
+scroll horizontally; day headers stay visible during vertical scrolling. Cells show
+report status and work hours, with colours for ready/skipped/warning entries. Select
+a day to inspect punches, assigned shift and notes. Blank days do not imply absence.
+Both tables have bounded scroll areas. Source settings collapse after loading a
+report, and result errors are expandable, so monthly reports do not make one long page.
 
 The sample report used for verification contained 20 employees, 476 attendance days,
 and 29 days with incomplete punches. Personal source files are not bundled with the app.

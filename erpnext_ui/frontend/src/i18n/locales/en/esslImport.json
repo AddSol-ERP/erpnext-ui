@@ -35,6 +35,37 @@
     "shift": "ERPNext shift",
     "notes": "Action / notes",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "rememberHint": "Reviewed mappings are saved for your company when you import. You can also save them without importing.",
+    "saveMappings": "Save mappings",
+    "mappingSaved": "Saved {count} employee mappings for future imports.",
+    "savedMatch": "Saved mapping",
+    "needsMapping": "Select an employee",
+    "editedMatch": "Edited — validate or save",
+    "source": "Report & import settings",
+    "employeesCount": "Employees",
+    "unmappedCount": "Needs mapping",
+    "daysCount": "Report days",
+    "readyCount": "Ready to import",
+    "reviewTabs": "Import review",
+    "attendancePreview": "Attendance preview",
+    "searchEmployees": "Search code, name or employee",
+    "unmappedOnly": "Unmapped employees only",
+    "allMapped": "No unresolved matches. Uncheck the filter to review or change mapped employees.",
+    "noResults": "No matching records.",
+    "searchDays": "Search employee, date or status",
+    "filterDays": "Filter attendance days",
+    "filters": {
+      "all": "All days",
+      "eligible": "Ready to import",
+      "skipped": "Skipped / unresolved",
+      "attention": "Warnings / errors"
+    },
+    "sourceErrors": "Source issues: {count}",
+    "matrixHint": "P = Present · ½P = Half Day. Cells show report status and work hours. Click a day for punches and notes.",
+    "noReportDay": "No report entry for this day; no attendance will be created.",
+    "filteredDay": "This day is hidden by the current filter.",
+    "dayDetails": "Day details",
+    "closeDetails": "Close details"
   }
 }

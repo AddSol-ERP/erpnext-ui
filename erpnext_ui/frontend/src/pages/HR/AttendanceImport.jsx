@@ -6,6 +6,7 @@ import useEsslImportAccess from "../../hooks/useEsslImportAccess";
 import LinkField from "../../components/LinkField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmployeeMappingPanel, AttendancePreviewPanel } from "./EsslImportPanels";
 
 const API = "method/erpnext_ui.essl_import.";
 const JOB_KEY = "erpnext_ui:essl-import";
@@ -26,7 +27,8 @@ export default function AttendanceImport() {
   const [result, setResult] = useState(null);
   const [jobStatus, setJobStatus] = useState("");
   const [jobToken, setJobToken] = useState(() => typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(JOB_KEY));
-  const [offset, setOffset] = useState(0);
+  const [activeTab, setActiveTab] = useState("mapping");
+  const [mappingNotice, setMappingNotice] = useState("");
   const locked = busy || Boolean(jobToken);
 
   useEffect(() => {
@@ -70,8 +72,8 @@ export default function AttendanceImport() {
     return () => { active = false; clearTimeout(timer); };
   }, [jobToken]);
 
-  const resetPreview = () => { setPreview(null); setOffset(0); };
-  const resetMappings = () => { resetPreview(); setEmployees([]); setMapping({}); setResult(null); setError(""); };
+  const resetPreview = () => { setPreview(null); };
+  const resetMappings = () => { resetPreview(); setEmployees([]); setMapping({}); setResult(null); setError(""); setMappingNotice(""); setActiveTab("mapping"); };
 
   async function validate() {
     if (!company || !file) { setError(t("esslImport.selectSource")); return; }
@@ -97,6 +99,16 @@ export default function AttendanceImport() {
         setMapping(Object.fromEntries(data.employees.map((emp) => [emp.code, emp.employee || ""])));
       }
       setPreview(data);
+      setActiveTab(data.employees.some((emp) => !emp.employee) ? "mapping" : "preview");
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+
+  async function saveMappings() {
+    setBusy(true); setError(""); setMappingNotice("");
+    try {
+      const response = await post(API + "save_mappings", { file_url: fileUrl, company, employee_map: JSON.stringify(mapping) });
+      setMappingNotice(t("esslImport.mappingSaved", { count: response.message.saved }));
+      setEmployees((current) => current.map((emp) => ({ ...emp, employee: mapping[emp.code] || "", saved: Boolean(mapping[emp.code]), reason: mapping[emp.code] ? t("esslImport.savedMatch") : t("esslImport.needsMapping") })));
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   }
 
@@ -115,59 +127,55 @@ export default function AttendanceImport() {
 
   const rows = preview?.rows || [];
   const eligible = rows.filter((row) => !row.skip_reason && !row.existing_attendance && !row.error).length;
+  const unresolved = employees.filter((emp) => !mapping[emp.code]).length;
   return (
-    <div className="mx-auto max-w-[1600px] space-y-5 p-4">
-      <section className="rounded-xl border p-4 space-y-4">
-        <p className="text-sm text-muted-foreground">{t("esslImport.instructions")}</p>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div><label className="text-sm font-medium">{t("esslImport.company")}</label>
-            <LinkField doctype="Company" value={company} disabled={locked} onChange={(value) => { setCompany(value); resetMappings(); }} /></div>
-          <div><label htmlFor="essl-file" className="text-sm font-medium">{t("esslImport.file")}</label>
-            <Input id="essl-file" type="file" accept=".xls" disabled={locked} onChange={(event) => {
-              setFile(event.target.files?.[0] || null); setFileUrl(null); resetMappings();
-            }} /></div>
+    <div className="mx-auto max-w-[1600px] space-y-4 p-4">
+      <details className="rounded-xl border bg-background" open={!employees.length}>
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">{t("esslImport.source")} {company && ` · ${company}`} {file && ` · ${file.name}`}</summary>
+        <div className="space-y-3 border-t p-4">
+          <p className="text-sm text-muted-foreground">{t("esslImport.instructions")}</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div><label className="text-sm font-medium">{t("esslImport.company")}</label>
+              <LinkField doctype="Company" value={company} disabled={locked} onChange={(value) => { setCompany(value); resetMappings(); }} /></div>
+            <div><label htmlFor="essl-file" className="text-sm font-medium">{t("esslImport.file")}</label>
+              <Input id="essl-file" type="file" accept=".xls" disabled={locked} onChange={(event) => { setFile(event.target.files?.[0] || null); setFileUrl(null); resetMappings(); }} /></div>
+          </div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={submit} disabled={locked || !access.can_submit} onChange={(event) => { setSubmit(event.target.checked); resetPreview(); }} />{t("esslImport.submit")}</label>
+          <p className="text-xs text-muted-foreground">{t("esslImport.draftHint")}</p>
         </div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={submit}
-          disabled={locked || !access.can_submit} onChange={(event) => { setSubmit(event.target.checked); resetPreview(); }} />
-          {t("esslImport.submit")}</label>
-        <p className="text-xs text-muted-foreground">{t("esslImport.draftHint")}</p>
+      </details>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{t("esslImport.rememberHint")}</p>
         <div className="flex gap-2"><Button variant="outline" onClick={validate} disabled={locked}>{t("esslImport.preview")}</Button>
           <Button onClick={importReport} disabled={locked || !preview || preview.blocked || !eligible}>{t("esslImport.import")}</Button></div>
-      </section>
+      </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {mappingNotice && <p role="status" className="text-sm text-muted-foreground">{mappingNotice}</p>}
       {jobToken && <p role="status">{t("esslImport.running", { status: t(`esslImport.job.${jobStatus || "Queued"}`) })}</p>}
       {result && <section className="rounded-xl border p-4 space-y-2" role="status"><h2 className="font-semibold">{t("esslImport.result")}</h2>
-        <p>{t("esslImport.totals", { attendance: result.attendance_created, created: result.checkins_created,
-          reused: result.checkins_reused, skipped: result.skipped, failed: result.errors.length })}</p>
-        {result.errors.map((entry, index) => <p key={index} className="text-sm text-destructive">{entry.source}: {entry.error}</p>)}
+        <p className="text-sm">{t("esslImport.totals", { attendance: result.attendance_created, created: result.checkins_created, reused: result.checkins_reused, skipped: result.skipped, failed: result.errors.length })}</p>
+        {result.errors.length > 0 && <details><summary className="cursor-pointer text-sm">{t("esslImport.sourceErrors", { count: result.errors.length })}</summary>
+          <div className="max-h-36 overflow-auto pt-2">{result.errors.map((entry, index) => <p key={index} className="text-sm text-destructive">{entry.source}: {entry.error}</p>)}</div></details>}
       </section>}
-      {employees.length > 0 && <section className="rounded-xl border p-4 space-y-3"><h2 className="font-semibold">{t("esslImport.mapping")}</h2>
-        <p className="text-sm text-muted-foreground">{t("esslImport.mappingHint")}</p>
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr>
-          {["code", "name", "employee", "match"].map((key) => <th className="p-2 text-start" key={key}>{t(`esslImport.${key}`)}</th>)}
-        </tr></thead><tbody>{employees.map((emp) => <tr key={emp.code} className="border-t">
-          <td className="p-2">{emp.code}</td><td className="p-2">{emp.report_name}</td>
-          <td className="p-2 min-w-64"><LinkField doctype="Employee" value={mapping[emp.code]} disabled={locked}
-            filters={{ company, status: "Active" }} onChange={(value) => {
-              setMapping((current) => ({ ...current, [emp.code]: value })); resetPreview();
-            }} /></td><td className="p-2">{emp.reason}</td>
-        </tr>)}</tbody></table></div>
-      </section>}
-      {preview && <section className="rounded-xl border p-4 space-y-3"><h2 className="font-semibold">{t("esslImport.preview")}</h2>
-        <p>{t("esslImport.previewTotals", { total: rows.length, eligible, skipped: rows.length - eligible })}</p>
-        {preview.blocked && <p className="text-destructive">{t("esslImport.blocked")}</p>}
-        {preview.errors.map((entry, index) => <p key={index} className="text-sm text-destructive">{entry.source}: {entry.error}</p>)}
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr>
-          {["employee", "date", "status", "in", "out", "hours", "shift", "notes"].map((key) => <th className="p-2 text-start" key={key}>{t(`esslImport.${key}`)}</th>)}
-        </tr></thead><tbody>{rows.slice(offset, offset + 100).map((row) => <tr key={`${row.employee_code}:${row.attendance_date}`} className="border-t">
-          <td className="p-2">{row.employee || row.employee_code}</td><td className="p-2 whitespace-nowrap">{row.attendance_date}</td>
-          <td className="p-2">{row.status}</td><td className="p-2 whitespace-nowrap">{row.in_time || "—"}</td>
-          <td className="p-2 whitespace-nowrap">{row.out_time || "—"}</td><td className="p-2">{Number(row.working_hours).toFixed(2)}</td>
-          <td className="p-2">{row.shift || "—"}</td><td className="p-2">{[row.action, row.existing_attendance, row.error, ...row.warnings].filter(Boolean).join("; ")}</td>
-        </tr>)}</tbody></table></div>
-        <div className="flex items-center gap-3"><Button variant="outline" disabled={!offset} onClick={() => setOffset(offset - 100)}>{t("esslImport.previous")}</Button>
-          <span className="text-sm">{rows.length ? offset + 1 : 0}–{Math.min(offset + 100, rows.length)} / {rows.length}</span>
-          <Button variant="outline" disabled={offset + 100 >= rows.length} onClick={() => setOffset(offset + 100)}>{t("esslImport.next")}</Button></div>
+      {employees.length > 0 && <section className="rounded-xl border bg-background">
+        <div className="grid grid-cols-2 gap-3 border-b p-4 md:grid-cols-4">
+          {[["employeesCount", employees.length], ["unmappedCount", unresolved], ["daysCount", preview ? rows.length : "—"], ["readyCount", preview ? eligible : "—"]].map(([key, count]) => <div key={key}><p className="text-xs text-muted-foreground">{t(`esslImport.${key}`)}</p><p className="text-xl font-semibold">{count}</p></div>)}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+          <div role="tablist" aria-label={t("esslImport.reviewTabs")} className="flex flex-wrap gap-2">
+            <Button role="tab" aria-selected={activeTab === "mapping"} aria-controls="essl-mapping-panel" variant={activeTab === "mapping" ? "secondary" : "ghost"} onClick={() => setActiveTab("mapping")}>{t("esslImport.mapping")} · {unresolved}</Button>
+            <Button role="tab" aria-selected={activeTab === "preview"} aria-controls="essl-preview-panel" disabled={!preview} variant={activeTab === "preview" ? "secondary" : "ghost"} onClick={() => setActiveTab("preview")}>{t("esslImport.attendancePreview")}</Button>
+          </div>
+          {activeTab === "mapping" && <Button variant="outline" onClick={saveMappings} disabled={locked || !fileUrl}>{t("esslImport.saveMappings")}</Button>}
+        </div>
+        <div className="p-4">
+          {activeTab === "mapping" && <div role="tabpanel" id="essl-mapping-panel"><EmployeeMappingPanel employees={employees} mapping={mapping} company={company} locked={locked} onChange={(code, value) => {
+            setMapping((current) => ({ ...current, [code]: value }));
+            setEmployees((current) => current.map((emp) => emp.code === code ? { ...emp, saved: false, reason: t("esslImport.editedMatch") } : emp));
+            setMappingNotice(""); resetPreview();
+          }} /></div>}
+          {activeTab === "preview" && preview && <div role="tabpanel" id="essl-preview-panel"><AttendancePreviewPanel preview={preview} /></div>}
+        </div>
       </section>}
     </div>
   );

@@ -6,6 +6,7 @@ import { HeaderProvider } from "@/context/HeaderContext";
 import i18n from "@/i18n/index.js";
 import AttendanceImport from "@/pages/HR/AttendanceImport";
 import RequireEsslImportAccess from "@/components/RequireEsslImportAccess";
+import { EmployeeMappingPanel, AttendancePreviewPanel } from "@/pages/HR/EsslImportPanels";
 
 globalThis.fetch = () => { throw new Error("Unexpected fetch during SSR"); };
 for (const language of ["en", "hi", "ar"]) {
@@ -21,5 +22,21 @@ for (const language of ["en", "hi", "ar"]) {
   assert(totals.includes("10") && totals.includes("6") && totals.includes("4"));
   assert(!totals.includes("{total}"));
   assert.equal(renderToString(<I18nextProvider i18n={i18n}><RequireEsslImportAccess><div>protected</div></RequireEsslImportAccess></I18nextProvider>), "", "Guard fails closed while loading");
+  const employees = Array.from({ length: 60 }, (_, index) => ({ code: String(index), report_name: `Employee ${index}`, reason: "Needs mapping" }));
+  const mappingHtml = renderToString(<I18nextProvider i18n={i18n}><EmployeeMappingPanel employees={employees} mapping={{}} company="Company" locked={false} onChange={() => {}} /></I18nextProvider>);
+  assert.equal((mappingHtml.match(/<tr/g) || []).length, 9, "Mapping renders only eight employees plus header");
+  assert(mappingHtml.includes('data-testid="employee-mapping-scroll"'));
+  const rows = Array.from({ length: 476 }, (_, index) => ({ employee_code: String(index), employee: `EMP-${index}`, attendance_date: "2026-09-01", status: "Present", working_hours: 8, warnings: [] }));
+  const previewHtml = renderToString(<I18nextProvider i18n={i18n}><AttendancePreviewPanel preview={{ rows, errors: [], blocked: false }} /></I18nextProvider>);
+  assert.equal((previewHtml.match(/<tr/g) || []).length, 16, "Preview renders only fifteen employees plus header");
+  assert(previewHtml.includes('data-testid="attendance-preview-scroll"'));
+  assert(previewHtml.includes('data-testid="fixed-employee-header"'));
+  assert.equal((previewHtml.match(/scope="col"/g) || []).length, 31, "September has thirty day columns and one employee column");
+  const groupedRows = [rows[0], { ...rows[0], attendance_date: "2026-09-02" }, rows[1], { ...rows[1], attendance_date: "2026-09-02" }];
+  const groupedHtml = renderToString(<I18nextProvider i18n={i18n}><AttendancePreviewPanel preview={{ rows: groupedRows, errors: [], blocked: false }} /></I18nextProvider>);
+  assert.equal((groupedHtml.match(/<tr/g) || []).length, 3, "Multiple dates for each employee share one row");
+  assert.equal((groupedHtml.match(/data-testid="fixed-employee-cell"/g) || []).length, 2);
+  assert(groupedHtml.includes("sticky start-0"), "Employee cells remain fixed with logical positioning for RTL");
+  assert(!mappingHtml.includes("esslImport.") && !previewHtml.includes("esslImport."));
 }
-console.log("eSSL import renders in en/hi/ar; interpolation and fail-closed guard verified.");
+console.log("eSSL import renders in en/hi/ar; paginated scroll areas, interpolation and fail-closed guard verified.");
