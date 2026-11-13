@@ -107,3 +107,8 @@ override those four fields. Untouched line fields follow the global values;
 clearing an optional line field leaves it blank. **Use global details** resets
 that line's overrides. Click **Issue items** to review and submit through the
 normal Stock Entry flow. New header and line fields require `bench migrate`.
+
+### eSSL Attendance Import
+
+Use **HR → eSSL Attendance Import** to review employee mappings and import valid report punches and Attendance.
+See [setup, import rules and migration notes](docs/essl-attendance-import.md).

@@ -14,18 +14,21 @@ import enStore from "./locales/en/store.json";
 import enOps from "./locales/en/ops.json";
 import enCommercial from "./locales/en/commercial.json";
 import enReports from "./locales/en/reports.json";
+import enEsslImport from "./locales/en/esslImport.json";
 import hiApprovals from "./locales/hi/approvals.json";
 import hiEss from "./locales/hi/ess.json";
 import hiStore from "./locales/hi/store.json";
 import hiOps from "./locales/hi/ops.json";
 import hiCommercial from "./locales/hi/commercial.json";
 import hiReports from "./locales/hi/reports.json";
+import hiEsslImport from "./locales/hi/esslImport.json";
 import arApprovals from "./locales/ar/approvals.json";
 import arEss from "./locales/ar/ess.json";
 import arStore from "./locales/ar/store.json";
 import arOps from "./locales/ar/ops.json";
 import arCommercial from "./locales/ar/commercial.json";
 import arReports from "./locales/ar/reports.json";
+import arEsslImport from "./locales/ar/esslImport.json";
 
 /** Shallow-merge module bundles over the core translation bundle. */
 function withModules(core, ...modules) {
@@ -63,7 +66,8 @@ i18n
 					enStore,
 					enOps,
 					enCommercial,
-					enReports
+					enReports,
+					enEsslImport
 				),
 			},
 			hi: {
@@ -74,7 +78,8 @@ i18n
 					hiStore,
 					hiOps,
 					hiCommercial,
-					hiReports
+					hiReports,
+					hiEsslImport
 				),
 			},
 			ar: {
@@ -85,7 +90,8 @@ i18n
 					arStore,
 					arOps,
 					arCommercial,
-					arReports
+					arReports,
+					arEsslImport
 				),
 			},
 		},

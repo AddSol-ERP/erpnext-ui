@@ -1,0 +1,40 @@
+{
+  "esslImport": {
+    "title": "eSSL Attendance Import",
+    "subtitle": "Import monthly attendance and checkins from an eSSL report",
+    "noAccess": "You do not have permission to import attendance.",
+    "instructions": "Upload the monthly Detailed Work Duration .xls report, review employee matches, then validate before importing. Shifts come from ERPNext. Days without valid IN and OUT punches are skipped entirely.",
+    "company": "Company",
+    "file": "eSSL report (.xls)",
+    "selectSource": "Select a company and choose a report first.",
+    "fileLimit": "Choose a binary .xls report smaller than 5 MB.",
+    "submit": "Submit created Attendance",
+    "draftHint": "Attendance is created as drafts by default. Submission requires permission and is disabled when Attendance has an approval workflow.",
+    "preview": "Preview / validate",
+    "import": "Import",
+    "running": "Import {status}. This page updates when the background worker finishes.",
+    "job": {
+      "Queued": "queued",
+      "Running": "running"
+    },
+    "result": "Import result",
+    "totals": "{attendance} Attendance created · {created} Checkins created · {reused} Checkins reused · {skipped} days skipped · {failed} failed or invalid days",
+    "mapping": "Employee mapping",
+    "mappingHint": "Suggestions compare employee codes/numbers and exact names, never device IDs. Correct matches as needed; changes require a fresh preview.",
+    "code": "Report code",
+    "name": "Report name",
+    "employee": "ERPNext Employee",
+    "match": "Match",
+    "previewTotals": "{total} days · {eligible} to create · {skipped} skipped or unresolved",
+    "blocked": "Resolve employee mappings and errors, then validate again.",
+    "date": "Date",
+    "status": "Status",
+    "in": "IN time",
+    "out": "OUT time",
+    "hours": "Work hours",
+    "shift": "ERPNext shift",
+    "notes": "Action / notes",
+    "previous": "Previous",
+    "next": "Next"
+  }
+}

@@ -153,6 +153,30 @@ matters — `SPA_APPROVAL_DOCTYPES` (`:9-15`) and `SPA_REPORT_DOCTYPES` (`:25-29
 live **server-side deliberately** (`api.py:6-8`): the set of doctypes whose
 existence gets disclosed must not be editable JavaScript.
 
+#### eSSL attendance import (`erpnext_ui/essl_import.py`, 2026-11-13)
+
+Fully owned by this app, including `essl_report.py` (binary `.xls` parser, `xlrd`)
+and the React route `/hr/attendance-import`. No dependency on `aitspl_integration`.
+Endpoints all use `@frappe.whitelist(allow_guest=False)`:
+
+| Endpoint | Contract |
+|---|---|
+| `erpnext_ui.essl_import.access()` | Fail-closed `{allowed, can_submit}` for the tile and deep-link guard |
+| `erpnext_ui.essl_import.preview(file_url, company, employee_map=None)` | Permission-checked file parsing, code/name suggestions, employee mapping, per-day actions |
+| `erpnext_ui.essl_import.import_report(file_url, company, employee_map, submit_attendance=0)` | POST; enqueues the long-queue job; returns owner-checked status token |
+| `erpnext_ui.essl_import.import_status(token)` | Only the initiating user can read cached progress/results |
+
+Employee selections pass `_get_scope`, allowed departments, active/company filters
+and Frappe's Employee read permissions. Writes also require Checkin/Attendance create
+and reused-Checkin write permission. Active Attendance workflows disable direct
+submission. Drafts remain the default. No shift selector or device-ID matching.
+Invalid/missing punches skip the entire employee/day, including absence marking;
+existing non-cancelled Attendance also skips the day. New/reused Checkins are linked
+to Attendance and excluded from auto attendance. Each failed day rolls back together.
+
+The old Desk Page is retained only as a redirect, now owned by `Addsol Erpnext UI`.
+Deployment and source/report semantics: `docs/essl-attendance-import.md`.
+
 ### 3.3 `_get_scope()` — the HR visibility model (`api.py:173-267`)
 
 ```

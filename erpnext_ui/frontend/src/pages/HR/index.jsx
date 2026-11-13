@@ -13,10 +13,12 @@ import {
   Receipt,
   Briefcase,
   Contact,
+  Upload,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import { createTileNav } from "../../lib/tileNav";
+import useEsslImportAccess from "../../hooks/useEsslImportAccess";
 
 const MODULE_DEFS = [
   {
@@ -84,6 +86,7 @@ export default function HRDashboard() {
   const { setHeader } = useHeader();
   const { t } = useTranslation();
   const handleTileClick = createTileNav(navigate);
+  const importAccess = useEsslImportAccess();
 
   useEffect(() => {
     setHeader({
@@ -103,6 +106,8 @@ export default function HRDashboard() {
     titleKey: `hr.tiles.${m.key}.title`,
     descriptionKey: `hr.tiles.${m.key}.description`,
   }));
+  if (importAccess.allowed) modules.push({ key: "esslImport", icon: Upload,
+    route: "/hr/attendance-import", titleKey: "esslImport.title", descriptionKey: "esslImport.subtitle" });
 
   return (
     <DashboardShell>

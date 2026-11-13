@@ -44,6 +44,8 @@ import StockBalance from "./pages/Store/stock-balance";
 import InspectionPendingReport from "./pages/Store/inspection-pending";
 import SupplierQuotationSettings from "./pages/Settings/SupplierQuotation";
 import RequireSystemManager from "./components/RequireSystemManager";
+import RequireEsslImportAccess from "./components/RequireEsslImportAccess";
+const AttendanceImport = lazy(() => import("./pages/HR/AttendanceImport"));
 
 // Lazy: pulls recharts out of the initial bundle
 const QualityInspectionReport = lazy(() => import("./pages/Quality/reports"));
@@ -453,6 +455,7 @@ export default function App() {
               HR HUB
           ================================ */}
           <Route path="/hr" element={<HRDashboard />} />
+          <Route path="/hr/attendance-import" element={<RequireEsslImportAccess><Suspense fallback={null}><AttendanceImport /></Suspense></RequireEsslImportAccess>} />
           <Route path="/hr/:doctype" element={<GenericListPage />} />
           <Route path="/hr/:doctype/new" element={<GenericFormPage />} />
           <Route path="/hr/:doctype/:name" element={<GenericFormPage />} />

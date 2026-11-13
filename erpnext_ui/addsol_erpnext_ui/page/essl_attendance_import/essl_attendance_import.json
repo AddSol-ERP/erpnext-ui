@@ -1,0 +1,10 @@
+{
+ "doctype": "Page",
+ "name": "essl-attendance-import",
+ "page_name": "essl-attendance-import",
+ "title": "eSSL Attendance Import",
+ "module": "Addsol Erpnext UI",
+ "standard": "Yes",
+ "system_page": 0,
+ "roles": [{"role": "HR User"}, {"role": "HR Manager"}, {"role": "System Manager"}]
+}
