@@ -187,6 +187,14 @@ class TestEmployeeMatching(unittest.TestCase):
 			)
 			self.assertEqual(rows[0]["employee"], "HR-EMP-00002")
 
+	def test_multiple_test_users_can_be_skipped(self):
+		records = [{"employee_code": code, "employee_name": "Test " + code} for code in ("8", "9")]
+		with patch.object(importer.frappe, "get_list", return_value=[]):
+			rows, _ = importer.employee_mappings(
+				records, "Company", {code: importer.SKIP_EMPLOYEE for code in ("8", "9")}
+			)
+			self.assertTrue(all(row["employee"] == importer.SKIP_EMPLOYEE for row in rows))
+
 	def test_mapping_outside_company_rejected(self):
 		with (
 			patch.object(importer.frappe, "get_list", return_value=[self.employee()]),
@@ -346,6 +354,13 @@ class TestImport(unittest.TestCase):
 			"source": "Report: employee 2, day 1",
 			"error": None,
 		}
+
+	def test_explicit_skip_causes_no_database_action(self):
+		row = self.row()
+		row.update(employee=None, skip_reason="Biometric user explicitly skipped")
+		with patch.object(importer.frappe, "db", new=Mock()) as db:
+			self.assertEqual(importer.create_day(row, "Company", False), {"skipped": True})
+			self.assertEqual(db.mock_calls, [])
 
 	def test_existing_attendance_skips_day(self):
 		with (

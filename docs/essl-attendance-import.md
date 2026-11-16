@@ -84,3 +84,5 @@ Existing Attendance, Checkins and employee master data are not migrated or modif
 by this code move. The new importer checks those same stock ERPNext/HRMS records,
 so importing a previously imported report skips existing attendance days.
 
+
+For test biometric users without an ERPNext Employee, tick **Skip this biometric user** in Employee mapping, then validate again. All days for those users are skipped without creating Attendance or Checkins. The choice is saved per company/report code like employee mappings. Untick it to map the user later; a changed report name requires review again.

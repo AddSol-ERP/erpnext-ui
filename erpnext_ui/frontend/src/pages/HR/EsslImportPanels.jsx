@@ -36,7 +36,7 @@ export function EmployeeMappingPanel({ employees, mapping, company, locked, onCh
       <table className="w-full text-sm"><thead><tr>{["code", "name", "employee", "match"].map((key) => <th className={head} key={key}>{t(`esslImport.${key}`)}</th>)}</tr></thead>
         <tbody>{filtered.slice(start, start + PAGE_SIZE).map((emp) => <tr key={emp.code} className="border-b last:border-0">
           <td className={cell}>{emp.code}</td><td className={cell}>{emp.report_name}</td>
-          <td className={`${cell} min-w-64`}><LinkField doctype="Employee" value={mapping[emp.code] || ""} disabled={locked} filters={{ company, status: "Active" }} onChange={(value) => onChange(emp.code, value)} /></td>
+          <td className={`${cell} min-w-64`}><LinkField doctype="Employee" value={mapping[emp.code] === "__skip__" ? "" : mapping[emp.code] || ""} disabled={locked || mapping[emp.code] === "__skip__"} filters={{ company, status: "Active" }} onChange={(value) => onChange(emp.code, value)} /><label className="mt-2 flex items-center gap-2"><input type="checkbox" disabled={locked} checked={mapping[emp.code] === "__skip__"} onChange={(event) => onChange(emp.code, event.target.checked ? "__skip__" : "")} />{t("esslImport.skipEmployee")}</label></td>
           <td className={`${cell} text-muted-foreground`}>{emp.saved && mapping[emp.code] === emp.employee ? t("esslImport.savedMatch") : emp.reason}</td>
         </tr>)}</tbody>
       </table>

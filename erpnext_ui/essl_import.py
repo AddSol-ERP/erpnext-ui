@@ -15,6 +15,7 @@ from erpnext_ui.essl_report import parse_report
 # A private DefaultValue parent keeps mappings out of global/user boot defaults.
 # This app deliberately uses stock doctypes rather than adding a mapping doctype.
 MAPPING_PARENT = "__erpnext_ui_essl_employee_mappings"
+SKIP_EMPLOYEE = "__skip__"
 
 
 def mapping_key(company, code):
@@ -158,7 +159,7 @@ def employee_mappings(records, company, mapping=None):
 		if saved:
 			if normalize_name(saved.get("report_name")) != normalize_name(name):
 				employee, reason = None, "Report name changed; review saved mapping"
-			elif saved.get("employee") not in allowed:
+			elif saved.get("employee") != SKIP_EMPLOYEE and saved.get("employee") not in allowed:
 				employee, reason = None, "Saved employee is inactive or inaccessible; select again"
 			else:
 				employee, reason = saved["employee"], "Saved mapping"
@@ -171,9 +172,9 @@ def employee_mappings(records, company, mapping=None):
 				and employee == saved.get("employee")
 				and normalize_name(saved.get("report_name")) == normalize_name(name)
 			)
-		if employee and employee not in allowed:
+		if employee and employee != SKIP_EMPLOYEE and employee not in allowed:
 			frappe.throw(f"Employee mapped to {code} is not an accessible active employee in this company")
-		if employee:
+		if employee and employee != SKIP_EMPLOYEE:
 			conflict = None
 			if saved and normalize_name(saved.get("report_name")) != normalize_name(name):
 				conflict = f"Report code {code} was saved for a different report employee. Correct the source code or clear its previous mapping before reassigning it."
@@ -193,7 +194,7 @@ def employee_mappings(records, company, mapping=None):
 		mappings.append(
 			{"code": code, "report_name": name, "employee": employee, "reason": reason, "saved": is_saved}
 		)
-	targets = [row["employee"] for row in mappings if row["employee"]]
+	targets = [row["employee"] for row in mappings if row["employee"] and row["employee"] != SKIP_EMPLOYEE]
 	if len(targets) != len(set(targets)):
 		duplicates = {target for target in targets if targets.count(target) > 1}
 		if mapping is not None:
@@ -301,8 +302,16 @@ def prepare(file_url, company, employee_map=None):
 		row["shift"] = None
 		row["existing_attendance"] = None
 		row["existing_checkins"] = []
-		row["skip_reason"] = invalid_log_reason(row)
-		row["action"] = "Skip invalid logs" if row["skip_reason"] else "Create"
+		row["skip_reason"] = (
+			"Biometric user explicitly skipped"
+			if row["employee"] == SKIP_EMPLOYEE else invalid_log_reason(row)
+		)
+		if row["employee"] == SKIP_EMPLOYEE:
+			row["employee"] = None
+		row["action"] = (
+			"Skip biometric user" if row["skip_reason"] == "Biometric user explicitly skipped"
+			else "Skip invalid logs" if row["skip_reason"] else "Create"
+		)
 		if row["skip_reason"]:
 			row["warnings"].append(row["skip_reason"])
 			continue
@@ -368,7 +377,7 @@ def preview(file_url, company, employee_map=None):
 
 def create_day(row, company, submit):
 	# Guard before any database operation, including when called outside the preview flow.
-	if invalid_log_reason(row):
+	if row.get("skip_reason") or row.get("employee") == SKIP_EMPLOYEE or invalid_log_reason(row):
 		return {"skipped": True}
 	# Lock the employee so simultaneous imports cannot create duplicate punches/days.
 	frappe.db.get_value("Employee", row["employee"], "name", for_update=True)
