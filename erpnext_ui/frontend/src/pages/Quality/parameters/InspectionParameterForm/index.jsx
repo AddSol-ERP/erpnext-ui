@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../../../context/HeaderContext";
 import { useToast } from "../../../../context/ToastContext";
-import { get } from "../../../../services/api";
+import { get, post } from "../../../../services/api";
 import { saveDocument } from "../../../../lib/docTransition";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
@@ -56,7 +56,7 @@ export default function InspectionParameterForm() {
   const loadDoc = async () => {
     try {
       setLoading(true);
-      const res = await get(`resource/Quality Inspection Parameter/${name}`);
+      const res = await get(`resource/Quality Inspection Parameter/${encodeURIComponent(name)}`);
 
       setDoc({
         parameter: res.data.parameter || "",
@@ -76,7 +76,7 @@ export default function InspectionParameterForm() {
   const handleSave = async () => {
     const current = docRef.current;
     const errs = {};
-    if (!current.parameter) {
+    if (!current.parameter.trim()) {
       errs.parameter = t("quality.parameterRequired");
     }
 
@@ -91,22 +91,26 @@ export default function InspectionParameterForm() {
     try {
       setLoading(true);
 
-      await saveDocument({
-        doctype: "Quality Inspection Parameter",
-        name: name || undefined,
-        doc: {
-          parameter: current.parameter,
+      const payload = {
+          parameter: current.parameter.trim(),
           parameter_group: current.parameter_group,
           description: current.description,
           custom_response_config: serializeResponseConfig(current.responseConfig),
-        },
-      });
+      };
+      if (name) {
+        await post("method/erpnext_ui.quality_inspection.update_quality_inspection_parameter", {
+          name,
+          ...payload,
+        });
+      } else {
+        await saveDocument({ doctype: "Quality Inspection Parameter", doc: payload });
+      }
 
       toast.success(t("quality.savedSuccess"));
       navigate("/quality/parameters");
     } catch (e) {
       console.error(e);
-      toast.error(t("quality.saveFailed"));
+      toast.error(e.message || t("quality.saveFailed"));
     } finally {
       setLoading(false);
     }
@@ -116,7 +120,7 @@ export default function InspectionParameterForm() {
   useEffect(() => {
     setHeader({
       title: name
-        ? t("quality.parameterTitle", { name: doc.name || "" })
+        ? t("quality.parameterTitle", { name })
         : t("quality.newParameter"),
 
       subtitle: name
@@ -131,7 +135,7 @@ export default function InspectionParameterForm() {
           path: "/quality/parameters",
         },
         {
-          label: name ? doc.name || t("common.edit") : t("common.new"),
+          label: name || t("common.new"),
         },
       ],
 

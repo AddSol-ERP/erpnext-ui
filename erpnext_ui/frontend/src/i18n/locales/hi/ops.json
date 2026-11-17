@@ -418,6 +418,8 @@
   "csvLeaveType": "अवकाश प्रकार"
  },
  "print": {
+  "configureInErpnext": "ERPNext में कॉन्फ़िगर करें",
+  "defaultFormatHelp": "इस DocType का डिफ़ॉल्ट प्रिंट फ़ॉर्मेट उपयोग होता है। ERPNext में फ़ॉर्मेट खोलकर Set as Default चुनें (अनुमति आवश्यक)। बदलाव के बाद पूर्वावलोकन रीलोड करें।",
   "previewTitle": "प्रिंट पूर्वावलोकन",
   "downloadPdf": "PDF डाउनलोड करें",
   "missingParams": "URL में डोकटाइप या दस्तावेज़ नाम गायब है।",

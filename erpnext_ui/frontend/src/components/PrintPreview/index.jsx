@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
-import { getDoctypeConfig } from "../../config/doctypes";
 import { Button } from "@/components/ui/button";
 import { Download, Printer, TriangleAlert } from "lucide-react";
 
@@ -31,11 +30,8 @@ export default function PrintPreview() {
   const decodedDoctype = decodeURIComponent(doctype || "");
   const decodedName = decodeURIComponent(name || "");
 
-  /* ------------------------------------------------------------------
-     PRINT FORMAT FROM DOCTYPE CONFIG
-  ------------------------------------------------------------------ */
-  const doctypeConfig = getDoctypeConfig(decodedDoctype);
-  const printFormat = doctypeConfig.printFormat || "";
+  // Let ERPNext resolve the per-DocType default for preview, print and PDF.
+  const configureUrl = `/app/print-format?doc_type=${encodeURIComponent(decodedDoctype)}`;
 
   /* ------------------------------------------------------------------
      IFRAME LOAD ERROR DETECTION
@@ -69,13 +65,11 @@ export default function PrintPreview() {
 
   /**
    * Build the native Frappe printview URL.
-   * Uses the doctype's configured print format if specified,
-   * otherwise omits "format" so Frappe falls back to its own default.
+   * Omits format so Frappe uses the default configured in ERPNext.
    */
   const printviewUrl =
     `/printview?doctype=${encodeURIComponent(decodedDoctype)}` +
-    `&name=${encodeURIComponent(decodedName)}` +
-    (printFormat ? `&format=${encodeURIComponent(printFormat)}` : "");
+    `&name=${encodeURIComponent(decodedName)}`;
 
   /* ------------------------------------------------------------------
      DOWNLOAD / PRINT HELPERS
@@ -84,8 +78,7 @@ export default function PrintPreview() {
     const url =
       `/api/method/frappe.utils.print_format.download_pdf` +
       `?doctype=${encodeURIComponent(decodedDoctype)}` +
-      `&name=${encodeURIComponent(decodedName)}` +
-      (printFormat ? `&format=${encodeURIComponent(printFormat)}` : "");
+      `&name=${encodeURIComponent(decodedName)}`;
     window.open(url, "_blank");
   };
 
@@ -158,6 +151,14 @@ export default function PrintPreview() {
         <span className="ms-auto truncate text-sm text-muted-foreground">
           {decodedDoctype} — {decodedName}
         </span>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>{t("print.defaultFormatHelp")}</span>
+        <a href={configureUrl} target="_blank" rel="noopener noreferrer"
+          className="font-medium text-primary underline underline-offset-4">
+          {t("print.configureInErpnext")}
+        </a>
       </div>
 
       {/* Native Frappe /printview page embedded in an iframe */}

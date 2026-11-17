@@ -4,7 +4,6 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
-
 SETTINGS_DOCTYPE = "UI Quality Inspection Settings"
 FIELD_CONFIG_DOCTYPE = "UI Quality Inspection Field"
 ALLOWED_FIELD_TYPES = {
@@ -22,6 +21,33 @@ ALLOWED_FIELD_TYPES = {
 	"Text",
 	"Time",
 }
+
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def update_quality_inspection_parameter(
+	name, parameter, parameter_group="", description="", custom_response_config=""
+):
+	"""Rename the autoname field and save edits in one request transaction."""
+	doctype = "Quality Inspection Parameter"
+	parameter = str(parameter or "").strip()
+	if not parameter:
+		frappe.throw(_("Parameter is required."))
+	doc = frappe.get_doc(doctype, name)
+	doc.check_permission("write")
+	# A normal save resets `parameter` to `name` (autoname: field:parameter).
+	# Frappe's rename also updates references in templates and inspections.
+	if parameter != name:
+		name = frappe.rename_doc(doctype, name, parameter, merge=False)
+		doc = frappe.get_doc(doctype, name)
+	doc.update(
+		{
+			"parameter_group": parameter_group,
+			"description": description,
+			"custom_response_config": custom_response_config,
+		}
+	)
+	doc.save()
+	return doc.as_dict()
 
 
 def get_field_catalog():
@@ -147,7 +173,9 @@ def save_quality_inspection_field_config(payload=None, pending_inspection_wareho
 	field rows from clearing a site's configured warehouse by accident.
 	"""
 	if not {"System Manager", "Administrator"}.intersection(frappe.get_roles()):
-		frappe.throw(_("Only System Managers can change Quality Inspection UI settings."), frappe.PermissionError)
+		frappe.throw(
+			_("Only System Managers can change Quality Inspection UI settings."), frappe.PermissionError
+		)
 
 	if isinstance(payload, str):
 		payload = frappe.parse_json(payload)
@@ -162,9 +190,7 @@ def save_quality_inspection_field_config(payload=None, pending_inspection_wareho
 		pending_inspection_warehouse = str(pending_inspection_warehouse or "").strip()
 		if pending_inspection_warehouse:
 			if not frappe.db.exists("Warehouse", pending_inspection_warehouse):
-				frappe.throw(
-					_("Warehouse {0} does not exist.").format(pending_inspection_warehouse)
-				)
+				frappe.throw(_("Warehouse {0} does not exist.").format(pending_inspection_warehouse))
 			if frappe.db.get_value("Warehouse", pending_inspection_warehouse, "is_group"):
 				frappe.throw(_("Choose a warehouse, not a warehouse group."))
 		settings.pending_inspection_warehouse = pending_inspection_warehouse or None

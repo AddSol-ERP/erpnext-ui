@@ -25,7 +25,6 @@ export const DOCTYPE_CONFIG = {
       statusField: "status",
     },
     searchFields: ["employee_name", "employee", "designation"],
-    printFormat: "Employee Appointment Letter",
     // Large master → force multi-step form (overrides auto layout)
     form: { layout: "stepper" },
   },
@@ -106,7 +105,6 @@ export const DOCTYPE_CONFIG = {
     },
     searchFields: ["employee_name", "employee"],
     readOnly: true,      // renders ERPNext print format instead of editable form
-    printFormat: "Salary Slip",  // custom print format name for this doctype
   },
   "Job Opening": {
     list: {

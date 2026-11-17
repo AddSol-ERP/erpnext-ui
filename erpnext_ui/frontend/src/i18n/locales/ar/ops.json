@@ -418,6 +418,8 @@
   "csvLeaveType": "نوع الإجازة"
  },
  "print": {
+  "configureInErpnext": "الإعداد في ERPNext",
+  "defaultFormatHelp": "يستخدم تنسيق الطباعة الافتراضي لهذا النوع من المستندات. افتح التنسيق في ERPNext واختر Set as Default (يتطلب صلاحية). أعد تحميل المعاينة بعد التغيير.",
   "previewTitle": "معاينة الطباعة",
   "downloadPdf": "تنزيل PDF",
   "missingParams": "اسم المستند أو نوع المستند مفقود في الرابط.",

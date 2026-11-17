@@ -5,7 +5,6 @@ import { useHeader } from "../../context/HeaderContext";
 import { useToast } from "../../context/ToastContext";
 import { get } from "../../services/api";
 import { getCurrentUser } from "../../utils/getUser";
-import { getDoctypeConfig } from "../../config/doctypes";
 import { resolveHrApprovalGate } from "../../lib/profileFlags";
 import EmployeeDocuments from "./EmployeeDocuments";
 import AppModal from "../../components/AppModal";
@@ -37,18 +36,12 @@ export default function ESSProfile() {
   const openDocs = useCallback(() => setDocsOpen(true), []);
   const closeDocs = useCallback(() => setDocsOpen(false), []);
 
-  // Read configured print format from doctypes.js
-  const employeeConfig = getDoctypeConfig("Employee");
-  const printFormat =
-    employeeConfig.printFormat || "Employee Appointment Letter";
-
   /* ── Print / Download helpers ── */
   const downloadPdf = () => {
     if (!profile) return;
     const params = new URLSearchParams({
       doctype: "Employee",
       name: profile.name,
-      format: printFormat,
     });
     window.open(
       `/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`,
@@ -61,7 +54,6 @@ export default function ESSProfile() {
     const params = new URLSearchParams({
       doctype: "Employee",
       name: profile.name,
-      format: printFormat,
     });
     window.open(`/printview?${params.toString()}`, "_blank");
   };

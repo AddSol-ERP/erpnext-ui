@@ -1038,6 +1038,15 @@ export default function InspectionForm() {
       // while the document still has unsaved changes -- and it refuses (and
       // jumps to the first missing reading) when the paper is incomplete.
       actions: [
+        isEdit && {
+          label: t("common.print"),
+          variant: "btn-outline-primary",
+          onClick: () => navigate(
+            `/quality/print/Quality%20Inspection/${encodeURIComponent(name)}`,
+          ),
+          // Print renders the stored document, so save any edits first.
+          disabled: dirty || saving,
+        },
         canSave && {
           label: t("common.save"),
           variant: "btn-success",
@@ -1078,7 +1087,7 @@ export default function InspectionForm() {
 
     return () => setHeader({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, doc, initialAttachment, overallStatus, parameters.length]);
+  }, [isEdit, name, doc, dirty, saving, initialAttachment, overallStatus, parameters.length]);
 
   /* ================= LOAD EFFECT ================= */
   useEffect(() => {

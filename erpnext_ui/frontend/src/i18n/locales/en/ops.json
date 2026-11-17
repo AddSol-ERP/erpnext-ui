@@ -418,6 +418,8 @@
   "csvLeaveType": "Leave Type"
  },
  "print": {
+  "configureInErpnext": "Configure in ERPNext",
+  "defaultFormatHelp": "Uses the default print format for this DocType. Open a format in ERPNext and choose Set as Default (requires permission). Reload this preview after changing it.",
   "previewTitle": "Print Preview",
   "downloadPdf": "Download PDF",
   "missingParams": "Missing doctype or document name in the URL.",
