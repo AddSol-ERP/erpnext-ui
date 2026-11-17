@@ -43,13 +43,6 @@ async function fetchJobCard(name) {
   return res.data;
 }
 
-/** `flt`-alike: normalises a Float that is null/undefined to 0 the way
- * ERPNext's `flt()` does, so the comparison never sees `null`. */
-function flt(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
 /**
  * `add_time_log` writes ONE time-log row per entry in `employees`, so this
  * passes the card's own employee rows exactly as desk does (`frm.doc.employee`)
@@ -87,7 +80,10 @@ async function timeLog(name, extra) {
 
   // `{args}` is serialised as a JSON object; `make_time_log` also accepts a
   // JSON string, so both shapes reach the same `frappe._dict`.
-  await post(MAKE_TIME_LOG, { args });
+  const endpoint = [START_ARG_STATUS, RESUME_ARG_STATUS].includes(args.status)
+    ? "method/erpnext_ui.api.start_project_production_job"
+    : MAKE_TIME_LOG;
+  await post(endpoint, { args });
 }
 
 export function startJobCard(name) {
@@ -139,14 +135,9 @@ export function completeJobCard(name, completedQty) {
  * when nothing is ready (all done, or the remaining cards belong to a later
  * operation).
  *
- * A card whose materials have not been transferred to the WIP warehouse is
- * skipped: `add_time_log` opens with `validate_transfer_qty()`, which throws
- * "Materials needs to be transferred to the work in progress warehouse" for
- * exactly that card (`not is_corrective_job_card and items and
- * transferred_qty < for_quantity`), and desk hides its Start button for the
- * same reason. `items` is the one half this list query cannot see, so a card
- * with nothing to transfer and a smaller `transferred_qty` is skipped
- * conservatively -- the alternative is offering a start that can only fail.
+ * Project plans transfer remaining materials into WIP through the server start
+ * endpoint. It validates permissions, stock, workflows and operation sequence
+ * atomically before opening the time log.
  */
 export async function startNextJobCard(workOrder) {
   const res = await get("resource/Job Card", {
@@ -159,17 +150,15 @@ export async function startNextJobCard(workOrder) {
     ]),
     filters: JSON.stringify([
       ["work_order", "=", workOrder],
-      ["status", "in", ["Open", "On Hold"]],
+      ["status", "in", ["Open", "Submitted", "Material Transferred", "On Hold"]],
     ]),
     order_by: "sequence_id asc",
     limit_page_length: 20,
   });
 
-  const next = (res.data || []).find(
-    (card) =>
-      card.is_corrective_job_card ||
-      flt(card.transferred_qty) >= flt(card.for_quantity),
-  );
+  // Work-order transfers leave Job Card.transferred_qty at zero. Let the
+  // server validate material readiness and operation sequence on the first card.
+  const next = (res.data || [])[0];
   if (!next) return null;
 
   if (next.status === "On Hold") await resumeJobCard(next.name);

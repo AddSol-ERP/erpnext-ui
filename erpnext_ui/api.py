@@ -27,6 +27,7 @@ SPA_APPROVAL_DOCTYPES = (
 # - overtime is a plain `resource/Overtime Log` list view.
 # - leave-balance is computed from `Leave Allocation` + `Leave Application`.
 SPA_REPORT_DOCTYPES = {
+    "manufacturing": "Project",
     "attendance": "Attendance",
     "overtime": "Overtime Log",
     "leave-balance": "Leave Allocation",
@@ -3994,3 +3995,45 @@ def get_custom_report_data(report_key, filters=None):
             for f in declared
         ],
     }
+
+
+@frappe.whitelist(allow_guest=False)
+def get_project_manufacturing(project):
+    """Read project manufacturing documents through each parent's read permission."""
+    from erpnext_ui.manufacturing import workspace
+
+    return workspace(project)
+
+
+@frappe.whitelist(allow_guest=False)
+def get_project_production_preview(
+    project, source, source_name, qty=1, source_warehouse=None, fg_warehouse=None, planned_start=None
+):
+    """Require source read and plan create; return an unsaved native plan and material requirements."""
+    from erpnext_ui.manufacturing import prepare_plan
+
+    return prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehouse, planned_start)
+
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def create_project_work_orders(plan, source_warehouse, wip_warehouse, fg_warehouse):
+    """Require plan write, project read and Work Order create; native validation remains active."""
+    from erpnext_ui.manufacturing import make_orders
+
+    return make_orders(plan, source_warehouse, wip_warehouse, fg_warehouse)
+
+
+@frappe.whitelist(allow_guest=False)
+def get_project_material_transfer(work_order):
+    """Require Work Order read and Stock Entry create before invoking the stock mapper."""
+    from erpnext_ui.manufacturing import prepare_transfer
+
+    return prepare_transfer(work_order)
+
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def start_project_production_job(args):
+    """Require Job Card write; project starts also require stock create/submit for automatic WIP transfer."""
+    from erpnext_ui.manufacturing import start_job
+
+    return start_job(args)

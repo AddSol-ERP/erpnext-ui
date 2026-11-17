@@ -86,6 +86,7 @@ function sectionIcon(section) {
 export default function GenericFormPage() {
   const { doctype, name } = useParams();
   const hub = useHub();
+  const location = useLocation();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
   const toast = useToast();
@@ -582,6 +583,10 @@ export default function GenericFormPage() {
           initialDoc.docstatus = docData.docstatus;
         }
 
+        if (isNew && decodedDoctype === "BOM" && location.state?.manufacturingProject) {
+          initialDoc.project = location.state.manufacturingProject;
+          initialDoc.company = location.state.manufacturingCompany;
+        }
         setDoc(initialDoc);
         setDirty(false);
         setActiveTab(0);
@@ -685,6 +690,15 @@ export default function GenericFormPage() {
         variant: "btn-outline-danger",
         disabled: saving || loading,
         onClick: () => setConfirmDelete(true),
+      });
+    }
+
+    if (!isNew && decodedDoctype === "Project") {
+      actions.push({
+        label: t("manufacturing.title"),
+        variant: "btn-outline-primary",
+        disabled: dirty || saving || loading,
+        onClick: () => navigate(`/production/projects/${encodeURIComponent(docRef.current.name)}`),
       });
     }
 

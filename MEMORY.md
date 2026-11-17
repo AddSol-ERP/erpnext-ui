@@ -3464,3 +3464,49 @@ The helper creates two layout breaks and updates field_order from live metadata,
 preserving unrelated fields and section order. It runs as a patch, after_sync
 and after_migrate; reruns must remain stable. Customer NL layout hooks may reorder
 whole quantity sections afterward but retain the shared pricing block.
+
+## Project manufacturing workspace (2026-11-17)
+
+Production → Project manufacturing (`/production/projects/:project`) provides
+project selection, project/BOM creation, native Production Plan previews from
+project BOM, submitted project Sales Order, or Manufacture Material Request.
+MR lines are restricted to the selected project after the native mapper runs.
+Full raw requirements and warehouse availability come from ERPNext's native
+material calculator; source/FG warehouses and planned start are required.
+Draft plans open the normal workflow-aware form for review/submission. Submitted
+plans generate draft work orders with explicit source/WIP/FG warehouses and
+transfer against Work Order. Generation locks the plan and refuses existing
+non-cancelled orders (native MR planning does not subtract draft orders).
+No custom DocTypes or migrations were added.
+
+Permission-checked endpoint inventory in `api.py`:
+- `get_project_manufacturing(project)`: project read; each related parent uses
+  permission-filtered lists and document read checks, including job cards.
+- `get_project_production_preview(...)`: project/source/BOM/Item/Bin/warehouse
+  read and Production Plan create; returns an unsaved standard document.
+- `create_project_work_orders(...)` (POST): plan write, project read, Work Order
+  create and company leaf warehouse validation; native controller owns mapping.
+- `get_project_material_transfer(work_order)`: WO read and Stock Entry create;
+  maps outstanding production quantity or resumes an existing visible draft.
+- `start_project_production_job(args)` (POST): Job Card write and WO read;
+  project-plan jobs transfer all remaining raw materials to WIP atomically
+  before opening the timer. Stock create/submit permissions and native stock
+  validation apply. Tracked items, existing transfer drafts and active stock
+  workflows require a reviewed/submitted transfer first. Non-project jobs retain
+  native behavior. Time-log completion/pause still use the standard endpoint.
+
+The workspace shows work-order completion and nested Job Cards on a Gantt
+(planned/actual dates, statuses, quantities and logged execution minutes).
+Running job elapsed minutes refresh every 30 seconds. Existing preview modals
+provide execution actions; the first job selection now includes Submitted and
+Material Transferred cards and lets the server validate material/sequence rules.
+Project, BOM, Production Plan, Work Order and Stock Entry forms/lists live under
+an allow-listed production route guarded by Project read via the `manufacturing`
+access key. Stored Project forms link back to their manufacturing workspace;
+BOM creation from the workspace prefills project/company.
+
+Validation: 20 new backend unit tests and timeline assertions, targeted ESLint,
+Ruff and frontend production build. Full Python discovery has a missing-Frappe
+import error in existing `test_essl_import`; broader rules smoke reports 591
+passes / 22 failures in existing assertions. Live ERPNext document submission,
+stock ledger and browser execution still need deployment verification.

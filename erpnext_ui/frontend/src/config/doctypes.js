@@ -284,6 +284,26 @@ export const DOCTYPE_CONFIG = {
   // `project` is deliberately part of searchFields: with ~1 BOM per project on
   // a manufacturing site, "which BOM belongs to project X" is the first question
   // anyone asks, and the list is filtered far more often than it is browsed.
+  Project: {
+    list: { titleField: "project_name", subtitleField: "name", metaField: "modified", statusField: "status" },
+    searchFields: ["name", "project_name"],
+    form: { layout: "tabs" },
+  },
+  "Production Plan": {
+    list: { titleField: "name", subtitleField: "project", metaField: "posting_date", statusField: "status" },
+    searchFields: ["name", "project"],
+    form: { layout: "tabs" },
+  },
+  "Work Order": {
+    list: { titleField: "name", subtitleField: "production_item", metaField: "planned_start_date", statusField: "status" },
+    searchFields: ["name", "production_item", "project"],
+    form: { layout: "tabs" },
+  },
+  "Stock Entry": {
+    list: { titleField: "name", subtitleField: "stock_entry_type", metaField: "posting_date", statusField: "docstatus" },
+    searchFields: ["name", "work_order"],
+    form: { layout: "tabs" },
+  },
   BOM: {
     list: {
       titleField: "item_name",

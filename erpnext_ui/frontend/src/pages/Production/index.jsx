@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, ClipboardList, Cog, Play } from "lucide-react";
+import { useRole } from "../../context/RoleContext";
 import { useHeader } from "../../context/HeaderContext";
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ export default function ProductionDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
+  const { canReadReport } = useRole();
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,6 +53,7 @@ export default function ProductionDashboard() {
   return <DashboardShell>
     <StartWorkModal show={startOpen} onClose={() => setStartOpen(false)} onStarted={() => { setStartOpen(false); loadData(); }} />
     <div className="flex flex-wrap justify-end gap-2">
+      {canReadReport("manufacturing") && <Button size="sm" variant="outline" onClick={() => navigate("/production/projects")}>{t("manufacturing.title")}</Button>}
       <Button size="sm" onClick={() => setStartOpen(true)}><Play />{t("production.startWork")}</Button>
       <Button size="sm" variant="outline" disabled={loading} onClick={loadData}>{t("common.refresh")}</Button>
     </div>
