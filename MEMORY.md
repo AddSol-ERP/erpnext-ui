@@ -3759,3 +3759,16 @@ changing tax rates/tolerance. Sites without India Compliance skip the integratio
 provider failures propagate. 34 pricing tests and touched lint pass, including
 provider delegation/failure and lifecycle order. Exact production integration
 still requires verification after backend deployment/restart.
+
+## GST failure evidence after production source confirmation (2026-11-18)
+
+User confirmed the production override includes both prepricing and regional
+refresh; before_save is solely India Compliance update_gst_details. These facts
+do not yet establish the remaining mismatch cause. Added narrowly scoped failure
+logging to _save_public_doc for Supplier Quotation GST amount mismatch exceptions.
+It logs only explicit document/item/tax numeric fields and item-wise tax details
+(no session/token/request/contact payload) to the site's supplier_quotation_gst.log.
+File logging retains the failed in-memory amounts after the DB rolls back; old
+saved draft SQL values cannot show that state. Original validation errors and
+session restoration remain unchanged. Eight supplier-context/diagnostic tests and
+lint pass. Need production diagnostic output before another calculation change.

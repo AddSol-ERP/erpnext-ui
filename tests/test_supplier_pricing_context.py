@@ -97,3 +97,31 @@ class RateFieldEditabilityTests(unittest.TestCase):
 			fields = self.fields(enabled)
 			self.assertNotIn("read_only", fields["supplier_remark"])
 			self.assertTrue(fields["supplier_remark"]["mandatory"])
+
+
+class GSTDiagnosticTests(unittest.TestCase):
+	def test_failed_state_contains_tax_evidence_but_no_request_credentials(self):
+		node = next(
+			n
+			for n in ast.parse(source.read_text()).body
+			if isinstance(n, ast.FunctionDef) and n.name == "_supplier_gst_diagnostic"
+		)
+		namespace = {}
+		exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), namespace)
+
+		class Doc(dict):
+			__getattr__ = dict.get
+
+		doc = Doc(
+			name="SQ-001",
+			session="SECRET",
+			token="SECRET",
+			contact_email="PRIVATE",
+			items=[{"idx": 1, "taxable_value": 1000, "cgst_rate": 9, "cgst_amount": 0, "token": "SECRET"}],
+			taxes=[{"rate": 9, "gst_tax_type": "cgst", "tax_amount": 90, "secret": "SECRET"}],
+		)
+		result = namespace["_supplier_gst_diagnostic"](doc)
+		self.assertEqual(result["items"][0]["taxable_value"], 1000)
+		self.assertEqual(result["taxes"][0]["tax_amount"], 90)
+		self.assertNotIn("SECRET", str(result))
+		self.assertNotIn("PRIVATE", str(result))

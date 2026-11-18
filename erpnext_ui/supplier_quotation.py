@@ -608,6 +608,49 @@ def _append_event(inv, event, actor=None, detail=None, ip=None):
 	)
 
 
+def _supplier_gst_diagnostic(doc):
+	"""Numeric tax evidence only; never log supplier sessions, tokens or request bodies."""
+	item_fields = (
+		"idx",
+		"qty",
+		"rate",
+		"amount",
+		"base_net_amount",
+		"taxable_value",
+		"cgst_rate",
+		"cgst_amount",
+		"sgst_rate",
+		"sgst_amount",
+		"igst_rate",
+		"igst_amount",
+		"item_tax_rate",
+		"custom_rate_per_pricing_uom",
+		"custom_chargeable_qty",
+	)
+	tax_fields = (
+		"idx",
+		"account_head",
+		"charge_type",
+		"row_id",
+		"rate",
+		"gst_tax_type",
+		"tax_amount",
+		"tax_amount_after_discount_amount",
+		"base_tax_amount_after_discount_amount",
+		"base_total",
+		"dont_recompute_tax",
+		"item_wise_tax_detail",
+	)
+	return {
+		"quotation": doc.name,
+		"controller": f"{type(doc).__module__}.{type(doc).__name__}",
+		"conversion_rate": doc.get("conversion_rate"),
+		"base_net_total": doc.get("base_net_total"),
+		"items": [{field: row.get(field) for field in item_fields} for row in doc.get("items") or []],
+		"taxes": [{field: row.get(field) for field in tax_fields} for row in doc.get("taxes") or []],
+	}
+
+
 def _save_public_doc(doc):
 	"""Save a document on behalf of an anonymous supplier.
 
@@ -619,6 +662,18 @@ def _save_public_doc(doc):
 	frappe.set_user("Administrator")
 	try:
 		doc.save(ignore_permissions=True)
+	except Exception as exc:
+		if doc.doctype == "Supplier Quotation" and "GST amounts do not match" in str(exc):
+			try:
+				# File logging survives rollback and captures the failed in-memory
+				# amounts; reading SQL afterwards only shows the old draft values.
+				frappe.logger("supplier_quotation_gst", allow_site=True).error(
+					frappe.as_json(_supplier_gst_diagnostic(doc), indent=None)
+				)
+			except Exception:
+				# A diagnostic failure must never replace the original tax error.
+				pass
+		raise
 	finally:
 		frappe.set_user(original_user)
 
