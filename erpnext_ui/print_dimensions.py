@@ -78,3 +78,25 @@ def item_pricing_dimensions(item_code):
 	if not pricing.get("rule") or not pricing.get("pricing_uom"):
 		return ""
 	return pricing_dimensions({"custom_pricing_snapshot": pricing})
+
+
+def set_material_request_dimensions(doc):
+	"""Store current pricing-rule dimensions on requisition rows without pricing them.
+
+	Material Requests can omit rates and measured quantities for any purpose.
+	Keep this separate from transaction pricing so dimensions still populate when
+	buying pricing is disabled or the request is for transfer/manufacture.
+	"""
+	from erpnext_ui.uom_pricing import get_item_pricing
+
+	for row in doc.get("items") or []:
+		item_code = row.get("item_code")
+		if not item_code:
+			row.custom_pricing_dimensions = ""
+			continue
+		pricing = get_item_pricing(item_code, "buying")
+		row.custom_pricing_dimensions = (
+			pricing_dimensions({"custom_pricing_snapshot": pricing})
+			if pricing.get("rule") and pricing.get("pricing_uom")
+			else ""
+		)

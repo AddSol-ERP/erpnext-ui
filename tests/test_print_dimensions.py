@@ -5,7 +5,11 @@ import types
 import unittest
 from unittest.mock import Mock, patch
 
-from erpnext_ui.print_dimensions import item_pricing_dimensions, pricing_dimensions
+from erpnext_ui.print_dimensions import (
+	item_pricing_dimensions,
+	pricing_dimensions,
+	set_material_request_dimensions,
+)
 
 
 class DimensionTests(unittest.TestCase):
@@ -162,3 +166,75 @@ class LiveItemDimensionsTests(unittest.TestCase):
 
 	def test_blank_item_returns_blank(self):
 		self.assertEqual(item_pricing_dimensions(None), "")
+
+
+class MaterialRequestDimensionsTests(unittest.TestCase):
+	def test_unpriced_request_gets_saved_dimensions_for_all_purposes(self):
+		class Row(dict):
+			__getattr__ = dict.get
+			__setattr__ = dict.__setitem__
+
+		pricing = types.ModuleType("erpnext_ui.uom_pricing")
+		pricing.get_item_pricing = Mock(
+			return_value={
+				"enabled": False,
+				"pricing_uom": "Kg",
+				"rule": {
+					"params": [
+						{"symbol": "T", "label": "Thickness", "is_dimension": 1, "uom": "mm"},
+						{"symbol": "D", "label": "Density", "is_dimension": 0, "uom": "kg/m3"},
+					]
+				},
+				"params_by_symbol": {"T": 5, "D": 7850},
+			}
+		)
+		for purpose in ("Purchase", "Material Transfer", "Manufacture", "Material Issue"):
+			row = Row(item_code="PLATE", qty=3, rate=0, amount=0, custom_rate_per_pricing_uom=0)
+			with patch.dict(sys.modules, {"erpnext_ui.uom_pricing": pricing}):
+				set_material_request_dimensions({"material_request_type": purpose, "items": [row]})
+			self.assertEqual(row.custom_pricing_dimensions, "5 mm")
+			self.assertEqual((row.rate, row.amount, row.custom_rate_per_pricing_uom), (0, 0, 0))
+			self.assertNotIn("custom_chargeable_qty", row)
+
+	def test_removed_item_or_missing_rule_clears_old_dimensions(self):
+		class Row(dict):
+			__getattr__ = dict.get
+			__setattr__ = dict.__setitem__
+
+		pricing = types.ModuleType("erpnext_ui.uom_pricing")
+		pricing.get_item_pricing = Mock(return_value={"rule": None, "pricing_uom": None})
+		rows = [
+			Row(item_code="OTHER", custom_pricing_dimensions="5 mm"),
+			Row(custom_pricing_dimensions="old"),
+		]
+		with patch.dict(sys.modules, {"erpnext_ui.uom_pricing": pricing}):
+			set_material_request_dimensions({"items": rows})
+		self.assertTrue(all(row.custom_pricing_dimensions == "" for row in rows))
+
+	def test_material_request_validate_populates_dimensions_after_native_validation(self):
+		import ast
+		from pathlib import Path
+
+		tree = ast.parse((Path(__file__).resolve().parents[1] / "erpnext_ui/overrides.py").read_text())
+		controller = next(
+			node
+			for node in tree.body
+			if isinstance(node, ast.ClassDef) and node.name == "UomPricingMaterialRequest"
+		)
+		events = []
+
+		class Native:
+			def validate(self):
+				events.append("native")
+
+		context = {
+			"MaterialRequest": Native,
+			"_apply_uom_pricing": lambda doc, side: events.append("pricing"),
+		}
+		exec(compile(ast.Module(body=[controller], type_ignores=[]), "overrides.py", "exec"), context)
+		with patch(
+			"erpnext_ui.print_dimensions.set_material_request_dimensions",
+			side_effect=lambda doc: events.append("dimensions"),
+		):
+			context["UomPricingMaterialRequest"]().validate()
+		self.assertEqual(events, ["native", "pricing", "dimensions"])

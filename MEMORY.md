@@ -3660,3 +3660,17 @@ rate/actual measurement are required. It returns blank without an effective
 pricing UOM/rule. Existing `pricing_dimensions(row)` retains historical snapshot
 semantics for other prints. Deploy/restart to refresh Jinja hooks; no migration.
 All 12 dimension unit tests and touched Python lint pass.
+
+## Persist Material Request dimensions without a rate (2026-11-18)
+
+Material Request Item already participates in the shared Dimensions field/layout
+installation. UomPricingMaterialRequest.validate now fills that saved field after
+native validation/pricing using `set_material_request_dimensions`. It resolves
+the effective pricing-UOM rule and parameter values independently of rate,
+measured quantity, global buying-pricing switch and request purpose. Only configured
+dimension parameters are displayed in configured order/units. Removed items or
+missing rules clear stale dimension text. It does not change rates, amounts or
+measurement quantities. Prints can use item.custom_pricing_dimensions directly.
+Existing draft requests populate on their next save; no submitted-history backfill
+was added. Migrate ensures shared custom fields/layout exist, then restart after
+deployment. All 15 dimension and 26 pricing tests plus touched lint pass.

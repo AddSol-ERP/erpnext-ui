@@ -299,6 +299,9 @@ class UomPricingMaterialRequest(MaterialRequest):
 	def validate(self):
 		super().validate()
 		_apply_uom_pricing(self, "buying")
+		from erpnext_ui.print_dimensions import set_material_request_dimensions
+
+		set_material_request_dimensions(self)
 
 
 class UomPricingSupplierQuotation(SupplierQuotation):
