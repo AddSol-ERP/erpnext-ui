@@ -445,15 +445,14 @@
       { label: "Item", className: "item-column" },
       ...inputFields.map((field) => {
         let label = field.mandatory ? `${field.label} *` : field.label;
-        if (field.fieldname === "rate" && firstItem && firstItem.uom) {
-          label = field.mandatory ? `${field.label} (${firstItem.uom}) *` : `${field.label} (${firstItem.uom})`;
-        }
         return {
           label,
           help: field.help_text,
         };
       }),
       { label: "Requested Qty" },
+      { label: "Calculated Rate" },
+      { label: "Amount" },
       ...remainingContextFields.map((field) => ({ label: field.label, help: field.help_text })),
     ];
 
@@ -488,7 +487,13 @@
           label = itemField.mandatory ? `${itemField.label} (${item.uom}) *` : `${itemField.label} (${item.uom})`;
         }
         cell.dataset.label = label;
-        cell.appendChild(buildField(itemField, "item", item.item, true));
+        const unit = itemField.fieldname === "custom_rate_per_pricing_uom" ? item.pricing?.pricing_uom : itemField.fieldname === "rate" ? item.uom : null;
+        const fieldControl = buildField(unit ? { ...itemField, label: `${itemField.label} /${unit}` } : itemField, "item", item.item, true);
+        if (unit) {
+          fieldControl.classList.add("rate-input-with-unit");
+          fieldControl.appendChild(el("span", "rate-uom", `/${unit}`));
+        }
+        cell.appendChild(fieldControl);
         row.appendChild(cell);
       });
 
@@ -497,6 +502,24 @@
       quantity.appendChild(el("span", "quantity-value", formatQuantity(item.qty)));
       quantity.appendChild(el("span", "quantity-uom", item.uom || ""));
       row.appendChild(quantity);
+      const rateCell = el("td", "calculated-pricing");
+      rateCell.dataset.label = "Calculated Rate";
+      const amountCell = el("td", "calculated-pricing");
+      amountCell.dataset.label = "Amount";
+      row.append(rateCell, amountCell);
+      const updatePricing = () => {
+        const calculated = globalThis.SupplierQuotationPricing.calculate(item, state.values.items[item.item]);
+        rateCell.textContent = calculated.pending ? "—" : `${formatCurrency(calculated.standardRate, form.currency)} /${item.uom || "unit"}`;
+        amountCell.textContent = calculated.pending ? "—" : formatCurrency(calculated.amount, form.currency);
+        amountCell.title = calculated.error || "Preview; final values are calculated when the response is saved.";
+        if (calculated.error) amountCell.textContent = calculated.error;
+        else if (!calculated.pending && item.pricing?.enabled) {
+          amountCell.appendChild(el("span", "pricing-quantity", `${formatQuantity(calculated.chargeableQty)} ${item.pricing.pricing_uom || ""}`));
+        }
+      };
+      row.addEventListener("input", updatePricing);
+      row.addEventListener("change", updatePricing);
+      updatePricing();
 
       remainingContextFields.forEach((field) => {
         const itemField = (item.context || []).find((candidate) => candidate.fieldname === field.fieldname) || field;
@@ -509,6 +532,7 @@
     });
     table.appendChild(body);
     els.itemsList.appendChild(table);
+    els.itemsList.appendChild(el("p", "help", "Calculated rates and amounts are previews before taxes. Final values are validated when you submit your response."));
   }
 
   function formatQuantity(value) {
@@ -949,11 +973,18 @@
       const list = el("dl", "review-fields review-fields-item");
       fields.forEach((field) => {
         list.appendChild(
-          reviewField(field, state.values.items[item.item]?.[field.fieldname], currency),
+          reviewField(field.fieldname === "custom_rate_per_pricing_uom" && item.pricing?.pricing_uom
+            ? { ...field, label: `${field.label} /${item.pricing.pricing_uom}` } : field,
+            state.values.items[item.item]?.[field.fieldname], currency),
         );
       });
       card.appendChild(list);
     }
+    const calculated = globalThis.SupplierQuotationPricing.calculate(item, state.values.items[item.item] || {});
+    const pricingSummary = el("p", "help");
+    pricingSummary.textContent = calculated.pending ? calculated.error || "Enter a rate to preview the amount."
+      : `Calculated rate: ${formatCurrency(calculated.standardRate, currency)} /${item.uom || "unit"} · Amount: ${formatCurrency(calculated.amount, currency)}`;
+    card.appendChild(pricingSummary);
     return card;
   }
 

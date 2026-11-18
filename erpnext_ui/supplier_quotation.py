@@ -2059,6 +2059,35 @@ def get_supplier_quotation_response_form(session=None):
 	return {"form": _build_response_form(inv, settings)}
 
 
+def _supplier_pricing_context(item):
+	"""Project only units and baseline quantity for an already-authorized invitation row."""
+	from erpnext_ui.uom_pricing import calculate_chargeable_quantity, get_item_pricing
+
+	pricing = get_item_pricing(item.item_code, "buying")
+	if not pricing.get("enabled"):
+		return {"enabled": False}
+	baseline = None
+	try:
+		if pricing.get("formula_mode") != "Direct Entry":
+			baseline = calculate_chargeable_quantity(pricing["rule"], pricing["params_by_symbol"]) * flt(
+				item.qty
+			)
+			if not math.isfinite(baseline) or baseline <= 0:
+				raise ValueError("Invalid baseline")
+	except ValueError:
+		return {
+			"enabled": True,
+			"pricing_uom": pricing.get("pricing_uom"),
+			"error": "Pricing estimate unavailable. Please contact the buyer.",
+		}
+	return {
+		"enabled": True,
+		"pricing_uom": pricing.get("pricing_uom"),
+		"calculated_chargeable_qty": baseline,
+		"chargeable_qty": flt(item.get("custom_chargeable_qty")) or None,
+	}
+
+
 def _build_response_form(inv, settings):
 	sq = frappe.get_doc("Supplier Quotation", inv.supplier_quotation)
 	if sq.docstatus != 0:
@@ -2089,6 +2118,7 @@ def _build_response_form(inv, settings):
 				"description": strip_html(inv_item.description or sq_item.description or ""),
 				"qty": flt(inv_item.qty or sq_item.qty),
 				"uom": inv_item.uom or sq_item.uom,
+				"pricing": _supplier_pricing_context(sq_item),
 				"context": [_field_payload(row, sq_item.get(row.fieldname), False) for row in item_context],
 				"fields": [_field_payload(row, sq_item.get(row.fieldname), True) for row in item_inputs],
 			}

@@ -651,3 +651,9 @@ label { font-weight: 600; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.rate-input-with-unit { display: flex; align-items: center; gap: 6px; }
+.rate-input-with-unit input { min-width: 0; flex: 1; }
+.rate-uom { flex-shrink: 0; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.calculated-pricing { font-variant-numeric: tabular-nums; font-size: 12px; }
+.pricing-quantity { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }

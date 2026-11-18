@@ -3687,3 +3687,29 @@ supplier responses remain native drafts pending buyer approval but must validate
 entered prices at response acceptance. Other financial documents are unchanged.
 31 pricing regression tests, touched lint and supplier module compilation pass.
 Backend deploy/restart required; no schema migration or frontend rebuild.
+
+## Supplier response pricing-unit labels and live amounts (2026-11-18)
+
+OTP-authenticated supplier response form projects each invited item's effective
+pricing UOM, formula baseline line quantity and existing measured override through
+`_supplier_pricing_context`; no rule formula/parameter data is exposed. It does
+not accept a caller-selected Item or quotation. Rate-per-UOM controls show a
+per-row suffix (/Kg, /Ltr, etc.), including accessible labels and review labels.
+Removed the first item's UOM from the shared native rate header, since mixed
+UOM rows may differ.
+
+New standalone pricing-preview.js computes display-only converted rate (per
+requested UOM) and amount from entered rate and line chargeable quantity. Formula
+baseline is supplied by the server; Direct Entry waits for a measurement. Blank
+rates show pending, zero measurement uses the formula baseline, existing saved
+measurement is respected if not editable, and nonfinite/negative inputs do not
+produce totals. Calculated columns update on input/change and are included in
+review. These values are never posted as authoritative rates/amounts; native
+server pricing/tolerance/tax validation remains unchanged. The UI labels them
+pre-tax previews. Public asset cache versions bumped to v10.
+
+Checks: preview arithmetic tests (Kg/Ltr, measured/direct/formula, ordinary rates,
+blank/invalid inputs), four backend projection tests, all 31 pricing regressions,
+Python lint and JS syntax pass. Browser/OTP flow verification remains pending.
+Deploy public assets and backend, restart and clear website cache. No schema change
+or SPA rebuild is required for this standalone supplier page.
