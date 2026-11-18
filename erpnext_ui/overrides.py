@@ -28,7 +28,7 @@ class QualityInspection(StockQualityInspection):
 		self._repair_inspected_by()
 
 
-def _apply_uom_pricing(doc, side):
+def _apply_uom_pricing(doc, side, *, recalculate_totals=True):
 	from erpnext_ui import uom_pricing
 	from erpnext_ui.pricing_contracts import contract_measure, contract_state, preserved_contract
 
@@ -236,7 +236,11 @@ def _apply_uom_pricing(doc, side):
 	# with the pre-pricing amounts).
 	# Material Request inherits this method through AccountsController, but its
 	# schema has no currency/tax fields. Method presence is not a capability check.
-	if doc.doctype != "Material Request" and hasattr(doc, "calculate_taxes_and_totals"):
+	if (
+		recalculate_totals
+		and doc.doctype != "Material Request"
+		and hasattr(doc, "calculate_taxes_and_totals")
+	):
 		doc.calculate_taxes_and_totals()
 
 
@@ -313,5 +317,9 @@ class UomPricingMaterialRequest(MaterialRequest):
 
 class UomPricingSupplierQuotation(SupplierQuotation):
 	def validate(self):
+		# Native validation must calculate tax details from the final UOM rate.
+		# Repricing after super().validate() causes a second taxes pass against
+		# GST taxable/item values produced from the previous rate. Seed pricing
+		# first, then let native validation and regional hooks own all taxes.
+		_apply_uom_pricing(self, "buying", recalculate_totals=False)
 		super().validate()
-		_apply_uom_pricing(self, "buying")

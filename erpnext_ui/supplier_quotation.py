@@ -2231,7 +2231,8 @@ def submit_supplier_quotation_response(session=None, rows=None, document=None):
 		inv,
 		{"document": document_values, "items": rows_by_item},
 	)
-	sq.run_method("calculate_taxes_and_totals")
+	# Save invokes native validation after UOM pricing has set the final rates.
+	# A premature tax pass here would calculate GST from the draft's old rate.
 	# A response remains a native draft until buyer approval, but its prices
 	# must be validated now rather than treated as an unpriced RFQ invitation.
 	sq.flags.require_pricing_rates = True

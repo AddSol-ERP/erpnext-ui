@@ -3728,3 +3728,21 @@ Public asset version v11 invalidates old scripts. Seven projection/editability
 unit tests, preview arithmetic checks, Python lint and JS syntax pass. No schema
 change or SPA rebuild; deploy/restart backend and clear website cache. Live OTP
 interaction remains unverified.
+
+## Supplier Quotation GST calculation order (2026-11-18)
+
+Addressed the supplier response CGST/SGST mismatch by applying UOM pricing before
+native Supplier Quotation.validate, using the new recalculate_totals=False option.
+Native validation then computes taxes from final rates; removed the explicit
+premature calculate_taxes_and_totals call from supplier response submission.
+Other document controllers retain existing calculation order. GST validation,
+tax rates and rounding tolerances are not bypassed or changed.
+
+India Compliance's upstream validate_transaction updates taxable values and
+item GST details; ItemGSTDetails validates GST amounts against taxable_value:
+https://github.com/resilient-tech/india-compliance/blob/version-15/india_compliance/gst_india/overrides/transaction.py
+Production's exact v15.29 implementation/error path was not available locally,
+so full production verification is still required. Regression simulates native
+GST calculation seeing final converted rate and confirms one native tax pass.
+33 pricing tests, seven supplier-context tests, preview arithmetic, touched lint
+and diff checks pass. Backend deploy/restart only; no schema/frontend change.

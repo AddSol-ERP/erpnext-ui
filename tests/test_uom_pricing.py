@@ -302,6 +302,53 @@ class TransactionPricingTests(unittest.TestCase):
 		self.run_pricing(doc)
 		self.assertEqual(row, before)
 
+	def test_supplier_quotation_prices_before_native_gst_calculation(self):
+		import ast
+
+		doc, row = self.document(rate=80)
+		doc.doctype = "Supplier Quotation"
+		doc.docstatus = 0
+		events = []
+		doc.calculate_taxes_and_totals = lambda: events.append("taxes")
+		test = self
+
+		class Native(type(doc)):
+			def validate(self):
+				# Reproduce GST validation depending on the final taxable amount.
+				test.assertEqual((row.rate, row.amount), (160, 1600))
+				test.assertEqual(events, [], "No tax pass before native validation")
+				self.calculate_taxes_and_totals()
+				row.taxable_value = row.amount
+				row.cgst_amount = row.taxable_value * 0.09
+				row.sgst_amount = row.taxable_value * 0.09
+
+		source = Path(__file__).resolve().parents[1] / "erpnext_ui/overrides.py"
+		controller = next(
+			node
+			for node in ast.parse(source.read_text()).body
+			if isinstance(node, ast.ClassDef) and node.name == "UomPricingSupplierQuotation"
+		)
+		context = {"SupplierQuotation": Native, "_apply_uom_pricing": self.apply}
+		exec(compile(ast.Module(body=[controller], type_ignores=[]), str(source), "exec"), context)
+		quotation = context["UomPricingSupplierQuotation"](doc)
+		with (
+			patch.object(pricing, "is_uom_pricing_enabled", return_value=True),
+			patch.object(pricing, "get_item_pricing", return_value=state()),
+		):
+			quotation.validate()
+		self.assertEqual(events, ["taxes"])
+		self.assertEqual((row.cgst_amount, row.sgst_amount), (144, 144))
+
+	def test_pricing_can_defer_totals_to_native_validation(self):
+		doc, row = self.document()
+		doc.calculate_taxes_and_totals = lambda: (_ for _ in ()).throw(RuntimeError("premature taxes"))
+		with (
+			patch.object(pricing, "is_uom_pricing_enabled", return_value=True),
+			patch.object(pricing, "get_item_pricing", return_value=state()),
+		):
+			self.apply(doc, "buying", recalculate_totals=False)
+		self.assertEqual((row.rate, row.amount), (160, 1600))
+
 	def test_tax_failure_is_not_silenced(self):
 		doc, _ = self.document()
 
