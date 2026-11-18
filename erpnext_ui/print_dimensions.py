@@ -59,3 +59,22 @@ def pricing_dimensions(row):
 		uom = units.get(symbol) or parameter.get("uom") or ""
 		parts.append(f"{number:.12g}" + (f" {uom}" if uom else ""))
 	return " \u00d7 ".join(parts)
+
+
+def item_pricing_dimensions(item_code):
+	"""Current Item dimensions resolved from its effective pricing-UOM rule.
+
+	Use explicitly in prints that should reflect today's Item configuration.
+	Transaction prints needing historical values should keep pricing_dimensions.
+	"""
+	if not item_code:
+		return ""
+	import frappe
+
+	from erpnext_ui.uom_pricing import get_item_pricing
+
+	frappe.has_permission("Item", "read", doc=item_code, throw=True)
+	pricing = get_item_pricing(item_code, "buying")
+	if not pricing.get("rule") or not pricing.get("pricing_uom"):
+		return ""
+	return pricing_dimensions({"custom_pricing_snapshot": pricing})

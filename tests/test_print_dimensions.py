@@ -1,8 +1,11 @@
 """Prints keep compact configured symbols, units and frozen values."""
 
+import sys
+import types
 import unittest
+from unittest.mock import Mock, patch
 
-from erpnext_ui.print_dimensions import pricing_dimensions
+from erpnext_ui.print_dimensions import item_pricing_dimensions, pricing_dimensions
 
 
 class DimensionTests(unittest.TestCase):
@@ -86,3 +89,76 @@ class DimensionTests(unittest.TestCase):
 			params_by_symbol=dict(X=1500, T=10),
 		)
 		self.assertEqual(pricing_dimensions(dict(custom_pricing_snapshot=snapshot)), "1500 mm")
+
+
+class LiveItemDimensionsTests(unittest.TestCase):
+	def render(self, state, denied=False):
+		frappe = types.ModuleType("frappe")
+		frappe.has_permission = Mock(side_effect=PermissionError("Item read denied") if denied else None)
+		pricing = types.ModuleType("erpnext_ui.uom_pricing")
+		pricing.get_item_pricing = Mock(return_value=state)
+		with patch.dict(sys.modules, {"frappe": frappe, "erpnext_ui.uom_pricing": pricing}):
+			result = item_pricing_dimensions("ITEM-001")
+		frappe.has_permission.assert_called_once_with("Item", "read", doc="ITEM-001", throw=True)
+		pricing.get_item_pricing.assert_called_once_with("ITEM-001", "buying")
+		return result
+
+	def test_uses_configured_dimensions_order_and_item_parameter_units(self):
+		self.assertEqual(
+			self.render(
+				{
+					"pricing_uom": "Kg",
+					"rule": {
+						"params": [
+							{
+								"symbol": "W",
+								"label": "Width",
+								"is_dimension": 1,
+								"uom": "mm",
+								"display_order": 2,
+							},
+							{
+								"symbol": "L",
+								"label": "Length",
+								"is_dimension": 1,
+								"uom": "mm",
+								"display_order": 1,
+							},
+							{"symbol": "DENS", "label": "Density", "is_dimension": 0, "uom": "kg/m3"},
+						]
+					},
+					"params_by_symbol": {"W": 1500, "L": 3, "DENS": 7850},
+					"parameter_uoms": {"L": "m"},
+				}
+			),
+			"3 m \u00d7 1500 mm",
+		)
+
+	def test_no_rule_or_pricing_uom_returns_blank(self):
+		for state in ({}, {"rule": {"params": []}}, {"pricing_uom": "Kg"}):
+			with self.subTest(state=state):
+				self.assertEqual(self.render(state), "")
+
+	def test_does_not_require_a_rate_or_enabled_transaction_pricing(self):
+		self.assertEqual(
+			self.render(
+				{
+					"enabled": False,
+					"pricing_uom": "Kg",
+					"rule": {
+						"params": [
+							{"symbol": "X", "label": "Size", "is_dimension": 1, "uom": "mm"},
+						]
+					},
+					"params_by_symbol": {"X": 40},
+				}
+			),
+			"40 mm",
+		)
+
+	def test_denied_item_read_is_not_silently_bypassed(self):
+		with self.assertRaises(PermissionError):
+			self.render({}, denied=True)
+
+	def test_blank_item_returns_blank(self):
+		self.assertEqual(item_pricing_dimensions(None), "")

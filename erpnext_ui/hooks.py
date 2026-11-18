@@ -79,7 +79,12 @@ doctype_js = {
 # Jinja
 # ----------
 
-jinja = {"methods": ["erpnext_ui.print_dimensions.pricing_dimensions"]}
+jinja = {
+	"methods": [
+		"erpnext_ui.print_dimensions.pricing_dimensions",
+		"erpnext_ui.print_dimensions.item_pricing_dimensions",
+	]
+}
 
 # add methods and filters to jinja environment
 # jinja = {

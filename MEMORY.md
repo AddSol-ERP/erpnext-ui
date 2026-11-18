@@ -3648,3 +3648,15 @@ no migration or frontend rebuild is needed. Deploy backend code and restart the
 Frappe processes. Ruff and all 26 pricing unit tests pass, including mixed-rate
 requests, blank/zero values, direct-entry measurements and priced-document guards.
 Live-site save/submission remains unverified.
+
+## Live pricing-rule dimensions for MR prints (2026-11-18)
+
+User explicitly prefers current Item pricing-UOM dimensions for Material Request
+printing. New registered Jinja method `item_pricing_dimensions(item_code)` checks
+Item read permission, delegates effective Item override/group rule and parameter
+resolution to `get_item_pricing`, then uses the shared formatter for dimension
+flags, display order, values and units. No hardcoded Item geometry fields and no
+rate/actual measurement are required. It returns blank without an effective
+pricing UOM/rule. Existing `pricing_dimensions(row)` retains historical snapshot
+semantics for other prints. Deploy/restart to refresh Jinja hooks; no migration.
+All 12 dimension unit tests and touched Python lint pass.
