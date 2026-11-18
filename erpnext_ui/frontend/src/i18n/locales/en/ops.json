@@ -428,6 +428,13 @@
   "goBack": "Go back"
  },
  "manufacturing": {
+  "steps": {
+    "setup": "Setup",
+    "materials": "Materials review",
+    "plans": "Production plans",
+    "orders": "Work orders",
+    "timeline": "Timeline"
+  },
   "title": "Project manufacturing",
   "subtitle": "Plan production and track execution by project",
   "project": "Project",
@@ -470,5 +477,34 @@
    "BOM": "Project BOM",
    "Material Request": "Manufacture material request"
   }
+ },
+ "projects": {
+  "title": "Projects",
+  "subtitle": "Manage projects, bills of materials and production planning",
+  "active": "Active",
+  "inactive": "Inactive",
+  "activity": "Project activity",
+  "search": "Search by project name or ID",
+  "emptyActive": "No active projects found.",
+  "emptyInactive": "No inactive projects found.",
+  "due": "Due date",
+  "completion": "Completion",
+  "overview": "Project overview",
+  "edit": "Edit project",
+  "boms": "Bills of materials",
+  "bomHelp": "Create and maintain the materials needed for this project.",
+  "planning": "Production planning",
+  "planningHelp": "Plan production from a BOM, sales order or material request, then manage work orders and track execution.",
+  "startPlanning": "Start production planning",
+  "noBoms": "No active BOMs are linked to this project yet.",
+  "backToProject": "Back to project"
+ },
+ "bomForm": {
+  "details": "BOM details",
+  "materials": "Raw materials",
+  "operations": "Operations",
+  "scrap": "Scrap and process loss",
+  "costing": "Costing and currency",
+  "additional": "Additional details"
  }
 }

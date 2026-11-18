@@ -1,3 +1,4 @@
+import { buildBomLayout, BOM_TABLE_COLUMNS } from "../../pages/Projects/bom/layout";
 import { deskNewUrl, deskDocUrl } from "../../lib/deskUrl";
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -176,7 +177,10 @@ export default function GenericFormPage() {
     [meta, doctypeConfig],
   );
 
-  const tabsTree = useMemo(() => (meta ? buildLayoutTree(meta) : []), [meta]);
+  const tabsTree = useMemo(
+    () => meta ? decodedDoctype === "BOM" ? buildBomLayout(meta, t) : buildLayoutTree(meta) : [],
+    [meta, decodedDoctype, t],
+  );
 
   const steps = useMemo(
     () => (layoutMode === "stepper" ? buildSteps(tabsTree) : []),
@@ -361,7 +365,7 @@ export default function GenericFormPage() {
 
       // One helper decides POST-for-create vs PUT-for-update, so a save can
       // never hit the execute_doc_method route by mistake.
-      await saveDocument({
+      const saved = await saveDocument({
         doctype: decodedDoctype,
         name: isNew ? undefined : decodedName,
         doc: payload,
@@ -376,7 +380,15 @@ export default function GenericFormPage() {
           : t("common.updatedSuccess", { name: decodedDoctype }),
       );
 
-      navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
+      if (hub === "projects" && decodedDoctype === "Project" && saved.data?.name) {
+        navigate(`/projects/view/${encodeURIComponent(saved.data.name)}`);
+      } else if (hub === "projects" && payload.project && ["Production Plan", "Work Order", "Stock Entry"].includes(decodedDoctype)) {
+        navigate(`/projects/view/${encodeURIComponent(payload.project)}/manufacturing?step=${decodedDoctype === "Production Plan" ? "plans" : "orders"}`);
+      } else if (hub === "projects" && payload.project) {
+        navigate(`/projects/view/${encodeURIComponent(payload.project)}`);
+      } else {
+        navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
+      }
     } catch (e) {
       console.error("Save failed:", e);
       toast.error(e.message || t("common.saveFailed"));
@@ -458,7 +470,14 @@ export default function GenericFormPage() {
           name: labelKey ? t(labelKey) : action || decodedDoctype,
         }),
       );
-      navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
+      const project = docRef.current.project;
+      if (hub === "projects" && project && ["Production Plan", "Work Order", "Stock Entry"].includes(decodedDoctype)) {
+        navigate(`/projects/view/${encodeURIComponent(project)}/manufacturing?step=${decodedDoctype === "Production Plan" ? "plans" : "orders"}`);
+      } else if (hub === "projects" && project) {
+        navigate(`/projects/view/${encodeURIComponent(project)}`);
+      } else {
+        navigate(`/${hub}/${encodeURIComponent(decodedDoctype)}`);
+      }
     } catch (e) {
       console.error("Submit failed:", e);
       toast.error(e.message || t("common.submitFailed"));
@@ -583,6 +602,9 @@ export default function GenericFormPage() {
           initialDoc.docstatus = docData.docstatus;
         }
 
+        if (isNew && hub === "projects" && decodedDoctype === "Project") {
+          initialDoc.is_active = initialDoc.is_active || "Yes";
+        }
         if (isNew && decodedDoctype === "BOM" && location.state?.manufacturingProject) {
           initialDoc.project = location.state.manufacturingProject;
           initialDoc.company = location.state.manufacturingCompany;
@@ -695,10 +717,10 @@ export default function GenericFormPage() {
 
     if (!isNew && decodedDoctype === "Project") {
       actions.push({
-        label: t("manufacturing.title"),
+        label: t("projects.overview"),
         variant: "btn-outline-primary",
         disabled: dirty || saving || loading,
-        onClick: () => navigate(`/production/projects/${encodeURIComponent(docRef.current.name)}`),
+        onClick: () => navigate(`/projects/view/${encodeURIComponent(docRef.current.name)}`),
       });
     }
 
@@ -809,12 +831,14 @@ export default function GenericFormPage() {
               <div key={rowIdx} className="mb-4">
                 <ChildTable
                   title={cf.label}
+                  compactFields={decodedDoctype === "BOM" ? BOM_TABLE_COLUMNS[cf.options] || childFields.filter((field) => field.in_list_view || field.reqd).map((field) => field.fieldname) : undefined}
                   pricingSide={["Purchase Order", "Purchase Receipt", "Purchase Invoice", "Supplier Quotation", "Material Request"].includes(decodedDoctype) ? "buying" : ["Sales Order", "Sales Invoice", "Delivery Note", "Quotation", "POS Invoice"].includes(decodedDoctype) ? "selling" : undefined}
                   columns={childFields
                     .filter(
                       (c) =>
                         c.fieldname &&
                         !c.hidden &&
+                        (decodedDoctype !== "BOM" || !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break", "HTML", "Button"].includes(c.fieldtype)) &&
                         !["custom_estimated_chargeable_qty", "custom_estimated_pricing_amount"].includes(c.fieldname) &&
                         c.fieldname !== "parent" &&
                         c.fieldname !== "parenttype" &&
@@ -903,6 +927,7 @@ export default function GenericFormPage() {
   // when >2. Sections with errors always open (FormSection).
   const sectionDefaultOpen = (section, index, total) => {
     if (sectionHasErrors(section)) return true;
+    if (decodedDoctype === "BOM" && index < 2) return true;
     if (total <= 2) return true;
     return index === 0;
   };
@@ -922,7 +947,7 @@ export default function GenericFormPage() {
         title={section.label}
         description={section.description}
         icon={sectionIcon(section)}
-        className="mb-4"
+        className={decodedDoctype === "BOM" ? "mb-0 ring-0 hover:shadow-none" : "mb-4"}
         collapsible
         defaultOpen={defaultOpen}
         errorCount={errorCount}
@@ -953,11 +978,13 @@ export default function GenericFormPage() {
           setActiveTab(Number(v));
           setSummary("");
         }}
-        className="w-full"
+        className={decodedDoctype === "BOM" ? "w-full gap-0 border border-border/70 bg-card shadow-sm" : "w-full"}
       >
         <TabsList
-          variant="line"
-          className="h-auto w-full flex-wrap justify-start gap-1.5 border-b border-border/60 bg-transparent px-1 py-1.5"
+          variant={decodedDoctype === "BOM" ? "default" : "line"}
+          className={decodedDoctype === "BOM"
+            ? "h-auto w-full flex-wrap justify-start gap-0 rounded-none border-b border-border/60 bg-muted/30 p-0"
+            : "h-auto w-full flex-wrap justify-start gap-1.5 border-b border-border/60 bg-transparent px-1 py-1.5"}
         >
           {tabList.map((tab, i) => {
             const names = sectionFieldNames(tab.sections);
@@ -966,7 +993,9 @@ export default function GenericFormPage() {
               <TabsTrigger
                 key={tab.id}
                 value={String(i)}
-                className="gap-2 rounded-md border border-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=active]:font-semibold hover:text-foreground"
+                className={decodedDoctype === "BOM"
+                  ? "h-auto flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 py-2.5 text-xs font-medium text-chrome-muted shadow-none transition-colors after:hidden hover:bg-muted hover:text-chrome-foreground data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                  : "gap-2 rounded-md border border-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=active]:font-semibold hover:text-foreground"}
               >
                 {tab.label || t("common.tab", { n: i + 1 })}
                 {errCount > 0 && (
@@ -979,7 +1008,7 @@ export default function GenericFormPage() {
           })}
         </TabsList>
         {tabList.map((tab, i) => (
-          <TabsContent key={tab.id} value={String(i)} className="pt-4">
+          <TabsContent key={tab.id} value={String(i)} className={decodedDoctype === "BOM" ? "m-0 p-0" : "pt-4"}>
             {tab.description && (
               <p className="mb-3 text-xs text-muted-foreground">
                 {tab.description}
@@ -1105,8 +1134,7 @@ export default function GenericFormPage() {
         onClose={() => setShowAttachments(false)}
       />
 
-  return (
-    <div className="mx-auto w-full max-w-[1100px]">
+      <div className={decodedDoctype === "BOM" ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
       <FormErrorSummary summary={summary} fieldErrors={errors} className="mb-4" />
 
       <RequiredAttachmentDialog

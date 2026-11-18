@@ -200,6 +200,60 @@ class TransactionPricingTests(unittest.TestCase):
 		self.assertEqual((row.rate, row.amount), (160, 1600))
 		self.assertEqual(row.custom_pricing_uom, "Square Metre")
 
+	def test_material_request_allows_blank_or_zero_pricing_rate(self):
+		for rate in (None, "", " ", 0, 0.0, "0", "0.0"):
+			for docstatus in (0, 1):
+				with self.subTest(rate=rate, docstatus=docstatus):
+					doc, row = self.document(rate=rate)
+					doc.doctype = "Material Request"
+					doc.material_request_type = "Purchase"
+					doc.docstatus = docstatus
+					row.rate = row.amount = 0
+					before = dict(row)
+					self.run_pricing(doc)
+					self.assertEqual(row, before)
+
+	def test_unpriced_material_request_does_not_require_direct_entry_measurement(self):
+		doc, row = self.document(rate=0, measurement=0)
+		doc.doctype = "Material Request"
+		doc.material_request_type = "Purchase"
+		before = dict(row)
+		self.run_pricing(doc, state(mode="Direct Entry"))
+		self.assertEqual(row, before)
+
+	def test_material_request_supplied_negative_rate_is_rejected(self):
+		doc, _ = self.document(rate=-1)
+		doc.doctype = "Material Request"
+		doc.material_request_type = "Purchase"
+		with self.assertRaises(ValueError):
+			self.run_pricing(doc)
+
+	def test_mixed_material_request_prices_only_rows_with_a_rate(self):
+		doc, priced = self.document()
+		doc.doctype = "Material Request"
+		doc.material_request_type = "Purchase"
+		_, unpriced = self.document(rate=0)
+		before = dict(unpriced)
+		doc["items"].append(unpriced)
+		self.run_pricing(doc)
+		self.assertEqual(priced.amount, 1600)
+		self.assertEqual(unpriced, before)
+
+	def test_other_documents_still_require_pricing_rate(self):
+		for doctype in (
+			"Supplier Quotation",
+			"Purchase Order",
+			"Purchase Receipt",
+			"Purchase Invoice",
+			"Sales Order",
+			"Sales Invoice",
+		):
+			with self.subTest(doctype=doctype):
+				doc, _ = self.document(rate=0)
+				doc.doctype = doctype
+				with self.assertRaises(ValueError):
+					self.run_pricing(doc)
+
 	def test_nonpurchase_material_request_remains_unchanged(self):
 		doc, row = self.document()
 		doc.doctype = "Material Request"

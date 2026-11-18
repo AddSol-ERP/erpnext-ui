@@ -53,7 +53,7 @@ export default function ProductionDashboard() {
   return <DashboardShell>
     <StartWorkModal show={startOpen} onClose={() => setStartOpen(false)} onStarted={() => { setStartOpen(false); loadData(); }} />
     <div className="flex flex-wrap justify-end gap-2">
-      {canReadReport("manufacturing") && <Button size="sm" variant="outline" onClick={() => navigate("/production/projects")}>{t("manufacturing.title")}</Button>}
+      {canReadReport("manufacturing") && <Button size="sm" variant="outline" onClick={() => navigate("/projects")}>{t("projects.title")}</Button>}
       <Button size="sm" onClick={() => setStartOpen(true)}><Play />{t("production.startWork")}</Button>
       <Button size="sm" variant="outline" disabled={loading} onClick={loadData}>{t("common.refresh")}</Button>
     </div>

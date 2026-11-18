@@ -17,9 +17,19 @@ import {
 	UserSquare2,
 	CheckSquare,
 	BarChart3,
+	FolderKanban,
 } from "lucide-react";
 
 export const MODULE_ACCESS = {
+	Projects: {
+		roles: ["*"],
+		gatedBy: "reports",
+		permissionKeys: ["manufacturing"],
+		icon: FolderKanban,
+		color: "#2563eb",
+		label: "Projects",
+		description: "Projects, bills of materials and production planning",
+	},
 	HR: {
 		roles: ["HR Manager", "HR User", "Administrator"],
 		icon: Users,
@@ -148,6 +158,7 @@ export function applyDoctypeAccess(modules, access) {
 		// No permission data at all -> withhold the gated module.
 		if (!permissions || typeof permissions !== "object") return false;
 
-		return Object.values(permissions).some(Boolean);
+		const keys = MODULE_ACCESS[key]?.permissionKeys;
+		return keys ? keys.some((permissionKey) => Boolean(permissions[permissionKey])) : Object.values(permissions).some(Boolean);
 	});
 }

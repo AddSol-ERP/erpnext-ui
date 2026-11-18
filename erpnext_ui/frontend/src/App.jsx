@@ -14,7 +14,9 @@ import PlateOffcutList from "./pages/Store/plate-offcut";
 import PlateOffcutForm from "./pages/Store/plate-offcut/form";
 import Approval from "./components/Approval";
 import ApprovalListPage from "./components/Approval/ApprovalListPage";
-import Projects from "./pages/Production/projects";
+import ProjectManufacturing from "./pages/Production/projects";
+import Projects from "./pages/Projects";
+import ProjectOverview from "./pages/Projects/ProjectOverview";
 import ManufacturingGuard from "./pages/Production/projects/DocumentGuard";
 import ProductionDashboard from "./pages/Production";
 import QualityDashboard from "./pages/Quality";
@@ -101,8 +103,15 @@ export default function App() {
             }
           />
           <Route path="/production" element={<ProductionDashboard />} />
-          <Route path="/production/projects" element={<ManufacturingGuard><Projects /></ManufacturingGuard>} />
-          <Route path="/production/projects/:project" element={<ManufacturingGuard><Projects /></ManufacturingGuard>} />
+          <Route path="/projects" element={<ManufacturingGuard><Projects /></ManufacturingGuard>} />
+          <Route path="/projects/view/:project" element={<ManufacturingGuard><ProjectOverview /></ManufacturingGuard>} />
+          <Route path="/projects/view/:project/manufacturing" element={<ManufacturingGuard><ProjectManufacturing /></ManufacturingGuard>} />
+          <Route path="/projects/Project" element={<Navigate to="/projects" replace />} />
+          <Route path="/projects/:doctype" element={<ManufacturingGuard><GenericListPage /></ManufacturingGuard>} />
+          <Route path="/projects/:doctype/new" element={<ManufacturingGuard><GenericFormPage /></ManufacturingGuard>} />
+          <Route path="/projects/:doctype/:name" element={<ManufacturingGuard><GenericFormPage /></ManufacturingGuard>} />
+          <Route path="/production/projects" element={<Navigate to="/projects" replace />} />
+          <Route path="/production/projects/:project" element={<ManufacturingGuard><ProjectManufacturing /></ManufacturingGuard>} />
           <Route path="/production/:doctype" element={<ManufacturingGuard><GenericListPage /></ManufacturingGuard>} />
           <Route path="/production/:doctype/new" element={<ManufacturingGuard><GenericFormPage /></ManufacturingGuard>} />
           <Route path="/production/:doctype/:name" element={<ManufacturingGuard><GenericFormPage /></ManufacturingGuard>} />

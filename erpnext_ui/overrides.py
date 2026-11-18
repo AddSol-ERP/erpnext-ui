@@ -46,6 +46,19 @@ def _apply_uom_pricing(doc, side):
 		item_code = row.get("item_code") if hasattr(row, "get") else getattr(row, "item_code", None)
 		if not item_code:
 			continue
+		# Material Request is an unvalued requisition. Its optional buying rate
+		# must not make pricing-UOM rates or actual measurements mandatory.
+		# An explicitly supplied rate still follows the same strict pricing path.
+		if doc.doctype == "Material Request":
+			request_rate = (
+				row.get("custom_rate_per_pricing_uom")
+				if hasattr(row, "get")
+				else getattr(row, "custom_rate_per_pricing_uom", None)
+			)
+			if request_rate is None or (isinstance(request_rate, str) and not request_rate.strip()):
+				continue
+			if float(request_rate) == 0:
+				continue
 		contract = preserved_contract(doc, row)
 		pricing_state = (
 			contract_state(contract) if contract else uom_pricing.get_item_pricing(item_code, side)
@@ -276,7 +289,9 @@ class UomPricingMaterialRequest(MaterialRequest):
 	through AccountsController, so the shared helper explicitly skips the
 	totals pass for this DocType and only writes the line values. That is deliberate -- an indent
 	carries the agreed rate so the Purchase Order made from it starts from the
-	figure the buyer negotiated instead of zero. `_apply_uom_pricing` already
+	figure the buyer negotiated instead of zero. Rate is optional: an unpriced
+	request retains ERPNext's native line values without requiring a measurement.
+	`_apply_uom_pricing` already
 	gates on the Buying switch, so Transfer/Issue/Manufacture purposes (which
 	never resolve a buying rule) are left untouched.
 	"""

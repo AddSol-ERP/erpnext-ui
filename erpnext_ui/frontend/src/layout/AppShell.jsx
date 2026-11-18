@@ -32,6 +32,7 @@ import {
   ChartNoAxesCombined,
   Banknote,
   FolderTree,
+  FolderKanban,
 } from "lucide-react";
 import {
   Sidebar,
@@ -86,6 +87,7 @@ const NAV_SECTIONS = [
   {
     id: "operations",
     items: [
+      { key: "projects", labelKey: "projects.title", to: "/projects", icon: FolderKanban, moduleKey: "Projects" },
       {
         key: "store",
         labelKey: "nav.store",

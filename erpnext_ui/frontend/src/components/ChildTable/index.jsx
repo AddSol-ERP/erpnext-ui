@@ -1,3 +1,5 @@
+import AppModal from "../AppModal";
+import { FormField } from "../FormField";
 import UomPricingEstimate from "../UomPricingEstimate";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,9 +23,13 @@ export default function ChildTable({
   onChange,
   disabled = false,
   pricingSide,
+  compactFields,
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState(value || []);
+  const [editingRow, setEditingRow] = useState(null);
+  const compact = Array.isArray(compactFields);
+  const visibleColumns = compact ? columns.filter((column) => compactFields.includes(column.field)) : columns;
 
   useEffect(() => {
     // Mirror the controlled `value` prop into local editing state —
@@ -116,16 +122,17 @@ export default function ChildTable({
       {/* =========================
           DESKTOP TABLE
       ========================= */}
-      <div className="hidden md:block">
+      <div className="hidden overflow-x-auto md:block">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">#</TableHead>
 
-              {columns.map((col) => (
+              {visibleColumns.map((col) => (
                 <TableHead key={col.field}>{col.label}</TableHead>
               ))}
 
+              {compact && <TableHead className="w-20" />}
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -133,7 +140,7 @@ export default function ChildTable({
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length + 2}>
+                <TableCell colSpan={visibleColumns.length + (compact ? 3 : 2)}>
                   {emptyMessage}
                 </TableCell>
               </TableRow>
@@ -146,7 +153,7 @@ export default function ChildTable({
                   </TableCell>
 
                   {/* FIELDS */}
-                  {columns.map((col) => (
+                  {visibleColumns.map((col) => (
                     <TableCell key={col.field}>
                       <FieldRenderer
                         type={col.type}
@@ -161,6 +168,7 @@ export default function ChildTable({
                     </TableCell>
                   ))}
 
+                  {compact && <TableCell><Button variant="outline" size="sm" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button></TableCell>}
                   {/* DELETE */}
                   <TableCell>
                     {!disabled && (
@@ -213,9 +221,10 @@ export default function ChildTable({
                 )}
               </div>
 
+              {compact && <Button variant="outline" size="sm" className="mb-3" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button>}
               {/* FIELDS */}
               <div className="flex flex-col gap-2">
-                {columns.map((col) => (
+                {visibleColumns.map((col) => (
                   <div key={col.field}>
                     <div className="mb-1 text-xs text-muted-foreground">
                       {col.label}
@@ -238,6 +247,16 @@ export default function ChildTable({
           ))
         )}
       </div>
+      {compact && editingRow != null && data[editingRow] && <AppModal show onClose={() => setEditingRow(null)} width="lg"
+        title={`${title} · ${t("common.row", { n: editingRow + 1 })}`}
+        footer={<Button variant="outline" onClick={() => setEditingRow(null)}>{t("common.close")}</Button>}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {columns.map((column) => <FormField key={column.field} label={column.label} required={column.required && !disabled}>
+            <FieldRenderer type={column.type} value={data[editingRow][column.field]} options={column.options}
+              disabled={disabled || column.readOnly} onChange={(next) => handleChange(editingRow, column.field, next)} />
+          </FormField>)}
+        </div>
+      </AppModal>}
     </div>
   );
 }

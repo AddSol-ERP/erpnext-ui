@@ -3510,3 +3510,141 @@ Ruff and frontend production build. Full Python discovery has a missing-Frappe
 import error in existing `test_essl_import`; broader rules smoke reports 591
 passes / 22 failures in existing assertions. Live ERPNext document submission,
 stock ledger and browser execution still need deployment verification.
+
+### Projects module and project overview (2026-11-17)
+
+Projects is now a separate home tile and sidebar module at `/projects`. Access
+uses the existing server-authorized Project read (`reports.manufacturing`);
+MODULE_ACCESS.Projects selects only that permission with `permissionKeys`, so
+unrelated report access cannot grant Projects. Direct routes retain the
+allow-listed DocumentGuard and server document permissions.
+
+The landing page has Active/Inactive tabs backed by native Project.is_active
+(`Yes`/`No`, independent of Open/Completed/Cancelled status), search by ID/name,
+permission-filtered counts and 20-row server pagination. Tab and page are stored
+in the URL. New Projects default Is Active to Yes.
+
+`/projects/view/:project` shows a project overview, active linked BOMs, Edit
+Project, Create BOM and Start Production Planning. BOM creation carries the
+project/company into the standard form. Existing manufacturing runs under
+`/projects/view/:project/manufacturing`; its material and execution behavior is
+unchanged. Project/BOM saves return to the overview, while plan/work-order/stock
+saves and submissions return to that project's manufacturing screen. Legacy
+production project entry URLs remain supported.
+
+Checks: targeted ESLint and production build passed; `.smoke-tmp/projectcheck.jsx`
+checks fail-closed module permissions, route matching, and both list tabs rendered
+in EN/HI/AR. Interactive browser/live-site verification remains pending.
+
+### Projects visual consistency correction (2026-11-17)
+
+Projects now uses the same ListLayout/ActionBar/DataTable/ListRow/Pagination
+components as Material Requests and other standard lists. Active/Inactive uses
+the shared pill treatment in the list's tab strip; New/Refresh are header actions
+rendered by ActionBar. Desktop columns show project name/ID, company, customer,
+status badge, completion and due date; mobile uses compact ListRows. Shared list
+skeleton/error/empty states replace the custom card grid and free-standing controls.
+ActionBar owns search debounce; its initial empty emit must not reset URL pagination.
+
+Project overview now uses standard ModuleGrid action tiles and DataTable for
+BOMs, with Edit in the page toolbar and company/ID in the header subtitle. Removed
+the repeated project heading and custom rounded action cards. Navigation and
+manufacturing behavior remain unchanged. Targeted ESLint, EN/HI/AR SSR checks,
+permission/route checks and rebuilt production assets pass. Browser visual checks
+remain pending.
+
+### Production planning visual consistency (2026-11-17)
+
+Project manufacturing now uses DashboardShell and shared FormSection/FormField/
+FormSelect controls. The header owns Back to project, Refresh and the context-
+sensitive Preview/Save draft action; removed the repeated project heading and
+standalone buttons. PlanningContent renders native material previews through
+DataTable, and plans/work orders use DataTable on desktop and ListRow on mobile
+with shared StatusBadge tones. Row actions stop propagation so creating orders
+or preparing a transfer does not also open the underlying document. Timeline
+remains in a standard form section. Backend planning, stock and execution
+contracts are unchanged. The material request UOM column displays request UOM
+before falling back to stock UOM.
+
+Checks: targeted ESLint and production build pass. Project SSR checks now render
+the loaded planning view, BOM source, raw-material preview, plans and work orders
+in EN/HI/AR, alongside existing project permission/route checks. Interactive
+browser verification remains pending.
+
+### Standard BOM form layout (2026-11-17)
+
+BOM continues using GenericForm's metadata, complete document payloads, validation,
+attachments and workflow-aware lifecycle. Its presentation now uses a single
+stack of shared FormSections: details, raw materials, operations, scrap/loss,
+costing/currency and remaining native/custom fields. Details/materials default
+open; errors still expand their section. BOM uses the shared 1600px page width.
+Removed stray JSX text `return (` from the generic form's final render.
+
+`pages/Projects/bom/layout.js` preserves every visible metadata field exactly once.
+BOM child-table grids use compact column sets, with all remaining fields available
+through the standard AppModal/Edit row surface. Structural metadata fields no
+longer become bogus text-input columns in BOM child tables. Compact behavior is
+opt-in on ChildTable, leaving other doctypes' grids unchanged; row updates still
+use the complete column metadata for fetch_from and quantity/rate calculations.
+
+Checks: targeted ESLint, production build, and EN/HI/AR SSR checks for field
+preservation and compact materials passed. Existing project/planning render and
+permission/route checks also pass. Interactive browser verification remains pending.
+
+### BOM tabs restored (2026-11-17)
+
+User prefers less vertical scrolling. BOM layout now places each group in its
+own shared tab (Details, Raw Materials, Operations, Scrap/Loss, Costing, Additional
+Details when present). Compact child rows and full Edit dialogs remain. Existing
+generic tab error navigation and field preservation continue to apply. Updated
+layout/render checks, targeted lint and rebuilt production bundle pass.
+
+BOM tab styling now matches the standard list/Production status pills: compact
+rounded labels, primary-tinted active state and shared tab-strip spacing. Removed
+the custom rectangular tab treatment and underline for BOM only; keyboard tab
+navigation and validation badges remain. Targeted lint and production build pass.
+
+BOM tabs and content now share one bordered surface. Removed the Tabs root gap,
+content top padding and inner section margin/ring for BOM, eliminating the detached
+space beneath the tab strip. Other forms retain their existing spacing. Targeted
+lint and production build pass.
+
+BOM tab preference updated: rectangular tabs with a tinted active background and
+primary bottom border replace pills. The strip remains flush with its content
+panel. Targeted lint and production build pass.
+
+Fixed duplicate compact-child-row View/Edit action: the mobile button had been
+inserted directly inside the desktop tr, alongside the proper desktop action
+cell. It now lives only in the mobile card. SSR assertions enforce one action
+per row in each layout and valid table-cell placement. Targeted lint, project/BOM
+SSR checks and production build pass.
+
+## Production planning stepper (2026-11-18)
+
+Production Planning uses the shared FormStepper with Setup, Materials Review,
+Production Plans, Work Orders and Timeline. Only the active step renders. The
+validated `step` query parameter preserves browser navigation and allows existing
+plans/orders to be opened without creating a new plan. Setup Next fetches the
+native preview and advances only on success. Materials Review offers Save draft
+and review; order creation advances to Work Orders. Toolbar Preview/Save actions
+appear only on their relevant steps, and navigation is disabled while busy.
+Form values/previews stay in the parent while changing steps; edits invalidate
+the preview as before. Generic plan/work-order/stock saves/submissions return to
+the relevant plans/orders step. Backend contracts are unchanged.
+
+Checks: targeted ESLint, production build, EN/HI/AR SSR assertions confirming
+step-specific content isolation, plus existing project/BOM checks pass. Browser
+interaction remains a deployment verification.
+
+## Optional Material Request pricing rate (2026-11-18)
+
+Fixed `_apply_uom_pricing` rejecting Purchase Material Requests whose rate per
+pricing UOM is blank/zero. Material Requests are unvalued requisitions: unpriced
+rows now skip UOM repricing/measurement enforcement and retain native line values.
+Rows with an explicit rate still use strict pricing, and negative rates remain
+invalid. Other buying/selling documents retain mandatory pricing rates. This is
+a server-side fix for both Desk and SPA, including draft save and submission;
+no migration or frontend rebuild is needed. Deploy backend code and restart the
+Frappe processes. Ruff and all 26 pricing unit tests pass, including mixed-rate
+requests, blank/zero values, direct-entry measurements and priced-document guards.
+Live-site save/submission remains unverified.

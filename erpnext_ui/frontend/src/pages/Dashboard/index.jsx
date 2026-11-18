@@ -13,6 +13,7 @@ import {
   Truck,
   UserCheck,
   BarChart3,
+  FolderKanban,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import StatRow from "../../components/dashboard/StatRow";
@@ -24,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 const MODULE_DEFS = [
+  { key: "projects", icon: FolderKanban, route: "/projects", moduleKey: "Projects" },
   {
     key: "approvals",
     icon: CheckSquare,
@@ -115,8 +117,8 @@ export default function Dashboard() {
   const modules = MODULE_DEFS.filter((m) => hasModuleAccess(m.moduleKey)).map(
     (m) => ({
       ...m,
-      titleKey: `modules.${m.key}.title`,
-      descriptionKey: `modules.${m.key}.description`,
+      titleKey: m.key === "projects" ? "projects.title" : `modules.${m.key}.title`,
+      descriptionKey: m.key === "projects" ? "projects.subtitle" : `modules.${m.key}.description`,
       badge: m.highlight ? counts.pendingApprovals : undefined,
     }),
   );
