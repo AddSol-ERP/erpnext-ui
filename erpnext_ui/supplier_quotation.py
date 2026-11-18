@@ -2088,6 +2088,19 @@ def _supplier_pricing_context(item):
 	}
 
 
+def _supplier_item_fields(fields, item, pricing):
+	"""Only the applicable rate is editable; configured buyer restrictions still apply."""
+	locked = "rate" if pricing.get("enabled") else "custom_rate_per_pricing_uom"
+	result = []
+	for field in fields:
+		payload = _field_payload(field, item.get(field.fieldname), True)
+		if field.fieldname == locked:
+			payload["read_only"] = True
+			payload["mandatory"] = False
+		result.append(payload)
+	return result
+
+
 def _build_response_form(inv, settings):
 	sq = frappe.get_doc("Supplier Quotation", inv.supplier_quotation)
 	if sq.docstatus != 0:
@@ -2110,6 +2123,7 @@ def _build_response_form(inv, settings):
 		sq_item = sq_items.get(inv_item.supplier_quotation_item)
 		if not sq_item:
 			frappe.throw(_("The invitation no longer matches its Supplier Quotation."))
+		pricing = _supplier_pricing_context(sq_item)
 		items.append(
 			{
 				"item": inv_item.name,
@@ -2118,9 +2132,9 @@ def _build_response_form(inv, settings):
 				"description": strip_html(inv_item.description or sq_item.description or ""),
 				"qty": flt(inv_item.qty or sq_item.qty),
 				"uom": inv_item.uom or sq_item.uom,
-				"pricing": _supplier_pricing_context(sq_item),
+				"pricing": pricing,
 				"context": [_field_payload(row, sq_item.get(row.fieldname), False) for row in item_context],
-				"fields": [_field_payload(row, sq_item.get(row.fieldname), True) for row in item_inputs],
+				"fields": _supplier_item_fields(item_inputs, sq_item, pricing),
 			}
 		)
 
@@ -2194,10 +2208,13 @@ def submit_supplier_quotation_response(session=None, rows=None, document=None):
 		if not sq_item:
 			frappe.throw(_("The invitation no longer matches its Supplier Quotation."))
 		values = rows_by_item[inv_item.name]
+		pricing = _supplier_pricing_context(sq_item)
+		locked_rate = "rate" if pricing.get("enabled") else "custom_rate_per_pricing_uom"
+		row_editable = {key: field for key, field in editable_item.items() if key != locked_rate}
 		for fieldname in values:
-			if fieldname not in editable_item:
+			if fieldname not in row_editable:
 				frappe.throw(_("{0} is not open for supplier input.").format(fieldname))
-		for row in editable_item.values():
+		for row in row_editable.values():
 			if row.mandatory and not _has_value(values.get(row.fieldname)):
 				frappe.throw(
 					_("{0} is required for {1}.").format(
@@ -2205,7 +2222,7 @@ def submit_supplier_quotation_response(session=None, rows=None, document=None):
 					)
 				)
 		for fieldname, value in values.items():
-			row = editable_item[fieldname]
+			row = row_editable[fieldname]
 			sq_item.set(fieldname, _validate_value(_field_meta(row), value))
 
 	_run_response_hooks(

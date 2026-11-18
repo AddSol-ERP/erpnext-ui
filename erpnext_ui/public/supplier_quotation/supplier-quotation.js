@@ -511,6 +511,13 @@
         const calculated = globalThis.SupplierQuotationPricing.calculate(item, state.values.items[item.item]);
         rateCell.textContent = calculated.pending ? "—" : `${formatCurrency(calculated.standardRate, form.currency)} /${item.uom || "unit"}`;
         amountCell.textContent = calculated.pending ? "—" : formatCurrency(calculated.amount, form.currency);
+        if (item.pricing?.enabled) {
+          const rateControl = row.querySelector('[data-field="rate"]');
+          if (rateControl && rateControl.readOnly) {
+            rateControl.value = calculated.pending ? "" : String(calculated.standardRate);
+            state.values.items[item.item].rate = calculated.pending ? "" : calculated.standardRate;
+          }
+        }
         amountCell.title = calculated.error || "Preview; final values are calculated when the response is saved.";
         if (calculated.error) amountCell.textContent = calculated.error;
         else if (!calculated.pending && item.pricing?.enabled) {
@@ -584,7 +591,14 @@
     if (itemName) control.dataset.item = itemName;
     control.id = id;
 
+    if (field.read_only) {
+      control.readOnly = true;
+      control.required = false;
+      control.setAttribute("aria-readonly", "true");
+      control.classList.add("readonly-rate");
+    }
     const write = () => {
+      if (field.read_only) return;
       let value;
       if (field.fieldtype === "Check") {
         value = control.checked ? 1 : 0;
@@ -803,7 +817,7 @@
     const missing = [];
     (form.items || []).forEach((item) => {
       (item.fields || []).forEach((field) => {
-        if (field.mandatory && isEmpty(state.values.items[item.item]?.[field.fieldname], field)) {
+        if (!field.read_only && field.mandatory && isEmpty(state.values.items[item.item]?.[field.fieldname], field)) {
           missing.push({ field, scope: "item", item: item.item });
         }
       });
@@ -1122,6 +1136,7 @@
     return (state.form.items || []).map((item) => {
       const values = {};
       (item.fields || []).forEach((field) => {
+        if (field.read_only) return;
         values[field.fieldname] = state.values.items[item.item]?.[field.fieldname];
       });
       return { item: item.item, values };

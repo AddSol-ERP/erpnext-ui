@@ -54,3 +54,46 @@ class PricingContextTests(unittest.TestCase):
 		result = self.render(failure=True)
 		self.assertIn("error", result)
 		self.assertNotIn("private", result["error"])
+
+
+class RateFieldEditabilityTests(unittest.TestCase):
+	def fields(self, enabled):
+		node = next(
+			n
+			for n in ast.parse(source.read_text()).body
+			if isinstance(n, ast.FunctionDef) and n.name == "_supplier_item_fields"
+		)
+		namespace = {
+			"_field_payload": lambda field, value, editable: {
+				"fieldname": field.fieldname,
+				"mandatory": True,
+				"value": value,
+			}
+		}
+		exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), namespace)
+		fields = [
+			types.SimpleNamespace(fieldname=name)
+			for name in ("rate", "custom_rate_per_pricing_uom", "supplier_remark")
+		]
+		result = namespace["_supplier_item_fields"](fields, {"rate": 0}, {"enabled": enabled})
+		return {field["fieldname"]: field for field in result}
+
+	def test_pricing_uom_locks_native_rate_and_removes_its_required_flag(self):
+		fields = self.fields(True)
+		self.assertTrue(fields["rate"]["read_only"])
+		self.assertFalse(fields["rate"]["mandatory"])
+		self.assertNotIn("read_only", fields["custom_rate_per_pricing_uom"])
+		self.assertTrue(fields["custom_rate_per_pricing_uom"]["mandatory"])
+
+	def test_standard_item_locks_pricing_rate_and_keeps_native_rate_editable(self):
+		fields = self.fields(False)
+		self.assertTrue(fields["custom_rate_per_pricing_uom"]["read_only"])
+		self.assertFalse(fields["custom_rate_per_pricing_uom"]["mandatory"])
+		self.assertNotIn("read_only", fields["rate"])
+		self.assertTrue(fields["rate"]["mandatory"])
+
+	def test_other_supplier_fields_keep_buyer_configuration(self):
+		for enabled in (True, False):
+			fields = self.fields(enabled)
+			self.assertNotIn("read_only", fields["supplier_remark"])
+			self.assertTrue(fields["supplier_remark"]["mandatory"])

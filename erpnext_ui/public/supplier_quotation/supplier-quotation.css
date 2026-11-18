@@ -657,3 +657,4 @@ label { font-weight: 600; font-size: 14px; }
 .rate-uom { flex-shrink: 0; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .calculated-pricing { font-variant-numeric: tabular-nums; font-size: 12px; }
 .pricing-quantity { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.readonly-rate { background: #f2f3f5; color: var(--muted); cursor: default; }

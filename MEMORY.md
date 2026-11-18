@@ -3713,3 +3713,18 @@ blank/invalid inputs), four backend projection tests, all 31 pricing regressions
 Python lint and JS syntax pass. Browser/OTP flow verification remains pending.
 Deploy public assets and backend, restart and clear website cache. No schema change
 or SPA rebuild is required for this standalone supplier page.
+
+## Supplier rate-field editability (2026-11-18)
+
+Supplier response input payloads now apply per-row rate editability: an effective
+active pricing-UOM rule locks native rate, while ordinary items lock rate per
+pricing UOM. Locked fields are not mandatory and are omitted from submitted input
+payloads. Browser controls use readOnly/aria-readonly and subdued styling; the
+native rate display updates live from the pricing preview. Review reflects the
+calculated rate. The server independently re-resolves the rate mode for each
+invitation item, excludes the locked field from allowed/required inputs, and
+rejects attempts to submit it. Existing buyer field restrictions are preserved.
+Public asset version v11 invalidates old scripts. Seven projection/editability
+unit tests, preview arithmetic checks, Python lint and JS syntax pass. No schema
+change or SPA rebuild; deploy/restart backend and clear website cache. Live OTP
+interaction remains unverified.
