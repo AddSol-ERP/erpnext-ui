@@ -46,18 +46,25 @@ def _apply_uom_pricing(doc, side):
 		item_code = row.get("item_code") if hasattr(row, "get") else getattr(row, "item_code", None)
 		if not item_code:
 			continue
-		# Material Request is an unvalued requisition. Its optional buying rate
-		# must not make pricing-UOM rates or actual measurements mandatory.
-		# An explicitly supplied rate still follows the same strict pricing path.
-		if doc.doctype == "Material Request":
-			request_rate = (
+		# RFQ invitations insert draft Supplier Quotations before a supplier has
+		# supplied prices. Blank rates are valid at that stage, as on requisitions.
+		# Supplier responses set require_pricing_rates server-side; submission is
+		# also strict. Explicit rates always follow the normal pricing path.
+		flags = getattr(doc, "flags", None) or {}
+		unpriced_draft = (
+			doc.doctype == "Supplier Quotation"
+			and int(doc.get("docstatus") or 0) == 0
+			and not flags.get("require_pricing_rates")
+		)
+		if doc.doctype == "Material Request" or unpriced_draft:
+			optional_rate = (
 				row.get("custom_rate_per_pricing_uom")
 				if hasattr(row, "get")
 				else getattr(row, "custom_rate_per_pricing_uom", None)
 			)
-			if request_rate is None or (isinstance(request_rate, str) and not request_rate.strip()):
+			if optional_rate is None or (isinstance(optional_rate, str) and not optional_rate.strip()):
 				continue
-			if float(request_rate) == 0:
+			if float(optional_rate) == 0:
 				continue
 		contract = preserved_contract(doc, row)
 		pricing_state = (

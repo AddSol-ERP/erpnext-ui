@@ -239,6 +239,45 @@ class TransactionPricingTests(unittest.TestCase):
 		self.assertEqual(priced.amount, 1600)
 		self.assertEqual(unpriced, before)
 
+	def test_rfq_supplier_quotation_drafts_allow_missing_rates(self):
+		for rate in (None, "", 0, "0"):
+			with self.subTest(rate=rate):
+				doc, row = self.document(rate=rate)
+				doc.doctype = "Supplier Quotation"
+				doc.docstatus = 0
+				before = dict(row)
+				self.run_pricing(doc, state(mode="Direct Entry"))
+				self.assertEqual(row, before)
+
+	def test_supplier_response_requires_rates_even_while_native_document_is_draft(self):
+		doc, _ = self.document(rate=0)
+		doc.doctype = "Supplier Quotation"
+		doc.docstatus = 0
+		doc.flags = {"require_pricing_rates": True}
+		with self.assertRaisesRegex(ValueError, "Rate per UOM is required"):
+			self.run_pricing(doc)
+
+	def test_supplier_quotation_submission_requires_rate(self):
+		doc, _ = self.document(rate=0)
+		doc.doctype = "Supplier Quotation"
+		doc.docstatus = 1
+		with self.assertRaisesRegex(ValueError, "Rate per UOM is required"):
+			self.run_pricing(doc)
+
+	def test_supplier_quotation_draft_with_rate_is_still_priced(self):
+		doc, row = self.document(rate=80)
+		doc.doctype = "Supplier Quotation"
+		doc.docstatus = 0
+		self.run_pricing(doc)
+		self.assertEqual((row.rate, row.amount), (160, 1600))
+
+	def test_supplier_quotation_draft_rejects_negative_supplied_rate(self):
+		doc, _ = self.document(rate=-1)
+		doc.doctype = "Supplier Quotation"
+		doc.docstatus = 0
+		with self.assertRaises(ValueError):
+			self.run_pricing(doc)
+
 	def test_other_documents_still_require_pricing_rate(self):
 		for doctype in (
 			"Supplier Quotation",
@@ -251,6 +290,7 @@ class TransactionPricingTests(unittest.TestCase):
 			with self.subTest(doctype=doctype):
 				doc, _ = self.document(rate=0)
 				doc.doctype = doctype
+				doc.docstatus = 1
 				with self.assertRaises(ValueError):
 					self.run_pricing(doc)
 

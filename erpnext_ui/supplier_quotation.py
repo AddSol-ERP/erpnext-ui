@@ -2185,6 +2185,9 @@ def submit_supplier_quotation_response(session=None, rows=None, document=None):
 		{"document": document_values, "items": rows_by_item},
 	)
 	sq.run_method("calculate_taxes_and_totals")
+	# A response remains a native draft until buyer approval, but its prices
+	# must be validated now rather than treated as an unpriced RFQ invitation.
+	sq.flags.require_pricing_rates = True
 	_save_public_doc(sq)
 
 	inv.state = "Responded"

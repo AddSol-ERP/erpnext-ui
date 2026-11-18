@@ -3674,3 +3674,16 @@ measurement quantities. Prints can use item.custom_pricing_dimensions directly.
 Existing draft requests populate on their next save; no submitted-history backfill
 was added. Migrate ensures shared custom fields/layout exist, then restart after
 deployment. All 15 dimension and 26 pricing tests plus touched lint pass.
+
+## Unpriced RFQ Supplier Quotation drafts (2026-11-18)
+
+RFQ invitation sending maps and inserts draft Supplier Quotations before suppliers
+provide prices. `_apply_uom_pricing` now allows blank/zero pricing-UOM rates on
+native draft Supplier Quotations, like unvalued Material Requests. Explicit rates
+still trigger full pricing/measurement/tolerance validation; negative supplied
+rates are rejected. Submission (docstatus 1) remains strict. The public supplier
+response handler sets an internal require_pricing_rates flag before saving, since
+supplier responses remain native drafts pending buyer approval but must validate
+entered prices at response acceptance. Other financial documents are unchanged.
+31 pricing regression tests, touched lint and supplier module compilation pass.
+Backend deploy/restart required; no schema migration or frontend rebuild.
