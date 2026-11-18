@@ -315,6 +315,20 @@ class UomPricingMaterialRequest(MaterialRequest):
 		set_material_request_dimensions(self)
 
 
+def _refresh_regional_taxable_values(doc):
+	"""Refresh India's taxable basis before its before_save GST-detail validation.
+
+	India Compliance versions with update_gst_details on before_save may retain
+	taxable_value from an earlier validation pass. Delegate allocation of charges,
+	base currency and discounts to its own helper; never scale or bypass GST.
+	"""
+	if "india_compliance" not in frappe.get_installed_apps():
+		return
+	from india_compliance.gst_india.overrides.transaction import update_taxable_values
+
+	update_taxable_values(doc)
+
+
 class UomPricingSupplierQuotation(SupplierQuotation):
 	def validate(self):
 		# Native validation must calculate tax details from the final UOM rate.
@@ -323,3 +337,4 @@ class UomPricingSupplierQuotation(SupplierQuotation):
 		# first, then let native validation and regional hooks own all taxes.
 		_apply_uom_pricing(self, "buying", recalculate_totals=False)
 		super().validate()
+		_refresh_regional_taxable_values(self)

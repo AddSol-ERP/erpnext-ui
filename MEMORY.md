@@ -3746,3 +3746,16 @@ so full production verification is still required. Regression simulates native
 GST calculation seeing final converted rate and confirms one native tax pass.
 33 pricing tests, seven supplier-context tests, preview arithmetic, touched lint
 and diff checks pass. Backend deploy/restart only; no schema/frontend change.
+
+## Production traceback: GST details fail in before_save (2026-11-18)
+
+Production traceback confirms india_compliance.update_gst_details runs in
+before_save and rejects CGST/SGST on all 19 rows, after controller validate has
+finished. The previous pricing-order fix alone did not cover this stage.
+Supplier Quotation validation now refreshes taxable values after native validation
+using optional India Compliance update_taxable_values. This delegates base-currency,
+charges/discount allocation to the provider, rather than scaling GST fields or
+changing tax rates/tolerance. Sites without India Compliance skip the integration;
+provider failures propagate. 34 pricing tests and touched lint pass, including
+provider delegation/failure and lifecycle order. Exact production integration
+still requires verification after backend deployment/restart.

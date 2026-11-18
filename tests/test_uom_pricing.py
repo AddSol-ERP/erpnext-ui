@@ -328,7 +328,11 @@ class TransactionPricingTests(unittest.TestCase):
 			for node in ast.parse(source.read_text()).body
 			if isinstance(node, ast.ClassDef) and node.name == "UomPricingSupplierQuotation"
 		)
-		context = {"SupplierQuotation": Native, "_apply_uom_pricing": self.apply}
+		context = {
+			"SupplierQuotation": Native,
+			"_apply_uom_pricing": self.apply,
+			"_refresh_regional_taxable_values": lambda doc: events.append("taxable"),
+		}
 		exec(compile(ast.Module(body=[controller], type_ignores=[]), str(source), "exec"), context)
 		quotation = context["UomPricingSupplierQuotation"](doc)
 		with (
@@ -336,8 +340,39 @@ class TransactionPricingTests(unittest.TestCase):
 			patch.object(pricing, "get_item_pricing", return_value=state()),
 		):
 			quotation.validate()
-		self.assertEqual(events, ["taxes"])
+		self.assertEqual(events, ["taxes", "taxable"])
 		self.assertEqual((row.cgst_amount, row.sgst_amount), (144, 144))
+
+	def test_regional_taxable_refresh_is_optional_and_keeps_validation_failures(self):
+		import ast
+
+		source = Path(__file__).resolve().parents[1] / "erpnext_ui/overrides.py"
+		node = next(
+			node
+			for node in ast.parse(source.read_text()).body
+			if isinstance(node, ast.FunctionDef) and node.name == "_refresh_regional_taxable_values"
+		)
+		frappe = types.SimpleNamespace(get_installed_apps=lambda: [])
+		context = {"frappe": frappe}
+		exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), context)
+		doc, row = self.document()
+		context["_refresh_regional_taxable_values"](doc)
+		module = types.ModuleType("india_compliance.gst_india.overrides.transaction")
+
+		def refresh(value):
+			self.assertIs(value, doc)
+			row.taxable_value = row.base_net_amount + 20
+
+		module.update_taxable_values = refresh
+		frappe.get_installed_apps = lambda: ["erpnext", "india_compliance"]
+		row.base_net_amount = 1000
+		row.taxable_value = 0
+		with patch.dict(sys.modules, {module.__name__: module}):
+			context["_refresh_regional_taxable_values"](doc)
+			self.assertEqual(row.taxable_value, 1020)
+			module.update_taxable_values = lambda doc: (_ for _ in ()).throw(ValueError("invalid taxes"))
+			with self.assertRaisesRegex(ValueError, "invalid taxes"):
+				context["_refresh_regional_taxable_values"](doc)
 
 	def test_pricing_can_defer_totals_to_native_validation(self):
 		doc, row = self.document()
