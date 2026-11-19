@@ -10,6 +10,7 @@ import ApprovalPreview from "../ApprovalPreview";
 import { ListRow } from "../../List/ListRow";
 import DataTable from "../../List/DataTable";
 import { StatusBadge } from "../../List/StatusBadge";
+import { statusTone } from "../../List/statusTones";
 import useListPagination from "../../../hooks/useListPagination";
 import { listFilterHandlers } from "../../../lib/filterChips";
 import {
@@ -393,6 +394,17 @@ const ApprovalListPage = () => {
           label: t("approvals.status.waitingForApproval"),
           color: "pending",
         };
+      }
+
+      // An admin-authored workflow state this list has never heard of --
+      // "Waiting For Approval" on the site's Quotation-Approval workflow, for
+      // instance. The lists above can only enumerate the states someone
+      // predicted; falling through to "Draft" for everything else made a
+      // quotation sitting in the approver's queue read as unsubmitted, which
+      // is exactly backwards. Workflow states render verbatim (the same
+      // convention action names get), coloured by the shared keyword matcher.
+      if (row.workflow_state && raw === row.workflow_state && raw !== "Draft") {
+        return { label: raw, color: statusTone(raw) };
       }
 
       if (row.docstatus === 0) {

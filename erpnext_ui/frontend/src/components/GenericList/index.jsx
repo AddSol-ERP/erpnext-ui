@@ -11,6 +11,7 @@ import ListLayout from "../ListLayout";
 import { ListRow } from "../List/ListRow";
 import DataTable from "../List/DataTable";
 import { StatusBadge } from "../List/StatusBadge";
+import { statusTone } from "../List/statusTones";
 import useListPagination from "../../hooks/useListPagination";
 import { listFilterHandlers } from "../../lib/filterChips";
 import { Plus, RefreshCcw } from "lucide-react";
@@ -53,13 +54,33 @@ const STATUS_COLORS = {
 };
 
 function resolveStatus(row, statusField) {
-  if (!statusField) return { label: "", color: "" };
+  /**
+   * Precedence while the document is STILL IN APPROVAL (docstatus 0):
+   * `workflow_state` > the configured status column.
+   *
+   * An approval Workflow advances `workflow_state`, not `status` -- the seeded
+   * and admin-authored workflows here carry no `update_field`, so ERPNext's own
+   * `status` column sits at "Draft" for the whole approval. A Quotation in
+   * "Waiting For Approval" therefore has to be read off `workflow_state`, or
+   * the badge lies.
+   *
+   * Once submitted (docstatus >= 1) the workflow outcome is settled, and the
+   * doctype's own status carries the richer meaning the reader wants
+   * ("Ordered"/"Partially Ordered" on a Quotation), so it takes over.
+   *
+   * `workflow_state` is only requested when the doctype's meta has the field
+   * (see getFields) -- never on a hunch, since naming an absent field fails
+   * the entire query.
+   */
+  const raw =
+    Number(row.docstatus) === 0 && row.workflow_state
+      ? row.workflow_state
+      : statusField === "docstatus"
+        ? { 0: "Draft", 1: "Submitted", 2: "Cancelled" }[row.docstatus] || "Draft"
+        : row[statusField];
 
-  let raw = row[statusField];
-
-  if (statusField === "docstatus") {
-    const map = { 0: "Draft", 1: "Submitted", 2: "Cancelled" };
-    raw = map[row.docstatus] || "Draft";
+  if (!statusField && !(Number(row.docstatus) === 0 && row.workflow_state)) {
+    return { label: "", color: "" };
   }
 
   if (typeof raw === "boolean" || raw === 0 || raw === 1) {
@@ -69,7 +90,11 @@ function resolveStatus(row, statusField) {
   }
 
   const label = raw || "Unknown";
-  const color = STATUS_COLORS[label] || "open";
+  // The table is an exact match on a handful of known values and misses
+  // admin-authored workflow states ("Waiting For Approval" is not even spelled
+  // with the same case as the entry here). `statusTone` is the shared
+  // keyword matcher those states are meant to go through.
+  const color = STATUS_COLORS[label] || statusTone(label);
   return { label, color };
 }
 
@@ -258,6 +283,15 @@ export default function GenericListPage({ doctypeOverride }) {
     // costs one shared request rather than an extra one.
     const meta = await doctypeMeta();
     const real = meta?.fields?.map((f) => f.fieldname) || null;
+    // `workflow_state` is what an approval Workflow actually advances, and it
+    // is the only field here that is NOT in config/doctypes.js: it exists only
+    // on doctypes that have a Workflow (Frappe adds it as a Custom Field when
+    // the Workflow is created). It is therefore requested only when this
+    // doctype's meta proves it is there -- naming an absent field fails the
+    // whole query (same trap the configured columns are filtered against
+    // below), and a failed meta fetch resolves to null, which must NOT be
+    // read as "the field exists".
+    if (real?.includes("workflow_state")) customFields.push("workflow_state");
     const usable = real
       ? customFields.filter((field) => real.includes(field))
       : customFields;
