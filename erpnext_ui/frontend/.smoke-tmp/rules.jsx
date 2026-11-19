@@ -11,6 +11,12 @@ import {
 } from "../src/lib/leaveApproval.js";
 import { resolveHrApprovalGate } from "../src/lib/profileFlags.js";
 import {
+  getApprovalStates,
+  pickFields,
+  resolveStatusField,
+  withWorkflowField,
+} from "../src/lib/approvalMeta.js";
+import {
   MATERIAL_REQUEST_TYPES,
   REQUEST_PURPOSES,
   REQUEST_PURPOSE_KEYS,
@@ -352,6 +358,107 @@ ok("docstatus 2: cancelled offers Delete alone", (() => {
 // document deletable afterwards -- so 1 -> Cancel -> 2 -> Delete must hold.
 ok("docstatus: submitted can only be escaped via Cancel, never Delete",
    D(true, 1).showCancel && !D(true, 1).showDelete && D(true, 2).showDelete);
+
+// ============================================================
+// Approval meta: where the workflow state column comes from
+// ----------------------------------------------------------
+// `resource/DocType/<dt>` returns the DocType's own `tabDocField` rows. A
+// Workflow's state column is created as a CUSTOM FIELD
+// (`Workflow.create_custom_field_for_workflow_state`), so it is missing from
+// that payload even though `frappe.get_meta()` reports it. Validating
+// `workflow_state` against REST meta therefore always concluded "this doctype
+// has no such column" and dropped it from the query -- so a Quotation sitting
+// in "Waiting For Approval" rendered ERPNext's own `status`, "Draft".
+//
+// The column now comes from `get_doctype_workflow_field` (server-side, where
+// meta IS Custom-Field aware) and is merged in with `withWorkflowField`.
+const metaFrom = ({
+  fields,
+  workflowField = null,
+  hasWorkflow = false,
+  doctype = "Quotation",
+}) => {
+  const merged = withWorkflowField(fields, hasWorkflow ? workflowField : null);
+  return {
+    doctype,
+    fields: merged,
+    fieldSet: new Set(merged.map((f) => f.fieldname)),
+    hasWorkflow,
+    workflowField: hasWorkflow ? workflowField : null,
+    isSubmittable: true,
+  };
+};
+
+// What `resource/DocType/Quotation` actually returns for these two: no
+// workflow_state, because it lives in `tabCustom Field`.
+const REST_META = [
+  { fieldname: "name", fieldtype: "Data" },
+  { fieldname: "status", fieldtype: "Select", options: "Draft\nOpen\nApproved" },
+];
+
+const wsMeta = metaFrom({
+  fields: REST_META,
+  hasWorkflow: true,
+  workflowField: "workflow_state",
+});
+const wsField = wsMeta.fields.find((f) => f.fieldname === "workflow_state");
+
+ok("meta: the workflow column is added even though REST meta omits it",
+   wsMeta.fieldSet.has("workflow_state"));
+ok("meta: the synthetic column is a Link to Workflow State, so it can be filtered",
+   wsField?.fieldtype === "Link" && wsField?.options === "Workflow State",
+   `got ${wsField?.fieldtype}/${wsField?.options}`);
+ok("meta: pickFields keeps the workflow column",
+   pickFields(wsMeta, ["name", "status", "workflow_state"]).includes("workflow_state"));
+ok("meta: pickFields still drops a column the doctype really lacks",
+   !pickFields(wsMeta, ["name", "workflow_state", "not_a_field"]).includes("not_a_field"));
+// The bug in one assertion: REST meta alone cannot justify requesting it.
+ok("meta: without the server's answer the column cannot be requested",
+   !pickFields(metaFrom({ fields: REST_META }), ["name", "workflow_state"])
+     .includes("workflow_state"));
+
+// A doctype that declares the column itself (a Select holding the states) keeps
+// its own definition -- only the gap is filled.
+const selectDefined = [
+  { fieldname: "workflow_state", fieldtype: "Select", options: "Draft\nApproved" },
+];
+ok("meta: a Select-defined workflow field is not overwritten",
+   withWorkflowField(selectDefined, "workflow_state")[0].fieldtype === "Select");
+ok("meta: withWorkflowField is a no-op without a confirmed fieldname",
+   withWorkflowField(REST_META, null) === REST_META);
+ok("meta: withWorkflowField tolerates missing meta",
+   withWorkflowField(null, "workflow_state").length === 1);
+
+// A Workflow may name its own column (`status` on the IMS doctypes), so the
+// state column must never be assumed to be `workflow_state`.
+const imsMeta = metaFrom({
+  doctype: "IMS Incident",
+  fields: REST_META,
+  hasWorkflow: true,
+  workflowField: "status",
+});
+ok("meta: resolveStatusField reads the column the Workflow actually advances",
+   resolveStatusField(wsMeta, "Quotation") === "workflow_state" &&
+   resolveStatusField(imsMeta, "IMS Incident") === "status",
+   `${resolveStatusField(wsMeta, "Quotation")} / ${resolveStatusField(imsMeta, "IMS Incident")}`);
+ok("meta: getApprovalStates names that same column",
+   getApprovalStates(wsMeta).fieldname === "workflow_state" &&
+   getApprovalStates(imsMeta).source === "workflow" &&
+   getApprovalStates(imsMeta).fieldname === "status");
+ok("meta: a Select-defined workflow field enumerates its states",
+   getApprovalStates(metaFrom({
+     fields: selectDefined,
+     hasWorkflow: true,
+     workflowField: "workflow_state",
+   })).states.join("|") === "Draft|Approved");
+
+// No workflow: the doctype's own status column, exactly as before.
+ok("meta: no workflow falls back to the doctype status column",
+   resolveStatusField(metaFrom({ fields: REST_META }), "Quotation") === "status");
+ok("meta: unknown meta resolves to null, not a guessed column",
+   resolveStatusField(null, "Quotation") === null);
+ok("meta: unknown meta yields no states",
+   getApprovalStates(null).states.length === 0 && getApprovalStates(null).source === "unknown");
 
 // ============================================================
 // ESS HR approval gate
@@ -845,6 +952,22 @@ ok(
   `path=${apiPath || "NOT FOUND"} lines=${apiLines.length}`,
 );
 
+// The workflow state column: the server names it only when the DocType HAS it.
+// Without the `get_field` check the client would add a column the doctype lacks
+// and every list query naming it would fail (the exact trap invariant 3
+// records), so the check is part of the contract, not a nicety.
+ok(
+  "workflow field endpoint reports the column only when the DocType has it",
+  /^def get_doctype_workflow_field\(doctype\):/m.test(apiSource) &&
+    /get_meta\(doctype\)\.get_field\(fieldname\)/.test(apiSource),
+  "get_doctype_workflow_field must validate the fieldname against meta",
+);
+ok(
+  "workflow field endpoint reads the column from the Workflow, not a fixed name",
+  /"workflow_state_field"\)/.test(apiSource),
+  "a Workflow may advance `status` / `compliance_status`",
+);
+
 // ---------------------------------------------------------------------------
 // Return-to-stock: which questions the dialog must ask.
 //
@@ -955,6 +1078,29 @@ const readSrc = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const actionBarSrc = readSrc("../../src/components/ActionBar/index.jsx");
 const filterFieldsSrc = readSrc("../../src/components/FilterModal/FilterFields.jsx");
 const balanceSrc = readSrc("../../src/pages/Store/stock-balance/index.jsx");
+
+// --- the Custom-Field meta trap must not come back -------------------------
+// `resource/DocType/<dt>` cannot report a Workflow's state column, so a client
+// that validates against it silently concludes the column is absent. Both
+// consumers therefore have to go through `approvalMeta`, which asks the server.
+const genericListSrc = readSrc("../../src/components/GenericList/index.jsx");
+const approvalMetaSrc = readSrc("../../src/lib/approvalMeta.js");
+ok(
+  "meta: GenericList takes its meta from approvalMeta, not REST DocType",
+  /from "\.\.\/\.\.\/lib\/approvalMeta"/.test(genericListSrc) &&
+    !/get\(`resource\/DocType\//.test(genericListSrc),
+  "resource/DocType omits Custom Fields, so workflow_state can never be validated against it",
+);
+ok(
+  "meta: approvalMeta asks the server for the workflow column",
+  /get_doctype_workflow_field/.test(approvalMetaSrc),
+  "the Custom-Field-aware meta only exists server-side",
+);
+ok(
+  "meta: `hasWorkflow` is the server's verdict, not the column's existence",
+  !/hasWorkflow:\s*fieldSet\.has\("workflow_state"\)/.test(approvalMetaSrc),
+  "an inactive Workflow leaves its Custom Field behind and would hide plain Submit",
+);
 
 // --- the desktop row -------------------------------------------------------
 // Three flex children used to claim it at once: search was `sm:w-1/2`, and BOTH

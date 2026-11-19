@@ -627,6 +627,51 @@ def has_doctype_workflow(doctype):
 
 
 @frappe.whitelist(allow_guest=False)
+def get_doctype_workflow_field(doctype):
+	"""The column an active Workflow advances on this DocType, or no workflow.
+
+	WHY THE BROWSER CANNOT ANSWER THIS
+	----------------------------------
+	`GET /api/resource/DocType/<dt>` serialises the DocType document, i.e. its
+	`tabDocField` rows. The field a Workflow advances is created as a **Custom
+	Field** (`Workflow.on_update` -> `create_custom_field_for_workflow_state`,
+	frappe/workflow/doctype/workflow/workflow.py), so it is never in that
+	payload: `frappe.get_meta()` reports it, the REST endpoint does not. A
+	client validating its `fields=` list against REST meta therefore concludes
+	the column is absent and never asks for it -- so an approval state never
+	reaches the badge, and the list shows ERPNext's own `status` instead
+	("Draft" while the document is in fact "Waiting For Approval").
+
+	The field is only reported when the DocType really has it, so a client can
+	add it to a query without risking the whole request failing with
+	"Field not permitted in query". Nothing beyond the field's name is
+	disclosed, and the caller must be able to read the DocType.
+	"""
+	if not frappe.has_permission(doctype, "read"):
+		frappe.throw(frappe._("Not permitted to inspect this DocType."), frappe.PermissionError)
+
+	from frappe.model import workflow as workflow_model
+
+	workflow_name = workflow_model.get_workflow_name(doctype)
+	if not workflow_name:
+		return {"has_workflow": False, "fieldname": None}
+
+	# A Workflow may name its own state column (`status`, `compliance_status`),
+	# so the name is read from the Workflow rather than assumed.
+	fieldname = (
+		frappe.db.get_value("Workflow", workflow_name, "workflow_state_field") or "workflow_state"
+	)
+
+	# A Workflow pointing at a field its DocType lacks could never advance a
+	# document. Report no workflow instead of a column that would fail every
+	# query naming it.
+	if not frappe.get_meta(doctype).get_field(fieldname):
+		return {"has_workflow": False, "fieldname": None}
+
+	return {"has_workflow": True, "fieldname": fieldname}
+
+
+@frappe.whitelist(allow_guest=False)
 def get_doctype_workflow_transitions(doctype, name, doc):
 	"""Return this user's active transitions using the complete client document."""
 	if not frappe.has_permission(doctype, "read"):

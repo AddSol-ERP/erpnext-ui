@@ -14,6 +14,7 @@ import { StatusBadge } from "../List/StatusBadge";
 import { statusTone } from "../List/statusTones";
 import useListPagination from "../../hooks/useListPagination";
 import { listFilterHandlers } from "../../lib/filterChips";
+import { getApprovalMeta } from "../../lib/approvalMeta";
 import { Plus, RefreshCcw } from "lucide-react";
 
 /** Extract the hub name from the first segment of the current path. */
@@ -159,9 +160,19 @@ export default function GenericListPage({ doctypeOverride }) {
   const doctypeMeta = useCallback(() => {
     const cached = metaCache.current[decodedDoctype];
     if (cached) return cached;
-    const promise = get(`resource/DocType/${decodedDoctype}`)
-      .then((res) => res.data || null)
-      .catch(() => null);
+    // The SAME meta the approval screens use, and the same cache: it knows to
+    // add a Workflow's state column, which `resource/DocType/<dt>` cannot
+    // report -- a Workflow creates that column as a Custom Field, and that
+    // endpoint serialises only the DocType's own DocFields. Validating
+    // `workflow_state` against it therefore always concluded "absent" and the
+    // column was never requested, so the badge fell back to `status`. See
+    // `lib/approvalMeta.js`.
+    const promise = getApprovalMeta(decodedDoctype).then((meta) => {
+      // A failed lookup must not be remembered for the life of the page: the
+      // Refresh action should be able to succeed after a blip.
+      if (!meta) delete metaCache.current[decodedDoctype];
+      return meta;
+    });
     metaCache.current[decodedDoctype] = promise;
     return promise;
   }, [decodedDoctype]);
@@ -283,15 +294,26 @@ export default function GenericListPage({ doctypeOverride }) {
     // costs one shared request rather than an extra one.
     const meta = await doctypeMeta();
     const real = meta?.fields?.map((f) => f.fieldname) || null;
-    // `workflow_state` is what an approval Workflow actually advances, and it
-    // is the only field here that is NOT in config/doctypes.js: it exists only
-    // on doctypes that have a Workflow (Frappe adds it as a Custom Field when
-    // the Workflow is created). It is therefore requested only when this
-    // doctype's meta proves it is there -- naming an absent field fails the
-    // whole query (same trap the configured columns are filtered against
-    // below), and a failed meta fetch resolves to null, which must NOT be
-    // read as "the field exists".
-    if (real?.includes("workflow_state")) customFields.push("workflow_state");
+    // A Workflow's state column is what `resolveStatus` reads while a document
+    // is still in approval, and it is the one field here that is NOT in
+    // config/doctypes.js: it exists only where a Workflow does. So it is
+    // requested only when this doctype's meta proves it is there -- naming an
+    // absent field fails the whole query (same trap the configured columns are
+    // filtered against below), and a failed meta fetch resolves to null, which
+    // must NOT be read as "the field exists".
+    //
+    // The meta must come from `lib/approvalMeta.js`, not `resource/DocType/`:
+    // that column is a Custom Field, which the REST meta endpoint cannot
+    // report, so validating against it made this check a permanent no-op and
+    // the column was never requested.
+    const workflowField = meta?.workflowField || null;
+    if (
+      workflowField &&
+      real?.includes(workflowField) &&
+      !customFields.includes(workflowField)
+    ) {
+      customFields.push(workflowField);
+    }
     const usable = real
       ? customFields.filter((field) => real.includes(field))
       : customFields;
@@ -305,7 +327,11 @@ export default function GenericListPage({ doctypeOverride }) {
     }
 
     const fields = [...BASE_FIELDS, ...usable];
-    fieldsCache.current[decodedDoctype] = fields;
+    // Only remember a list that was validated against real meta. Without meta
+    // every configured column is sent unvalidated -- and a failed lookup must
+    // not be frozen in place, or Refresh could never repair the list after a
+    // blip (the workflow column, in particular, would stay missing).
+    if (real) fieldsCache.current[decodedDoctype] = fields;
     return fields;
   }, [decodedDoctype, config, doctypeMeta]);
 

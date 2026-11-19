@@ -135,6 +135,8 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 | **`get_project_items(...)`** | `:829-1000` | Store: Project → BOM → items. See §3.7. |
 | **`get_indent_queue(...)`** | `:1003-1180` | Store: the storekeeper's worklist. See §3.7. |
 | `has_app_permission()` | `:76-80` | hook, returns `True` |
+| **`has_doctype_workflow(doctype)`** | `:618` | Whether an **active** Workflow exists. The probe `docTransition.hasConfiguredWorkflow` reads it. |
+| **`get_doctype_workflow_field(doctype)`** | `:629` | `{has_workflow, fieldname}` — the column the Workflow actually advances. The **only** reliable source: `resource/DocType/<dt>` cannot report it (Custom Field). See §8.3. |
 | **`get_custom_report_data(report_key, filters=None)`** | `:2526` | Runs a Script Report that lives in ANOTHER app. Takes a **key**, never a report name. See §3.8. |
 | **`get_pending_inspection_items(warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50, as_of_date=None)`** | new | Store: pending-QC stock, split/filterable by serial and batch. See §3.9. |
 | `boot_session(bootinfo)` | `:103-122` | hook |
@@ -764,7 +766,7 @@ can type or bookmark, so hiding a nav item is not access control.
 | Module | What it encodes |
 |---|---|
 | `docTransition.js` | The document state machine. §8.1 |
-| `approvalMeta.js` | Meta-safe doctype introspection; `PREFERRED_STATUS_FIELD` Expense Claim→`approval_status` (`:23-28`); `IMPLICIT_FIELDS` (name/owner/creation/modified/modified_by) never filtered out — `name` has no DocField row (`:83-89`); meta cache stores the promise, **failures are not cached** (`:64-72`) |
+| `approvalMeta.js` | Meta-safe doctype introspection; `PREFERRED_STATUS_FIELD` Expense Claim→`approval_status`; `IMPLICIT_FIELDS` (name/owner/creation/modified/modified_by) never filtered out — `name` has no DocField row; meta cache stores the promise, **failures are not cached**; `getWorkflowStateField` + `withWorkflowField` add the Workflow's state column, which `resource/DocType/` cannot report. §8.3 |
 | `employeeScope.js` | Filing-on-behalf. Identity = `Employee.user_id == session.user`, **without** `ignore_permissions` so a user always sees their own record. `canSelect` probe: read 2 active Employees, if any ≠ mine I may file for others. `isEmployeeLocked` pins self-only users |
 | `leaveApproval.js` | No-Workflow leave approval. `canActAsLeaveApprover` is an **exact User-id match** on `leave_approver` (`:26-28`) — narrow on purpose, else an employee approves their own leave. Uses `frappe.client.set_value` (not PUT) so only `status` is touched (`:61-81`) |
 | `namedApprovers.js` | `hrms...department_approver.get_approvers`. Must send `doctype` **both top-level and inside filters** — omitting the nested copy raises `UnboundLocalError: parentfield` (`:29-32`). Returns **tuples** `[name, first, last]`. The HRMS helper **throws** rather than returning `[]` — treat a throw as "no approvers" |
@@ -1678,8 +1680,35 @@ before showing Submit.
 ### 8.3 `workflow_state` exists only if a Workflow is configured
 
 Requesting it otherwise fails the **entire query**. Every approval query is
-meta-validated first via `approvalMeta.js` (`:6-9`), and `pickFields` drops it when
+meta-validated first via `approvalMeta.js`, and `pickFields` drops it when
 absent.
+
+**`resource/DocType/<dt>` is the WRONG meta source for this field, and using it
+fails silently.** That endpoint serialises the DocType document — its
+`tabDocField` rows. A Workflow's state column is created as a **Custom Field**
+(`Workflow.on_update` → `create_custom_field_for_workflow_state`,
+`frappe/workflow/doctype/workflow/workflow.py`), so `frappe.get_meta()` reports
+it and REST does not (Quotation: 138 fields runtime vs 126 over REST). A client
+that validates `workflow_state` against REST meta therefore concludes the column
+is absent *every time*, drops it, and falls back to ERPNext's own `status` —
+which sits at "Draft" for the whole approval because these Workflows carry no
+`update_field`. That is exactly how a Quotation in "Waiting For Approval"
+rendered as "Draft" with every suite green.
+
+So the fieldname comes from **`api.py:get_doctype_workflow_field`**, which reads
+it off the Workflow document (it is not always `workflow_state` — the IMS
+workflows use `status`/`compliance_status`) and returns it **only after**
+confirming `frappe.get_meta(doctype).get_field(fieldname)`. `approvalMeta.js`
+merges it with `withWorkflowField`, so `pickFields`, `resolveStatusField`,
+`getApprovalStates`, `ApprovalListPage` and `GenericList` all see a field list
+that still cannot name an absent column. `GenericList.doctypeMeta()` goes
+through `getApprovalMeta` for this reason — its own `resource/DocType/` fetch
+made the guard a permanent no-op.
+
+`hasWorkflow` is the **server's** verdict, not `fieldSet.has("workflow_state")`:
+an inactive Workflow leaves its Custom Field behind (`on_trash` only clears the
+cache), and inferring "has workflow" from the column's existence hid the plain
+Submit on a doctype whose Workflow no longer runs.
 
 ### 8.4 Probe failure ⇒ "no workflow", never the reverse
 
