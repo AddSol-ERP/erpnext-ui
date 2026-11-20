@@ -14,6 +14,11 @@
  *   statusField → drives the status badge color
  */
 export const DOCTYPE_CONFIG = {
+  "UI BOM Template": {
+    list: { titleField: "template_name", subtitleField: "item", metaField: "company", statusField: "enabled" },
+    searchFields: ["template_name", "item"],
+    form: { layout: "tabs" },
+  },
   // ============================
   // HR MODULE
   // ============================

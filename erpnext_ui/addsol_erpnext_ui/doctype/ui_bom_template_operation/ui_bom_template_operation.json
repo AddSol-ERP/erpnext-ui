@@ -1,0 +1,63 @@
+{
+ "doctype": "DocType",
+ "name": "UI BOM Template Operation",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "istable": 1,
+ "fields": [
+  {
+   "fieldname": "operation",
+   "label": "Operation",
+   "fieldtype": "Link",
+   "options": "Operation",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "workstation",
+   "label": "Workstation",
+   "fieldtype": "Link",
+   "options": "Workstation",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "time_in_mins",
+   "label": "Time (minutes)",
+   "fieldtype": "Float",
+   "default": "1",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "hour_rate",
+   "label": "Hourly Rate",
+   "fieldtype": "Currency"
+  },
+  {
+   "fieldname": "description",
+   "label": "Description",
+   "fieldtype": "Small Text"
+  },
+  {
+   "fieldname": "sequence_id",
+   "label": "Sequence",
+   "fieldtype": "Int"
+  },
+  {
+   "fieldname": "batch_size",
+   "label": "Batch Size",
+   "fieldtype": "Int",
+   "default": "1"
+  }
+ ],
+ "field_order": [
+  "operation",
+  "workstation",
+  "time_in_mins",
+  "hour_rate",
+  "description",
+  "sequence_id",
+  "batch_size"
+ ],
+ "permissions": []
+}

@@ -429,11 +429,11 @@
  },
  "manufacturing": {
   "steps": {
-    "setup": "Setup",
-    "materials": "Materials review",
-    "plans": "Production plans",
-    "orders": "Work orders",
-    "timeline": "Timeline"
+   "setup": "Setup",
+   "materials": "Materials review",
+   "plans": "Production plans",
+   "orders": "Work orders",
+   "timeline": "Timeline"
   },
   "title": "Project manufacturing",
   "subtitle": "Plan production and track execution by project",
@@ -506,5 +506,21 @@
   "scrap": "Scrap and process loss",
   "costing": "Costing and currency",
   "additional": "Additional details"
+ },
+ "bomCreation": {
+  "choose": "Choose how to create your BOM",
+  "help": "Select a starting point, then review and save your BOM.",
+  "template": "Predefined template",
+  "templateHelp": "Reuse a saved template of materials and operations.",
+  "copy": "Copy existing BOM",
+  "copyHelp": "Start with materials and operations from another BOM.",
+  "fresh": "Fresh BOM",
+  "freshHelp": "Add the finished item, materials and operations yourself.",
+  "source": "Source BOM",
+  "copyHint": "Select a BOM in this company. The original remains unchanged.",
+  "continue": "Continue to BOM",
+  "templateHint": "Select an enabled template in this company. Review quantities before saving.",
+  "manageTemplates": "Manage templates",
+  "newTemplate": "New template"
  }
 }

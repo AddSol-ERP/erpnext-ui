@@ -1,0 +1,86 @@
+{
+ "doctype": "DocType",
+ "name": "UI BOM Template Item",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "istable": 1,
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "label": "Item",
+   "fieldtype": "Link",
+   "options": "Item",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "item_name",
+   "label": "Item Name",
+   "fieldtype": "Data",
+   "fetch_from": "item_code.item_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "description",
+   "label": "Description",
+   "fieldtype": "Small Text",
+   "fetch_from": "item_code.description"
+  },
+  {
+   "fieldname": "qty",
+   "label": "Quantity",
+   "fieldtype": "Float",
+   "default": "1",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "uom",
+   "label": "UOM",
+   "fieldtype": "Link",
+   "options": "UOM",
+   "fetch_from": "item_code.stock_uom",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "stock_uom",
+   "label": "Stock UOM",
+   "fieldtype": "Link",
+   "options": "UOM",
+   "fetch_from": "item_code.stock_uom",
+   "read_only": 1
+  },
+  {
+   "fieldname": "conversion_factor",
+   "label": "Conversion Factor",
+   "fieldtype": "Float",
+   "default": "1",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bom_no",
+   "label": "Subassembly BOM",
+   "fieldtype": "Link",
+   "options": "BOM",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "rate",
+   "label": "Reference Rate",
+   "fieldtype": "Currency"
+  }
+ ],
+ "field_order": [
+  "item_code",
+  "item_name",
+  "description",
+  "qty",
+  "uom",
+  "stock_uom",
+  "conversion_factor",
+  "bom_no",
+  "rate"
+ ],
+ "permissions": []
+}

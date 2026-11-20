@@ -7,6 +7,7 @@ import { I18nextProvider } from "react-i18next";
 import { HeaderProvider } from "@/context/HeaderContext";
 import i18n from "@/i18n/index.js";
 import Projects from "@/pages/Projects";
+import BomCreation from "@/pages/Projects/bom/BomCreation";
 import { buildBomLayout } from "@/pages/Projects/bom/layout";
 import ChildTable from "@/components/ChildTable";
 import PlanningContent from "@/pages/Production/projects/PlanningContent";
@@ -101,3 +102,13 @@ for (const language of ["en", "hi", "ar"]) {
   assert.equal(mobileBody.split(`>${i18n.t("common.edit")}</button>`).length - 1, 1, "One mobile Edit action per row");
 }
 console.log("BOM layout preserves native/custom fields and compact materials render in EN/HI/AR");
+
+for (const language of ["en", "hi", "ar"]) {
+  await i18n.changeLanguage(language);
+  const html = renderToString(<I18nextProvider i18n={i18n}><MemoryRouter><HeaderProvider><BomCreation /></HeaderProvider></MemoryRouter></I18nextProvider>);
+  for (const key of ["template", "copy", "fresh", "manageTemplates", "newTemplate"]) assert(html.includes(i18n.t(`bomCreation.${key}`)), `${language}: missing ${key}`);
+  assert.equal((html.match(/type="radio"/g) || []).length, 3);
+  assert(!html.includes("bomCreation."));
+}
+assert.equal(matchRoutes(routes, "/projects/view/PROJECT/bom/create").at(-1).route.path, "/projects/view/:project/bom/create");
+console.log("BOM starting options and EN/HI/AR translations passed");

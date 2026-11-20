@@ -3998,6 +3998,14 @@ def get_custom_report_data(report_key, filters=None):
 
 
 @frappe.whitelist(allow_guest=False)
+def get_project_bom_draft(project, source_bom, source_type="BOM"):
+    """Prepare a permission-checked unsaved copy for the standard BOM form."""
+    from erpnext_ui.bom_creation import prepare_copy
+
+    return prepare_copy(project, source_bom, source_type)
+
+
+@frappe.whitelist(allow_guest=False)
 def get_project_manufacturing(project):
     """Read project manufacturing documents through each parent's read permission."""
     from erpnext_ui.manufacturing import workspace

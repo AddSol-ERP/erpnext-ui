@@ -1,0 +1,217 @@
+{
+ "doctype": "DocType",
+ "name": "UI BOM Template",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "istable": 0,
+ "fields": [
+  {
+   "fieldname": "details_tab",
+   "label": "Details",
+   "fieldtype": "Tab Break"
+  },
+  {
+   "fieldname": "template_name",
+   "label": "Template Name",
+   "fieldtype": "Data",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "enabled",
+   "label": "Enabled",
+   "fieldtype": "Check",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "label": "Company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "item",
+   "label": "Finished Item",
+   "fieldtype": "Link",
+   "options": "Item",
+   "description": "Optional: choose the finished item when creating the BOM."
+  },
+  {
+   "fieldname": "quantity",
+   "label": "Finished Quantity",
+   "fieldtype": "Float",
+   "reqd": 1,
+   "default": "1"
+  },
+  {
+   "fieldname": "uom",
+   "label": "Finished UOM",
+   "fieldtype": "Link",
+   "options": "UOM",
+   "fetch_from": "item.stock_uom"
+  },
+  {
+   "fieldname": "description",
+   "label": "Description",
+   "fieldtype": "Small Text"
+  },
+  {
+   "fieldname": "materials_tab",
+   "label": "Raw Materials",
+   "fieldtype": "Tab Break"
+  },
+  {
+   "fieldname": "items",
+   "label": "Raw Materials",
+   "fieldtype": "Table",
+   "options": "UI BOM Template Item"
+  },
+  {
+   "fieldname": "operations_tab",
+   "label": "Operations",
+   "fieldtype": "Tab Break"
+  },
+  {
+   "fieldname": "with_operations",
+   "label": "With Operations",
+   "fieldtype": "Check"
+  },
+  {
+   "fieldname": "routing",
+   "label": "Routing",
+   "fieldtype": "Link",
+   "options": "Routing"
+  },
+  {
+   "fieldname": "transfer_material_against",
+   "label": "Transfer Material Against",
+   "fieldtype": "Select",
+   "options": "Work Order\nJob Card",
+   "default": "Work Order"
+  },
+  {
+   "fieldname": "operations",
+   "label": "Operations",
+   "fieldtype": "Table",
+   "options": "UI BOM Template Operation"
+  },
+  {
+   "fieldname": "scrap_tab",
+   "label": "Scrap / Loss",
+   "fieldtype": "Tab Break"
+  },
+  {
+   "fieldname": "scrap_items",
+   "label": "Scrap Items",
+   "fieldtype": "Table",
+   "options": "UI BOM Template Scrap Item"
+  },
+  {
+   "fieldname": "process_loss_percentage",
+   "label": "Process Loss (%)",
+   "fieldtype": "Percent"
+  },
+  {
+   "fieldname": "costing_tab",
+   "label": "Costing",
+   "fieldtype": "Tab Break"
+  },
+  {
+   "fieldname": "rm_cost_as_per",
+   "label": "Raw Material Cost Based On",
+   "fieldtype": "Select",
+   "options": "Valuation Rate\nLast Purchase Rate\nPrice List",
+   "default": "Valuation Rate"
+  },
+  {
+   "fieldname": "buying_price_list",
+   "label": "Buying Price List",
+   "fieldtype": "Link",
+   "options": "Price List"
+  },
+  {
+   "fieldname": "currency",
+   "label": "Currency",
+   "fieldtype": "Link",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "conversion_rate",
+   "label": "Conversion Rate",
+   "fieldtype": "Float",
+   "default": "1"
+  },
+  {
+   "fieldname": "allow_alternative_item",
+   "label": "Allow Alternative Item",
+   "fieldtype": "Check"
+  }
+ ],
+ "field_order": [
+  "details_tab",
+  "template_name",
+  "enabled",
+  "company",
+  "item",
+  "quantity",
+  "uom",
+  "description",
+  "materials_tab",
+  "items",
+  "operations_tab",
+  "with_operations",
+  "routing",
+  "transfer_material_against",
+  "operations",
+  "scrap_tab",
+  "scrap_items",
+  "process_loss_percentage",
+  "costing_tab",
+  "rm_cost_as_per",
+  "buying_price_list",
+  "currency",
+  "conversion_rate",
+  "allow_alternative_item"
+ ],
+ "permissions": [
+  {
+   "role": "Manufacturing User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "delete": 0
+  },
+  {
+   "role": "Manufacturing Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "delete": 0
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "delete": 1
+  }
+ ],
+ "autoname": "hash",
+ "title_field": "template_name",
+ "search_fields": "template_name,item",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

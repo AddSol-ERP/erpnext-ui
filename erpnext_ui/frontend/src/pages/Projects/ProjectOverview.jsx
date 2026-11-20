@@ -33,7 +33,7 @@ function Overview({ project }) {
     return () => setHeader({});
   }, [data, project, setHeader, t, navigate]);
   const manufacturing = `/projects/view/${encodeURIComponent(project)}/manufacturing`;
-  const createBom = () => navigate("/projects/BOM/new", { state: { manufacturingProject: project, manufacturingCompany: data.project.company } });
+  const createBom = () => navigate(`/projects/view/${encodeURIComponent(project)}/bom/create`);
   return <DashboardShell>
     {error && <div role="alert" className="rounded border border-destructive p-4 text-destructive">{error}</div>}
     {!data && !error && <p>{t("common.loading")}</p>}

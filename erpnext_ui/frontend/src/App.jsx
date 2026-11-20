@@ -17,6 +17,7 @@ import ApprovalListPage from "./components/Approval/ApprovalListPage";
 import ProjectManufacturing from "./pages/Production/projects";
 import Projects from "./pages/Projects";
 import ProjectOverview from "./pages/Projects/ProjectOverview";
+import BomCreation from "./pages/Projects/bom/BomCreation";
 import ManufacturingGuard from "./pages/Production/projects/DocumentGuard";
 import ProductionDashboard from "./pages/Production";
 import QualityDashboard from "./pages/Quality";
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="/production" element={<ProductionDashboard />} />
           <Route path="/projects" element={<ManufacturingGuard><Projects /></ManufacturingGuard>} />
           <Route path="/projects/view/:project" element={<ManufacturingGuard><ProjectOverview /></ManufacturingGuard>} />
+          <Route path="/projects/view/:project/bom/create" element={<ManufacturingGuard><BomCreation /></ManufacturingGuard>} />
           <Route path="/projects/view/:project/manufacturing" element={<ManufacturingGuard><ProjectManufacturing /></ManufacturingGuard>} />
           <Route path="/projects/Project" element={<Navigate to="/projects" replace />} />
           <Route path="/projects/:doctype" element={<ManufacturingGuard><GenericListPage /></ManufacturingGuard>} />

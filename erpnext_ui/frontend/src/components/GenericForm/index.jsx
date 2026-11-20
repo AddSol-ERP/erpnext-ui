@@ -605,6 +605,21 @@ export default function GenericFormPage() {
         if (isNew && hub === "projects" && decodedDoctype === "Project") {
           initialDoc.is_active = initialDoc.is_active || "Yes";
         }
+        if (isNew && decodedDoctype === "UI BOM Template" && location.state?.manufacturingCompany) {
+          initialDoc.company = location.state.manufacturingCompany;
+        }
+        if (isNew && decodedDoctype === "BOM" && location.state?.bomSource) {
+          const response = await get("method/erpnext_ui.api.get_project_bom_draft", {
+            project: location.state.manufacturingProject,
+            source_bom: location.state.bomSource,
+            source_type: location.state.bomSourceType || "BOM",
+          });
+          const draft = response.message;
+          if (!draft) throw new Error("BOM draft could not be loaded");
+          Object.keys(initialDoc).forEach((key) => {
+            if (draft[key] !== undefined) initialDoc[key] = draft[key];
+          });
+        }
         if (isNew && decodedDoctype === "BOM" && location.state?.manufacturingProject) {
           initialDoc.project = location.state.manufacturingProject;
           initialDoc.company = location.state.manufacturingCompany;
@@ -618,6 +633,9 @@ export default function GenericFormPage() {
       } catch (e) {
         console.error("Failed to load form:", e);
         toast.error(t("common.failedToLoad", { name: decodedDoctype }));
+        if (isNew && decodedDoctype === "BOM" && location.state?.bomSource) {
+          navigate(`/projects/view/${encodeURIComponent(location.state.manufacturingProject)}/bom/create`, { replace: true });
+        }
       } finally {
         setLoading(false);
       }

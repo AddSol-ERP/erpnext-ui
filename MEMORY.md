@@ -3799,3 +3799,30 @@ by owner. The post-model-sync share_quotation_evaluation_permissions patch also
 adds unrestricted supported-role permissions when Custom DocPerm masks defaults,
 preserving other custom roles/levels. Deploy with bench migrate and restart.
 Validation: 34 quotation tests pass; backend-only change, no frontend build.
+
+## BOM creation starting points and reusable templates (2026-11-20)
+
+Project Create BOM now opens `/projects/view/:project/bom/create`, offering
+predefined template, copy existing BOM, and fresh BOM. All paths use the standard
+native tabbed BOM form for review/save; source documents are never changed.
+New UI BOM Template DocType and three dedicated child DocTypes store optional
+finished Item, quantity/UOM, raw materials with conversion factors/subassemblies,
+routing/operations, scrap/loss, and costing preferences. Manufacturing User,
+Manufacturing Manager and System Manager can manage templates; only System
+Manager deletes them. Templates have enabled/company filters and standard
+metadata-based list/forms. New template carries the selected project company.
+No example templates or fictitious items are seeded.
+
+`get_project_bom_draft` authorizes Project read, BOM create and source read;
+rejects cross-company/cancelled sources and disabled templates. Native copy_doc
+copies BOMs; explicit business-field mapping copies template child rows without
+parent identities. If a template specifies Routing without explicit operations,
+read-authorized Routing operations populate the draft. New BOM is active,
+non-default, draft, linked to the current project, and exploded items are rebuilt
+by native save. A failed copy returns to selection instead of a blank form.
+Native BOM save/submit permissions and validation remain authoritative.
+
+Checks: seven draft preparation tests and 20 manufacturing tests pass, targeted
+ESLint/Ruff, EN/HI/AR project/BOM selection/render/route checks, production build.
+Deploy with bench migrate to install template DocTypes, restart and refreshed
+frontend assets. Actual site save/submission requires deployment verification.

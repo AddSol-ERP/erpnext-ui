@@ -1,0 +1,53 @@
+{
+ "doctype": "DocType",
+ "name": "UI BOM Template Scrap Item",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "istable": 1,
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "label": "Item",
+   "fieldtype": "Link",
+   "options": "Item",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "item_name",
+   "label": "Item Name",
+   "fieldtype": "Data",
+   "fetch_from": "item_code.item_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stock_qty",
+   "label": "Quantity",
+   "fieldtype": "Float",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "stock_uom",
+   "label": "Stock UOM",
+   "fieldtype": "Link",
+   "options": "UOM",
+   "fetch_from": "item_code.stock_uom",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "rate",
+   "label": "Reference Rate",
+   "fieldtype": "Currency"
+  }
+ ],
+ "field_order": [
+  "item_code",
+  "item_name",
+  "stock_qty",
+  "stock_uom",
+  "rate"
+ ],
+ "permissions": []
+}
