@@ -25,6 +25,8 @@ import ReturnToStock from "@/pages/Store/stock-balance/ReturnToStock.jsx";
 import Pagination from "@/components/Pagination";
 import { readFileSync } from "node:fs";
 import ActionBar from "@/components/ActionBar/index.jsx";
+import QuotationPreview from "@/components/Approval/ApprovalPreview/PreviewRenderer/types/QuotationPreview/index.jsx";
+import PurchaseOrderPreview from "@/components/Approval/ApprovalPreview/PreviewRenderer/types/PurchaseOrderPreview/index.jsx";
 
 /*
  * Renders the Store surfaces and asserts that NO translation key leaks into the
@@ -67,7 +69,7 @@ let pass = 0;
 let fail = 0;
 
 // Anything that looks like a dotted i18n key, or i18next's own object warning.
-const LEAK = /\b(?:store|ess|requests|nav|common|theme|language|footer|modules|dashboard|userMenu)\.[A-Za-z0-9_.]+|returned an object instead of string/;
+const LEAK = /\b(?:store|ess|requests|nav|common|theme|language|footer|modules|dashboard|userMenu|approvals)\.[A-Za-z0-9_.]+|returned an object instead of string/;
 
 function ok(name, cond, detail) {
   if (cond) {
@@ -998,6 +1000,217 @@ ok("QI form: the reference type trigger is present and closed, with no value cho
    "a select that silently defaulted would post a reference the user never chose");
 ok("QI form: sample size defaults to 1",
    /type="number"[^>]*value="1"/.test(qiFormHtml) || /value="1"[^>]*type="number"/.test(qiFormHtml));
+
+/* =======================================================================
+   Approval previews — Quotation and Purchase Order.
+
+   These are what senior management reads before pressing Approve, so the
+   assertions are about the information ORDER and the absence of raw output:
+
+   - the commercial data (payment schedule, terms, financial summary) must be
+     on the page, not hidden behind the item list;
+   - money is formatted, never a raw float (`112100.4` was the old render);
+   - a line description collapses to one line of TEXT, so the editor's markup
+     must not leak into the collapsed row;
+   - a document with no payment terms / no terms still says so explicitly,
+     instead of silently omitting the section;
+   - no i18n key leaks (the LEAK regex now includes the approvals namespace).
+   ======================================================================= */
+
+const quotationFixture = {
+  name: "QTN-2026-00042",
+  title: "Tower A facade package",
+  quotation_to: "Customer",
+  party_name: "CUST-0001",
+  customer_name: "Acme Trading LLC",
+  contact_display: "Ravi Menon",
+  contact_mobile: "+974 5555 1234",
+  contact_email: "ravi@acme.example",
+  transaction_date: "2026-11-01",
+  valid_till: "2026-12-01",
+  order_type: "Sales",
+  incoterm: "FOB",
+  currency: "INR",
+  net_total: 100000,
+  discount_amount: 5000,
+  additional_discount_percentage: 5,
+  taxes: [
+    { name: "tax-1", description: "GST 18%", rate: 18, tax_amount: 17100 },
+  ],
+  rounding_adjustment: 0.4,
+  grand_total: 112100.4,
+  rounded_total: 112100,
+  in_words: "One lakh twelve thousand one hundred only",
+  status: "Draft",
+  workflow_state: "Waiting For Approval",
+  payment_terms_template: "30-70 Standard",
+  payment_schedule: [
+    {
+      name: "ps-1",
+      payment_term: "Advance",
+      due_date: "2026-11-15",
+      invoice_portion: 30,
+      payment_amount: 33630,
+    },
+  ],
+  tc_name: "Standard T&C",
+  terms: "<p>Delivery within 30 days.</p><ul><li>Ex-works</li></ul>",
+  address_display: "<p>Acme Trading<br>Doha</p>",
+  shipping_address_display: "",
+  items: [
+    {
+      name: "item-1",
+      item_code: "ALU-2MM",
+      item_name: "Aluminium Sheet 2mm",
+      description: "<p>Mill finish, 1220x2440</p>",
+      qty: 40,
+      uom: "Nos",
+      rate: 2500,
+      amount: 100000,
+      project: "PROJ-1",
+    },
+    {
+      name: "item-2",
+      item_code: "ALU-3MM",
+      item_name: "Aluminium Sheet 3mm",
+      qty: 4,
+      uom: "Nos",
+      rate: 3000,
+      amount: 12000,
+    },
+  ],
+};
+
+const quotationHtml = renderNode(<QuotationPreview doc={quotationFixture} />);
+const quotationText = plainText(quotationHtml);
+
+ok(
+  "Quotation preview: customer and workflow state are shown",
+  quotationText.includes("Acme Trading LLC") &&
+    quotationText.includes("Waiting For Approval"),
+  quotationText.slice(0, 200),
+);
+
+ok(
+  "Quotation preview: grand total is a formatted currency amount",
+  quotationText.includes("₹112,100.00") && !/\b112100\.4\b/.test(quotationText),
+  "a raw float in the header is what made the screen look unfinished",
+);
+
+ok(
+  "Quotation preview: commercial data appears before the line items",
+  quotationText.indexOf("Payment Terms") > -1 &&
+    quotationText.indexOf("Payment Terms") < quotationText.indexOf("Items (2)") &&
+    quotationText.indexOf("Terms & Conditions") <
+      quotationText.indexOf("Items (2)"),
+  "payment terms and T&C must be readable without scrolling past the items",
+);
+
+ok(
+  "Quotation preview: financial breakdown is complete",
+  ["Financial Summary", "Net Total", "Additional Discount", "GST 18%", "Rounded Total"].every(
+    (label) => quotationText.includes(label),
+  ),
+  quotationText.slice(0, 500),
+);
+
+ok(
+  "Quotation preview: payment schedule shows term, portion and amount",
+  quotationText.includes("Advance") &&
+    quotationText.includes("30%") &&
+    quotationText.includes("₹33,630.00"),
+);
+
+ok(
+  "Quotation preview: item description collapses to one plain-text line",
+  quotationText.includes("Mill finish, 1220x2440") &&
+    !/<p>Mill finish/.test(quotationHtml),
+  "rendering the editor's block markup inside the collapsed row defeats the compact table",
+);
+
+ok(
+  "Quotation preview: item amounts are formatted and aligned",
+  quotationText.includes("ALU-2MM") && quotationText.includes("₹100,000.00"),
+);
+
+ok(
+  "Quotation preview: no translation key leaked",
+  !quotationText.match(LEAK),
+  (quotationText.match(LEAK) || [])[0],
+);
+
+const expiredHtml = plainText(
+  renderNode(
+    <QuotationPreview
+      doc={{ ...quotationFixture, valid_till: "2026-01-01" }}
+    />,
+  ),
+);
+ok(
+  "Quotation preview: a past validity date is flagged as expired",
+  expiredHtml.includes("Expired"),
+  "an approver must see that the offer lapsed before approving it",
+);
+
+const bareQuotationHtml = plainText(
+  renderNode(
+    <QuotationPreview
+      doc={{
+        ...quotationFixture,
+        payment_schedule: [],
+        payment_terms_template: null,
+        terms: null,
+        tc_name: null,
+        taxes: [],
+        discount_amount: 0,
+        rounded_total: 0,
+      }}
+    />,
+  ),
+);
+ok(
+  "Quotation preview: missing payment terms and T&C are stated, not hidden",
+  bareQuotationHtml.includes("No payment terms specified.") &&
+    bareQuotationHtml.includes("No terms and conditions specified."),
+  "silence reads as a screen bug, not as 'not agreed'",
+);
+
+const poFixture = {
+  ...quotationFixture,
+  name: "PUR-ORD-2026-00007",
+  quotation_to: null,
+  customer_name: null,
+  party_name: null,
+  supplier: "SUP-0009",
+  supplier_name: "Gulf Aluminium Supply",
+  schedule_date: "2026-11-30",
+  company: "Devoltrans",
+  project: "PROJ-1",
+  per_received: 45,
+  per_billed: 0,
+  workflow_state: "Pending Approval",
+};
+
+const poHtml = plainText(renderNode(<PurchaseOrderPreview doc={poFixture} />));
+ok(
+  "Purchase Order preview: supplier, Required By and total are shown",
+  poHtml.includes("Gulf Aluminium Supply") &&
+    poHtml.includes("Required By") &&
+    poHtml.includes("2026-11-30") &&
+    poHtml.includes("₹112,100.00"),
+);
+ok(
+  "Purchase Order preview: same commercial-first layout as Quotation",
+  poHtml.indexOf("Payment Terms") < poHtml.indexOf("Items (2)"),
+);
+ok(
+  "Purchase Order preview: delivery progress shows only once it has moved",
+  poHtml.includes("Received") &&
+    poHtml.includes("45%") &&
+    !poHtml.includes("Billed"),
+  "0% cells read as missing data, not as 'nothing billed yet'",
+);
+ok("Purchase Order preview: no translation key leaked", !poHtml.match(LEAK), (poHtml.match(LEAK) || [])[0]);
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

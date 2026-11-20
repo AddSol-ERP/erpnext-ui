@@ -1,230 +1,115 @@
 import { useTranslation } from "react-i18next";
-import { BasePreview } from "..";
-import { Badge } from "@/components/ui/badge";
+import { statusTone } from "@/components/List/statusTones";
+import SummaryBand from "../shared/SummaryBand";
+import FinancialSummary from "../shared/FinancialSummary";
+import PaymentTerms from "../shared/PaymentTerms";
+import TermsAndConditions from "../shared/TermsAndConditions";
+import ItemTable from "../shared/ItemTable";
+import Addresses from "../shared/Addresses";
 
-const getCurrencySymbol = (currency) => {
-  const map = {
-    INR: "₹",
-    USD: "$",
-    EUR: "€",
-    GBP: "£",
-    AED: "د.إ",
-  };
+/** Local ISO date (not UTC) so "expired" flips at the user's midnight. */
+function todayIso() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
 
-  return map[currency] || currency || "";
-};
-
+/**
+ * Quotation approval preview.
+ *
+ * ORDER IS THE POINT. A senior approver reads: who/what/how much (summary
+ * band), how they get paid and the money breakdown, the terms they are signing,
+ * then the items. Items are last on purpose -- they are the supporting detail,
+ * and the compact table means they are still only a short scroll away. The old
+ * layout put the items first as cards, so a six-line quotation pushed the
+ * payment terms and the terms & conditions below two screens of item text.
+ *
+ * ONE SCROLL CONTAINER. `AppModal` already caps its body at 95vh and scrolls it.
+ * `BasePreview` added a second scroll frame inside that, and this preview then
+ * added two more (`max-h-[60vh]` items, `max-h-[120px]` terms). Nested
+ * scrollbars are unusable on a phone and can trap the wheel on desktop, so this
+ * view renders sections directly into the modal body; only long legal terms
+ * keep a bounded inner scroll.
+ */
 export default function QuotationPreview({ doc }) {
   const { t } = useTranslation();
-  const symbol = getCurrencySymbol(doc.currency);
+
+  const currency = doc.currency;
+  // Quotation v15 has no `customer` column: the party is `party_name` (Dynamic
+  // Link) with `customer_name` as the readable label. Reading `doc.customer`
+  // silently rendered undefined and fell through to the raw party code.
+  const customer = doc.customer_name || doc.party_name || doc.title;
+  const state = doc.workflow_state || doc.status || "";
+
+  const isExpired = Boolean(
+    doc.valid_till && String(doc.valid_till).slice(0, 10) < todayIso(),
+  );
+
+  const contacts = [doc.contact_display, doc.contact_mobile, doc.contact_email];
+
+  // Only fields with a value: a facts grid padded with "—" reads as a broken
+  // document, and these are optional on a quotation.
+  const facts = [
+    { label: t("approvals.preview.quotationTo"), value: doc.quotation_to },
+    { label: t("approvals.preview.quotationDate"), value: doc.transaction_date },
+    { label: t("approvals.preview.validTill"), value: doc.valid_till },
+    { label: t("approvals.preview.opportunity"), value: doc.opportunity },
+    { label: t("approvals.preview.orderType"), value: doc.order_type },
+    { label: t("approvals.preview.incoterm"), value: doc.incoterm },
+  ].filter((fact) => fact.value);
+
+  const badges = [
+    ...(state ? [{ label: state, tone: statusTone(state) }] : []),
+    ...(isExpired
+      ? [{ label: t("approvals.preview.expired"), tone: "danger" }]
+      : []),
+  ];
 
   return (
-    <BasePreview>
-      {/* ================= HEADER ================= */}
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate font-semibold">{doc.name}</div>
+    <div className="flex flex-col gap-3">
+      <SummaryBand
+        name={doc.name}
+        heading={customer}
+        subheading={doc.title}
+        contacts={contacts}
+        facts={facts}
+        badges={badges}
+        total={doc.rounded_total || doc.grand_total}
+        currency={currency}
+        inWords={doc.in_words}
+      />
 
-          {/* 🔥 Customer instead of Supplier */}
-          <div className="truncate text-sm text-muted-foreground">
-            {doc.customer || doc.party_name}
-          </div>
-
-          <div className="truncate text-sm text-muted-foreground">
-            {doc.contact_mobile} · {doc.contact_email}
-          </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <FinancialSummary doc={doc} currency={currency} />
         </div>
 
-        <div className="shrink-0 text-end">
-          <div className="text-sm text-muted-foreground">
-            {doc.transaction_date}
-          </div>
-
-          <Badge className="mt-1 bg-amber-500/15 text-amber-600 dark:text-amber-400">
-            {doc.workflow_state || doc.status}
-          </Badge>
-
-          <div className="mt-1 font-bold">
-            {symbol}
-            {doc.rounded_total || doc.grand_total}
-          </div>
+        <div className="lg:col-span-7">
+          <PaymentTerms
+            schedule={doc.payment_schedule}
+            template={doc.payment_terms_template}
+            currency={currency}
+          />
         </div>
       </div>
 
-      {/* ================= META INFO ================= */}
-      <div className="mb-3 grid grid-cols-1 gap-3 text-sm text-muted-foreground sm:grid-cols-3">
-        <div>
-          <div>{t("approvals.preview.validity")}</div>
-          <div className="font-semibold">{doc.valid_till || "-"}</div>
-        </div>
+      <TermsAndConditions html={doc.terms} template={doc.tc_name} />
 
-        <div>
-          <div>{t("approvals.preview.quotationTo")}</div>
-          <div className="font-semibold">{doc.quotation_to || "-"}</div>
-        </div>
+      <ItemTable key={doc.name} items={doc.items} currency={currency} />
 
-        <div>
-          <div>{t("approvals.preview.opportunity")}</div>
-          <div className="font-semibold">{doc.opportunity || "-"}</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-        {/* ================= LEFT: ITEMS ================= */}
-        <div className="md:col-span-7 2xl:col-span-8">
-          <div className="max-h-[60vh] overflow-y-auto overflow-x-hidden">
-            <div className="mb-2 font-semibold">
-              {t("approvals.preview.items")}
-            </div>
-
-            <div className="flex flex-col gap-2">
-              {doc.items?.map((i) => (
-                <div key={i.name} className="rounded-lg border border-border p-2">
-                  <div className="font-semibold">
-                    {i.item_code || i.item_name}
-                  </div>
-
-                  <div
-                    className="mb-1 break-words text-sm text-muted-foreground"
-                    dangerouslySetInnerHTML={{
-                      __html: i.description,
-                    }}
-                  />
-
-                  <div className="text-sm text-muted-foreground">
-                    {t("approvals.preview.project", {
-                      value: i.project || "-",
-                    })}
-                  </div>
-
-                  <div className="mt-1 flex items-start justify-between gap-2 text-sm">
-                    <span>
-                      {t("approvals.preview.qty", {
-                        qty: i.qty,
-                        uom: i.uom || "",
-                      })}
-                    </span>
-
-                    <span>
-                      {symbol}
-                      {i.rate} / {i.uom || ""}
-                    </span>
-
-                    <span className="font-semibold">
-                      {symbol}
-                      {i.amount}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ================= RIGHT ================= */}
-        <div className="md:col-span-5 2xl:col-span-4">
-          <div className="flex flex-col gap-3">
-            {/* CUSTOMER ADDRESS */}
-            <div>
-              <div className="text-sm font-semibold">
-                {t("approvals.preview.customer")}
-              </div>
-              <div
-                className="break-words text-sm text-muted-foreground"
-                dangerouslySetInnerHTML={{
-                  __html:
-                    doc.customer_address_display ||
-                    doc.address_display ||
-                    "-",
-                }}
-              />
-            </div>
-
-            {/* SHIPPING */}
-            <div>
-              <div className="text-sm font-semibold">
-                {t("approvals.preview.shipping")}
-              </div>
-              <div
-                className="break-words text-sm text-muted-foreground"
-                dangerouslySetInnerHTML={{
-                  __html: doc.shipping_address_display || "-",
-                }}
-              />
-            </div>
-
-            {/* TOTALS */}
-            <div className="border-t border-border pt-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>{t("approvals.preview.subTotal")}</span>
-                <span>
-                  {symbol}
-                  {doc.net_total}
-                </span>
-              </div>
-
-              {doc.taxes?.map((tax) => (
-                <div
-                  key={tax.name}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span>
-                    {tax.description} ({tax.rate}%)
-                  </span>
-                  <span>
-                    {symbol}
-                    {tax.tax_amount}
-                  </span>
-                </div>
-              ))}
-
-              <div className="mt-2 flex items-center justify-between font-bold">
-                <span>{t("approvals.preview.total")}</span>
-                <span>
-                  {symbol}
-                  {doc.rounded_total || doc.grand_total}
-                </span>
-              </div>
-            </div>
-
-            {/* TERMS (IMPORTANT FOR APPROVAL) */}
-            {doc.terms && (
-              <div>
-                <div className="mb-1 text-sm font-semibold">
-                  {t("approvals.termsAndConditions")}
-                </div>
-
-                <div
-                  className="max-h-[120px] overflow-y-auto text-sm text-muted-foreground"
-                  dangerouslySetInnerHTML={{ __html: doc.terms }}
-                />
-              </div>
-            )}
-
-            {/* PAYMENT */}
-            {doc.payment_schedule?.length > 0 && (
-              <div>
-                <div className="mb-1 text-sm font-semibold">
-                  {t("approvals.preview.payment")}
-                </div>
-
-                {doc.payment_schedule.map((p) => (
-                  <div
-                    key={p.name}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span>{p.due_date}</span>
-                    <span>
-                      {symbol}
-                      {p.payment_amount}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </BasePreview>
+      <Addresses
+        blocks={[
+          {
+            title: t("approvals.preview.customer"),
+            html: doc.address_display,
+          },
+          {
+            title: t("approvals.preview.shipping"),
+            html: doc.shipping_address_display,
+          },
+        ]}
+      />
+    </div>
   );
 }

@@ -1158,11 +1158,43 @@ a button that can only fail is worse than omitting it". Footer precedence:
 **Approve → Reject → (transitions else defaults)** — they never mix. Reject gets
 a `ConfirmDialog`.
 
-5 typed previews + `DefaultPreview`: PurchaseOrder (Terms + Payment Schedule
-surfaced **above** items so the approver reads commercial terms first),
-Quotation, Expense, Leave, OvertimeLog. `PreviewRenderer` **refetches the full
-document** (`GET resource/<dt>/<name>`) because the list row is a projected field
-set lacking items, taxes and addresses.
+6 typed previews + `DefaultPreview`: PurchaseOrder, Quotation, Expense, Leave,
+AttendanceRequest, OvertimeLog.
+
+`ApprovalPreview` — **not** `PreviewRenderer` — fetches the full document
+(`GET resource/<dt>/<name>`) once, because the list row is a projected field set
+lacking items, taxes, payment schedule, terms and addresses. Both the preview and
+the "Details" view consume that one document; fetching inside `PreviewRenderer`
+left Details rendering the raw list row (a dozen fields, no items). `PreviewRenderer`
+is now presentational and `DetailsPanel` shows a curated, meta-labelled field set
+per doctype instead of dumping `Object.entries(doc)`.
+
+Quotation and Purchase Order compose the same shared sections
+(`PreviewRenderer/types/shared/`) in this order — summary band, financial summary
++ **Payment Terms**, Terms & Conditions, compact item table, addresses. Order is
+the point: management approves the commercial terms, and the old card-per-item
+layout pushed them below two screens of item text. Items are a ~38px table row
+with the rich-text description collapsed to one plain-text line (editor markup
+cannot be clamped, so it must be stripped) and expanded on demand. There is ONE
+scroll container — the modal body; long legal terms keep a bounded inner scroll.
+
+`lib/money.js` formats every amount (`formatMoney` / `formatQty`). It tests the
+raw value for `null`/`undefined`/`""` **before** `Number()`, because
+`Number(null) === 0` and `0` is finite — the obvious `isFinite(Number(x))` guard
+renders `₹0.00` for an amount the server never sent, which reads as "free".
+
+With a Workflow, Reject asks for confirmation (`approvals.rejectConfirmTitle`) and
+every footer button shows a per-action `Spinner` via `busyKey`. Labels are shown
+at **every** breakpoint: icon-only Approve/Reject made the approver decode a tick
+against a cross.
+
+**The workflow-transition probe is a POST, deliberately.** It sends the complete
+document as JSON, which on a quotation with terms text and an item table is tens
+of kilobytes; in a query string that exceeds the ~8 KB request line nginx/Apache
+allow, the probe answers 414, the catch reports "no workflow" (invariant 4), and a
+pending document is shown with no Approve/Reject buttons at all. A JSON body
+populates `frappe.form_dict` exactly as query parameters do
+(`services/api.jsx:268-270`, `api.py:827-847`).
 
 > `components/Approval/ActionButtons/index.jsx` is **dead** — two hardcoded
 > Reject/Approve buttons with no handlers.

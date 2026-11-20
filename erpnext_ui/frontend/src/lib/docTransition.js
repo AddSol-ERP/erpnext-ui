@@ -314,7 +314,16 @@ export async function getWorkflowActions({ doc, doctype = doc?.doctype }) {
       doctype,
       name: doc.name,
     };
-    const res = await get("method/erpnext_ui.api.get_doctype_workflow_transitions", {
+    // POST, not GET. The request carries the COMPLETE document as JSON, and a
+    // quotation with terms text and a full item table is tens of kilobytes. Put
+    // in a query string it exceeds the ~8 KB request-line limit both nginx and
+    // Apache enforce, the probe fails with 414, the catch below reports "no
+    // workflow", and the approver is shown a pending document with no
+    // Approve/Reject buttons at all -- silently, because a failed probe is
+    // deliberately treated as "no workflow" (invariant 4). A request body has
+    // no such limit, and `/api/method` populates `frappe.form_dict` from a JSON
+    // body exactly as it does from query parameters.
+    const res = await post("method/erpnext_ui.api.get_doctype_workflow_transitions", {
       doctype,
       name: doc.name,
       doc: JSON.stringify(workflowDoc),

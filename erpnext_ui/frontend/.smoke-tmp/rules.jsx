@@ -20,6 +20,7 @@ import {
   APPROVAL_QUEUE_DOCTYPES,
   queueFor,
 } from "../src/lib/approvalQueues.js";
+import { currencySymbol, formatMoney, formatQty } from "../src/lib/money.js";
 import {
   MATERIAL_REQUEST_TYPES,
   REQUEST_PURPOSES,
@@ -5593,6 +5594,70 @@ ok(
 ok("Store issue keeps Work Order reference", storeWorkOrderFields("issue", "WO-1").custom_store_work_order === "WO-1");
 ok("Store issue avoids manufacturing work_order", !("work_order" in storeWorkOrderFields("issue", "WO-1")));
 ok("Manufacturing keeps standard Work Order", storeWorkOrderFields("manufacture", "WO-1").work_order === "WO-1");
+
+/* ---------- money: a missing amount must never render as zero ---------- */
+// `Number(null)` is 0 and 0 is finite, so the obvious `isFinite(Number(x))`
+// guard renders `₹0.00` for an amount the server never sent. On an approval
+// screen that reads as "free".
+ok("money: null amount is a dash", formatMoney(null, "INR") === "—");
+ok("money: undefined amount is a dash", formatMoney(undefined, "INR") === "—");
+ok("money: blank amount is a dash", formatMoney("", "INR") === "—");
+ok("money: a real zero is NOT a dash", formatMoney(0, "INR") === "₹0.00");
+ok("money: groups thousands and fixes two decimals", formatMoney(1234.5, "INR") === "₹1,234.50");
+ok("money: keeps the sign outside the symbol", formatMoney(-500, "USD") === "-$500.00");
+ok("money: unknown currency falls back to its code", formatMoney(1000, "XYZ") === "XYZ1,000.00");
+ok("money: no currency renders a bare number", formatMoney(1000) === "1,000.00");
+ok("money: symbol lookup is case tolerant", currencySymbol("aed") === "د.إ");
+ok("money: non-numeric text is a dash", formatMoney("abc", "INR") === "—");
+ok("qty: keeps a fraction without padding", formatQty(12.5) === "12.5");
+ok("qty: null is a dash", formatQty(null) === "—");
+
+/* ---------- approvals i18n parity (three locales, one structure) ---------- */
+{
+  const flatten = (value, prefix = "") =>
+    Object.entries(value).flatMap(([key, child]) =>
+      child && typeof child === "object"
+        ? flatten(child, `${prefix}${key}.`)
+        : [`${prefix}${key}`],
+    );
+
+  const keys = {};
+  for (const lang of ["en", "hi", "ar"]) {
+    keys[lang] = flatten(
+      JSON.parse(
+        readFileSync(
+          new URL(`../../src/i18n/locales/${lang}/approvals.json`, import.meta.url),
+          "utf8",
+        ),
+      ).approvals,
+    ).sort();
+  }
+
+  const drift = ["hi", "ar"].flatMap((lang) => {
+    const missing = keys.en.filter((key) => !keys[lang].includes(key));
+    const extra = keys[lang].filter((key) => !keys.en.includes(key));
+    return [...missing.map((key) => `${lang} missing ${key}`), ...extra.map((key) => `${lang} extra ${key}`)];
+  });
+
+  ok("approvals: en/hi/ar namespaces are identical", drift.length === 0, drift.join(", "));
+  ok(
+    "approvals: the preview keys the redesigned screens use exist in English",
+    [
+      "preview.financialSummary",
+      "preview.netTotal",
+      "preview.taxesAndCharges",
+      "preview.additionalDiscount",
+      "preview.grandTotal",
+      "preview.roundedTotal",
+      "preview.paymentTerms",
+      "preview.noPaymentTerms",
+      "preview.noTerms",
+      "preview.itemsCount",
+      "preview.totalQty",
+      "details.commercial",
+    ].every((key) => keys.en.includes(key)),
+  );
+}
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
