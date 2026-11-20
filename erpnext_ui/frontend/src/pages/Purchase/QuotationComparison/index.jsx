@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { getMethod, post } from "../../../services/api";
 import { openInDesk } from "../../../lib/deskUrl";
@@ -38,12 +38,6 @@ export default function QuotationComparison() {
   const [analyzing, setAnalyzing] = useState(false);
   const [tab, setTab] = useState("items");
   useEffect(() => {
-    setHeader({ title: "Supplier Quotation Comparison", breadcrumbs: [
-      { label: "Purchase", path: "/purchase" }, { label: "Quotation comparison" },
-    ] });
-    return () => setHeader({});
-  }, [setHeader]);
-  useEffect(() => {
     if (names.length < 2) return;
     let active = true;
     getMethod("method/erpnext_ui.quotation_comparison.compare_quotations", { names: JSON.stringify(names) })
@@ -51,7 +45,7 @@ export default function QuotationComparison() {
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
   }, [names]);
-  const analyze = async () => {
+  const analyze = useCallback(async () => {
     setAnalyzing(true);
     setActionError(null);
     try {
@@ -64,8 +58,8 @@ export default function QuotationComparison() {
     } finally {
       setAnalyzing(false);
     }
-  };
-  const saveEvaluation = async () => {
+  }, [names]);
+  const saveEvaluation = useCallback(async () => {
     setSaving(true);
     setActionError(null);
     try {
@@ -76,7 +70,7 @@ export default function QuotationComparison() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [names]);
   const createOrder = async (quote) => {
     setCreating(quote.name);
     setActionError(null);
@@ -95,12 +89,26 @@ export default function QuotationComparison() {
     setError(null); setResult(null); setAnalysis(null); setSaved(null); setCreated({}); setActionError(null); setTab("items");
     setNames(next);
   };
+  useEffect(() => {
+    const actions = !editing && result && !error ? [
+      { label: "Change quotations", icon: Pencil, variant: "btn-outline-primary", disabled: analyzing || saving || creating !== null, onClick: () => setEditing(true) },
+      { label: analyzing ? "Analyzing…" : "Analyze with AI", icon: Sparkles, variant: "btn-outline-primary", disabled: analyzing, onClick: analyze },
+      { label: saved ? "Snapshot saved" : saving ? "Saving…" : "Save snapshot", icon: Save, variant: "btn-primary", disabled: saving || !!saved, onClick: saveEvaluation },
+    ] : [];
+    setHeader({
+      title: "Supplier Quotation Comparison",
+      subtitle: !editing && result ? `${result.company} · ${result.quotations.length} quotations · Company currency: ${result.company_currency}` : "Choose quotations to compare",
+      breadcrumbs: [{ label: "Purchase", path: "/purchase" }, { label: "Quotation comparison" }],
+      actions,
+    });
+    return () => setHeader({});
+  }, [setHeader, editing, result, error, analyzing, saving, creating, saved, analyze, saveEvaluation]);
   if (editing || names.length < 2) return <div className="mx-auto w-full max-w-[1600px] pt-2"><QuotationPicker key={names.join("|")} initialNames={names} onApply={applySelection} onCancel={result ? () => setEditing(false) : undefined} /></div>;
   if (error) return <div className="space-y-3 pt-2"><Alert variant="destructive"><AlertTriangle /><AlertTitle>Unable to load comparison</AlertTitle><AlertDescription>{error}</AlertDescription></Alert><Button variant="outline" onClick={() => setEditing(true)}><ArrowLeft />Change selection</Button></div>;
   if (!result) return <div className="pt-4 text-sm text-muted-foreground" role="status">Loading quotations…</div>;
   const rows = buildItemRows(result.quotations);
   return <div className="mx-auto w-full max-w-[1600px] space-y-3 pt-2">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold">{result.company}</p><p className="text-xs text-muted-foreground">{result.quotations.length} quotations · Company currency: {result.company_currency}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={analyzing || saving || creating !== null} onClick={() => setEditing(true)}><Pencil />Change quotations</Button><Button variant="outline" onClick={analyze} disabled={analyzing}><Sparkles />{analyzing ? "Analyzing…" : "Analyze with AI"}</Button><Button onClick={saveEvaluation} disabled={saving || !!saved}><Save />{saved ? "Snapshot saved" : saving ? "Saving…" : "Save snapshot"}</Button></div></div>
+
     {saved && <p className="text-sm text-muted-foreground" role="status">Evaluation {saved} saved.</p>}{actionError && <Alert variant="destructive"><AlertTriangle /><AlertTitle>Action could not be completed</AlertTitle><AlertDescription>{actionError}</AlertDescription></Alert>}
     <Tabs value={tab} onValueChange={setTab} className="w-full">
       <div className="border border-border/70 bg-card px-3 pt-2 sm:px-4">
