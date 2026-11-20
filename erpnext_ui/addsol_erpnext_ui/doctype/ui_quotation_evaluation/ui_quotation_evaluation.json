@@ -1,0 +1,84 @@
+{
+ "doctype": "DocType",
+ "name": "UI Quotation Evaluation",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "autoname": "naming_series:",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "QEV-.YYYY.-",
+   "default": "QEV-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company_currency",
+   "fieldtype": "Link",
+   "label": "Company Currency",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "evaluation_date",
+   "fieldtype": "Date",
+   "label": "Evaluation Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "quotation_names",
+   "fieldtype": "Long Text",
+   "label": "Quotation References",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "snapshot",
+   "fieldtype": "Long Text",
+   "label": "Comparison Snapshot",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Decision Notes"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "Purchase User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "Purchase Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "if_owner": 1
+  }
+ ],
+ "track_changes": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

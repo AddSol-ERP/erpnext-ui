@@ -1,0 +1,63 @@
+{
+ "doctype": "DocType",
+ "name": "UI Quotation AI Settings",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "fields": [
+  {
+   "fieldname": "enabled",
+   "label": "Enable AI Evaluation",
+   "fieldtype": "Check",
+   "default": "0"
+  },
+  {
+   "fieldname": "provider",
+   "label": "Provider",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "model",
+   "label": "Model",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "endpoint",
+   "label": "API Endpoint",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "api_key",
+   "label": "API Key",
+   "fieldtype": "Password"
+  },
+  {
+   "fieldname": "timeout_seconds",
+   "label": "Timeout (Seconds)",
+   "fieldtype": "Int",
+   "default": "30"
+  },
+  {
+   "fieldname": "max_retries",
+   "label": "Maximum Retries",
+   "fieldtype": "Int",
+   "default": "1"
+  },
+  {
+   "fieldname": "response_language",
+   "label": "Response Language",
+   "fieldtype": "Data",
+   "default": "English"
+  }
+ ],
+ "issingle": 1,
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "track_changes": 1
+}

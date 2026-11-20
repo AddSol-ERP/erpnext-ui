@@ -1,0 +1,51 @@
+{
+ "doctype": "DocType",
+ "name": "UI Quotation Evaluation Profile",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "fields": [
+  {
+   "fieldname": "profile_name",
+   "label": "Profile Name",
+   "fieldtype": "Data",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "enabled",
+   "label": "Enabled",
+   "fieldtype": "Check",
+   "default": "1"
+  },
+  {
+   "fieldname": "company",
+   "label": "Company",
+   "fieldtype": "Link",
+   "options": "Company"
+  },
+  {
+   "fieldname": "minimum_evidence",
+   "label": "Minimum Evidence (%)",
+   "fieldtype": "Percent",
+   "default": "80"
+  },
+  {
+   "fieldname": "criteria",
+   "label": "Criteria",
+   "fieldtype": "Table",
+   "options": "UI Quotation Evaluation Criterion",
+   "reqd": 1
+  }
+ ],
+ "autoname": "field:profile_name",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "track_changes": 1
+}

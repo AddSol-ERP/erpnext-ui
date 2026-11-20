@@ -288,6 +288,7 @@ after_migrate = [
 	"erpnext_ui.setup.workflows.setup_workflows",
 	"erpnext_ui.setup.attachment_settings.setup_attachment_settings",
 	"erpnext_ui.setup.supplier_quotation.setup_supplier_quotation_settings",
+	"erpnext_ui.setup.quotation_evaluation.setup_quotation_evaluation",
 	"erpnext_ui.setup.quality_inspection_settings.setup_quality_inspection_settings",
 ]
 
@@ -306,4 +307,13 @@ doc_events = {
 		"autoname": "erpnext_ui.item_naming.apply_item_code",
 		"validate": "erpnext_ui.item_naming.apply_item_code",
 	}
+}
+
+# A saved comparison is readable only while its source documents remain readable.
+has_permission = {
+	"UI Quotation Evaluation": "erpnext_ui.addsol_erpnext_ui.doctype.ui_quotation_evaluation.ui_quotation_evaluation.has_permission",
+}
+
+permission_query_conditions = {
+	"UI Quotation Evaluation": "erpnext_ui.addsol_erpnext_ui.doctype.ui_quotation_evaluation.ui_quotation_evaluation.permission_query_conditions",
 }

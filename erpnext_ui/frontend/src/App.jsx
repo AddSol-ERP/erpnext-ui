@@ -71,6 +71,7 @@ const CustomReportPage = lazy(
 import HRDashboard from "./pages/HR";
 import SalesDashboard from "./pages/Sales";
 import PurchaseDashboard from "./pages/Purchase";
+import QuotationComparison from "./pages/Purchase/QuotationComparison";
 import ESSDashboard from "./pages/ESS";
 import ESSProfile from "./pages/ESS/Profile";
 import ESSCalendar from "./pages/ESS/Attendance";
@@ -488,6 +489,7 @@ export default function App() {
               PURCHASE HUB
           ================================ */}
           <Route path="/purchase" element={<PurchaseDashboard />} />
+          <Route path="/purchase/quotation-comparison" element={<QuotationComparison />} />
           <Route path="/purchase/:doctype" element={<GenericListPage />} />
           <Route path="/purchase/:doctype/new" element={<GenericFormPage />} />
           <Route

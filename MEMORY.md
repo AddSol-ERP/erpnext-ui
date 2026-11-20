@@ -3772,3 +3772,16 @@ File logging retains the failed in-memory amounts after the DB rolls back; old
 saved draft SQL values cannot show that state. Original validation errors and
 session restoration remain unchanged. Eight supplier-context/diagnostic tests and
 lint pass. Need production diagnostic output before another calculation change.
+
+## Confirmed production GST root cause: duplicate tax rows (2026-11-18)
+
+User's failed-state diagnostic for PUR-SQTN-2026-00004 contains FOUR On Net Total
+tax rows: CGST 9% twice and SGST 9% twice. All have identical item-wise maps.
+Row 1 taxable 21046.64 expects each tax 1894.1976, while each stored item GST
+amount is 3788.396 (double). Base net 1798958.38 gives each 9% tax 161906.25;
+with one CGST and one SGST row total is 2122770.88, versus logged 2446583.38.
+This is a duplicate-tax configuration/document issue, not rounding. Correct draft
+tax rows through ERPNext and inspect its selected Purchase Taxes and Charges
+Template; no automatic deletion of financial tax rows or tolerance relaxation.
+The native set_taxes path skips populated tax tables, so the earlier second
+set_missing_values call alone does not establish where duplication originated.

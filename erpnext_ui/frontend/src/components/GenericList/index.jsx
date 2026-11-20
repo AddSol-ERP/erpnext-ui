@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
-import { get } from "../../services/api";
+import { get, getMethod } from "../../services/api";
 import { getDoctypeConfig } from "../../config/doctypes";
 import { openInDesk } from "../../lib/deskUrl";
 import ActionBar from "../ActionBar";
@@ -100,6 +100,8 @@ export default function GenericListPage({ doctypeOverride }) {
   const [filterConfig, setFilterConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedQuotations, setSelectedQuotations] = useState([]);
+  const [quotationOrderStatus, setQuotationOrderStatus] = useState(null);
 
   const {
     page,
@@ -140,6 +142,15 @@ export default function GenericListPage({ doctypeOverride }) {
     metaCache.current[decodedDoctype] = promise;
     return promise;
   }, [decodedDoctype]);
+
+  useEffect(() => {
+    if (hub !== "purchase" || decodedDoctype !== "Supplier Quotation" || !data.length) return;
+    let active = true;
+    getMethod("method/erpnext_ui.quotation_comparison.quotation_order_status", { names: JSON.stringify(data.map((row) => row.name)) })
+      .then((status) => { if (active) setQuotationOrderStatus(status); })
+      .catch(() => { if (active) setQuotationOrderStatus(null); });
+    return () => { active = false; };
+  }, [data, hub, decodedDoctype]);
 
   const filterUi = useMemo(
     () => listFilterHandlers(setSelectedFilters, resetPage),
@@ -314,6 +325,7 @@ export default function GenericListPage({ doctypeOverride }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setQuotationOrderStatus(null);
     try {
       const meta = await doctypeMeta();
       const real = meta?.fields?.map((f) => f.fieldname) || null;
@@ -447,7 +459,7 @@ export default function GenericListPage({ doctypeOverride }) {
 
     return {
       title: cfg.titleField ? row[cfg.titleField] || row.name || "—" : row.name,
-      subtitle: cfg.subtitleField ? row[cfg.subtitleField] || "" : "",
+      subtitle: `${cfg.subtitleField ? row[cfg.subtitleField] || "" : ""}${hub === "purchase" && decodedDoctype === "Supplier Quotation" && quotationOrderStatus?.[row.name] ? " · Purchase order exists" : ""}`,
       meta: cfg.metaField ? row[cfg.metaField] || "" : "",
       statusLabel: status.label,
       statusColor: status.color,
@@ -457,7 +469,18 @@ export default function GenericListPage({ doctypeOverride }) {
 
   const listData = data.map(mapToList);
 
+  const isQuotationList = hub === "purchase" && decodedDoctype === "Supplier Quotation";
+  const toggleQuotation = (name) => setSelectedQuotations((current) =>
+    current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+  );
+  const selection = (name) => (
+    <input type="checkbox" aria-label={`Select ${name}`} checked={selectedQuotations.includes(name)}
+      onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}
+      onChange={() => toggleQuotation(name)} />
+  );
+
   const columns = [
+    ...(isQuotationList ? [{ id: "select", header: "Select", cell: (row) => selection(row.raw.name) }] : []),
     {
       id: "title",
       header: t("common.name"),
@@ -497,6 +520,8 @@ export default function GenericListPage({ doctypeOverride }) {
       error={error}
       onRetry={loadData}
       actionBar={
+        <>
+        {isQuotationList && <div className="flex items-center gap-3 px-4 py-2"><button type="button" className="btn btn-primary" disabled={selectedQuotations.length < 2 || selectedQuotations.length > 20} onClick={() => navigate("/purchase/quotation-comparison", { state: { names: selectedQuotations } })}>Compare selected ({selectedQuotations.length})</button><span className="text-sm text-muted-foreground">Select 2 to 20 quotations.</span></div>}
         <ActionBar
           onSearch={handleSearch}
           resultCount={totalItems}
@@ -504,6 +529,7 @@ export default function GenericListPage({ doctypeOverride }) {
           selectedFilters={selectedFilters}
           {...filterUi}
         />
+        </>
       }
       cards={
         <div className="flex flex-col">
@@ -513,6 +539,7 @@ export default function GenericListPage({ doctypeOverride }) {
               item={item}
               index={limit_start + idx + 1}
               onClick={handleRowClick}
+              actions={isQuotationList ? selection(item.raw.name) : null}
             />
           ))}
         </div>
