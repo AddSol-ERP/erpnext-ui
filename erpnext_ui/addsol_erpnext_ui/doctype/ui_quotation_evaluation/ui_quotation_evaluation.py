@@ -24,5 +24,22 @@ def has_permission(doc, ptype=None, user=None, debug=False):
 
 
 def permission_query_conditions(user=None):
-	# List APIs cannot apply the per-document source permission check.
+	"""Allow Desk lists only for snapshots whose sources the owner can read."""
+	user = user or frappe.session.user
+	try:
+		names = frappe.get_all(
+			"UI Quotation Evaluation", filters={"owner": user}, pluck="name", limit_page_length=0
+		)
+		permitted = [name for name in names if has_permission(frappe.get_doc("UI Quotation Evaluation", name), user=user)]
+		if not permitted:
+			return "1=0"
+		escaped = ", ".join(frappe.db.escape(name) for name in permitted)
+		return f"`tabUI Quotation Evaluation`.`name` in ({escaped})"
+	except Exception:
+		# A permission or database failure must not disclose saved comparisons.
+		return "1=0"
+
+
+def ai_request_query_conditions(user=None):
+	# AI request payloads remain available only through explicitly checked documents.
 	return "1=0"
