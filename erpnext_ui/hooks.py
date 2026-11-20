@@ -143,7 +143,6 @@ jinja = {
 # Override standard doctype classes
 
 # override_doctype_class = {
-	"BOM": "erpnext_ui.bom_costing.UomPricingBOM",
 # 	"ToDo": "custom_app.overrides.CustomToDo"
 # }
 
