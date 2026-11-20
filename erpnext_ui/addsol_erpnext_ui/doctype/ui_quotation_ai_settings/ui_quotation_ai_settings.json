@@ -13,7 +13,9 @@
   {
    "fieldname": "provider",
    "label": "Provider",
-   "fieldtype": "Data"
+   "fieldtype": "Select",
+   "options": "\nOpenAI\nOpenCode Zen\nOpenRouter",
+   "description": "Select a supported provider. Use an API key and model that belong to the selected provider."
   },
   {
    "fieldname": "model",
