@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getMethod, post } from "../../../services/api";
 import { openInDesk } from "../../../lib/deskUrl";
 import { useHeader } from "../../../context/HeaderContext";
@@ -10,7 +10,7 @@ import { StatusBadge } from "../../../components/List/StatusBadge";
 import { AlertTriangle, ArrowLeft, ChevronDown, FilePlus2, Pencil, Save, Sparkles } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import AnalysisMarkdown from "./AnalysisMarkdown";
+import AnalysisTable from "./AnalysisTable";
 import { buildItemRows } from "./comparison";
 import QuotationPicker from "./QuotationPicker";
 
@@ -24,9 +24,13 @@ function readableTerms(value) {
 
 export default function QuotationComparison() {
   const { state } = useLocation();
+  const { name: historicalName } = useParams();
+  const navigate = useNavigate();
   const { setHeader } = useHeader();
   const [names, setNames] = useState(() => Array.isArray(state?.names) ? state.names : []);
-  const [editing, setEditing] = useState(() => !state?.names?.length);
+  const [editing, setEditing] = useState(() => !historicalName && !state?.names?.length);
+  const [pickerSelected, setPickerSelected] = useState(() => Array.isArray(state?.names) ? state.names : []);
+  const [pickerLoading, setPickerLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(null);
@@ -38,13 +42,26 @@ export default function QuotationComparison() {
   const [analyzing, setAnalyzing] = useState(false);
   const [tab, setTab] = useState("items");
   useEffect(() => {
-    if (names.length < 2) return;
+    if (!historicalName) return;
+    let active = true;
+    getMethod("method/erpnext_ui.quotation_comparison.get_evaluation", { name: historicalName })
+      .then((data) => {
+        if (!active) return;
+        setResult(data.snapshot);
+        setSaved(data.name);
+        setAnalysis(data.analysis ? { analysis: data.analysis, provider: "Saved analysis", model: "", cached: true, request_id: data.ai_request } : null);
+      })
+      .catch((err) => { if (active) setError(err.message); });
+    return () => { active = false; };
+  }, [historicalName]);
+  useEffect(() => {
+    if (historicalName || names.length < 2) return;
     let active = true;
     getMethod("method/erpnext_ui.quotation_comparison.compare_quotations", { names: JSON.stringify(names) })
       .then((data) => { if (active) setResult(data); })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
-  }, [names]);
+  }, [names, historicalName]);
   const analyze = useCallback(async () => {
     setAnalyzing(true);
     setActionError(null);
@@ -83,33 +100,40 @@ export default function QuotationComparison() {
       setCreating(null);
     }
   };
-  const applySelection = (next) => {
+  const applySelection = useCallback((next) => {
     setEditing(false);
     if (!error && next.length === names.length && next.every((name) => names.includes(name))) return;
     setError(null); setResult(null); setAnalysis(null); setSaved(null); setCreated({}); setActionError(null); setTab("items");
     setNames(next);
-  };
+  }, [error, names]);
   useEffect(() => {
-    const actions = !editing && result && !error ? [
-      { label: "Change quotations", icon: Pencil, variant: "btn-outline-primary", disabled: analyzing || saving || creating !== null, onClick: () => setEditing(true) },
+    const actions = historicalName ? [
+      { label: "Saved comparisons", icon: ArrowLeft, variant: "btn-outline-primary", onClick: () => navigate("/purchase/quotation-comparisons") },
+      ...(result ? [{ label: "Compare current quotations", icon: Pencil, variant: "btn-primary", onClick: () => navigate("/purchase/quotation-comparison", { state: { names: result.quotations.map((quote) => quote.name) } }) }] : []),
+    ] : editing || names.length < 2 ? [
+      { label: "View saved comparisons", icon: ArrowLeft, variant: "btn-outline-primary", onClick: () => navigate("/purchase/quotation-comparisons") },
+      ...(result ? [{ label: "Cancel", variant: "btn-outline-primary", onClick: () => setEditing(false) }] : []),
+      { label: `Compare quotations (${pickerSelected.length})`, icon: FilePlus2, variant: "btn-primary", disabled: pickerSelected.length < 2 || pickerLoading, onClick: () => applySelection(pickerSelected) },
+    ] : result && !error ? [
+      { label: "Change quotations", icon: Pencil, variant: "btn-outline-primary", disabled: analyzing || saving || creating !== null, onClick: () => { setPickerSelected(names); setEditing(true); } },
       { label: analyzing ? "Analyzing…" : "Analyze with AI", icon: Sparkles, variant: "btn-outline-primary", disabled: analyzing, onClick: analyze },
       { label: saved ? "Snapshot saved" : saving ? "Saving…" : "Save snapshot", icon: Save, variant: "btn-primary", disabled: saving || !!saved, onClick: saveEvaluation },
     ] : [];
     setHeader({
       title: "Supplier Quotation Comparison",
-      subtitle: !editing && result ? `${result.company} · ${result.quotations.length} quotations · Company currency: ${result.company_currency}` : "Choose quotations to compare",
+      subtitle: historicalName && result ? `Saved ${result.evaluation_date} · ${historicalName} · ${result.company}` : !editing && result ? `${result.company} · ${result.quotations.length} quotations · Company currency: ${result.company_currency}` : "Choose quotations to compare",
       breadcrumbs: [{ label: "Purchase", path: "/purchase" }, { label: "Quotation comparison" }],
       actions,
     });
     return () => setHeader({});
-  }, [setHeader, editing, result, error, analyzing, saving, creating, saved, analyze, saveEvaluation]);
-  if (editing || names.length < 2) return <div className="mx-auto w-full max-w-[1600px] pt-2"><QuotationPicker key={names.join("|")} initialNames={names} onApply={applySelection} onCancel={result ? () => setEditing(false) : undefined} /></div>;
-  if (error) return <div className="space-y-3 pt-2"><Alert variant="destructive"><AlertTriangle /><AlertTitle>Unable to load comparison</AlertTitle><AlertDescription>{error}</AlertDescription></Alert><Button variant="outline" onClick={() => setEditing(true)}><ArrowLeft />Change selection</Button></div>;
+  }, [setHeader, editing, result, error, analyzing, saving, creating, saved, analyze, saveEvaluation, historicalName, navigate, names, pickerSelected, pickerLoading, applySelection]);
+  if (!historicalName && (editing || names.length < 2)) return <div className="mx-auto w-full max-w-[1600px] pt-2"><QuotationPicker selected={pickerSelected} setSelected={setPickerSelected} loading={pickerLoading} setLoading={setPickerLoading} /></div>;
+  if (error) return <div className="space-y-3 pt-2"><Alert variant="destructive"><AlertTriangle /><AlertTitle>Unable to load comparison</AlertTitle><AlertDescription>{error}</AlertDescription></Alert><Button variant="outline" onClick={() => historicalName ? navigate("/purchase/quotation-comparisons") : setEditing(true)}><ArrowLeft />{historicalName ? "Saved comparisons" : "Change selection"}</Button></div>;
   if (!result) return <div className="pt-4 text-sm text-muted-foreground" role="status">Loading quotations…</div>;
   const rows = buildItemRows(result.quotations);
   return <div className="mx-auto w-full max-w-[1600px] space-y-3 pt-2">
 
-    {saved && <p className="text-sm text-muted-foreground" role="status">Evaluation {saved} saved.</p>}{actionError && <Alert variant="destructive"><AlertTriangle /><AlertTitle>Action could not be completed</AlertTitle><AlertDescription>{actionError}</AlertDescription></Alert>}
+    {historicalName ? <Alert><AlertTriangle /><AlertTitle>Saved snapshot</AlertTitle><AlertDescription>These values reflect the saved comparison and may have changed since {result.evaluation_date}. Use Compare current quotations to work with current records.</AlertDescription></Alert> : saved && <p className="text-sm text-muted-foreground" role="status">Evaluation {saved} saved.</p>}{actionError && <Alert variant="destructive"><AlertTriangle /><AlertTitle>Action could not be completed</AlertTitle><AlertDescription>{actionError}</AlertDescription></Alert>}
     <Tabs value={tab} onValueChange={setTab} className="w-full">
       <div className="border border-border/70 bg-card px-3 pt-2 sm:px-4">
         <TabsList className="h-auto w-full flex-wrap justify-start gap-1.5 rounded-none bg-transparent p-0 pb-2">
@@ -129,7 +153,7 @@ export default function QuotationComparison() {
             <div className="grid gap-3 rounded-lg bg-muted/50 p-3 sm:grid-cols-2"><div><div className="text-xs text-muted-foreground">Quotation total</div><div className="font-semibold tabular-nums">{quote.currency} {quote.grand_total}</div><div className="text-xs text-muted-foreground">Net: {quote.net_total ?? "Not specified"} · Taxes and charges: {quote.total_taxes_and_charges ?? "Not specified"}</div></div><div><div className="text-xs text-muted-foreground">Recorded company total</div><div className="font-semibold tabular-nums">{quote.base_grand_total == null ? "Unavailable" : `${result.company_currency} ${quote.base_grand_total}`}</div><div className="text-xs text-muted-foreground">Exchange rate: {quote.conversion_rate || "Unavailable"}</div></div></div>
             <div className="grid gap-3 text-sm sm:grid-cols-2"><div><p className="text-xs font-medium text-muted-foreground">Payment terms</p><p>{quote.payment_terms_template || "Not specified"}</p>{quote.payment_schedule?.length > 0 && <ul className="mt-1 space-y-1">{quote.payment_schedule.map((payment, i) => <li key={i} className="text-xs">{[payment.payment_term, payment.description, payment.due_date && `Due ${payment.due_date}`, payment.invoice_portion != null && `${payment.invoice_portion}%`, payment.payment_amount != null && `${quote.currency} ${payment.payment_amount}`].filter(Boolean).join(" · ")}</li>)}</ul>}</div><div><p className="text-xs font-medium text-muted-foreground">Terms and conditions {quote.terms_template ? `· ${quote.terms_template}` : ""}</p><div className="max-h-28 overflow-auto whitespace-pre-wrap text-xs">{readableTerms(quote.terms)}</div></div></div>
             <div className="text-xs text-muted-foreground">Date: {quote.transaction_date || "—"} · Valid until: {quote.valid_till || "Not specified"}</div>{quote.warnings.map((warning) => <p key={warning} className="text-xs text-destructive">{warning}</p>)}
-            {created[quote.name] ? <Button size="sm" variant="link" onClick={() => openInDesk("Purchase Order", created[quote.name])}>Draft {created[quote.name]}</Button> : quote.has_active_order ? <StatusBadge tone="pending">Purchase order exists</StatusBadge> : <Button size="sm" variant="outline" disabled={creating !== null || quote.docstatus !== 1 || quote.warnings.length > 0} onClick={() => createOrder(quote)}><FilePlus2 />{creating === quote.name ? "Creating draft…" : "Create draft purchase order"}</Button>}
+            {historicalName ? null : created[quote.name] ? <Button size="sm" variant="link" onClick={() => openInDesk("Purchase Order", created[quote.name])}>Draft {created[quote.name]}</Button> : quote.has_active_order ? <StatusBadge tone="pending">Purchase order exists</StatusBadge> : <Button size="sm" variant="outline" disabled={creating !== null || quote.docstatus !== 1 || quote.warnings.length > 0} onClick={() => createOrder(quote)}><FilePlus2 />{creating === quote.name ? "Creating draft…" : "Create draft purchase order"}</Button>}
           </CardContent></Card>)}</div>
           </CollapsibleContent>
         </section>
@@ -160,7 +184,7 @@ export default function QuotationComparison() {
             ].map(([label, value]) => <tr key={label}><th scope="row" className="sticky start-0 z-10 border-t border-border bg-card px-3 py-2 text-start align-top font-medium">{label}</th>{result.quotations.map((quote) => <td key={quote.name} className="max-w-80 border-t border-border bg-card px-3 py-2 align-top"><div className="max-h-28 overflow-auto whitespace-pre-wrap">{value(quote)}</div></td>)}</tr>)}
           </tbody></table></div>
         </section>
-        <Card><CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="size-4 text-primary" />AI observations</CardTitle><CardDescription>{analysis ? `${analysis.provider} · ${analysis.model} · ${analysis.cached ? "Reused previous analysis" : "New analysis"} · Request ${analysis.request_id || "unavailable"}` : "Find questions and trade-offs to discuss with suppliers. The displayed quotation data will be sent to the configured provider."}</CardDescription></CardHeader><CardContent className="space-y-4">{analysis ? <><Alert><AlertTriangle /><AlertDescription>AI observations can contain incorrect or conflicting references. Check each claim against the quotation facts and source documents before deciding.</AlertDescription></Alert><AnalysisMarkdown text={analysis.analysis} /></> : <Button variant="outline" onClick={analyze} disabled={analyzing}><Sparkles />{analyzing ? "Analyzing…" : "Analyze with AI"}</Button>}</CardContent></Card>
+        <Card><CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="size-4 text-primary" />AI observations</CardTitle><CardDescription>{analysis ? `${analysis.provider} · ${analysis.model} · ${analysis.cached ? "Reused previous analysis" : "New analysis"} · Request ${analysis.request_id || "unavailable"}` : "Find questions and trade-offs to discuss with suppliers. The displayed quotation data will be sent to the configured provider."}</CardDescription></CardHeader><CardContent className="space-y-4">{analysis ? <><Alert><AlertTriangle /><AlertDescription>AI observations can contain incorrect or conflicting references. Check each claim against the quotation facts and source documents before deciding.</AlertDescription></Alert><AnalysisTable text={analysis.analysis} quotations={result.quotations} /></> : historicalName ? <p className="text-sm text-muted-foreground">No AI analysis was saved with this snapshot.</p> : <Button variant="outline" onClick={analyze} disabled={analyzing}><Sparkles />{analyzing ? "Analyzing…" : "Analyze with AI"}</Button>}</CardContent></Card>
       </TabsContent>
     </Tabs>
   </div>;

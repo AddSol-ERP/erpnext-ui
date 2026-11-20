@@ -75,3 +75,37 @@ class SnapshotTests(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			self.ctx["save_evaluation"](["SQ-1", "SQ-2"], "QAI-1")
 		self.assertEqual(self.saved, [])
+
+class SavedComparisonTests(unittest.TestCase):
+	def setUp(self):
+		import json
+		nodes = [n for n in ast.parse(source.read_text()).body if isinstance(n, ast.FunctionDef) and n.name in ("list_evaluations", "get_evaluation")]
+		for node in nodes:
+			node.decorator_list = []
+		self.allowed = types.SimpleNamespace(name="QEV-1", company="C", evaluation_date="2026-01-01", quotation_names='["SQ-1"]', snapshot=json.dumps({"quotations": [{"name": "SQ-1", "supplier": "Supplier"}]}), ai_analysis="Saved analysis", ai_request="QAI-1", has_permission=Mock(return_value=True), check_permission=Mock())
+		self.denied = types.SimpleNamespace(name="QEV-2", has_permission=Mock(return_value=False))
+		self.frappe = types.SimpleNamespace(has_permission=Mock(), session=types.SimpleNamespace(user="buyer"), get_all=Mock(return_value=["QEV-1", "QEV-2"]), get_doc=lambda doctype, name: self.allowed if name == "QEV-1" else self.denied, parse_json=json.loads)
+		self.ctx = {"frappe": self.frappe}
+		exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), "exec"), self.ctx)
+
+	def test_list_only_includes_authorized_snapshots(self):
+		result = self.ctx["list_evaluations"]()
+		self.assertEqual([row["name"] for row in result["entries"]], ["QEV-1"])
+		self.assertEqual(result["entries"][0]["suppliers"], ["Supplier"])
+		self.assertEqual(self.frappe.get_all.call_args.kwargs["filters"], {"owner": "buyer"})
+
+	def test_list_provides_next_position_without_skipping_the_next_record(self):
+		names = [f"QEV-{index}" for index in range(21)]
+		self.frappe.get_all.return_value = names
+		self.frappe.get_doc = lambda doctype, name: types.SimpleNamespace(
+			name=name, company="C", evaluation_date="2026-01-01", quotation_names='["SQ-1"]',
+			snapshot='{"quotations": []}', ai_analysis=None, has_permission=lambda permission: True)
+		result = self.ctx["list_evaluations"]()
+		self.assertEqual(len(result["entries"]), 20)
+		self.assertEqual(result["next_start"], 20)
+
+	def test_open_checks_permission_and_returns_saved_values(self):
+		result = self.ctx["get_evaluation"]("QEV-1")
+		self.allowed.check_permission.assert_called_once_with("read")
+		self.assertEqual(result["analysis"], "Saved analysis")
+		self.assertEqual(result["snapshot"]["quotations"][0]["name"], "SQ-1")

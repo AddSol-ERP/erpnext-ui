@@ -72,6 +72,7 @@ import HRDashboard from "./pages/HR";
 import SalesDashboard from "./pages/Sales";
 import PurchaseDashboard from "./pages/Purchase";
 import QuotationComparison from "./pages/Purchase/QuotationComparison";
+import SavedComparisons from "./pages/Purchase/QuotationComparison/SavedComparisons";
 import ESSDashboard from "./pages/ESS";
 import ESSProfile from "./pages/ESS/Profile";
 import ESSCalendar from "./pages/ESS/Attendance";
@@ -489,7 +490,9 @@ export default function App() {
               PURCHASE HUB
           ================================ */}
           <Route path="/purchase" element={<PurchaseDashboard />} />
-          <Route path="/purchase/quotation-comparison" element={<QuotationComparison />} />
+          <Route path="/purchase/quotation-comparisons" element={<SavedComparisons />} />
+          <Route path="/purchase/quotation-comparison" element={<QuotationComparison key="new-comparison" />} />
+          <Route path="/purchase/quotation-comparison/:name" element={<QuotationComparison key="saved-comparison" />} />
           <Route path="/purchase/:doctype" element={<GenericListPage />} />
           <Route path="/purchase/:doctype/new" element={<GenericFormPage />} />
           <Route

@@ -46,6 +46,11 @@ class ProviderRequestTests(unittest.TestCase):
 if __name__ == "__main__":
 	unittest.main()
 
+def json_response():
+	import json
+	return json.dumps({"quotations": [{"quotation": name, "strengths": [], "concerns": [], "questions": []} for name in ("A", "B")]})
+
+
 class AnalysisCacheTests(unittest.TestCase):
 	def setUp(self):
 		import copy
@@ -61,13 +66,14 @@ class AnalysisCacheTests(unittest.TestCase):
 			set_value=lambda key, value, **kwargs: self.values.update({key: value}),
 			make_key=lambda key: key, lock=lambda *args, **kwargs: types.SimpleNamespace(acquire=lambda: True, release=lambda: None),
 		)
-		self.request = Mock(return_value="analysis")
+		self.request = Mock(return_value=json.dumps({"quotations": [{"quotation": name, "strengths": [], "concerns": [], "questions": []} for name in ("A", "B")]}))
 		self.context = {"compare_quotations": self.compare, "_settings": lambda: (self.settings, "secret"),
 			"frappe": types.SimpleNamespace(session=types.SimpleNamespace(user="buyer"), cache=lambda: self.cache,
 				get_doc=lambda data: types.SimpleNamespace(name="QAI-1", insert=lambda **kwargs: None),
 				as_json=json.dumps, flags=types.SimpleNamespace(),
 				db=types.SimpleNamespace(after_commit=types.SimpleNamespace(add=lambda fn: fn()), after_rollback=types.SimpleNamespace(add=lambda fn: None))),
-			"json": json, "hashlib": hashlib, "_request": self.request, "ANALYSIS_CACHE_SECONDS": 100}
+			"json": json, "hashlib": hashlib, "_request": self.request, "ANALYSIS_CACHE_SECONDS": 100,
+			"_validate_analysis_table": lambda text, names: json.loads(text)}
 		node = next(n for n in ast.parse(source.read_text()).body if isinstance(n, ast.FunctionDef) and n.name == "evaluate_quotations")
 		node.decorator_list = []
 		exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), self.context)
@@ -91,7 +97,27 @@ class AnalysisCacheTests(unittest.TestCase):
 		self.assertEqual(self.request.call_count, 4)
 
 	def test_errors_are_not_cached(self):
-		self.request.side_effect = [ValueError("failed"), "ok"]
+		self.request.side_effect = [ValueError("failed"), json_response() ]
 		with self.assertRaises(ValueError):
 			self.context["evaluate_quotations"](["A", "B"])
 		self.assertFalse(self.context["evaluate_quotations"](["A", "B"])["cached"])
+
+
+class AnalysisTableValidationTests(unittest.TestCase):
+	def setUp(self):
+		import json
+		node = next(n for n in ast.parse(source.read_text()).body if isinstance(n, ast.FunctionDef) and n.name == "_validate_analysis_table")
+		self.ctx = {"json": json, "frappe": types.SimpleNamespace(throw=Mock(side_effect=ValueError)), "_": lambda value: value}
+		exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), self.ctx)
+
+	def test_accepts_correct_quotation_ids(self):
+		self.assertEqual(len(self.ctx["_validate_analysis_table"](json_response(), ["A", "B"])["quotations"]), 2)
+
+	def test_rejects_unknown_duplicate_and_malformed_output(self):
+		import json
+		for names in (["A", "C"], ["A", "A"]):
+			value = json.dumps({"quotations": [{"quotation": name, "strengths": [], "concerns": [], "questions": []} for name in names]})
+			with self.assertRaises(ValueError):
+				self.ctx["_validate_analysis_table"](value, ["A", "B"])
+		with self.assertRaises(ValueError):
+			self.ctx["_validate_analysis_table"]("not json", ["A", "B"])

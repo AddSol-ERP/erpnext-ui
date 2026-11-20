@@ -179,23 +179,37 @@ def search_quotations(company=None, supplier=None, project=None, material_reques
 
 
 @frappe.whitelist(allow_guest=False)
-def list_evaluations():
-	"""List the caller's snapshots after checking access to every source."""
+def list_evaluations(start=0):
+	"""Page through the caller's snapshots, checking access to every source."""
 	frappe.has_permission("UI Quotation Evaluation", "read", throw=True)
-	candidates = frappe.get_all("UI Quotation Evaluation", filters={"owner": frappe.session.user},
-		pluck="name", order_by="creation desc", limit_page_length=100)
+	try:
+		start = int(start)
+	except (TypeError, ValueError):
+		frappe.throw(_("Invalid page position."))
+	if start < 0 or start > 100000:
+		frappe.throw(_("Invalid page position."))
 	result = []
-	for name in candidates:
-		doc = frappe.get_doc("UI Quotation Evaluation", name)
-		if not doc.has_permission("read"):
-			continue
-		result.append({"name": doc.name, "company": doc.company, "evaluation_date": doc.evaluation_date,
-			"quotation_count": len(frappe.parse_json(doc.quotation_names)), "has_ai_analysis": bool(doc.ai_analysis)})
-	return result
+	position = start
+	for _batch in range(20):
+		candidates = frappe.get_all("UI Quotation Evaluation", filters={"owner": frappe.session.user},
+			pluck="name", order_by="creation desc, name desc", limit_start=position, limit_page_length=50)
+		for name in candidates:
+			doc = frappe.get_doc("UI Quotation Evaluation", name)
+			if doc.has_permission("read"):
+				if len(result) == 20:
+					return {"entries": result, "next_start": position}
+				snapshot = frappe.parse_json(doc.snapshot)
+				result.append({"name": doc.name, "company": doc.company, "evaluation_date": doc.evaluation_date,
+					"quotation_count": len(frappe.parse_json(doc.quotation_names)), "has_ai_analysis": bool(doc.ai_analysis),
+					"suppliers": [quote.get("supplier") for quote in snapshot.get("quotations", []) if quote.get("supplier")]})
+			position += 1
+		if len(candidates) < 50:
+			return {"entries": result, "next_start": None}
+	return {"entries": result, "next_start": position}
 
 
 @frappe.whitelist(allow_guest=False)
 def get_evaluation(name):
 	doc = frappe.get_doc("UI Quotation Evaluation", name)
 	doc.check_permission("read")
-	return {"name": doc.name, "snapshot": frappe.parse_json(doc.snapshot), "analysis": doc.ai_analysis}
+	return {"name": doc.name, "snapshot": frappe.parse_json(doc.snapshot), "analysis": doc.ai_analysis, "ai_request": doc.ai_request}
