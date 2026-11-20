@@ -11,6 +11,17 @@ import {
 } from "../src/lib/leaveApproval.js";
 import { resolveHrApprovalGate } from "../src/lib/profileFlags.js";
 import {
+  getApprovalStates,
+  pickFields,
+  resolveStatusField,
+  withWorkflowField,
+} from "../src/lib/approvalMeta.js";
+import {
+  APPROVAL_QUEUE_DOCTYPES,
+  queueFor,
+} from "../src/lib/approvalQueues.js";
+import { currencySymbol, formatMoney, formatQty } from "../src/lib/money.js";
+import {
   MATERIAL_REQUEST_TYPES,
   REQUEST_PURPOSES,
   REQUEST_PURPOSE_KEYS,
@@ -352,6 +363,109 @@ ok("docstatus 2: cancelled offers Delete alone", (() => {
 // document deletable afterwards -- so 1 -> Cancel -> 2 -> Delete must hold.
 ok("docstatus: submitted can only be escaped via Cancel, never Delete",
    D(true, 1).showCancel && !D(true, 1).showDelete && D(true, 2).showDelete);
+
+// ============================================================
+// Approval meta: where the workflow state column comes from
+// ----------------------------------------------------------
+// `resource/DocType/<dt>` returns the DocType's own `tabDocField` rows. A
+// Workflow's state column is created as a CUSTOM FIELD
+// (`Workflow.create_custom_field_for_workflow_state`), so it is missing from
+// that payload even though `frappe.get_meta()` reports it. Validating
+// `workflow_state` against REST meta therefore always concluded "this doctype
+// has no such column" and dropped it from the query -- so a Quotation sitting
+// in "Waiting For Approval" rendered ERPNext's own `status`, "Draft".
+//
+// The column now comes from `get_doctype_workflow_meta` (server-side, where
+// meta IS Custom-Field aware) and is merged in with `withWorkflowField`. The
+// same reply carries the Workflow's queue state NAMES, so nobody has to guess
+// that "pending" means "Waiting For Approval".
+const metaFrom = ({
+  fields,
+  workflowField = null,
+  hasWorkflow = false,
+  doctype = "Quotation",
+}) => {
+  const merged = withWorkflowField(fields, hasWorkflow ? workflowField : null);
+  return {
+    doctype,
+    fields: merged,
+    fieldSet: new Set(merged.map((f) => f.fieldname)),
+    hasWorkflow,
+    workflowField: hasWorkflow ? workflowField : null,
+    isSubmittable: true,
+  };
+};
+
+// What `resource/DocType/Quotation` actually returns for these two: no
+// workflow_state, because it lives in `tabCustom Field`.
+const REST_META = [
+  { fieldname: "name", fieldtype: "Data" },
+  { fieldname: "status", fieldtype: "Select", options: "Draft\nOpen\nApproved" },
+];
+
+const wsMeta = metaFrom({
+  fields: REST_META,
+  hasWorkflow: true,
+  workflowField: "workflow_state",
+});
+const wsField = wsMeta.fields.find((f) => f.fieldname === "workflow_state");
+
+ok("meta: the workflow column is added even though REST meta omits it",
+   wsMeta.fieldSet.has("workflow_state"));
+ok("meta: the synthetic column is a Link to Workflow State, so it can be filtered",
+   wsField?.fieldtype === "Link" && wsField?.options === "Workflow State",
+   `got ${wsField?.fieldtype}/${wsField?.options}`);
+ok("meta: pickFields keeps the workflow column",
+   pickFields(wsMeta, ["name", "status", "workflow_state"]).includes("workflow_state"));
+ok("meta: pickFields still drops a column the doctype really lacks",
+   !pickFields(wsMeta, ["name", "workflow_state", "not_a_field"]).includes("not_a_field"));
+// The bug in one assertion: REST meta alone cannot justify requesting it.
+ok("meta: without the server's answer the column cannot be requested",
+   !pickFields(metaFrom({ fields: REST_META }), ["name", "workflow_state"])
+     .includes("workflow_state"));
+
+// A doctype that declares the column itself (a Select holding the states) keeps
+// its own definition -- only the gap is filled.
+const selectDefined = [
+  { fieldname: "workflow_state", fieldtype: "Select", options: "Draft\nApproved" },
+];
+ok("meta: a Select-defined workflow field is not overwritten",
+   withWorkflowField(selectDefined, "workflow_state")[0].fieldtype === "Select");
+ok("meta: withWorkflowField is a no-op without a confirmed fieldname",
+   withWorkflowField(REST_META, null) === REST_META);
+ok("meta: withWorkflowField tolerates missing meta",
+   withWorkflowField(null, "workflow_state").length === 1);
+
+// A Workflow may name its own column (`status` on the IMS doctypes), so the
+// state column must never be assumed to be `workflow_state`.
+const imsMeta = metaFrom({
+  doctype: "IMS Incident",
+  fields: REST_META,
+  hasWorkflow: true,
+  workflowField: "status",
+});
+ok("meta: resolveStatusField reads the column the Workflow actually advances",
+   resolveStatusField(wsMeta, "Quotation") === "workflow_state" &&
+   resolveStatusField(imsMeta, "IMS Incident") === "status",
+   `${resolveStatusField(wsMeta, "Quotation")} / ${resolveStatusField(imsMeta, "IMS Incident")}`);
+ok("meta: getApprovalStates names that same column",
+   getApprovalStates(wsMeta).fieldname === "workflow_state" &&
+   getApprovalStates(imsMeta).source === "workflow" &&
+   getApprovalStates(imsMeta).fieldname === "status");
+ok("meta: a Select-defined workflow field enumerates its states",
+   getApprovalStates(metaFrom({
+     fields: selectDefined,
+     hasWorkflow: true,
+     workflowField: "workflow_state",
+   })).states.join("|") === "Draft|Approved");
+
+// No workflow: the doctype's own status column, exactly as before.
+ok("meta: no workflow falls back to the doctype status column",
+   resolveStatusField(metaFrom({ fields: REST_META }), "Quotation") === "status");
+ok("meta: unknown meta resolves to null, not a guessed column",
+   resolveStatusField(null, "Quotation") === null);
+ok("meta: unknown meta yields no states",
+   getApprovalStates(null).states.length === 0 && getApprovalStates(null).source === "unknown");
 
 // ============================================================
 // ESS HR approval gate
@@ -845,6 +959,28 @@ ok(
   `path=${apiPath || "NOT FOUND"} lines=${apiLines.length}`,
 );
 
+// The workflow state column: the server names it only when the DocType HAS it.
+// Without the `get_field` check the client would add a column the doctype lacks
+// and every list query naming it would fail (the exact trap invariant 3
+// records), so the check is part of the contract, not a nicety.
+ok(
+  "workflow meta endpoint reports the column only when the DocType has it",
+  /^def get_doctype_workflow_meta\(doctype\):/m.test(apiSource) &&
+    /get_meta\(doctype\)\.get_field\(fieldname\)/.test(apiSource),
+  "get_doctype_workflow_meta must validate the fieldname against meta",
+);
+ok(
+  "workflow meta endpoint reads the column from the Workflow, not a fixed name",
+  /workflow_state_field/.test(apiSource),
+  "a Workflow may advance `status` / `compliance_status`",
+);
+ok(
+  "workflow meta endpoint reports the queue state NAMES, never a guess",
+  /"pending_states": pending_states/.test(apiSource) &&
+    /"approved_states": approved_states/.test(apiSource),
+  "the client cannot know that pending means `Waiting For Approval`",
+);
+
 // ---------------------------------------------------------------------------
 // Return-to-stock: which questions the dialog must ask.
 //
@@ -955,6 +1091,105 @@ const readSrc = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const actionBarSrc = readSrc("../../src/components/ActionBar/index.jsx");
 const filterFieldsSrc = readSrc("../../src/components/FilterModal/FilterFields.jsx");
 const balanceSrc = readSrc("../../src/pages/Store/stock-balance/index.jsx");
+
+// --- the Custom-Field meta trap must not come back -------------------------
+// `resource/DocType/<dt>` cannot report a Workflow's state column, so a client
+// that validates against it silently concludes the column is absent. Both
+// consumers therefore have to go through `approvalMeta`, which asks the server.
+const genericListSrc = readSrc("../../src/components/GenericList/index.jsx");
+const approvalMetaSrc = readSrc("../../src/lib/approvalMeta.js");
+ok(
+  "meta: GenericList takes its meta from approvalMeta, not REST DocType",
+  /from "\.\.\/\.\.\/lib\/approvalMeta"/.test(genericListSrc) &&
+    !/get\(`resource\/DocType\//.test(genericListSrc),
+  "resource/DocType omits Custom Fields, so workflow_state can never be validated against it",
+);
+ok(
+  "meta: approvalMeta asks the server for the workflow column",
+  /get_doctype_workflow_meta/.test(approvalMetaSrc),
+  "the Custom-Field-aware meta only exists server-side",
+);
+ok(
+  "meta: `hasWorkflow` is the server's verdict, not the column's existence",
+  !/hasWorkflow:\s*fieldSet\.has\("workflow_state"\)/.test(approvalMetaSrc),
+  "an inactive Workflow leaves its Custom Field behind and would hide plain Submit",
+);
+
+// --- approval counts: ONE server-side definition of "pending" ---------------
+// The hub tile and the home card both used to derive the number in JavaScript
+// from `status == "Pending"` -- a value none of these doctypes has -- so both
+// read zero while documents waited. The counts now come from one endpoint that
+// reads the states off the Workflow, through the same helper the per-doctype
+// meta uses.
+const queuesSrc = readSrc("../../src/lib/approvalQueues.js");
+const approvalHubSrc = readSrc("../../src/components/Approval/index.jsx");
+const approvalListSrc = readSrc(
+  "../../src/components/Approval/ApprovalListPage/index.jsx",
+);
+const dashboardSrc = readSrc("../../src/pages/Dashboard/index.jsx");
+
+ok(
+  "queues: the shared module calls the server's count endpoint",
+  /get\("method\/erpnext_ui\.api\.get_approval_queues"\)/.test(queuesSrc),
+  "deriving the count client-side is how the tiles read zero",
+);
+ok(
+  "queues: a failed count call degrades to zeros instead of throwing",
+  /catch[\s\S]{0,200}return EMPTY/.test(queuesSrc),
+  "the hub still has to render its tiles",
+);
+ok(
+  "queues: queueFor defaults to zeros rather than undefined",
+  JSON.stringify(queueFor({ totalPending: 0, doctypes: {} }, "Quotation")) ===
+    JSON.stringify({ pending: 0, approved: 0 }) &&
+    queueFor({ doctypes: { Quotation: { pending: 3, approved: 9 } } }, "Quotation").pending === 3,
+);
+
+// The server's list is the security boundary (invariant 8) and the client's is
+// presentation. A doctype the server does not know can never be counted, so a
+// tile for it would read zero forever -- and one the client omits is a tile the
+// user never sees. Same SET, order is ours.
+const serverApprovalDoctypes = (() => {
+  const m = apiSource.match(/SPA_APPROVAL_DOCTYPES = \(([\s\S]*?)\)/);
+  return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
+})();
+ok(
+  "queues: the client doctype list matches the server's, so every tile can be counted",
+  serverApprovalDoctypes.length > 0 &&
+    serverApprovalDoctypes.length === APPROVAL_QUEUE_DOCTYPES.length &&
+    serverApprovalDoctypes.every((dt) => APPROVAL_QUEUE_DOCTYPES.includes(dt)),
+  `server=${serverApprovalDoctypes.join(",")} client=${APPROVAL_QUEUE_DOCTYPES.join(",")}`,
+);
+ok(
+  "queues: the count endpoint reuses the meta helper, so counts and states agree",
+  /^def _workflow_queues\(doctype\):/m.test(apiSource) &&
+    /_workflow_queues\(doctype\)/.test(
+      apiSource.slice(apiSource.indexOf("def get_approval_queues")),
+    ),
+  "a second implementation is how the tile and the list disagree",
+);
+ok(
+  "queues: a cancelled document cannot inflate the counts",
+  /docstatus.*\["<", 2\]/.test(apiSource),
+  "a cancelled document keeps its workflow state",
+);
+ok(
+  "queues: the hub takes its counts from the server, not a hardcoded status",
+  /getApprovalQueues/.test(approvalHubSrc) && !/pendingStatus(es)?:/.test(approvalHubSrc),
+  "`status == Pending` is a value none of these doctypes has",
+);
+ok(
+  "queues: the home card uses the same count as the hub",
+  /getApprovalQueues/.test(dashboardSrc) &&
+    !/Purchase Order[\s\S]{0,200}status: "Pending"/.test(dashboardSrc),
+  "two implementations cannot agree",
+);
+ok(
+  "queues: the Approvals list filters to the workflow's own pending states",
+  /meta\.pendingStates/.test(approvalListSrc) &&
+    !/\[statusField, "in", \["Open", "Applied"\]\]/.test(approvalListSrc),
+  "the base filter must show exactly the documents the tile counted",
+);
 
 // --- the desktop row -------------------------------------------------------
 // Three flex children used to claim it at once: search was `sm:w-1/2`, and BOTH
@@ -5359,6 +5594,70 @@ ok(
 ok("Store issue keeps Work Order reference", storeWorkOrderFields("issue", "WO-1").custom_store_work_order === "WO-1");
 ok("Store issue avoids manufacturing work_order", !("work_order" in storeWorkOrderFields("issue", "WO-1")));
 ok("Manufacturing keeps standard Work Order", storeWorkOrderFields("manufacture", "WO-1").work_order === "WO-1");
+
+/* ---------- money: a missing amount must never render as zero ---------- */
+// `Number(null)` is 0 and 0 is finite, so the obvious `isFinite(Number(x))`
+// guard renders `₹0.00` for an amount the server never sent. On an approval
+// screen that reads as "free".
+ok("money: null amount is a dash", formatMoney(null, "INR") === "—");
+ok("money: undefined amount is a dash", formatMoney(undefined, "INR") === "—");
+ok("money: blank amount is a dash", formatMoney("", "INR") === "—");
+ok("money: a real zero is NOT a dash", formatMoney(0, "INR") === "₹0.00");
+ok("money: groups thousands and fixes two decimals", formatMoney(1234.5, "INR") === "₹1,234.50");
+ok("money: keeps the sign outside the symbol", formatMoney(-500, "USD") === "-$500.00");
+ok("money: unknown currency falls back to its code", formatMoney(1000, "XYZ") === "XYZ1,000.00");
+ok("money: no currency renders a bare number", formatMoney(1000) === "1,000.00");
+ok("money: symbol lookup is case tolerant", currencySymbol("aed") === "د.إ");
+ok("money: non-numeric text is a dash", formatMoney("abc", "INR") === "—");
+ok("qty: keeps a fraction without padding", formatQty(12.5) === "12.5");
+ok("qty: null is a dash", formatQty(null) === "—");
+
+/* ---------- approvals i18n parity (three locales, one structure) ---------- */
+{
+  const flatten = (value, prefix = "") =>
+    Object.entries(value).flatMap(([key, child]) =>
+      child && typeof child === "object"
+        ? flatten(child, `${prefix}${key}.`)
+        : [`${prefix}${key}`],
+    );
+
+  const keys = {};
+  for (const lang of ["en", "hi", "ar"]) {
+    keys[lang] = flatten(
+      JSON.parse(
+        readFileSync(
+          new URL(`../../src/i18n/locales/${lang}/approvals.json`, import.meta.url),
+          "utf8",
+        ),
+      ).approvals,
+    ).sort();
+  }
+
+  const drift = ["hi", "ar"].flatMap((lang) => {
+    const missing = keys.en.filter((key) => !keys[lang].includes(key));
+    const extra = keys[lang].filter((key) => !keys.en.includes(key));
+    return [...missing.map((key) => `${lang} missing ${key}`), ...extra.map((key) => `${lang} extra ${key}`)];
+  });
+
+  ok("approvals: en/hi/ar namespaces are identical", drift.length === 0, drift.join(", "));
+  ok(
+    "approvals: the preview keys the redesigned screens use exist in English",
+    [
+      "preview.financialSummary",
+      "preview.netTotal",
+      "preview.taxesAndCharges",
+      "preview.additionalDiscount",
+      "preview.grandTotal",
+      "preview.roundedTotal",
+      "preview.paymentTerms",
+      "preview.noPaymentTerms",
+      "preview.noTerms",
+      "preview.itemsCount",
+      "preview.totalQty",
+      "details.commercial",
+    ].every((key) => keys.en.includes(key)),
+  );
+}
 
 console.log(`  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -135,11 +135,14 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 | **`get_project_items(...)`** | `:829-1000` | Store: Project → BOM → items. See §3.7. |
 | **`get_indent_queue(...)`** | `:1003-1180` | Store: the storekeeper's worklist. See §3.7. |
 | `has_app_permission()` | `:76-80` | hook, returns `True` |
+| **`has_doctype_workflow(doctype)`** | `:618` | Whether an **active** Workflow exists. The probe `docTransition.hasConfiguredWorkflow` reads it. |
+| **`get_doctype_workflow_meta(doctype)`** | `:724` | `{has_workflow, fieldname, pending_states, approved_states}` — the column the Workflow actually advances **and** the state names that form its queues. The **only** reliable source: `resource/DocType/<dt>` cannot report the column (Custom Field). See §8.3. |
+| **`get_approval_queues()`** | `:769` | Pending/approved counts for every `SPA_APPROVAL_DOCTYPES` entry the caller may read. One request; `_workflow_queues` backs it **and** the per-DocType meta, so the Home card, the hub tile and the list's base filter cannot disagree. `docstatus = 2` is excluded on both sides. |
 | **`get_custom_report_data(report_key, filters=None)`** | `:2526` | Runs a Script Report that lives in ANOTHER app. Takes a **key**, never a report name. See §3.8. |
 | **`get_pending_inspection_items(warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50, as_of_date=None)`** | new | Store: pending-QC stock, split/filterable by serial and batch. See §3.9. |
 | `boot_session(bootinfo)` | `:103-122` | hook |
 
-**17 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
+**48 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
 defaults to `allow_guest=True`.** That is deliberate for the read-only report
 endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 "my own record only" for a Guest session, so no data leaks. (Counted by parsing
@@ -764,7 +767,7 @@ can type or bookmark, so hiding a nav item is not access control.
 | Module | What it encodes |
 |---|---|
 | `docTransition.js` | The document state machine. §8.1 |
-| `approvalMeta.js` | Meta-safe doctype introspection; `PREFERRED_STATUS_FIELD` Expense Claim→`approval_status` (`:23-28`); `IMPLICIT_FIELDS` (name/owner/creation/modified/modified_by) never filtered out — `name` has no DocField row (`:83-89`); meta cache stores the promise, **failures are not cached** (`:64-72`) |
+| `approvalMeta.js` | Meta-safe doctype introspection; `PREFERRED_STATUS_FIELD` Expense Claim→`approval_status`; `IMPLICIT_FIELDS` (name/owner/creation/modified/modified_by) never filtered out — `name` has no DocField row; meta cache stores the promise, **failures are not cached**; `getWorkflowStateField` + `withWorkflowField` add the Workflow's state column, which `resource/DocType/` cannot report. §8.3 |
 | `employeeScope.js` | Filing-on-behalf. Identity = `Employee.user_id == session.user`, **without** `ignore_permissions` so a user always sees their own record. `canSelect` probe: read 2 active Employees, if any ≠ mine I may file for others. `isEmployeeLocked` pins self-only users |
 | `leaveApproval.js` | No-Workflow leave approval. `canActAsLeaveApprover` is an **exact User-id match** on `leave_approver` (`:26-28`) — narrow on purpose, else an employee approves their own leave. Uses `frappe.client.set_value` (not PUT) so only `status` is touched (`:61-81`) |
 | `namedApprovers.js` | `hrms...department_approver.get_approvers`. Must send `doctype` **both top-level and inside filters** — omitting the nested copy raises `UnboundLocalError: parentfield` (`:29-32`). Returns **tuples** `[name, first, last]`. The HRMS helper **throws** rather than returning `[]` — treat a throw as "no approvers" |
@@ -1155,11 +1158,43 @@ a button that can only fail is worse than omitting it". Footer precedence:
 **Approve → Reject → (transitions else defaults)** — they never mix. Reject gets
 a `ConfirmDialog`.
 
-5 typed previews + `DefaultPreview`: PurchaseOrder (Terms + Payment Schedule
-surfaced **above** items so the approver reads commercial terms first),
-Quotation, Expense, Leave, OvertimeLog. `PreviewRenderer` **refetches the full
-document** (`GET resource/<dt>/<name>`) because the list row is a projected field
-set lacking items, taxes and addresses.
+6 typed previews + `DefaultPreview`: PurchaseOrder, Quotation, Expense, Leave,
+AttendanceRequest, OvertimeLog.
+
+`ApprovalPreview` — **not** `PreviewRenderer` — fetches the full document
+(`GET resource/<dt>/<name>`) once, because the list row is a projected field set
+lacking items, taxes, payment schedule, terms and addresses. Both the preview and
+the "Details" view consume that one document; fetching inside `PreviewRenderer`
+left Details rendering the raw list row (a dozen fields, no items). `PreviewRenderer`
+is now presentational and `DetailsPanel` shows a curated, meta-labelled field set
+per doctype instead of dumping `Object.entries(doc)`.
+
+Quotation and Purchase Order compose the same shared sections
+(`PreviewRenderer/types/shared/`) in this order — summary band, financial summary
++ **Payment Terms**, Terms & Conditions, compact item table, addresses. Order is
+the point: management approves the commercial terms, and the old card-per-item
+layout pushed them below two screens of item text. Items are a ~38px table row
+with the rich-text description collapsed to one plain-text line (editor markup
+cannot be clamped, so it must be stripped) and expanded on demand. There is ONE
+scroll container — the modal body; long legal terms keep a bounded inner scroll.
+
+`lib/money.js` formats every amount (`formatMoney` / `formatQty`). It tests the
+raw value for `null`/`undefined`/`""` **before** `Number()`, because
+`Number(null) === 0` and `0` is finite — the obvious `isFinite(Number(x))` guard
+renders `₹0.00` for an amount the server never sent, which reads as "free".
+
+With a Workflow, Reject asks for confirmation (`approvals.rejectConfirmTitle`) and
+every footer button shows a per-action `Spinner` via `busyKey`. Labels are shown
+at **every** breakpoint: icon-only Approve/Reject made the approver decode a tick
+against a cross.
+
+**The workflow-transition probe is a POST, deliberately.** It sends the complete
+document as JSON, which on a quotation with terms text and an item table is tens
+of kilobytes; in a query string that exceeds the ~8 KB request line nginx/Apache
+allow, the probe answers 414, the catch reports "no workflow" (invariant 4), and a
+pending document is shown with no Approve/Reject buttons at all. A JSON body
+populates `frappe.form_dict` exactly as query parameters do
+(`services/api.jsx:268-270`, `api.py:827-847`).
 
 > `components/Approval/ActionButtons/index.jsx` is **dead** — two hardcoded
 > Reject/Approve buttons with no handlers.
@@ -1678,8 +1713,58 @@ before showing Submit.
 ### 8.3 `workflow_state` exists only if a Workflow is configured
 
 Requesting it otherwise fails the **entire query**. Every approval query is
-meta-validated first via `approvalMeta.js` (`:6-9`), and `pickFields` drops it when
+meta-validated first via `approvalMeta.js`, and `pickFields` drops it when
 absent.
+
+**`resource/DocType/<dt>` is the WRONG meta source for this field, and using it
+fails silently.** That endpoint serialises the DocType document — its
+`tabDocField` rows. A Workflow's state column is created as a **Custom Field**
+(`Workflow.on_update` → `create_custom_field_for_workflow_state`,
+`frappe/workflow/doctype/workflow/workflow.py`), so `frappe.get_meta()` reports
+it and REST does not (Quotation: 138 fields runtime vs 126 over REST). A client
+that validates `workflow_state` against REST meta therefore concludes the column
+is absent *every time*, drops it, and falls back to ERPNext's own `status` —
+which sits at "Draft" for the whole approval because these Workflows carry no
+`update_field`. That is exactly how a Quotation in "Waiting For Approval"
+rendered as "Draft" with every suite green.
+
+So the fieldname comes from **`api.py:get_doctype_workflow_meta`**, which reads
+it off the Workflow document (it is not always `workflow_state` — the IMS
+workflows use `status`/`compliance_status`) and returns it **only after**
+confirming `frappe.get_meta(doctype).get_field(fieldname)`. `approvalMeta.js`
+merges it with `withWorkflowField`, so `pickFields`, `resolveStatusField`,
+`getApprovalStates`, `ApprovalListPage` and `GenericList` all see a field list
+that still cannot name an absent column. `GenericList.doctypeMeta()` goes
+through `getApprovalMeta` for this reason — its own `resource/DocType/` fetch
+made the guard a permanent no-op.
+
+`hasWorkflow` is the **server's** verdict, not `fieldSet.has("workflow_state")`:
+an inactive Workflow leaves its Custom Field behind (`on_trash` only clears the
+cache), and inferring "has workflow" from the column's existence hid the plain
+Submit on a doctype whose Workflow no longer runs.
+
+**The state NAMES are the other half of that answer.** "Waiting for approval" is
+not a value in any DocType schema — it is whatever the Workflow calls the state
+a document waits in (`Waiting For Approval` on Quotation/Purchase Order,
+`Pending Leave Approver` / `Pending HR Approval` on leave, `Pending Reporting
+Manager Approval` / `Pending HR Approval` on attendance). Both the Home card and
+the hub tile used to ask for `status == "Pending"`, a value **none** of these
+doctypes has, so they read zero however many documents waited. The same reply
+therefore carries `pending_states` / `approved_states`, derived by
+`_workflow_queues` (`api.py:629`) from the Workflow itself: `doc_status` 0, not
+the target of a "Reject" transition, and not the entry state `states[0]` unless
+that state's own outbound verb is approve/reject/verify (Employee starts *in*
+"Pending HR Approval"). Approved = the `doc_status` 1 states minus rejection
+targets — Expense Claim and Leave Application give "Rejected" `doc_status` 1 —
+and callers must also exclude `docstatus = 2`, because a cancelled document
+keeps its workflow state (the site's cancelled PO is still `Approved`).
+
+`get_approval_queues()` counts server-side from those states, and
+`lib/approvalQueues.js` is the single client entry point (`getApprovalQueues`,
+`queueFor`). `ApprovalListPage.getBaseFilters` now filters the list to
+`meta.pendingStates`, so clicking a tile shows exactly the rows it counted.
+`STATUS_ONLY_QUEUES` is the one escape hatch: Overtime Log has no Workflow and
+its outcome is a plain `status` Select.
 
 ### 8.4 Probe failure ⇒ "no workflow", never the reverse
 

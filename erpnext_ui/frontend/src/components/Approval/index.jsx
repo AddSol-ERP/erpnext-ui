@@ -11,7 +11,11 @@ import {
 import { useHeader } from "../../context/HeaderContext";
 import { useRole } from "../../context/RoleContext";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../services/api";
+import {
+  APPROVAL_QUEUE_DOCTYPES,
+  getApprovalQueues,
+  queueFor,
+} from "../../lib/approvalQueues";
 import DashboardShell from "../dashboard/DashboardShell";
 import {
   Empty,
@@ -24,50 +28,47 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { gridCorners } from "../../lib/gridCorners";
-import {
-  getApprovalStatusField,
-  getApprovalMeta,
-} from "../../lib/approvalMeta";
 
 const GRID_BREAKPOINTS = [{ cols: 1 }, { min: "sm", cols: 2 }, { min: "lg", cols: 3 }];
 
-const APPROVAL_DOCTYPES = [
-  {
-    doctype: "Purchase Order",
+/**
+ * Presentation only: which icon and label each approval doctype gets, and the
+ * order they fall back to. The COUNTS and the state names that produce them
+ * come from the server (`lib/approvalQueues.js`) -- the old `pendingStatus`
+ * entries here are what made every tile read zero, because none of these
+ * doctypes has a `status` of "Pending".
+ */
+const TILE_CONFIG = {
+  "Purchase Order": {
     labelKey: "approvals.tiles.purchaseOrders",
     icon: ShoppingBag,
   },
-  {
-    doctype: "Expense Claim",
+  "Expense Claim": {
     labelKey: "approvals.tiles.expenses",
     icon: Receipt,
   },
-  {
-    doctype: "Leave Application",
+  "Leave Application": {
     labelKey: "approvals.tiles.leaves",
     icon: CalendarCheck,
   },
-  {
-    doctype: "Attendance Request",
+  "Attendance Request": {
     labelKey: "approvals.tiles.attendanceRequests",
     icon: ClipboardCheck,
-    pendingStatuses: [
-      "Pending Reporting Manager Approval",
-      "Pending HR Approval",
-    ],
   },
-  {
-    doctype: "Quotation",
+  Quotation: {
     labelKey: "approvals.tiles.quotations",
     icon: FileText,
   },
-  {
-    doctype: "Overtime Log",
+  "Overtime Log": {
     labelKey: "approvals.tiles.overtimeLogs",
     icon: Hourglass,
-    pendingStatus: "Draft",
   },
-];
+};
+
+const APPROVAL_DOCTYPES = APPROVAL_QUEUE_DOCTYPES.map((doctype) => ({
+  doctype,
+  ...TILE_CONFIG[doctype],
+}));
 
 const TILE_BADGE = {
   danger: "bg-destructive/15 text-destructive ring-destructive/30",
@@ -146,7 +147,7 @@ export default function Approval() {
   const { setHeader } = useHeader();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [tiles, setTiles] = useState([]);
+  const [queues, setQueues] = useState({ totalPending: 0, doctypes: {} });
   const [loading, setLoading] = useState(true);
 
   // Real doctype read permissions. RoleContext defaults this to empty and only
@@ -159,64 +160,13 @@ export default function Approval() {
     canReadApprovalDoctype(item.doctype),
   );
 
-  const fetchApprovalData = async () => {
-    setLoading(true);
-    try {
-      const fetchedTiles = await Promise.all(
-        accessibleDoctypes.map(async (item) => {
-          try {
-            const pendingStatus = item.pendingStatus || "Pending";
-
-            // ERPNext keeps the approval outcome in `status`, except on Expense
-            // Claim where it is `approval_status`. Resolve from meta so the
-            // counts don't silently read a column that doesn't exist.
-            const meta = await getApprovalMeta(item.doctype);
-            const statusField = await getApprovalStatusField(meta, item.doctype);
-            if (!statusField) throw new Error(`Unable to resolve approval field for ${item.doctype}`);
-            const statusFilter = item.pendingStatuses
-              ? { [statusField]: ["in", item.pendingStatuses] }
-              : { [statusField]: pendingStatus };
-
-            const pendingRes = await get("method/frappe.client.get_count", {
-              doctype: item.doctype,
-              filters: JSON.stringify(statusFilter),
-            });
-
-            const approvedRes = await get("method/frappe.client.get_count", {
-              doctype: item.doctype,
-              filters: JSON.stringify({ [statusField]: "Approved" }),
-            });
-
-            return {
-              key: item.doctype,
-              doctype: item.doctype,
-              labelKey: item.labelKey,
-              icon: item.icon,
-              pending: pendingRes.message || 0,
-              approved: approvedRes.message || 0,
-            };
-          } catch (error) {
-            console.error(`Failed to fetch ${item.doctype}:`, error);
-            return {
-              key: item.doctype,
-              doctype: item.doctype,
-              labelKey: item.labelKey,
-              icon: item.icon,
-              pending: 0,
-              approved: 0,
-            };
-          }
-        }),
-      );
-
-      fetchedTiles.sort((a, b) => b.pending - a.pending);
-      setTiles(fetchedTiles);
-    } catch (error) {
-      console.error("Failed to fetch approval data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Presentation config + the server's counts, sorted by what the reader came
+  // for. The counting itself lives in `api.py:get_approval_queues`, which reads
+  // the states off each Workflow -- a "Pending" status value guessed here is
+  // exactly what made every tile read zero.
+  const tiles = accessibleDoctypes
+    .map((item) => ({ ...item, ...queueFor(queues, item.doctype) }))
+    .sort((a, b) => b.pending - a.pending);
 
   useEffect(() => {
     setHeader({
@@ -240,10 +190,18 @@ export default function Approval() {
   const accessKey = accessibleDoctypes.map((item) => item.doctype).join("|");
 
   useEffect(() => {
-    // fetchApprovalData only setStates after awaited API responses.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchApprovalData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+
+    (async () => {
+      const data = await getApprovalQueues();
+      if (cancelled) return;
+      setQueues(data);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [accessKey, rolesLoading]);
 
   return (

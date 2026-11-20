@@ -216,6 +216,33 @@ Each exists because of a specific Frappe footgun. All ten fail *silently*.
    The field only exists once a Workflow is configured; requesting it otherwise
    fails the *entire* query. Use `lib/approvalMeta.js`.
 
+   **And that meta may not come from `resource/DocType/<dt>`**, which is the
+   trap that cost a whole debugging round: that endpoint returns the DocType's
+   `tabDocField` rows, while a Workflow's state column is a **Custom Field**
+   created by `Workflow.on_update`. `frappe.get_meta()` sees it; REST does not.
+   Validating against REST therefore always concludes "absent", drops the
+   column, and the badge silently falls back to ERPNext's `status` — "Draft"
+   for a document sitting in "Waiting For Approval", with every suite green.
+   `lib/approvalMeta.js:getWorkflowMeta` asks
+   `api.py:get_doctype_workflow_meta`, which also knows the column is not
+   always called `workflow_state` (the IMS workflows use `status` /
+   `compliance_status`) and only names it after `get_meta(doctype).get_field()`
+   confirms it exists. `hasWorkflow` is the server's verdict, never
+   `fieldSet.has("workflow_state")`: an inactive Workflow leaves its Custom
+   Field behind, and inferring a live workflow from it hides the plain Submit.
+
+   **The same reply carries the queue state NAMES, and the counts must come from
+   the server too.** "Waiting for approval" is not a schema value; it is whatever
+   the Workflow calls that state (`Waiting For Approval` on Quotation, `Pending
+   Leave Approver`/`Pending HR Approval` on leave). The Home card and the hub
+   tile each asked for `status == "Pending"` — a value none of these doctypes
+   has — so both read zero while documents waited. `get_doctype_workflow_meta`
+   returns `pending_states`/`approved_states` from `_workflow_queues`, and
+   `api.py:get_approval_queues` counts from the same helper, so the card, the
+   tile and `ApprovalListPage.getBaseFilters` (which filters to
+   `meta.pendingStates`) cannot disagree. `docstatus = 2` is excluded on both
+   sides: a cancelled document keeps its workflow state.
+
 4. **Probe failure ⇒ "no workflow", never the reverse.** A permission or network
    blip must never block a user's submit.
 

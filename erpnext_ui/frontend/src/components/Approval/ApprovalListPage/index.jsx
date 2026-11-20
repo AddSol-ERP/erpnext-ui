@@ -10,6 +10,7 @@ import ApprovalPreview from "../ApprovalPreview";
 import { ListRow } from "../../List/ListRow";
 import DataTable from "../../List/DataTable";
 import { StatusBadge } from "../../List/StatusBadge";
+import { statusTone } from "../../List/statusTones";
 import useListPagination from "../../../hooks/useListPagination";
 import { listFilterHandlers } from "../../../lib/filterChips";
 import {
@@ -234,26 +235,28 @@ const ApprovalListPage = () => {
     return { filters };
   };
 
-  const getBaseFilters = (statusField) => {
-    let filters = [];
-    filters.push(["docstatus", "=", 0]);
+  /**
+   * The default view of an Approvals list: the doctype's approval QUEUE.
+   *
+   * These used to be per-doctype ERPNext `status` strings ("Open"/"Applied" on
+   * leave, "Pending" on attendance). They were written while `statusField`
+   * resolved to `status`; once a Workflow is configured it resolves to
+   * `workflow_state`, so every one of those strings matched nothing and the
+   * page came up empty. The states now come from the Workflow itself, through
+   * `meta.pendingStates` -- the same source the tile counts use, so clicking a
+   * tile shows exactly the documents it counted.
+   */
+  const getBaseFilters = (meta, statusField) => {
+    const filters = [["docstatus", "=", 0]];
 
-    if (doctype === "Purchase Order") {
-      filters.push([statusField, "not in", ["Completed", "Cancelled"]]);
+    if (meta?.hasWorkflow) {
+      if (meta.pendingStates?.length) {
+        filters.push([statusField, "in", meta.pendingStates]);
+      }
+      return filters;
     }
-    if (doctype === "Expense Claim") {
-      filters.push([statusField, "!=", "Approved"]);
-    }
-    if (doctype === "Leave Application") {
-      filters.push([statusField, "in", ["Open", "Applied"]]);
-    }
-    if (doctype === "Attendance Request") {
-      filters.push([
-        statusField,
-        "in",
-        ["Pending Reporting Manager Approval", "Pending HR Approval"],
-      ]);
-    }
+
+    // No Workflow: the outcome is ERPNext's own status column.
     if (doctype === "Overtime Log") {
       filters.push([statusField, "=", "Draft"]);
     }
@@ -280,7 +283,7 @@ const ApprovalListPage = () => {
       filters.push(["docstatus", "=", 1]);
       filters.push([statusField, "=", status]);
     } else {
-      filters.push(...getBaseFilters(statusField));
+      filters.push(...getBaseFilters(meta, statusField));
     }
 
     Object.entries(selectedFilters).forEach(([field, value]) => {
@@ -355,10 +358,15 @@ const ApprovalListPage = () => {
 
   const getDisplayStatus = useCallback(
     (row, statusField) => {
-      // `workflow_state` only exists when a Workflow is configured, so fall
-      // back to the doctype's own status column.
+      // The Workflow's column, named by the server: `workflow_state` on most
+      // doctypes, `status` / `compliance_status` on the IMS workflows, and
+      // absent entirely when no Workflow is configured -- in which case the
+      // doctype's own status column is the outcome.
+      const workflowState = meta?.hasWorkflow
+        ? row[meta.workflowField || "workflow_state"]
+        : null;
       const raw =
-        row.workflow_state ||
+        workflowState ||
         row[statusField] ||
         (row.docstatus === 0
           ? "Draft"
@@ -395,13 +403,24 @@ const ApprovalListPage = () => {
         };
       }
 
+      // An admin-authored workflow state this list has never heard of --
+      // "Waiting For Approval" on the site's Quotation-Approval workflow, for
+      // instance. The lists above can only enumerate the states someone
+      // predicted; falling through to "Draft" for everything else made a
+      // quotation sitting in the approver's queue read as unsubmitted, which
+      // is exactly backwards. Workflow states render verbatim (the same
+      // convention action names get), coloured by the shared keyword matcher.
+      if (workflowState && raw === workflowState && raw !== "Draft") {
+        return { label: raw, color: statusTone(raw) };
+      }
+
       if (row.docstatus === 0) {
         return { label: t("approvals.status.draft"), color: "open" };
       }
 
       return { label: raw || t("approvals.status.unknown"), color: "open" };
     },
-    [t],
+    [t, meta],
   );
 
   const mapToList = useCallback(

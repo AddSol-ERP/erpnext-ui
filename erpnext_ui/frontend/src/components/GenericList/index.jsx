@@ -11,8 +11,10 @@ import ListLayout from "../ListLayout";
 import { ListRow } from "../List/ListRow";
 import DataTable from "../List/DataTable";
 import { StatusBadge } from "../List/StatusBadge";
+import { statusTone } from "../List/statusTones";
 import useListPagination from "../../hooks/useListPagination";
 import { listFilterHandlers } from "../../lib/filterChips";
+import { getApprovalMeta } from "../../lib/approvalMeta";
 import { Plus, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -54,13 +56,33 @@ const STATUS_COLORS = {
 };
 
 function resolveStatus(row, statusField) {
-  if (!statusField) return { label: "", color: "" };
+  /**
+   * Precedence while the document is STILL IN APPROVAL (docstatus 0):
+   * `workflow_state` > the configured status column.
+   *
+   * An approval Workflow advances `workflow_state`, not `status` -- the seeded
+   * and admin-authored workflows here carry no `update_field`, so ERPNext's own
+   * `status` column sits at "Draft" for the whole approval. A Quotation in
+   * "Waiting For Approval" therefore has to be read off `workflow_state`, or
+   * the badge lies.
+   *
+   * Once submitted (docstatus >= 1) the workflow outcome is settled, and the
+   * doctype's own status carries the richer meaning the reader wants
+   * ("Ordered"/"Partially Ordered" on a Quotation), so it takes over.
+   *
+   * `workflow_state` is only requested when the doctype's meta has the field
+   * (see getFields) -- never on a hunch, since naming an absent field fails
+   * the entire query.
+   */
+  const raw =
+    Number(row.docstatus) === 0 && row.workflow_state
+      ? row.workflow_state
+      : statusField === "docstatus"
+        ? { 0: "Draft", 1: "Submitted", 2: "Cancelled" }[row.docstatus] || "Draft"
+        : row[statusField];
 
-  let raw = row[statusField];
-
-  if (statusField === "docstatus") {
-    const map = { 0: "Draft", 1: "Submitted", 2: "Cancelled" };
-    raw = map[row.docstatus] || "Draft";
+  if (!statusField && !(Number(row.docstatus) === 0 && row.workflow_state)) {
+    return { label: "", color: "" };
   }
 
   if (typeof raw === "boolean" || raw === 0 || raw === 1) {
@@ -70,7 +92,11 @@ function resolveStatus(row, statusField) {
   }
 
   const label = raw || "Unknown";
-  const color = STATUS_COLORS[label] || "open";
+  // The table is an exact match on a handful of known values and misses
+  // admin-authored workflow states ("Waiting For Approval" is not even spelled
+  // with the same case as the entry here). `statusTone` is the shared
+  // keyword matcher those states are meant to go through.
+  const color = STATUS_COLORS[label] || statusTone(label);
   return { label, color };
 }
 
@@ -137,9 +163,19 @@ export default function GenericListPage({ doctypeOverride }) {
   const doctypeMeta = useCallback(() => {
     const cached = metaCache.current[decodedDoctype];
     if (cached) return cached;
-    const promise = get(`resource/DocType/${decodedDoctype}`)
-      .then((res) => res.data || null)
-      .catch(() => null);
+    // The SAME meta the approval screens use, and the same cache: it knows to
+    // add a Workflow's state column, which `resource/DocType/<dt>` cannot
+    // report -- a Workflow creates that column as a Custom Field, and that
+    // endpoint serialises only the DocType's own DocFields. Validating
+    // `workflow_state` against it therefore always concluded "absent" and the
+    // column was never requested, so the badge fell back to `status`. See
+    // `lib/approvalMeta.js`.
+    const promise = getApprovalMeta(decodedDoctype).then((meta) => {
+      // A failed lookup must not be remembered for the life of the page: the
+      // Refresh action should be able to succeed after a blip.
+      if (!meta) delete metaCache.current[decodedDoctype];
+      return meta;
+    });
     metaCache.current[decodedDoctype] = promise;
     return promise;
   }, [decodedDoctype]);
@@ -270,6 +306,26 @@ export default function GenericListPage({ doctypeOverride }) {
     // costs one shared request rather than an extra one.
     const meta = await doctypeMeta();
     const real = meta?.fields?.map((f) => f.fieldname) || null;
+    // A Workflow's state column is what `resolveStatus` reads while a document
+    // is still in approval, and it is the one field here that is NOT in
+    // config/doctypes.js: it exists only where a Workflow does. So it is
+    // requested only when this doctype's meta proves it is there -- naming an
+    // absent field fails the whole query (same trap the configured columns are
+    // filtered against below), and a failed meta fetch resolves to null, which
+    // must NOT be read as "the field exists".
+    //
+    // The meta must come from `lib/approvalMeta.js`, not `resource/DocType/`:
+    // that column is a Custom Field, which the REST meta endpoint cannot
+    // report, so validating against it made this check a permanent no-op and
+    // the column was never requested.
+    const workflowField = meta?.workflowField || null;
+    if (
+      workflowField &&
+      real?.includes(workflowField) &&
+      !customFields.includes(workflowField)
+    ) {
+      customFields.push(workflowField);
+    }
     const usable = real
       ? customFields.filter((field) => real.includes(field))
       : customFields;
@@ -283,7 +339,11 @@ export default function GenericListPage({ doctypeOverride }) {
     }
 
     const fields = [...BASE_FIELDS, ...usable];
-    fieldsCache.current[decodedDoctype] = fields;
+    // Only remember a list that was validated against real meta. Without meta
+    // every configured column is sent unvalidated -- and a failed lookup must
+    // not be frozen in place, or Refresh could never repair the list after a
+    // blip (the workflow column, in particular, would stay missing).
+    if (real) fieldsCache.current[decodedDoctype] = fields;
     return fields;
   }, [decodedDoctype, config, doctypeMeta]);
 

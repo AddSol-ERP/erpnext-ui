@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle,
   ExternalLink,
   Eye,
+  RefreshCw,
   Save,
   Trash2,
   XCircle,
@@ -13,7 +14,9 @@ import { useToast } from "../../../context/ToastContext";
 import { useRole } from "../../../context/RoleContext";
 import AppModal from "../../AppModal";
 import PreviewRenderer from "./PreviewRenderer";
+import DetailsPanel from "./DetailsPanel";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { getApprovalMeta, getApprovalStates } from "../../../lib/approvalMeta";
 import {
   canSubmitDocument,
@@ -104,6 +107,17 @@ export default function ApprovalPreview({
   const { currentUser } = useRole();
   const [mode, setMode] = useState("preview");
   const [loading, setLoading] = useState(false);
+  /**
+   * The COMPLETE document, fetched once for both views.
+   *
+   * The row handed in by the list is a projected field set: it has no items,
+   * taxes, payment schedule or terms. Preview used to refetch for itself, while
+   * the "Details" view rendered that projected row -- which is why Details
+   * showed a dozen fields and no line items. One fetch, two consumers.
+   */
+  const [fullDoc, setFullDoc] = useState(null);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docError, setDocError] = useState(null);
   const [workflowActions, setWorkflowActions] = useState([]);
   const [workflowConfig, setWorkflowConfig] = useState({ doctype: null, active: false });
   const [states, setStates] = useState({
@@ -114,6 +128,12 @@ export default function ApprovalPreview({
   const [isSubmittable, setIsSubmittable] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmReject, setConfirmReject] = useState(false);
+  // A workflow rejection is a transition, not the leave status write that
+  // `confirmReject` covers, so it needs its own pending slot.
+  const [pendingWorkflowReject, setPendingWorkflowReject] = useState(null);
+  // Which footer button is actually in flight, so only that one shows a
+  // spinner instead of every action looking equally busy.
+  const [busyKey, setBusyKey] = useState(null);
 
   /**
    * Transitions this user may run right now.
@@ -178,6 +198,54 @@ export default function ApprovalPreview({
     };
   }, [doctype]);
 
+  /**
+   * Fetch the complete document once for BOTH views.
+   *
+   * Sequence number instead of a boolean: opening row B while row A's request
+   * is still in flight must not let A land last and paint A's customer under
+   * B's totals.
+   */
+  const docRequest = useRef(0);
+
+  const loadFullDoc = async () => {
+    if (!doc?.name) return;
+
+    const request = ++docRequest.current;
+    setDocLoading(true);
+    setDocError(null);
+
+    try {
+      const res = await get(
+        `resource/${encodeURIComponent(doctype)}/${encodeURIComponent(doc.name)}`,
+      );
+      if (docRequest.current !== request) return;
+      setFullDoc(res?.data || null);
+    } catch (e) {
+      if (docRequest.current !== request) return;
+      console.error("Preview load failed", e);
+      setDocError(e);
+      setFullDoc(null);
+    } finally {
+      if (docRequest.current === request) setDocLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!show || !doc?.name) return;
+
+    // Clearing first is deliberate: keeping the previous row's document on
+    // screen while the next one loads shows a different customer under the new
+    // record's title. `mode` resets too, so a modal reopened from Details
+    // always starts on the preview.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFullDoc(null);
+    setDocError(null);
+    setMode("preview");
+
+    loadFullDoc();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, doctype, doc?.name]);
+
   if (!doc) return null;
 
   const config = APPROVAL_CONFIG[doctype] || {
@@ -211,10 +279,11 @@ export default function ApprovalPreview({
    * Note the differing signatures: `save` / `submit` take the whole document,
    * while `cancel` / `delete` are addressed by doctype + name.
    */
-  const handleDefaultAction = async (action) => {
+  const handleDefaultAction = async (action, key) => {
     if (!doc?.name) return;
 
     try {
+      setBusyKey(key || null);
       setLoading(true);
 
       const full = await get(
@@ -239,23 +308,25 @@ export default function ApprovalPreview({
       toast.error(e?.message || t("approvals.actionFailed"));
     } finally {
       setLoading(false);
+      setBusyKey(null);
     }
   };
 
-  const runDefaultAction = (action) => {
+  const runDefaultAction = (action, key) => {
     // Deleting is irreversible, so it gets a real dialog instead of a native
     // alert that ignores the app's theme and RTL direction.
     if (action === "delete") {
       setConfirmDelete(true);
       return;
     }
-    handleDefaultAction(action);
+    handleDefaultAction(action, key);
   };
 
-  const handleWorkflowAction = async (workflowAction) => {
+  const handleWorkflowAction = async (workflowAction, key) => {
     if (!doc?.name) return;
 
     try {
+      setBusyKey(key || null);
       setLoading(true);
 
       // Fetches the current document and drives `apply_workflow` with the
@@ -269,6 +340,7 @@ export default function ApprovalPreview({
       toast.error(e?.message || t("approvals.workflowFailed"));
     } finally {
       setLoading(false);
+      setBusyKey(null);
     }
   };
 
@@ -279,10 +351,11 @@ export default function ApprovalPreview({
    * refused until it is Approved/Rejected -- so the approver has to be able to
    * make that call from the approval screen, not only from the leave form.
    */
-  const handleLeaveApproval = async (status) => {
+  const handleLeaveApproval = async (status, key) => {
     if (!doc?.name) return;
 
     try {
+      setBusyKey(key || null);
       setLoading(true);
       await setLeaveApprovalStatus({ name: doc.name, status });
       toast.success(
@@ -296,6 +369,7 @@ export default function ApprovalPreview({
       toast.error(e?.message || t("requests.leave.approvalFailed"));
     } finally {
       setLoading(false);
+      setBusyKey(null);
       setConfirmReject(false);
     }
   };
@@ -364,7 +438,7 @@ export default function ApprovalPreview({
       label: t("requests.action.approve"),
       icon: CheckCircle,
       primary: true,
-      run: () => handleLeaveApproval(LEAVE_APPROVED),
+      run: () => handleLeaveApproval(LEAVE_APPROVED, "leave:approve"),
     });
   }
 
@@ -385,16 +459,24 @@ export default function ApprovalPreview({
       // show anything else verbatim so an admin-authored action is never
       // mistranslated or hidden.
       const labelKey = workflowActionLabelKey(a.action);
+      // Keyed by state + next_state as well as the action, because one action
+      // can legitimately route to two different next states from two states;
+      // keying on the action alone would make React reuse the wrong element.
+      const key = `workflow:${a.from} ${a.action} ${a.to}`;
+
       footerActions.push({
-        // Keyed by state + next_state as well as the action, because one action
-        // can legitimately route to two different next states from two states;
-        // keying on the action alone would make React reuse the wrong element.
-        key: `workflow:${a.from} ${a.action} ${a.to}`,
+        key,
         label: labelKey ? t(labelKey) : a.action,
         icon: isReject ? XCircle : CheckCircle,
         destructive: isReject,
         primary: !isReject,
-        run: () => handleWorkflowAction(a.action),
+        // A rejection is irreversible from this screen -- the submitter has to
+        // resubmit -- so it asks first. An approval does not: it is the action
+        // the approver opened the document to take.
+        run: () =>
+          isReject
+            ? setPendingWorkflowReject({ action: a.action, to: a.to, key })
+            : handleWorkflowAction(a.action, key),
       });
     }
   } else {
@@ -406,7 +488,7 @@ export default function ApprovalPreview({
         icon: meta.icon,
         destructive: meta.destructive,
         primary: action === "submit",
-        run: () => runDefaultAction(action),
+        run: () => runDefaultAction(action, `default:${action}`),
       });
     }
   }
@@ -433,7 +515,7 @@ export default function ApprovalPreview({
               }
             >
               <Eye />
-              <span className="hidden md:inline">
+              <span className="hidden sm:inline">
                 {mode === "preview"
                   ? t("approvals.showDetails")
                   : t("approvals.showPreview")}
@@ -448,7 +530,7 @@ export default function ApprovalPreview({
               title={t("approvals.openFull")}
             >
               <ExternalLink />
-              <span className="hidden md:inline">
+              <span className="hidden sm:inline">
                 {t("approvals.openFull")}
               </span>
             </Button>
@@ -472,13 +554,19 @@ export default function ApprovalPreview({
                     className={
                       a.primary && !a.destructive
                         ? "bg-emerald-600 text-white hover:bg-emerald-600/85"
-                        : undefined
+                        : a.destructive
+                          ? "bg-destructive text-white hover:bg-destructive/90"
+                          : undefined
                     }
                     disabled={loading}
                     onClick={a.run}
                   >
-                    <Icon />
-                    <span className="hidden md:inline">{a.label}</span>
+                    {busyKey === a.key ? <Spinner /> : <Icon />}
+                    {/* The label stays visible at every breakpoint. Icon-only
+                        Approve/Reject forced the approver to decode a tick
+                        against a cross -- and they are the two buttons this
+                        whole screen exists for. The footer wraps instead. */}
+                    <span className="whitespace-nowrap">{a.label}</span>
                   </Button>
                 );
               })
@@ -498,25 +586,34 @@ export default function ApprovalPreview({
     >
       {/* CONTENT */}
       <div className="relative h-full">
-        {/* PREVIEW */}
-        {mode === "preview" && (
-          <div className="h-full">
-            <PreviewRenderer doctype={doctype} doc={doc} />
+        {docLoading ? (
+          <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+            <Spinner />
+            <span>{t("approvals.loadingPreview")}</span>
           </div>
-        )}
-
-        {/* DETAILS */}
-        {mode === "details" && (
-          <div className="flex max-h-full flex-col gap-4 overflow-auto">
-            {Object.entries(doc).map(([key, value]) => (
-              <div key={key} className="flex flex-col gap-1.5">
-                <div className="text-xs font-medium text-muted-foreground">
-                  {key}
-                </div>
-                <div className="text-sm">{String(value || "-")}</div>
-              </div>
-            ))}
+        ) : docError ? (
+          <div className="flex flex-col items-center gap-2 p-6 text-center">
+            <p className="text-sm font-medium">
+              {t("approvals.preview.loadFailed")}
+            </p>
+            {docError?.message && (
+              <p className="max-w-md text-xs text-muted-foreground">
+                {docError.message}
+              </p>
+            )}
+            <Button variant="outline" onClick={loadFullDoc}>
+              <RefreshCw />
+              {t("common.retry")}
+            </Button>
           </div>
+        ) : !fullDoc ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">
+            {t("approvals.loadingPreview")}
+          </div>
+        ) : mode === "preview" ? (
+          <PreviewRenderer doctype={doctype} doc={fullDoc} />
+        ) : (
+          <DetailsPanel doctype={doctype} doc={fullDoc} />
         )}
       </div>
     <ConfirmDialog
@@ -524,10 +621,27 @@ export default function ApprovalPreview({
       onCancel={() => {
         if (!loading) setConfirmReject(false);
       }}
-      onConfirm={() => handleLeaveApproval(LEAVE_REJECTED)}
+      onConfirm={() => handleLeaveApproval(LEAVE_REJECTED, "leave:reject")}
       title={t("requests.leave.rejectConfirmTitle")}
       message={t("requests.leave.rejectConfirmBody")}
       confirmLabel={t("requests.action.reject")}
+      loading={loading}
+    />
+
+    <ConfirmDialog
+      open={Boolean(pendingWorkflowReject)}
+      onCancel={() => {
+        if (!loading) setPendingWorkflowReject(null);
+      }}
+      onConfirm={() => {
+        const pending = pendingWorkflowReject;
+        setPendingWorkflowReject(null);
+        if (pending) handleWorkflowAction(pending.action, pending.key);
+      }}
+      title={t("approvals.rejectConfirmTitle", { name: doc.name })}
+      message={t("approvals.rejectConfirmBody")}
+      confirmLabel={t("requests.action.reject")}
+      confirmLoadingLabel={t("requests.action.reject")}
       loading={loading}
     />
 
