@@ -17,6 +17,10 @@ import {
   withWorkflowField,
 } from "../src/lib/approvalMeta.js";
 import {
+  APPROVAL_QUEUE_DOCTYPES,
+  queueFor,
+} from "../src/lib/approvalQueues.js";
+import {
   MATERIAL_REQUEST_TYPES,
   REQUEST_PURPOSES,
   REQUEST_PURPOSE_KEYS,
@@ -370,8 +374,10 @@ ok("docstatus: submitted can only be escaped via Cancel, never Delete",
 // has no such column" and dropped it from the query -- so a Quotation sitting
 // in "Waiting For Approval" rendered ERPNext's own `status`, "Draft".
 //
-// The column now comes from `get_doctype_workflow_field` (server-side, where
-// meta IS Custom-Field aware) and is merged in with `withWorkflowField`.
+// The column now comes from `get_doctype_workflow_meta` (server-side, where
+// meta IS Custom-Field aware) and is merged in with `withWorkflowField`. The
+// same reply carries the Workflow's queue state NAMES, so nobody has to guess
+// that "pending" means "Waiting For Approval".
 const metaFrom = ({
   fields,
   workflowField = null,
@@ -957,15 +963,21 @@ ok(
 // and every list query naming it would fail (the exact trap invariant 3
 // records), so the check is part of the contract, not a nicety.
 ok(
-  "workflow field endpoint reports the column only when the DocType has it",
-  /^def get_doctype_workflow_field\(doctype\):/m.test(apiSource) &&
+  "workflow meta endpoint reports the column only when the DocType has it",
+  /^def get_doctype_workflow_meta\(doctype\):/m.test(apiSource) &&
     /get_meta\(doctype\)\.get_field\(fieldname\)/.test(apiSource),
-  "get_doctype_workflow_field must validate the fieldname against meta",
+  "get_doctype_workflow_meta must validate the fieldname against meta",
 );
 ok(
-  "workflow field endpoint reads the column from the Workflow, not a fixed name",
-  /"workflow_state_field"\)/.test(apiSource),
+  "workflow meta endpoint reads the column from the Workflow, not a fixed name",
+  /workflow_state_field/.test(apiSource),
   "a Workflow may advance `status` / `compliance_status`",
+);
+ok(
+  "workflow meta endpoint reports the queue state NAMES, never a guess",
+  /"pending_states": pending_states/.test(apiSource) &&
+    /"approved_states": approved_states/.test(apiSource),
+  "the client cannot know that pending means `Waiting For Approval`",
 );
 
 // ---------------------------------------------------------------------------
@@ -1093,13 +1105,89 @@ ok(
 );
 ok(
   "meta: approvalMeta asks the server for the workflow column",
-  /get_doctype_workflow_field/.test(approvalMetaSrc),
+  /get_doctype_workflow_meta/.test(approvalMetaSrc),
   "the Custom-Field-aware meta only exists server-side",
 );
 ok(
   "meta: `hasWorkflow` is the server's verdict, not the column's existence",
   !/hasWorkflow:\s*fieldSet\.has\("workflow_state"\)/.test(approvalMetaSrc),
   "an inactive Workflow leaves its Custom Field behind and would hide plain Submit",
+);
+
+// --- approval counts: ONE server-side definition of "pending" ---------------
+// The hub tile and the home card both used to derive the number in JavaScript
+// from `status == "Pending"` -- a value none of these doctypes has -- so both
+// read zero while documents waited. The counts now come from one endpoint that
+// reads the states off the Workflow, through the same helper the per-doctype
+// meta uses.
+const queuesSrc = readSrc("../../src/lib/approvalQueues.js");
+const approvalHubSrc = readSrc("../../src/components/Approval/index.jsx");
+const approvalListSrc = readSrc(
+  "../../src/components/Approval/ApprovalListPage/index.jsx",
+);
+const dashboardSrc = readSrc("../../src/pages/Dashboard/index.jsx");
+
+ok(
+  "queues: the shared module calls the server's count endpoint",
+  /get\("method\/erpnext_ui\.api\.get_approval_queues"\)/.test(queuesSrc),
+  "deriving the count client-side is how the tiles read zero",
+);
+ok(
+  "queues: a failed count call degrades to zeros instead of throwing",
+  /catch[\s\S]{0,200}return EMPTY/.test(queuesSrc),
+  "the hub still has to render its tiles",
+);
+ok(
+  "queues: queueFor defaults to zeros rather than undefined",
+  JSON.stringify(queueFor({ totalPending: 0, doctypes: {} }, "Quotation")) ===
+    JSON.stringify({ pending: 0, approved: 0 }) &&
+    queueFor({ doctypes: { Quotation: { pending: 3, approved: 9 } } }, "Quotation").pending === 3,
+);
+
+// The server's list is the security boundary (invariant 8) and the client's is
+// presentation. A doctype the server does not know can never be counted, so a
+// tile for it would read zero forever -- and one the client omits is a tile the
+// user never sees. Same SET, order is ours.
+const serverApprovalDoctypes = (() => {
+  const m = apiSource.match(/SPA_APPROVAL_DOCTYPES = \(([\s\S]*?)\)/);
+  return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
+})();
+ok(
+  "queues: the client doctype list matches the server's, so every tile can be counted",
+  serverApprovalDoctypes.length > 0 &&
+    serverApprovalDoctypes.length === APPROVAL_QUEUE_DOCTYPES.length &&
+    serverApprovalDoctypes.every((dt) => APPROVAL_QUEUE_DOCTYPES.includes(dt)),
+  `server=${serverApprovalDoctypes.join(",")} client=${APPROVAL_QUEUE_DOCTYPES.join(",")}`,
+);
+ok(
+  "queues: the count endpoint reuses the meta helper, so counts and states agree",
+  /^def _workflow_queues\(doctype\):/m.test(apiSource) &&
+    /_workflow_queues\(doctype\)/.test(
+      apiSource.slice(apiSource.indexOf("def get_approval_queues")),
+    ),
+  "a second implementation is how the tile and the list disagree",
+);
+ok(
+  "queues: a cancelled document cannot inflate the counts",
+  /docstatus.*\["<", 2\]/.test(apiSource),
+  "a cancelled document keeps its workflow state",
+);
+ok(
+  "queues: the hub takes its counts from the server, not a hardcoded status",
+  /getApprovalQueues/.test(approvalHubSrc) && !/pendingStatus(es)?:/.test(approvalHubSrc),
+  "`status == Pending` is a value none of these doctypes has",
+);
+ok(
+  "queues: the home card uses the same count as the hub",
+  /getApprovalQueues/.test(dashboardSrc) &&
+    !/Purchase Order[\s\S]{0,200}status: "Pending"/.test(dashboardSrc),
+  "two implementations cannot agree",
+);
+ok(
+  "queues: the Approvals list filters to the workflow's own pending states",
+  /meta\.pendingStates/.test(approvalListSrc) &&
+    !/\[statusField, "in", \["Open", "Applied"\]\]/.test(approvalListSrc),
+  "the base filter must show exactly the documents the tile counted",
 );
 
 // --- the desktop row -------------------------------------------------------

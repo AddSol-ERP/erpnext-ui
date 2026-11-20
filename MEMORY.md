@@ -136,12 +136,13 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 | **`get_indent_queue(...)`** | `:1003-1180` | Store: the storekeeper's worklist. See §3.7. |
 | `has_app_permission()` | `:76-80` | hook, returns `True` |
 | **`has_doctype_workflow(doctype)`** | `:618` | Whether an **active** Workflow exists. The probe `docTransition.hasConfiguredWorkflow` reads it. |
-| **`get_doctype_workflow_field(doctype)`** | `:629` | `{has_workflow, fieldname}` — the column the Workflow actually advances. The **only** reliable source: `resource/DocType/<dt>` cannot report it (Custom Field). See §8.3. |
+| **`get_doctype_workflow_meta(doctype)`** | `:724` | `{has_workflow, fieldname, pending_states, approved_states}` — the column the Workflow actually advances **and** the state names that form its queues. The **only** reliable source: `resource/DocType/<dt>` cannot report the column (Custom Field). See §8.3. |
+| **`get_approval_queues()`** | `:769` | Pending/approved counts for every `SPA_APPROVAL_DOCTYPES` entry the caller may read. One request; `_workflow_queues` backs it **and** the per-DocType meta, so the Home card, the hub tile and the list's base filter cannot disagree. `docstatus = 2` is excluded on both sides. |
 | **`get_custom_report_data(report_key, filters=None)`** | `:2526` | Runs a Script Report that lives in ANOTHER app. Takes a **key**, never a report name. See §3.8. |
 | **`get_pending_inspection_items(warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50, as_of_date=None)`** | new | Store: pending-QC stock, split/filterable by serial and batch. See §3.9. |
 | `boot_session(bootinfo)` | `:103-122` | hook |
 
-**17 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
+**48 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
 defaults to `allow_guest=True`.** That is deliberate for the read-only report
 endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 "my own record only" for a Guest session, so no data leaks. (Counted by parsing
@@ -1695,7 +1696,7 @@ which sits at "Draft" for the whole approval because these Workflows carry no
 `update_field`. That is exactly how a Quotation in "Waiting For Approval"
 rendered as "Draft" with every suite green.
 
-So the fieldname comes from **`api.py:get_doctype_workflow_field`**, which reads
+So the fieldname comes from **`api.py:get_doctype_workflow_meta`**, which reads
 it off the Workflow document (it is not always `workflow_state` — the IMS
 workflows use `status`/`compliance_status`) and returns it **only after**
 confirming `frappe.get_meta(doctype).get_field(fieldname)`. `approvalMeta.js`
@@ -1709,6 +1710,29 @@ made the guard a permanent no-op.
 an inactive Workflow leaves its Custom Field behind (`on_trash` only clears the
 cache), and inferring "has workflow" from the column's existence hid the plain
 Submit on a doctype whose Workflow no longer runs.
+
+**The state NAMES are the other half of that answer.** "Waiting for approval" is
+not a value in any DocType schema — it is whatever the Workflow calls the state
+a document waits in (`Waiting For Approval` on Quotation/Purchase Order,
+`Pending Leave Approver` / `Pending HR Approval` on leave, `Pending Reporting
+Manager Approval` / `Pending HR Approval` on attendance). Both the Home card and
+the hub tile used to ask for `status == "Pending"`, a value **none** of these
+doctypes has, so they read zero however many documents waited. The same reply
+therefore carries `pending_states` / `approved_states`, derived by
+`_workflow_queues` (`api.py:629`) from the Workflow itself: `doc_status` 0, not
+the target of a "Reject" transition, and not the entry state `states[0]` unless
+that state's own outbound verb is approve/reject/verify (Employee starts *in*
+"Pending HR Approval"). Approved = the `doc_status` 1 states minus rejection
+targets — Expense Claim and Leave Application give "Rejected" `doc_status` 1 —
+and callers must also exclude `docstatus = 2`, because a cancelled document
+keeps its workflow state (the site's cancelled PO is still `Approved`).
+
+`get_approval_queues()` counts server-side from those states, and
+`lib/approvalQueues.js` is the single client entry point (`getApprovalQueues`,
+`queueFor`). `ApprovalListPage.getBaseFilters` now filters the list to
+`meta.pendingStates`, so clicking a tile shows exactly the rows it counted.
+`STATUS_ONLY_QUEUES` is the one escape hatch: Overtime Log has no Workflow and
+its outcome is a plain `status` Select.
 
 ### 8.4 Probe failure ⇒ "no workflow", never the reverse
 

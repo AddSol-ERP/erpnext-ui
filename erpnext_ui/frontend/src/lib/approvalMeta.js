@@ -24,8 +24,9 @@ import { get } from "../services/api";
  * That is how a document sitting in "Waiting For Approval" rendered as
  * "Draft": the badge was reading ERPNext's own column, not the Workflow's.
  *
- * The fix is `getWorkflowStateField`, which asks the server (whose meta is
- * Custom-Field aware) for the column an active Workflow actually advances, and
+ * The fix is `getWorkflowMeta`, which asks the server (whose meta is
+ * Custom-Field aware) for the column an active Workflow actually advances --
+ * and for the state NAMES that form its approval queues -- and
  * `withWorkflowField`, which adds it to the field list. The list is then safe
  * to send: the server only names a column the doctype really has.
  */
@@ -46,19 +47,27 @@ const DEFAULT_STATUS_FIELD = "status";
 const FALLBACK_STATUS_FIELD = "approval_status";
 
 /**
- * The column this doctype's active Workflow advances (usually
- * `workflow_state`, but a Workflow may name its own field), straight from the
- * server -- the only side whose meta includes Custom Fields.
+ * The active Workflow behind a doctype: the column it advances (usually
+ * `workflow_state`, but a Workflow may name its own field) and the states that
+ * form its approval queues, straight from the server -- the only side whose
+ * meta includes Custom Fields and the only side that reads the Workflow.
  *
- * Resolves to `{has_workflow, fieldname}`; `null` means the question could not
- * be answered (network, permission, unexpected reply).
+ * Resolves to `{hasWorkflow, fieldname, pendingStates, approvedStates}`; `null`
+ * means the question could not be answered (network, permission, unexpected
+ * reply).
+ *
+ * The state NAMES matter as much as the column: `Waiting For Approval` here,
+ * `Pending HR Approval` there, and anything at all on a site whose workflows
+ * were authored in another language. Guessing them in JavaScript is how the
+ * Approvals tile asked for `status == "Pending"` -- a value none of these
+ * doctypes has -- and reported zero while documents waited.
  *
  * A FAILED PROBE IS NOT "NO WORKFLOW" for the status column: `null` here only
  * suppresses the workflow field, and `getApprovalMeta` retries next time. It is
  * deliberately never cached as a negative answer -- a blip would otherwise hide
  * the workflow state for the rest of the session.
  */
-export async function getWorkflowStateField(doctype) {
+export async function getWorkflowMeta(doctype) {
   if (!doctype) return null;
 
   const cached = workflowFieldCache.get(doctype);
@@ -66,7 +75,7 @@ export async function getWorkflowStateField(doctype) {
 
   const pending = (async () => {
     try {
-      const res = await get("method/erpnext_ui.api.get_doctype_workflow_field", {
+      const res = await get("method/erpnext_ui.api.get_doctype_workflow_meta", {
         doctype,
       });
       const message = res?.message;
@@ -77,6 +86,8 @@ export async function getWorkflowStateField(doctype) {
       return {
         hasWorkflow: message.has_workflow,
         fieldname: message.fieldname || null,
+        pendingStates: message.pending_states || [],
+        approvedStates: message.approved_states || [],
       };
     } catch {
       return null;
@@ -138,7 +149,7 @@ export async function getApprovalMeta(doctype) {
     try {
       const [res, workflow] = await Promise.all([
         get(`resource/DocType/${encodeURIComponent(doctype)}`),
-        getWorkflowStateField(doctype),
+        getWorkflowMeta(doctype),
       ]);
 
       const fields = withWorkflowField(
@@ -163,6 +174,11 @@ export async function getApprovalMeta(doctype) {
           hasWorkflow: Boolean(workflow?.hasWorkflow),
           // The exact column, so callers never hardcode `workflow_state`.
           workflowField: workflow?.fieldname || null,
+          // The Workflow's own queue states: what "pending" and "approved"
+          // mean for this doctype. Empty when there is no Workflow (the caller
+          // then falls back to ERPNext's `status`), never guessed here.
+          pendingStates: workflow?.pendingStates || [],
+          approvedStates: workflow?.approvedStates || [],
           // Submittable doctypes carry the default Draft -> Submitted ->
           // Cancelled lifecycle in `docstatus`, which is what we fall back to
           // when no Workflow is configured.
@@ -265,7 +281,7 @@ export async function getApprovalStatusField(meta, doctype) {
   // No meta to read: ask the workflow question directly rather than assume
   // `workflow_state`. Returning a column the doctype lacks fails the query the
   // field ends up in.
-  const workflow = await getWorkflowStateField(doctype);
+  const workflow = await getWorkflowMeta(doctype);
   if (workflow?.hasWorkflow) return workflow.fieldname || "workflow_state";
   return null;
 }

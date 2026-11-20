@@ -20,6 +20,7 @@ import StatRow from "../../components/dashboard/StatRow";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import StatCard from "../../components/StatCard";
 import { get } from "../../services/api";
+import { getApprovalQueues } from "../../lib/approvalQueues";
 import { useRole } from "../../context/RoleContext";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,28 +69,28 @@ export default function Dashboard() {
 
   const fetchCounts = async () => {
     try {
-      const pendingApprovals = await get("method/frappe.client.get_count", {
-        doctype: "Purchase Order",
-        filters: JSON.stringify({ status: "Pending" }),
-      });
-
-      const openRequests = await get("method/frappe.client.get_count", {
-        doctype: "Expense Claim",
-        filters: JSON.stringify({ status: "Open" }),
-      });
-
-      const activeJobs = await get("method/frappe.client.get_count", {
-        doctype: "Job Card",
-        filters: JSON.stringify({ status: "Open" }),
-      });
-
-      const qcPending = await get("method/frappe.client.get_count", {
-        doctype: "Quality Inspection",
-        filters: JSON.stringify({ status: "Pending" }),
-      });
+      // The approval badge is the SUM the Approvals hub shows, from the server:
+      // `status == "Pending"` on Purchase Order is a value ERPNext never writes
+      // (a PO awaiting approval sits in `workflow_state == "Waiting For
+      // Approval"`), so the card read zero however many documents were waiting.
+      const [queues, openRequests, activeJobs, qcPending] = await Promise.all([
+        getApprovalQueues(),
+        get("method/frappe.client.get_count", {
+          doctype: "Expense Claim",
+          filters: JSON.stringify({ status: "Open" }),
+        }),
+        get("method/frappe.client.get_count", {
+          doctype: "Job Card",
+          filters: JSON.stringify({ status: "Open" }),
+        }),
+        get("method/frappe.client.get_count", {
+          doctype: "Quality Inspection",
+          filters: JSON.stringify({ status: "Pending" }),
+        }),
+      ]);
 
       setCounts({
-        pendingApprovals: pendingApprovals.message || 0,
+        pendingApprovals: queues.totalPending,
         openRequests: openRequests.message || 0,
         activeJobs: activeJobs.message || 0,
         qcPending: qcPending.message || 0,

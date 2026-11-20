@@ -626,9 +626,121 @@ def has_doctype_workflow(doctype):
 	return bool(workflow_model.get_workflow_name(doctype))
 
 
+def _workflow_queues(doctype):
+	"""(fieldname, pending_states, approved_states) for this DocType's Workflow.
+
+	Returns `(None, [], [])` when there is no active Workflow, or when the
+	Workflow names a state column the DocType does not have.
+
+	A state is **pending** when a document sits there waiting for a decision:
+
+	* `doc_status` 0 -- nothing is pending about a submitted document;
+	* not the target of a rejection -- a rejected document is finished business
+	  until its owner resubmits it;
+	* not the entry state (`states[0]`, where every new document starts) --
+	  unless the entry state is itself a queue, which is how Employee works: a
+	  new employee starts IN "Pending HR Approval" and stays there until HR acts.
+	  The verb is what distinguishes them: "Approve" is an action, "Submit for
+	  Approval" only contains the noun.
+
+	**Approved** states are the `doc_status` 1 ones, so the tile's second number
+	means the same thing on every DocType. A cancelled document keeps its
+	approved workflow state, which is why callers must also exclude
+	`docstatus = 2`.
+
+	Order follows the Workflow document (AGENTS.md invariant 10), and repeated
+	state rows are collapsed: Employee genuinely lists "Pending HR Approval"
+	three times, and a duplicate only bloats the `in` filter.
+	"""
+	from frappe.model import workflow as workflow_model
+
+	workflow_name = workflow_model.get_workflow_name(doctype)
+	if not workflow_name:
+		return None, [], []
+
+	workflow = frappe.get_doc("Workflow", workflow_name)
+
+	# A Workflow may name its own state column (`status`, `compliance_status`),
+	# so the name is read from the Workflow rather than assumed. A Workflow
+	# pointing at a column its DocType lacks could never advance a document, so
+	# that is reported as "no workflow" rather than a name that fails queries.
+	fieldname = workflow.workflow_state_field or "workflow_state"
+	if not frappe.get_meta(doctype).get_field(fieldname):
+		return None, [], []
+
+	states = list(workflow.states)
+	transitions = list(workflow.transitions)
+	entry_state = states[0].state if states else None
+
+	# A state nothing leads OUT of is finished business -- "Closed" on the IMS
+	# workflows and "Approved" on Employee are both `doc_status` 0 and would
+	# otherwise read as queues.
+	actionable = {transition.state for transition in transitions}
+	rejected = {
+		transition.next_state
+		for transition in transitions
+		if "reject" in (transition.action or "").lower()
+	}
+	entry_is_queue = any(
+		transition.state == entry_state
+		and re.search(r"\b(approve|reject|verify)\b", transition.action or "", re.IGNORECASE)
+		for transition in transitions
+	)
+
+	pending = []
+	approved = []
+	for state in states:
+		doc_status = str(state.doc_status or "0")
+		if doc_status == "0":
+			if state.state not in actionable:
+				continue
+			if state.state in rejected:
+				continue
+			if state.state == entry_state and not entry_is_queue:
+				continue
+			if state.state not in pending:
+				pending.append(state.state)
+		elif doc_status == "1":
+			# Expense Claim and Leave Application give their "Rejected" state
+			# `doc_status` 1, so a rejection must not be counted as approved.
+			if state.state in rejected:
+				continue
+			if state.state not in approved:
+				approved.append(state.state)
+
+	return fieldname, pending, approved
+
+
+# DocTypes WITHOUT a Workflow: the approval outcome is ERPNext's own `status`
+# Select, so the values meaning "waiting" / "decided" belong to the schema
+# rather than to an admin-authored Workflow. Kept server-side for the same
+# reason SPA_APPROVAL_DOCTYPES is.
+STATUS_ONLY_QUEUES = {
+	"Overtime Log": {"pending": ["Draft"], "approved": ["Approved"]},
+}
+
+
+def _queue_count(doctype, fieldname, states):
+	"""How many documents sit in one of `states`.
+
+	A cancelled document keeps its Workflow state -- Purchase Order 1 here is
+	`docstatus 2` and still `workflow_state "Approved"` -- so `docstatus = 2`
+	must be excluded on BOTH sides, or a cancelled indent that was waiting for
+	approval keeps inflating the pending badge forever.
+	"""
+	if not states:
+		return 0
+
+	filters = {fieldname: ["in", states]}
+	if frappe.get_meta(doctype).is_submittable:
+		filters["docstatus"] = ["<", 2]
+
+	return frappe.db.count(doctype, filters)
+
+
 @frappe.whitelist(allow_guest=False)
-def get_doctype_workflow_field(doctype):
-	"""The column an active Workflow advances on this DocType, or no workflow.
+def get_doctype_workflow_meta(doctype):
+	"""The active Workflow's state column, and the states that form its queues.
 
 	WHY THE BROWSER CANNOT ANSWER THIS
 	----------------------------------
@@ -642,33 +754,74 @@ def get_doctype_workflow_field(doctype):
 	reaches the badge, and the list shows ERPNext's own `status` instead
 	("Draft" while the document is in fact "Waiting For Approval").
 
+	The state NAMES are admin-authored (`Waiting For Approval` on this site,
+	`status` on the IMS workflows, anything at all on a site that renames them),
+	so they are reported from the Workflow rather than guessed by the caller.
+
 	The field is only reported when the DocType really has it, so a client can
 	add it to a query without risking the whole request failing with
-	"Field not permitted in query". Nothing beyond the field's name is
-	disclosed, and the caller must be able to read the DocType.
+	"Field not permitted in query". Nothing beyond the field's name and the
+	state names is disclosed, and the caller must be able to read the DocType.
 	"""
 	if not frappe.has_permission(doctype, "read"):
 		frappe.throw(frappe._("Not permitted to inspect this DocType."), frappe.PermissionError)
 
-	from frappe.model import workflow as workflow_model
+	fieldname, pending_states, approved_states = _workflow_queues(doctype)
+	if not fieldname:
+		return {
+			"has_workflow": False,
+			"fieldname": None,
+			"pending_states": [],
+			"approved_states": [],
+		}
 
-	workflow_name = workflow_model.get_workflow_name(doctype)
-	if not workflow_name:
-		return {"has_workflow": False, "fieldname": None}
+	return {
+		"has_workflow": True,
+		"fieldname": fieldname,
+		"pending_states": pending_states,
+		"approved_states": approved_states,
+	}
 
-	# A Workflow may name its own state column (`status`, `compliance_status`),
-	# so the name is read from the Workflow rather than assumed.
-	fieldname = (
-		frappe.db.get_value("Workflow", workflow_name, "workflow_state_field") or "workflow_state"
-	)
 
-	# A Workflow pointing at a field its DocType lacks could never advance a
-	# document. Report no workflow instead of a column that would fail every
-	# query naming it.
-	if not frappe.get_meta(doctype).get_field(fieldname):
-		return {"has_workflow": False, "fieldname": None}
+@frappe.whitelist(allow_guest=False)
+def get_approval_queues():
+	"""Pending / approved counts for every approval DocType the user can read.
 
-	return {"has_workflow": True, "fieldname": fieldname}
+	The home card and the Approvals hub both need these numbers, and both used
+	to derive them in JavaScript: the hub asked for `status == "Pending"`, a
+	value NONE of these DocTypes has, so a Quotation sitting in
+	`workflow_state == "Waiting For Approval"` counted as zero on the tile and
+	on the home card while the document sat in plain sight.
+
+	One request, using the same `_workflow_queues` helper as the per-DocType
+	meta -- so the number on the card, the number on the tile and the rows the
+	list filters to cannot disagree.
+	"""
+	counts = {}
+	for doctype in SPA_APPROVAL_DOCTYPES:
+		# A DocType the user cannot read is not counted and not named.
+		if not frappe.has_permission(doctype, "read"):
+			continue
+
+		fieldname, pending_states, approved_states = _workflow_queues(doctype)
+		if not fieldname:
+			status_only = STATUS_ONLY_QUEUES.get(doctype)
+			if not status_only:
+				counts[doctype] = {"pending": 0, "approved": 0}
+				continue
+			fieldname = "status"
+			pending_states = status_only["pending"]
+			approved_states = status_only["approved"]
+
+		counts[doctype] = {
+			"pending": _queue_count(doctype, fieldname, pending_states),
+			"approved": _queue_count(doctype, fieldname, approved_states),
+		}
+
+	return {
+		"total_pending": sum(row["pending"] for row in counts.values()),
+		"doctypes": counts,
+	}
 
 
 @frappe.whitelist(allow_guest=False)
