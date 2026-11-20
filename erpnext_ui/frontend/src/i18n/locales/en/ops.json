@@ -521,6 +521,10 @@
   "continue": "Continue to BOM",
   "templateHint": "Select an enabled template in this company. Review quantities before saving.",
   "manageTemplates": "Manage templates",
-  "newTemplate": "New template"
+  "newTemplate": "New template",
+  "fromSalesOrder": "Select from project sales orders",
+  "noSalesItems": "No eligible finished products found in accessible submitted sales orders for this project.",
+  "fetchingRates": "Fetching material rates…",
+  "refreshRates": "Fetch material rates"
  }
 }

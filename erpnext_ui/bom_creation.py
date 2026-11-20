@@ -20,16 +20,18 @@ def prepare_copy(project, source_bom, source_type="BOM"):
 		for field in TEMPLATE_FIELDS:
 			draft.set(field, source.get(field))
 		for table in ("items", "operations", "scrap_items"):
+			if table == "operations" and not source.get("with_operations"):
+				continue
 			for row in source.get(table) or []:
 				# Append only business fields, never template child identities/parent links.
 				draft.append(table, {key: row.get(key) for key in TABLE_FIELDS[table]})
-		if source.routing and not source.get("operations"):
+		if source.get("with_operations") and source.routing and not source.get("operations"):
 			routing = frappe.get_doc("Routing", source.routing)
 			routing.check_permission("read")
 			for row in routing.get("operations") or []:
 				draft.append("operations", {key: row.get(key) for key in TABLE_FIELDS["operations"]})
-		if draft.get("operations"):
-			draft.with_operations = 1
+		if not source.get("with_operations"):
+			draft.routing = None
 	else:
 		draft = frappe.copy_doc(source)
 	draft.project = project_doc.name
@@ -79,3 +81,47 @@ TABLE_FIELDS = {
 	),
 	"scrap_items": ("item_code", "item_name", "stock_qty", "stock_uom", "rate"),
 }
+
+
+def project_sales_order_items(project):
+	"""Read project order items through parent and item permissions."""
+	project_doc = frappe.get_doc("Project", project)
+	project_doc.check_permission("read")
+	frappe.has_permission("BOM", "read", throw=True)
+	frappe.has_permission("Sales Order", "read", throw=True)
+	result = []
+	for order in frappe.get_list(
+		"Sales Order",
+		filters={
+			"project": project,
+			"company": project_doc.company,
+			"docstatus": 1,
+			"status": ["!=", "Closed"],
+		},
+		fields=["name"],
+		order_by="transaction_date desc, name desc",
+		limit_page_length=0,
+	):
+		doc = frappe.get_doc("Sales Order", order.name)
+		doc.check_permission("read")
+		for row in doc.get("items") or []:
+			item = frappe.get_doc("Item", row.item_code)
+			if (
+				not item.has_permission("read")
+				or item.disabled
+				or item.has_variants
+				or not item.is_stock_item
+			):
+				continue
+			result.append(
+				{
+					"sales_order": doc.name,
+					"row": row.name,
+					"item_code": item.name,
+					"item_name": item.item_name,
+					"qty": row.qty,
+					"uom": row.uom,
+					"stock_uom": item.stock_uom,
+				}
+			)
+	return result

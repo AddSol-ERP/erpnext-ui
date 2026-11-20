@@ -78,6 +78,7 @@ function stemOf(file) {
 }
 
 export function AttachmentsPanel({
+  bomItem,
   doctype,
   docname,
   readOnly = false,
@@ -109,7 +110,7 @@ export function AttachmentsPanel({
     try {
       const [cfg, list] = await Promise.all([
         fetchAttachmentConfig(doctype),
-        fetchAttachments(doctype, docname),
+        fetchAttachments(doctype, docname, bomItem),
       ]);
       setConfig(cfg.types || []);
       setFiles(list);
@@ -118,7 +119,7 @@ export function AttachmentsPanel({
     } finally {
       setLoading(false);
     }
-  }, [doctype, docname, t]);
+  }, [doctype, docname, bomItem, t]);
 
   useEffect(() => {
     // `load` setStates only after an awaited API response; the rule
@@ -148,6 +149,7 @@ export function AttachmentsPanel({
       await uploadAttachment({
         doctype,
         docname,
+        bomItem,
         typeKey: current.type.type_key,
         file: current.file,
         // A cleared input means "keep the decided name" -- the field is a

@@ -3997,6 +3997,22 @@ def get_custom_report_data(report_key, filters=None):
     }
 
 
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def get_bom_material_rates(doc):
+    """Preview native and configured pricing-UOM material costs without saving."""
+    from erpnext_ui.bom_costing import preview_material_rates
+
+    return preview_material_rates(doc)
+
+
+@frappe.whitelist(allow_guest=False)
+def get_project_bom_sales_items(project):
+    """List permitted finished products from this project's submitted sales orders."""
+    from erpnext_ui.bom_creation import project_sales_order_items
+
+    return project_sales_order_items(project)
+
+
 @frappe.whitelist(allow_guest=False)
 def get_project_bom_draft(project, source_bom, source_type="BOM"):
     """Prepare a permission-checked unsaved copy for the standard BOM form."""

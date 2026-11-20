@@ -1,3 +1,6 @@
+import { inspectionFieldVisible } from "../../pages/Projects/bom/visibility";
+import ProjectSalesItemPicker from "../../pages/Projects/bom/ProjectSalesItemPicker";
+import { operationsEnabled, routingOperations, operationFieldVisible } from "../../pages/Projects/bom/routing";
 import { buildBomLayout, BOM_TABLE_COLUMNS } from "../../pages/Projects/bom/layout";
 import { deskNewUrl, deskDocUrl } from "../../lib/deskUrl";
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
@@ -116,6 +119,12 @@ export default function GenericFormPage() {
   }, [doc]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [routingLoading, setRoutingLoading] = useState(false);
+  const [ratesLoading, setRatesLoading] = useState(false);
+  const [ratesError, setRatesError] = useState("");
+  const [ratesRevision, setRatesRevision] = useState(0);
+  const routingRequest = useRef(0);
+  useEffect(() => () => { routingRequest.current += 1; }, [doctype, name]);
   const [attachmentsEnabled, setAttachmentsEnabled] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
   const [initialAttachment, setInitialAttachment] = useState(null);
@@ -133,6 +142,7 @@ export default function GenericFormPage() {
 
   const isNew = name === "new" || !name;
   const decodedDoctype = decodeURIComponent(doctype);
+  const isBomForm = ["BOM", "UI BOM Template"].includes(decodedDoctype);
   const decodedName = isNew ? null : decodeURIComponent(name);
 
   useEffect(() => {
@@ -178,8 +188,8 @@ export default function GenericFormPage() {
   );
 
   const tabsTree = useMemo(
-    () => meta ? decodedDoctype === "BOM" ? buildBomLayout(meta, t) : buildLayoutTree(meta) : [],
-    [meta, decodedDoctype, t],
+    () => meta ? isBomForm ? buildBomLayout(meta, t, { template: decodedDoctype === "UI BOM Template" }) : buildLayoutTree(meta) : [],
+    [meta, decodedDoctype, isBomForm, t],
   );
 
   const steps = useMemo(
@@ -189,6 +199,40 @@ export default function GenericFormPage() {
 
   const isReadOnly =
     (doc.docstatus ?? 0) >= 1 || Boolean(doctypeConfig?.readOnly);
+
+  const bomCostKey = JSON.stringify({
+    company: doc.company, project: doc.project, currency: doc.currency,
+    conversion_rate: doc.conversion_rate, rm_cost_as_per: doc.rm_cost_as_per,
+    buying_price_list: doc.buying_price_list,
+    set_rate_of_sub_assembly_item_based_on_bom: doc.set_rate_of_sub_assembly_item_based_on_bom,
+    items: (doc.items || []).map((row) => [row.item_code, row.qty, row.uom, row.conversion_factor, row.bom_no, row.sourced_by_supplier, row.custom_chargeable_qty]),
+  });
+  useEffect(() => {
+    if (decodedDoctype !== "BOM" || loading || isReadOnly || !dirty) return;
+    let active = true;
+    const timer = setTimeout(async () => {
+      const current = docRef.current;
+      setRatesLoading(false);
+      if (!current.company || !current.items?.some((row) => row.item_code && Number(row.qty) > 0)) return;
+      if (current.rm_cost_as_per === "Price List" && !current.buying_price_list) return;
+      setRatesLoading(true);
+      setRatesError("");
+      try {
+        const response = await post("method/erpnext_ui.api.get_bom_material_rates", { doc: { ...current, doctype: "BOM" } });
+        if (active) setDoc((prev) => ({ ...prev, items: prev.items.map((row, index) => {
+          const priced = response.message?.items?.[index];
+          if (!priced || priced.item_code !== row.item_code) return row;
+          const updates = {};
+          for (const key of ["item_name", "description", "uom", "stock_uom", "conversion_factor", "bom_no", "rate", "amount", "base_rate", "custom_pricing_uom", "custom_rate_per_pricing_uom", "custom_calculated_chargeable_qty"]) {
+            if (priced[key] !== undefined) updates[key] = priced[key];
+          }
+          return { ...row, ...updates };
+        }) }));
+      } catch (error) { if (active) setRatesError(error.message); }
+      finally { if (active) setRatesLoading(false); }
+    }, 500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [bomCostKey, decodedDoctype, loading, isReadOnly, dirty, ratesRevision]);
 
   /* ===============================
      FIELD CHANGE
@@ -203,6 +247,32 @@ export default function GenericFormPage() {
         delete next[fieldname];
         return next;
       });
+    }
+
+    if (isBomForm && ["routing", "with_operations"].includes(fieldname)) {
+      const request = ++routingRequest.current;
+      const nextDoc = { ...docRef.current, [fieldname]: value };
+      if (operationsEnabled(nextDoc) && nextDoc.routing) {
+        setRoutingLoading(true);
+        try {
+          const res = await get(`resource/Routing/${encodeURIComponent(nextDoc.routing)}`);
+          if (!res.data) throw new Error("Routing could not be loaded");
+          if (request === routingRequest.current) {
+            setDoc((prev) => prev.routing === nextDoc.routing && operationsEnabled(prev)
+              ? { ...prev, operations: routingOperations(res.data) } : prev);
+          }
+        } catch (e) {
+          if (request === routingRequest.current) {
+            setDoc((prev) => ({ ...prev, routing: null, operations: [] }));
+            toast.error(e.message || t("common.failedToLoad", { name: "Routing" }));
+          }
+        } finally {
+          if (request === routingRequest.current) setRoutingLoading(false);
+        }
+      } else {
+        setRoutingLoading(false);
+        if (fieldname === "routing" && !value) setDoc((prev) => ({ ...prev, operations: [] }));
+      }
     }
 
     // fetch_from auto-population
@@ -354,7 +424,7 @@ export default function GenericFormPage() {
      SAVE / SUBMIT / DELETE
   ============================== */
   const handleSave = async () => {
-    if (isReadOnly) return;
+    if (isReadOnly || routingLoading || ratesLoading) return;
     if (!validateAllAndJump()) return;
     setSaving(true);
 
@@ -682,11 +752,17 @@ export default function GenericFormPage() {
       });
     }
 
+    if (decodedDoctype === "BOM" && !isReadOnly) {
+      actions.push({ label: t("bomCreation.refreshRates"), variant: "btn-outline-primary",
+        disabled: saving || loading || ratesLoading,
+        onClick: () => { markDirty(); setRatesRevision((value) => value + 1); },
+      });
+    }
     if (!isReadOnly) {
       actions.push({
         label: saving ? t("common.saving") : t("common.save"),
         variant: "btn-success",
-        disabled: saving || loading,
+        disabled: saving || loading || routingLoading || ratesLoading,
         onClick: handleSave,
       });
     }
@@ -777,6 +853,8 @@ export default function GenericFormPage() {
     doc,
     loading,
     saving,
+    routingLoading,
+    ratesLoading,
     layoutMode,
     activeStep,
     steps.length,
@@ -798,6 +876,7 @@ export default function GenericFormPage() {
   const renderField = (field) => {
     const Renderer = getFieldRenderer(field.fieldtype);
     return (
+      <>
       <Renderer
         key={field.fieldname}
         field={field}
@@ -806,6 +885,11 @@ export default function GenericFormPage() {
         error={errors[field.fieldname]}
         disabled={isReadOnly}
       />
+      {decodedDoctype === "BOM" && field.fieldname === "item" && doc.project && <ProjectSalesItemPicker key={doc.project} project={doc.project} disabled={isReadOnly || !!field.read_only} onSelect={(row) => {
+        handleFieldChange("item", row.item_code);
+        setDoc((prev) => ({ ...prev, uom: row.stock_uom }));
+      }} />}
+      </>
     );
   };
 
@@ -814,6 +898,7 @@ export default function GenericFormPage() {
     let currentRow = [];
 
     fields.forEach((field) => {
+      if (isBomForm && (!operationFieldVisible(field.fieldname, doc) || !inspectionFieldVisible(field.fieldname, doc))) return;
       const ft = field.fieldtype;
 
       if (["Section Break", "Column Break", "Tab Break", "Fold", "Page Break"].includes(ft)) {
@@ -849,14 +934,16 @@ export default function GenericFormPage() {
               <div key={rowIdx} className="mb-4">
                 <ChildTable
                   title={cf.label}
-                  compactFields={decodedDoctype === "BOM" ? BOM_TABLE_COLUMNS[cf.options] || childFields.filter((field) => field.in_list_view || field.reqd).map((field) => field.fieldname) : undefined}
+                  bomAttachments={decodedDoctype === "BOM" && cf.fieldname === "items" && attachmentsEnabled}
+                  bomName={decodedName}
+                  compactFields={isBomForm ? BOM_TABLE_COLUMNS[cf.options] || childFields.filter((field) => field.in_list_view || field.reqd).map((field) => field.fieldname) : undefined}
                   pricingSide={["Purchase Order", "Purchase Receipt", "Purchase Invoice", "Supplier Quotation", "Material Request"].includes(decodedDoctype) ? "buying" : ["Sales Order", "Sales Invoice", "Delivery Note", "Quotation", "POS Invoice"].includes(decodedDoctype) ? "selling" : undefined}
                   columns={childFields
                     .filter(
                       (c) =>
                         c.fieldname &&
                         !c.hidden &&
-                        (decodedDoctype !== "BOM" || !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break", "HTML", "Button"].includes(c.fieldtype)) &&
+                        (!isBomForm || !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break", "HTML", "Button"].includes(c.fieldtype)) &&
                         !["custom_estimated_chargeable_qty", "custom_estimated_pricing_amount"].includes(c.fieldname) &&
                         c.fieldname !== "parent" &&
                         c.fieldname !== "parenttype" &&
@@ -885,7 +972,7 @@ export default function GenericFormPage() {
                     }))}
                   value={doc[cf.fieldname] || []}
                   onChange={(val) => handleFieldChange(cf.fieldname, val)}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || (cf.fieldname === "operations" && routingLoading)}
                 />
               </div>
             );
@@ -945,7 +1032,7 @@ export default function GenericFormPage() {
   // when >2. Sections with errors always open (FormSection).
   const sectionDefaultOpen = (section, index, total) => {
     if (sectionHasErrors(section)) return true;
-    if (decodedDoctype === "BOM" && index < 2) return true;
+    if (isBomForm && index < 2) return true;
     if (total <= 2) return true;
     return index === 0;
   };
@@ -965,7 +1052,7 @@ export default function GenericFormPage() {
         title={section.label}
         description={section.description}
         icon={sectionIcon(section)}
-        className={decodedDoctype === "BOM" ? "mb-0 ring-0 hover:shadow-none" : "mb-4"}
+        className={isBomForm ? "mb-0 ring-0 hover:shadow-none" : "mb-4"}
         collapsible
         defaultOpen={defaultOpen}
         errorCount={errorCount}
@@ -996,11 +1083,11 @@ export default function GenericFormPage() {
           setActiveTab(Number(v));
           setSummary("");
         }}
-        className={decodedDoctype === "BOM" ? "w-full gap-0 border border-border/70 bg-card shadow-sm" : "w-full"}
+        className={isBomForm ? "w-full gap-0 border border-border/70 bg-card shadow-sm" : "w-full"}
       >
         <TabsList
-          variant={decodedDoctype === "BOM" ? "default" : "line"}
-          className={decodedDoctype === "BOM"
+          variant={isBomForm ? "default" : "line"}
+          className={isBomForm
             ? "h-auto w-full flex-wrap justify-start gap-0 rounded-none border-b border-border/60 bg-muted/30 p-0"
             : "h-auto w-full flex-wrap justify-start gap-1.5 border-b border-border/60 bg-transparent px-1 py-1.5"}
         >
@@ -1011,7 +1098,7 @@ export default function GenericFormPage() {
               <TabsTrigger
                 key={tab.id}
                 value={String(i)}
-                className={decodedDoctype === "BOM"
+                className={isBomForm
                   ? "h-auto flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 py-2.5 text-xs font-medium text-chrome-muted shadow-none transition-colors after:hidden hover:bg-muted hover:text-chrome-foreground data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
                   : "gap-2 rounded-md border border-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=active]:font-semibold hover:text-foreground"}
               >
@@ -1026,7 +1113,7 @@ export default function GenericFormPage() {
           })}
         </TabsList>
         {tabList.map((tab, i) => (
-          <TabsContent key={tab.id} value={String(i)} className={decodedDoctype === "BOM" ? "m-0 p-0" : "pt-4"}>
+          <TabsContent key={tab.id} value={String(i)} className={isBomForm ? "m-0 p-0" : "pt-4"}>
             {tab.description && (
               <p className="mb-3 text-xs text-muted-foreground">
                 {tab.description}
@@ -1152,7 +1239,7 @@ export default function GenericFormPage() {
         onClose={() => setShowAttachments(false)}
       />
 
-      <div className={decodedDoctype === "BOM" ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
+      <div className={isBomForm ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
       <FormErrorSummary summary={summary} fieldErrors={errors} className="mb-4" />
 
       <RequiredAttachmentDialog
@@ -1164,6 +1251,8 @@ export default function GenericFormPage() {
         disabled={saving}
       />
 
+      {decodedDoctype === "BOM" && ratesLoading && <p role="status" className="mb-3 text-sm text-muted-foreground">{t("bomCreation.fetchingRates")}</p>}
+      {decodedDoctype === "BOM" && ratesError && <p role="alert" className="mb-3 text-sm text-destructive">{ratesError}</p>}
       {body}
 
       {/* Read-only system info for existing docs */}

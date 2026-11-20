@@ -3826,3 +3826,120 @@ Checks: seven draft preparation tests and 20 manufacturing tests pass, targeted
 ESLint/Ruff, EN/HI/AR project/BOM selection/render/route checks, production build.
 Deploy with bench migrate to install template DocTypes, restart and refreshed
 frontend assets. Actual site save/submission requires deployment verification.
+
+### BOM Template form matches BOM design (2026-11-20)
+
+BOM and UI BOM Template now share the same presentation flag in GenericForm:
+1600px width, rectangular active tabs, flush tab/content border, no detached
+section spacing, and compact child tables with full row editing. Template uses
+buildBomLayout's Details / Raw Materials / Operations / Scrap / Costing grouping;
+template name, enabled and description live in Details, with all fields retained.
+Dedicated template child column mappings mirror native BOM material/operation/
+scrap grids. Loading/copy/save logic remains doctype-specific. Targeted ESLint,
+EN/HI/AR project/BOM/template field-preservation checks and production build pass.
+
+### Routing operations follow With Operations (2026-11-20)
+
+BOM and template forms now load Routing operations when routing is selected with
+With Operations enabled, or when enabling the checkbox with a routing selected.
+Copies contain only business fields, never Routing child parent/name identities.
+Changing routing replaces operations; clearing it clears rows. Checkbox off hides
+routing/operations/operation settings without erasing manual rows in the form.
+Pending routing requests disable Save and operation editing; request sequencing
+rejects stale responses after a selection/toggle/document change. Load failure
+clears routing/rows and shows the error. Template validation no longer forces
+With Operations on; template-to-BOM preparation respects the flag and skips
+routing/operations when off. Eight draft tests, EN/HI/AR project/BOM smoke plus
+routing copy/visibility assertions, targeted lint and production build pass.
+
+### BOM Template naming series (2026-11-20)
+
+New templates use native naming_series `BOM-TPL-.YYYY.-.#####`, for example
+BOM-TPL-2026-00001, instead of hash IDs. Series selector is in the shared Details
+tab; template_name remains the display title. Post-model-sync patch backfills
+missing series on existing templates without renaming their IDs/references.
+Run bench migrate when deploying. Targeted lint, existing project/BOM/template
+render/field-preservation checks and rebuilt production assets pass.
+
+### BOM finished item from project sales orders (2026-11-20)
+
+The BOM Item field offers Select from project sales orders when a Project is set.
+The modal lists item/name, order reference and ordered qty/UOM. Selecting fills
+Item and stock UOM through the existing form handler, preserving BOM base quantity
+and raw material proportions. The ordinary item search remains available.
+`get_project_bom_sales_items` checks Project/BOM/Sales Order read, queries only
+permission-filtered submitted non-Closed orders in project/company, verifies
+parent reads and Item read, and excludes disabled, variant-template and non-stock
+items. Picker errors/empty states do not fall back to unrestricted items. Nine
+BOM backend tests, targeted lint, project/BOM smoke and production build pass.
+
+### Conditional BOM quality inspection template (2026-11-20)
+
+BOM presentation hides quality_inspection_template unless
+quality_inspection_required is enabled (numeric/string checkbox values supported).
+The requirement checkbox remains visible; toggling it updates template visibility
+immediately. Existing stored template selection is retained when hidden. Targeted
+ESLint, project/BOM smoke plus visibility assertions and production build pass.
+
+### Child tables scroll within their rows (2026-11-20)
+
+Shared ChildTable now caps desktop and mobile row areas at min(28rem, 60vh),
+scrolling long operations/materials/other child rows internally. Add Row toolbar
+stays outside scrolling; desktop column headers are sticky. Desktop horizontal
+and vertical scrolling share one Table container to avoid nested overflow hiding
+the sticky header. Scroll regions are labelled and keyboard focusable. Shared
+Table accepts optional containerClassName/containerProps; other tables retain
+existing defaults. Targeted lint, existing project/BOM rendering checks and rebuilt
+production assets pass.
+
+### Full BOM and per-material-row file uploads (2026-11-20)
+
+BOM is now seeded into the existing attachment policy with optional private
+BOM_FILE documents/drawings (PDF/images/Office/CSV/CAD, max 20 MB; native site
+restrictions still apply). Whole-BOM toolbar uploads and each materials row's
+Attachments action use the shared multiple-file panel. Save parent/row first;
+unsaved rows display the standard save-first hint. Submitted/read-only forms
+retain viewing but no upload/delete, matching existing attachment behavior.
+
+File.ui_bom_item Data field (migration add_bom_item_attachment_reference) records
+row scope while attached_to_doctype/name stay BOM, preserving private file parent
+permissions. Upload/list require parent write/read respectively; row scope must
+match a persisted BOM Item in that BOM's items table. Before migration row scope
+fails closed. Whole-BOM list excludes row files; row panels filter exact row.
+Existing deletion requires BOM write and the recognized document type marker.
+No attachment is required by default; either scope or both may be used. Template/
+BOM copies do not automatically copy file links. Run bench migrate to install
+File field and seed policy. Existing admin policy choices remain unchanged.
+
+Six scope/permission tests, four attachment settings tests, nine BOM tests,
+EN/HI/AR project/BOM/item-action smoke, frontend lint and production build pass.
+ui_documents.py retains its 20 existing lint findings, with no new finding codes
+or counts. Live file upload/download needs deployment verification.
+
+### Native BOM material rates and pricing-UOM costs (2026-11-20)
+
+BOM form fetches material rates after material/cost-source edits (debounced,
+stale responses ignored) and has Fetch material rates for explicit refresh.
+Preview endpoint get_bom_material_rates checks BOM create/existing write,
+Company/Project/Item/subassembly read and Price List/Item Price read for pricing.
+It uses native BOM material details, currency and cost-source methods without
+saving. Existing clean documents are not automatically repriced on opening.
+
+UomPricingBOM extends native calculate_rm_cost: native valuation, last-purchase,
+supplier/customer provided and subassembly costing stay intact. For Price List
+rows with buying UOM pricing enabled, the configured formula computes pricing
+quantity from stock quantity; optional custom_chargeable_qty is the measured
+line total, required for Direct Entry. Native get_item_price date/general-party
+filtering and packing validation find an exact pricing-UOM Item Price in the
+selected buying list; blank/stock-UOM prices never masquerade as pricing-UOM
+prices. Missing exact price fails explicitly. Converted per-UOM price × chargeable
+qty / row qty gives standard rate; native precision/currency fields and aggregate
+costs reflect it on save and native cost updates. This pricing configuration does
+not itself store a price: admins must maintain Item Prices in its pricing UOM.
+
+Migration add_bom_pricing_fields adds read-only pricing UOM, per-UOM rate,
+calculated pricing qty and editable measured chargeable qty to BOM Item. Compact
+rows show pricing UOM/per-UOM rate alongside native rate/amount. Deploy with bench
+migrate and restart for controller override, plus rebuilt frontend assets.
+Checks: 25 BOM backend tests, targeted lint, existing project/BOM render checks
+and production build pass. Live ERPNext save/cost-update needs site verification.

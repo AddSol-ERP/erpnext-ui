@@ -35,3 +35,9 @@ erpnext_ui.patches.v1_0.refresh_pricing_dimension_values
 
 erpnext_ui.patches.v1_0.apply_uom_pricing_layout
 erpnext_ui.patches.v1_0.share_quotation_evaluation_permissions
+
+erpnext_ui.patches.v1_0.bom_template_naming_series
+
+erpnext_ui.patches.v1_0.add_bom_item_attachment_reference
+
+erpnext_ui.patches.v1_0.add_bom_pricing_fields

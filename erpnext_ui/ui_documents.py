@@ -110,6 +110,9 @@ DOCUMENT_KEY_PATTERN = re.compile(r"^\[([A-Z0-9_]+)\]")
 # as a `[KEY]` marker, so renaming one later orphans the files already uploaded
 # under the old name. The first upload is the cheapest moment to get it right.
 DOCUMENT_ATTACHMENT_CONFIG = {
+    "BOM": {
+        "BOM_FILE": {"label": "BOM document / drawing", "extensions": ["pdf", "jpg", "jpeg", "png", "webp", "doc", "docx", "xls", "xlsx", "csv", "dwg", "dxf", "step", "stp"], "max_size_mb": 20, "sort_order": 10},
+    },
     "Purchase Receipt": {
         "RECEIPT_PHOTO": {"label": "Goods photo", "extensions": ["jpg", "jpeg", "png", "webp", "pdf"], "max_size_mb": 8, "sort_order": 10},
         "WEIGHBRIDGE_TICKET": {"label": "Weighbridge ticket", "extensions": ["jpg", "jpeg", "png", "webp", "pdf"], "max_size_mb": 8, "sort_order": 20},
@@ -700,7 +703,7 @@ def _safe_stem(file_name, original_name, extension):
 
 
 @frappe.whitelist(allow_guest=False)
-def upload_document(doctype, docname, type_key, file_name=None, remark=None):
+def upload_document(doctype, docname, type_key, file_name=None, remark=None, bom_item=None):
     """Attach an uploaded file to a transaction, as a private `File`.
 
     The document must already be SAVED: a `File` is attached by name, and there
@@ -747,6 +750,7 @@ def upload_document(doctype, docname, type_key, file_name=None, remark=None):
         frappe.throw(_("{0} {1} does not exist.").format(doctype, docname))
 
     _require_write(doctype, docname)
+    _validate_bom_item_scope(doctype, docname, bom_item)
 
     uploaded = frappe.request.files.get("file")
     if not uploaded:
@@ -798,6 +802,8 @@ def upload_document(doctype, docname, type_key, file_name=None, remark=None):
     # the column.
     if remark_value and frappe.db.has_column("File", "ui_remark"):
         file_values["ui_remark"] = remark_value
+    if bom_item:
+        file_values["ui_bom_item"] = bom_item
     file_doc = frappe.get_doc(file_values)
     file_doc.save(ignore_permissions=False)
 
@@ -815,7 +821,7 @@ def upload_document(doctype, docname, type_key, file_name=None, remark=None):
 
 
 @frappe.whitelist(allow_guest=False)
-def list_document_attachments(doctype, docname):
+def list_document_attachments(doctype, docname, bom_item=None):
     """Every stored attachment on one document, newest first.
 
     Read through the parent document's READ permission rather than the File's,
@@ -839,6 +845,11 @@ def list_document_attachments(doctype, docname):
             frappe.PermissionError,
         )
 
+    _validate_bom_item_scope(doctype, docname, bom_item)
+    file_filters = {"attached_to_doctype": doctype, "attached_to_name": docname}
+    if doctype == "BOM" and frappe.db.has_column("File", "ui_bom_item"):
+        file_filters["ui_bom_item"] = bom_item or ["is", "not set"]
+
     # The remark column is a Custom Field that only exists after
     # patches/v1_0/add_file_ui_remark_field.py has run; SELECTing it before
     # then is the OperationalError 1054 this guard exists to prevent.
@@ -849,7 +860,7 @@ def list_document_attachments(doctype, docname):
 
     rows = frappe.get_all(
         "File",
-        filters={"attached_to_doctype": doctype, "attached_to_name": docname},
+        filters=file_filters,
         fields=fields,
         order_by="creation desc",
         limit_page_length=200,
@@ -922,3 +933,14 @@ def delete_document_attachment(file_name):
     frappe.delete_doc("File", file_name, ignore_permissions=False)
 
     return {"deleted": file_name}
+
+
+def _validate_bom_item_scope(doctype, docname, bom_item):
+    if not bom_item:
+        return
+    if doctype != "BOM":
+        frappe.throw(_("Item attachments are supported only for BOMs."))
+    if not frappe.db.has_column("File", "ui_bom_item"):
+        frappe.throw(_("Run bench migrate before uploading BOM item files."))
+    if not frappe.db.exists("BOM Item", {"name": bom_item, "parent": docname, "parenttype": "BOM", "parentfield": "items"}):
+        frappe.throw(_("Save this BOM item before attaching files."), frappe.PermissionError)

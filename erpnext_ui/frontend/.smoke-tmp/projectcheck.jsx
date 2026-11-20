@@ -8,7 +8,7 @@ import { HeaderProvider } from "@/context/HeaderContext";
 import i18n from "@/i18n/index.js";
 import Projects from "@/pages/Projects";
 import BomCreation from "@/pages/Projects/bom/BomCreation";
-import { buildBomLayout } from "@/pages/Projects/bom/layout";
+import { buildBomLayout, BOM_TABLE_COLUMNS } from "@/pages/Projects/bom/layout";
 import ChildTable from "@/components/ChildTable";
 import PlanningContent from "@/pages/Production/projects/PlanningContent";
 import { applyDoctypeAccess, getAccessibleModules, getFailClosedModules } from "@/config/moduleAccess";
@@ -98,7 +98,7 @@ for (const language of ["en", "hi", "ar"]) {
   const desktopBody = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/)[1];
   assert.equal(desktopBody.split(`>${i18n.t("common.edit")}</button>`).length - 1, 1, "One desktop Edit action per row");
   assert(!desktopBody.includes("</td><button"), "Buttons must be inside table cells");
-  const mobileBody = html.split('class="flex flex-col gap-3 p-3 md:hidden"')[1];
+  const mobileBody = html.split('class="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto overscroll-contain p-3 md:hidden"')[1];
   assert.equal(mobileBody.split(`>${i18n.t("common.edit")}</button>`).length - 1, 1, "One mobile Edit action per row");
 }
 console.log("BOM layout preserves native/custom fields and compact materials render in EN/HI/AR");
@@ -112,3 +112,45 @@ for (const language of ["en", "hi", "ar"]) {
 }
 assert.equal(matchRoutes(routes, "/projects/view/PROJECT/bom/create").at(-1).route.path, "/projects/view/:project/bom/create");
 console.log("BOM starting options and EN/HI/AR translations passed");
+
+const templateMeta = JSON.parse(readFileSync("../addsol_erpnext_ui/doctype/ui_bom_template/ui_bom_template.json", "utf8"));
+for (const language of ["en", "hi", "ar"]) {
+  await i18n.changeLanguage(language);
+  const tabs = buildBomLayout(templateMeta.fields, i18n.t.bind(i18n), { template: true });
+  assert.equal(tabs.length, 5);
+  const details = tabs[0].sections[0].fields.map((f) => f.fieldname);
+  for (const field of ["template_name", "enabled", "description", "item", "company"]) assert(details.includes(field));
+  const names = tabs.flatMap((tab) => tab.sections.flatMap((section) => section.fields.map((field) => field.fieldname)));
+  const expected = templateMeta.fields.filter((f) => !["Tab Break", "Section Break", "Column Break"].includes(f.fieldtype)).map((f) => f.fieldname);
+  assert.deepEqual([...names].sort(), expected.sort());
+  for (const table of templateMeta.fields.filter((f) => f.fieldtype === "Table")) assert(BOM_TABLE_COLUMNS[table.options]?.length);
+}
+console.log("BOM Template shares BOM tabs and compact columns, preserving all fields");
+
+const { routingOperations, operationFieldVisible } = await import("../src/pages/Projects/bom/routing.js");
+const sourceOperations = { operations: [{ name: "OLD", parent: "ROUTE", operation: "Cut", workstation: "SAW", time_in_mins: 15, sequence_id: 2, batch_size: 1 }] };
+const copiedOperations = routingOperations(sourceOperations);
+assert.deepEqual(copiedOperations, [{ operation: "Cut", workstation: "SAW", time_in_mins: 15, sequence_id: 2, batch_size: 1 }]);
+assert.deepEqual(routingOperations({}), []);
+assert(sourceOperations.operations[0].name === "OLD");
+for (const flag of [0, "0", null, undefined]) {
+  for (const field of ["routing", "operations", "transfer_material_against"]) assert(!operationFieldVisible(field, { with_operations: flag }));
+  assert(operationFieldVisible("with_operations", { with_operations: flag }));
+}
+for (const flag of [1, "1", true]) assert(operationFieldVisible("operations", { with_operations: flag }));
+console.log("Routing operations copy and checkbox visibility checks passed");
+
+const { inspectionFieldVisible } = await import("../src/pages/Projects/bom/visibility.js");
+for (const flag of [0, "0", null, undefined, false]) assert(!inspectionFieldVisible("quality_inspection_template", { quality_inspection_required: flag }));
+for (const flag of [1, "1", true]) assert(inspectionFieldVisible("quality_inspection_template", { quality_inspection_required: flag }));
+assert(inspectionFieldVisible("quality_inspection_required", {}));
+assert(inspectionFieldVisible("item", {}));
+console.log("BOM inspection template follows quality inspection requirement");
+
+for (const language of ["en", "hi", "ar"]) {
+  await i18n.changeLanguage(language);
+  const html = renderToString(<I18nextProvider i18n={i18n}><ChildTable title="Items" bomAttachments bomName="BOM-1" compactFields={["item_code"]} columns={[{ field: "item_code", type: "text", label: "Item" }]} value={[{ name: "ROW-1", item_code: "RAW" }]} /></I18nextProvider>);
+  assert(html.includes(i18n.t("attachments.open")));
+  assert(!html.includes("attachments.open"));
+}
+console.log("BOM item attachment actions render in EN/HI/AR");

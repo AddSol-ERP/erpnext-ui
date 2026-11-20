@@ -2,11 +2,11 @@ import { buildLayoutTree } from "../../../components/GenericForm/buildLayout";
 
 // Layout only: every visible native/custom field remains available. Saving still
 // uses the complete document and native BOM validation through GenericForm.
-export function buildBomLayout(fields, t) {
+export function buildBomLayout(fields, t, { template = false } = {}) {
   const available = buildLayoutTree(fields).flatMap((tab) => tab.sections.flatMap((section) => section.fields));
   const used = new Set();
   const groups = [
-    ["details", ["item", "company", "project", "quantity", "uom", "is_active", "is_default", "allow_alternative_item", "set_rate_of_sub_assembly_item_based_on_bom"]],
+    ["details", [...(template ? ["naming_series", "template_name", "enabled", "description"] : []), "item", "company", "project", "quantity", "uom", "is_active", "is_default", "allow_alternative_item", "set_rate_of_sub_assembly_item_based_on_bom"]],
     ["materials", ["items"]],
     ["operations", ["with_operations", "transfer_material_against", "routing", "fg_based_operating_cost", "operating_cost_per_bom_quantity", "operations"]],
     ["scrap", ["scrap_items", "process_loss_percentage", "process_loss_qty"]],
@@ -27,7 +27,10 @@ export function buildBomLayout(fields, t) {
 }
 
 export const BOM_TABLE_COLUMNS = {
-  "BOM Item": ["item_code", "qty", "uom", "rate", "amount", "bom_no"],
+  "UI BOM Template Item": ["item_code", "qty", "uom", "rate", "bom_no"],
+  "UI BOM Template Operation": ["operation", "workstation", "time_in_mins", "hour_rate"],
+  "UI BOM Template Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate"],
+  "BOM Item": ["item_code", "qty", "uom", "custom_pricing_uom", "custom_rate_per_pricing_uom", "rate", "amount", "bom_no"],
   "BOM Operation": ["operation", "workstation", "time_in_mins", "hour_rate", "operating_cost"],
   "BOM Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate", "amount"],
 };

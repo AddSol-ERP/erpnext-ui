@@ -143,6 +143,7 @@ jinja = {
 # Override standard doctype classes
 
 # override_doctype_class = {
+	"BOM": "erpnext_ui.bom_costing.UomPricingBOM",
 # 	"ToDo": "custom_app.overrides.CustomToDo"
 # }
 
@@ -161,6 +162,7 @@ jinja = {
 # `_action in ("save", "submit")`. So no hook can run early enough. Overriding
 # `insert` can. See erpnext_ui/overrides.py for the full account.
 override_doctype_class = {
+	"BOM": "erpnext_ui.bom_costing.UomPricingBOM",
 	"Quality Inspection": "erpnext_ui.overrides.QualityInspection",
 	"Purchase Receipt": "erpnext_ui.overrides.UomPricingPurchaseReceipt",
 	"Purchase Invoice": "erpnext_ui.overrides.UomPricingPurchaseInvoice",

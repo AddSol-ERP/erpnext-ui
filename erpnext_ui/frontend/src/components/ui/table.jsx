@@ -5,12 +5,15 @@ import { cn } from "cn"
 
 function Table({
   className,
+  containerClassName,
+  containerProps,
   ...props
 }) {
   return (
     <div
+      {...containerProps}
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"

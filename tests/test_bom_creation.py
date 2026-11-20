@@ -99,6 +99,7 @@ class BomCreationTests(unittest.TestCase):
 		self.frappe.get_doc.assert_not_called()
 
 	def test_routing_operations_loaded_with_permission(self):
+		self.source.with_operations = 1
 		self.source.routing = "ROUTING"
 		routing = Doc(operations=[Doc(operation="Cut", time_in_mins=10, name="OLD")])
 		self.frappe.get_doc.side_effect = lambda dt, name: (
@@ -110,3 +111,33 @@ class BomCreationTests(unittest.TestCase):
 		routing.denied = True
 		with self.assertRaises(PermissionError):
 			self.module.prepare_copy("PROJECT", "TEMPLATE", "UI BOM Template")
+
+	def test_disabled_operations_are_not_reenabled_when_using_template(self):
+		self.source.with_operations = 0
+		self.source.routing = "ROUTING"
+		self.source.operations = [Doc(operation="Cut", time_in_mins=10)]
+		result = self.module.prepare_copy("PROJECT", "TEMPLATE", "UI BOM Template")
+		self.assertEqual(result["with_operations"], 0)
+		self.assertIsNone(result["routing"])
+		self.assertFalse(result.get("operations"))
+
+	def test_project_sales_items_filter_orders_and_preserve_units(self):
+		order = Doc(name="SO-1", items=[Doc(name="ROW-1", item_code="FG", qty=12, uom="Box")])
+		item = Doc(name="FG", item_name="Product", stock_uom="Nos", is_stock_item=1)
+		item.has_permission = Mock(return_value=True)
+		self.frappe.get_list = Mock(return_value=[Doc(name="SO-1")])
+		self.frappe.get_doc.side_effect = lambda dt, name: (
+			self.project if dt == "Project" else order if dt == "Sales Order" else item
+		)
+		result = self.module.project_sales_order_items("PROJECT")
+		self.assertEqual(result[0]["sales_order"], "SO-1")
+		self.assertEqual((result[0]["stock_uom"], result[0]["uom"]), ("Nos", "Box"))
+		filters = self.frappe.get_list.call_args.kwargs["filters"]
+		self.assertEqual(filters["project"], "PROJECT")
+		self.assertEqual(filters["company"], "ACME")
+		self.assertEqual(filters["docstatus"], 1)
+		item.has_permission.return_value = False
+		self.assertEqual(self.module.project_sales_order_items("PROJECT"), [])
+		order.denied = True
+		with self.assertRaises(PermissionError):
+			self.module.project_sales_order_items("PROJECT")

@@ -45,11 +45,12 @@ export async function validateRequiredAttachments({ doctype, docname, event }) {
  *
  * @returns {Promise<Array<object>>}
  */
-export async function fetchAttachments(doctype, docname) {
+export async function fetchAttachments(doctype, docname, bomItem) {
   if (!docname) return [];
   const res = await get(`method/${NS}.list_document_attachments`, {
     doctype,
     docname,
+    ...(bomItem ? { bom_item: bomItem } : {}),
   });
   return res?.message?.files || [];
 }
@@ -69,7 +70,7 @@ export async function fetchAttachments(doctype, docname) {
  *
  * @returns {Promise<object>} the created File descriptor
  */
-export function uploadAttachment({ doctype, docname, typeKey, file, fileName, remark }) {
+export function uploadAttachment({ doctype, docname, typeKey, file, fileName, remark, bomItem }) {
   const formData = new FormData();
   formData.append("doctype", doctype);
   formData.append("docname", docname);
@@ -77,6 +78,7 @@ export function uploadAttachment({ doctype, docname, typeKey, file, fileName, re
   formData.append("file", file);
   if (fileName) formData.append("file_name", fileName);
   if (remark) formData.append("remark", remark);
+  if (bomItem) formData.append("bom_item", bomItem);
   return uploadFile(`method/${NS}.upload_document`, formData);
 }
 

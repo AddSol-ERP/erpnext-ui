@@ -17,5 +17,3 @@ class UIBOMTemplate(Document):
 				frappe.throw("Raw material conversion factors must be positive.")
 		if self.routing:
 			frappe.get_doc("Routing", self.routing).check_permission("read")
-		if self.operations or self.routing:
-			self.with_operations = 1

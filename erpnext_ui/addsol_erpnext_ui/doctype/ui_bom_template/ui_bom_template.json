@@ -11,6 +11,15 @@
    "fieldtype": "Tab Break"
   },
   {
+   "fieldname": "naming_series",
+   "label": "Series",
+   "fieldtype": "Select",
+   "options": "BOM-TPL-.YYYY.-.#####",
+   "default": "BOM-TPL-.YYYY.-.#####",
+   "reqd": 1,
+   "no_copy": 1
+  },
+  {
    "fieldname": "template_name",
    "label": "Template Name",
    "fieldtype": "Data",
@@ -152,6 +161,7 @@
  ],
  "field_order": [
   "details_tab",
+  "naming_series",
   "template_name",
   "enabled",
   "company",
@@ -208,7 +218,7 @@
    "delete": 1
   }
  ],
- "autoname": "hash",
+ "autoname": "naming_series:",
  "title_field": "template_name",
  "search_fields": "template_name,item",
  "sort_field": "modified",

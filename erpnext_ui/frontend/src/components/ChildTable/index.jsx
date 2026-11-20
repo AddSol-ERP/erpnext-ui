@@ -1,3 +1,4 @@
+import { AttachmentsPanel } from "../Attachments";
 import AppModal from "../AppModal";
 import { FormField } from "../FormField";
 import UomPricingEstimate from "../UomPricingEstimate";
@@ -24,10 +25,13 @@ export default function ChildTable({
   disabled = false,
   pricingSide,
   compactFields,
+  bomAttachments = false,
+  bomName,
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState(value || []);
   const [editingRow, setEditingRow] = useState(null);
+  const [attachmentRow, setAttachmentRow] = useState(null);
   const compact = Array.isArray(compactFields);
   const visibleColumns = compact ? columns.filter((column) => compactFields.includes(column.field)) : columns;
 
@@ -122,9 +126,9 @@ export default function ChildTable({
       {/* =========================
           DESKTOP TABLE
       ========================= */}
-      <div className="hidden overflow-x-auto md:block">
-        <Table>
-          <TableHeader>
+      <div className="hidden md:block">
+        <Table containerClassName="max-h-[min(28rem,60vh)] overflow-auto overscroll-contain" containerProps={{ tabIndex: 0, role: "region", "aria-label": title }}>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead className="w-10">#</TableHead>
 
@@ -133,6 +137,7 @@ export default function ChildTable({
               ))}
 
               {compact && <TableHead className="w-20" />}
+              {bomAttachments && <TableHead>{t("attachments.open")}</TableHead>}
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -140,7 +145,7 @@ export default function ChildTable({
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={visibleColumns.length + (compact ? 3 : 2)}>
+                <TableCell colSpan={visibleColumns.length + (compact ? 3 : 2) + (bomAttachments ? 1 : 0)}>
                   {emptyMessage}
                 </TableCell>
               </TableRow>
@@ -169,6 +174,7 @@ export default function ChildTable({
                   ))}
 
                   {compact && <TableCell><Button variant="outline" size="sm" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button></TableCell>}
+                  {bomAttachments && <TableCell><Button type="button" variant="outline" size="sm" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button></TableCell>}
                   {/* DELETE */}
                   <TableCell>
                     {!disabled && (
@@ -193,7 +199,7 @@ export default function ChildTable({
       {/* =========================
           MOBILE CARD VIEW
       ========================= */}
-      <div className="flex flex-col gap-3 p-3 md:hidden">
+      <div className="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto overscroll-contain p-3 md:hidden" role="region" aria-label={title} tabIndex={0}>
         {data.length === 0 ? (
           emptyMessage
         ) : (
@@ -222,6 +228,7 @@ export default function ChildTable({
               </div>
 
               {compact && <Button variant="outline" size="sm" className="mb-3" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button>}
+              {bomAttachments && <Button type="button" variant="outline" size="sm" className="mb-3" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button>}
               {/* FIELDS */}
               <div className="flex flex-col gap-2">
                 {visibleColumns.map((col) => (
@@ -247,6 +254,11 @@ export default function ChildTable({
           ))
         )}
       </div>
+      {bomAttachments && attachmentRow != null && data[attachmentRow] && <AppModal show onClose={() => setAttachmentRow(null)} width="lg"
+        title={`${t("attachments.open")} · ${data[attachmentRow].item_code || attachmentRow + 1}`}>
+        <AttachmentsPanel key={`${bomName || "new"}-${data[attachmentRow].name || attachmentRow}`} doctype="BOM"
+          docname={bomName && data[attachmentRow].name ? bomName : null} bomItem={data[attachmentRow].name} readOnly={disabled} />
+      </AppModal>}
       {compact && editingRow != null && data[editingRow] && <AppModal show onClose={() => setEditingRow(null)} width="lg"
         title={`${title} · ${t("common.row", { n: editingRow + 1 })}`}
         footer={<Button variant="outline" onClick={() => setEditingRow(null)}>{t("common.close")}</Button>}>
