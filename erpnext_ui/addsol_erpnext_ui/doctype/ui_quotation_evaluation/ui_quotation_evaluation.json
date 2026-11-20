@@ -53,6 +53,19 @@
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Decision Notes"
+  },
+  {
+   "fieldname": "ai_request",
+   "fieldtype": "Link",
+   "label": "AI Request",
+   "options": "UI Quotation AI Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_analysis",
+   "fieldtype": "Long Text",
+   "label": "AI Analysis",
+   "read_only": 1
   }
  ],
  "permissions": [
@@ -76,6 +89,18 @@
    "write": 1,
    "create": 1,
    "if_owner": 1
+  },
+  {
+   "role": "Purchase User",
+   "create": 1
+  },
+  {
+   "role": "Purchase Manager",
+   "create": 1
+  },
+  {
+   "role": "System Manager",
+   "create": 1
   }
  ],
  "track_changes": 1,

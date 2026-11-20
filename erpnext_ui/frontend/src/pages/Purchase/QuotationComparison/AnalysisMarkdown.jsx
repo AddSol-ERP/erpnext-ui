@@ -24,12 +24,12 @@ export default function AnalysisMarkdown({ text }) {
     }
     if (/^---+$/.test(line)) { i++; continue; }
     const heading = line.match(/^#{1,6}\s+(.+)/);
-    if (heading) { blocks.push(<h3 key={i} className="pt-2 text-base font-semibold text-foreground">{inline(heading[1])}</h3>); i++; continue; }
+    if (heading) { blocks.push(<h3 key={i} className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm font-semibold text-foreground">{inline(heading[1])}</h3>); i++; continue; }
     if (/^(?:[-*]\s+|\d+[.)]\s+)/.test(line)) {
       const entries = []; const numbered = /^\d/.test(line);
       while (i < lines.length && /^(?:[-*]\s+|\d+[.)]\s+)/.test(lines[i].trim())) entries.push(lines[i++].trim().replace(/^(?:[-*]\s+|\d+[.)]\s+)/, ""));
       const List = numbered ? "ol" : "ul";
-      blocks.push(<List key={i} className={`space-y-1 ps-5 ${numbered ? "list-decimal" : "list-disc"}`}>{entries.map((entry, j) => <li key={j}>{inline(entry)}</li>)}</List>); continue;
+      blocks.push(<List key={i} className={`space-y-2 ps-6 leading-relaxed marker:text-primary ${numbered ? "list-decimal" : "list-disc"}`}>{entries.map((entry, j) => <li key={j}>{inline(entry)}</li>)}</List>); continue;
     }
     blocks.push(<p key={i} className="leading-relaxed">{inline(line)}</p>); i++;
   }

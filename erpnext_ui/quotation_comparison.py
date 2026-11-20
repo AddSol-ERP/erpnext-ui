@@ -1,4 +1,6 @@
 """Read-only supplier quotation comparison, respecting document permissions."""
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate
@@ -95,12 +97,23 @@ def create_purchase_order(quotation):
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
-def save_evaluation(names):
+def save_evaluation(names, ai_request=None):
 	frappe.has_permission("UI Quotation Evaluation", "create", throw=True)
 	comparison = compare_quotations(names)
 	quotation_names = [quote["name"] for quote in comparison["quotations"]]
 	for quote in comparison["quotations"]:
 		quote["modified"] = frappe.db.get_value("Supplier Quotation", quote["name"], "modified")
+	ai_analysis = None
+	if ai_request:
+		log = frappe.get_doc("UI Quotation AI Request", ai_request)
+		log.check_permission("read")
+		logged = frappe.parse_json(log.request_content)
+		current = dict(comparison)
+		current["quotations"] = [{key: value for key, value in quote.items() if key != "modified"} for quote in comparison["quotations"]]
+		current["quotations"].sort(key=lambda quote: quote["name"])
+		if json.dumps(logged, sort_keys=True, default=str) != json.dumps(current, sort_keys=True, default=str):
+			frappe.throw(_("Quotation data changed since the AI analysis. Run analysis again before saving it."))
+		ai_analysis = log.response_content
 	comparison["evaluation_date"] = nowdate()
 	doc = frappe.get_doc({
 		"doctype": "UI Quotation Evaluation",
@@ -109,6 +122,8 @@ def save_evaluation(names):
 		"evaluation_date": comparison["evaluation_date"],
 		"quotation_names": frappe.as_json(quotation_names),
 		"snapshot": frappe.as_json(comparison),
+		"ai_request": ai_request,
+		"ai_analysis": ai_analysis,
 	})
 	try:
 		frappe.flags.creating_quotation_evaluation = True
@@ -161,3 +176,26 @@ def search_quotations(company=None, supplier=None, project=None, material_reques
 		fields=["name", "supplier", "company", "currency", "transaction_date", "valid_till", "docstatus", "grand_total"],
 		order_by="modified desc, name desc", limit_start=page * 20, limit_page_length=21)
 	return {"quotations": rows[:20], "has_more": len(rows) > 20}
+
+
+@frappe.whitelist(allow_guest=False)
+def list_evaluations():
+	"""List the caller's snapshots after checking access to every source."""
+	frappe.has_permission("UI Quotation Evaluation", "read", throw=True)
+	candidates = frappe.get_all("UI Quotation Evaluation", filters={"owner": frappe.session.user},
+		pluck="name", order_by="creation desc", limit_page_length=100)
+	result = []
+	for name in candidates:
+		doc = frappe.get_doc("UI Quotation Evaluation", name)
+		if not doc.has_permission("read"):
+			continue
+		result.append({"name": doc.name, "company": doc.company, "evaluation_date": doc.evaluation_date,
+			"quotation_count": len(frappe.parse_json(doc.quotation_names)), "has_ai_analysis": bool(doc.ai_analysis)})
+	return result
+
+
+@frappe.whitelist(allow_guest=False)
+def get_evaluation(name):
+	doc = frappe.get_doc("UI Quotation Evaluation", name)
+	doc.check_permission("read")
+	return {"name": doc.name, "snapshot": frappe.parse_json(doc.snapshot), "analysis": doc.ai_analysis}

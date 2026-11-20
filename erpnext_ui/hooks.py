@@ -312,8 +312,10 @@ doc_events = {
 # A saved comparison is readable only while its source documents remain readable.
 has_permission = {
 	"UI Quotation Evaluation": "erpnext_ui.addsol_erpnext_ui.doctype.ui_quotation_evaluation.ui_quotation_evaluation.has_permission",
+	"UI Quotation AI Request": "erpnext_ui.addsol_erpnext_ui.doctype.ui_quotation_evaluation.ui_quotation_evaluation.has_permission",
 }
 
 permission_query_conditions = {
 	"UI Quotation Evaluation": "erpnext_ui.addsol_erpnext_ui.doctype.ui_quotation_evaluation.ui_quotation_evaluation.permission_query_conditions",
+	"UI Quotation AI Request": "erpnext_ui.addsol_erpnext_ui.doctype.ui_quotation_evaluation.ui_quotation_evaluation.permission_query_conditions",
 }

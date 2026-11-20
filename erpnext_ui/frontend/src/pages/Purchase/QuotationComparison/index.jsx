@@ -63,14 +63,14 @@ export default function QuotationComparison() {
     setSaving(true);
     setActionError(null);
     try {
-      const response = await post("method/erpnext_ui.quotation_comparison.save_evaluation", { names });
+      const response = await post("method/erpnext_ui.quotation_comparison.save_evaluation", { names, ai_request: analysis?.request_id || null });
       setSaved(response.message.name);
     } catch (err) {
       setActionError(err.message || "Unable to save evaluation.");
     } finally {
       setSaving(false);
     }
-  }, [names]);
+  }, [names, analysis]);
   const createOrder = async (quote) => {
     setCreating(quote.name);
     setActionError(null);
@@ -144,7 +144,24 @@ export default function QuotationComparison() {
           <tfoot><tr><th scope="row" className="sticky bottom-0 start-0 z-30 border-t border-border bg-table-header px-3 py-3 text-start align-top">Quotation totals</th>{result.quotations.map((quote) => <td key={quote.name} className="sticky bottom-0 z-20 border-t border-border bg-table-header px-3 py-3 align-top"><div className="font-semibold tabular-nums">{quote.currency} {quote.grand_total}</div><div className="text-xs text-muted-foreground">Recorded company total: {quote.base_grand_total == null ? "Unavailable" : `${result.company_currency} ${quote.base_grand_total}`}</div></td>)}</tr></tfoot></table>
         </div>{!rows.length && <p className="text-sm text-muted-foreground">No quoted items found.</p>}</section>
       </TabsContent>
-      <TabsContent value="analysis" className="min-w-0 pt-4"><Card><CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="size-4 text-primary" />AI analysis</CardTitle><CardDescription>{analysis ? `${analysis.provider} · ${analysis.model} · ${analysis.cached ? "Reused previous analysis" : "New analysis"} · A plain-language summary based on the available quotation data. Review it against the source quotations before deciding.` : "Get a plain-language summary of supplier strengths, prices, risks and questions to ask. The displayed quotation data will be sent to the configured provider."}</CardDescription></CardHeader><CardContent>{analysis ? <AnalysisMarkdown text={analysis.analysis} /> : <Button variant="outline" onClick={analyze} disabled={analyzing}><Sparkles />{analyzing ? "Analyzing…" : "Analyze with AI"}</Button>}</CardContent></Card></TabsContent>
+      <TabsContent value="analysis" className="min-w-0 space-y-4 pt-4">
+        <section aria-labelledby="facts-heading" className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div><h2 id="facts-heading" className="text-base font-semibold">Quotation facts</h2><p className="text-xs text-muted-foreground">These values come from the selected quotation records. Amounts in different currencies or for different items are not necessarily comparable.</p></div>
+          <div className="max-w-full overflow-x-auto rounded-lg border border-border"><table className="w-full border-separate border-spacing-0 text-sm"><thead className="bg-table-header"><tr><th scope="col" className="sticky start-0 z-10 min-w-40 bg-table-header px-3 py-2 text-start">Factor</th>{result.quotations.map((quote) => <th key={quote.name} scope="col" className="min-w-52 px-3 py-2 text-start"><div>{quote.supplier}</div><div className="text-xs font-normal text-muted-foreground">{quote.name}</div></th>)}</tr></thead><tbody>
+            {[
+              ["Quotation status", (quote) => quote.docstatus === 1 ? "Submitted" : quote.docstatus === 2 ? "Cancelled" : "Draft"],
+              ["Valid until", (quote) => quote.valid_till || "Not available in analysis"],
+              ["Quotation total", (quote) => quote.grand_total == null ? "Not available in analysis" : `${quote.currency} ${quote.grand_total}`],
+              ["Net total before taxes", (quote) => quote.net_total == null ? "Not available in analysis" : `${quote.currency} ${quote.net_total}`],
+              ["Taxes and charges", (quote) => quote.total_taxes_and_charges == null ? "Not available in analysis" : `${quote.currency} ${quote.total_taxes_and_charges}`],
+              ["Linked purchase order", (quote) => created[quote.name] ? "Draft order created" : quote.has_active_order ? "Draft or submitted order linked" : "No draft or submitted order linked"],
+              ["Payment terms", (quote) => quote.payment_terms_template || (quote.payment_schedule?.length ? "Payment schedule available in quotation comparison" : "Not available in analysis")],
+              ["Terms and conditions", (quote) => readableTerms(quote.terms)],
+            ].map(([label, value]) => <tr key={label}><th scope="row" className="sticky start-0 z-10 border-t border-border bg-card px-3 py-2 text-start align-top font-medium">{label}</th>{result.quotations.map((quote) => <td key={quote.name} className="max-w-80 border-t border-border bg-card px-3 py-2 align-top"><div className="max-h-28 overflow-auto whitespace-pre-wrap">{value(quote)}</div></td>)}</tr>)}
+          </tbody></table></div>
+        </section>
+        <Card><CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="size-4 text-primary" />AI observations</CardTitle><CardDescription>{analysis ? `${analysis.provider} · ${analysis.model} · ${analysis.cached ? "Reused previous analysis" : "New analysis"} · Request ${analysis.request_id || "unavailable"}` : "Find questions and trade-offs to discuss with suppliers. The displayed quotation data will be sent to the configured provider."}</CardDescription></CardHeader><CardContent className="space-y-4">{analysis ? <><Alert><AlertTriangle /><AlertDescription>AI observations can contain incorrect or conflicting references. Check each claim against the quotation facts and source documents before deciding.</AlertDescription></Alert><AnalysisMarkdown text={analysis.analysis} /></> : <Button variant="outline" onClick={analyze} disabled={analyzing}><Sparkles />{analyzing ? "Analyzing…" : "Analyze with AI"}</Button>}</CardContent></Card>
+      </TabsContent>
     </Tabs>
   </div>;
 }

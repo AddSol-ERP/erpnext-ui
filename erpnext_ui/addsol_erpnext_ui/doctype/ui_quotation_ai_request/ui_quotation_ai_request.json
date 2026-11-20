@@ -1,0 +1,86 @@
+{
+ "doctype": "DocType",
+ "name": "UI Quotation AI Request",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "autoname": "naming_series:",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "label": "Series",
+   "fieldtype": "Select",
+   "options": "QAI-.YYYY.-",
+   "default": "QAI-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "label": "Company",
+   "fieldtype": "Link",
+   "reqd": 1,
+   "read_only": 1,
+   "options": "Company"
+  },
+  {
+   "fieldname": "quotation_names",
+   "label": "Quotation References",
+   "fieldtype": "Long Text",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "provider",
+   "label": "Provider",
+   "fieldtype": "Data",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "model",
+   "label": "Model",
+   "fieldtype": "Data",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "instructions",
+   "label": "Instructions",
+   "fieldtype": "Long Text",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "request_content",
+   "label": "Request Data",
+   "fieldtype": "Long Text",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "response_content",
+   "label": "Response",
+   "fieldtype": "Long Text",
+   "reqd": 1,
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "Purchase User",
+   "read": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "Purchase Manager",
+   "read": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

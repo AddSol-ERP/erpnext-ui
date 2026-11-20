@@ -59,11 +59,14 @@ class AnalysisCacheTests(unittest.TestCase):
 		self.cache = types.SimpleNamespace(
 			get_value=lambda key, **kwargs: self.values.get(key),
 			set_value=lambda key, value, **kwargs: self.values.update({key: value}),
-			make_key=lambda key: key, lock=lambda *args, **kwargs: nullcontext(),
+			make_key=lambda key: key, lock=lambda *args, **kwargs: types.SimpleNamespace(acquire=lambda: True, release=lambda: None),
 		)
 		self.request = Mock(return_value="analysis")
 		self.context = {"compare_quotations": self.compare, "_settings": lambda: (self.settings, "secret"),
-			"frappe": types.SimpleNamespace(session=types.SimpleNamespace(user="buyer"), cache=lambda: self.cache),
+			"frappe": types.SimpleNamespace(session=types.SimpleNamespace(user="buyer"), cache=lambda: self.cache,
+				get_doc=lambda data: types.SimpleNamespace(name="QAI-1", insert=lambda **kwargs: None),
+				as_json=json.dumps, flags=types.SimpleNamespace(),
+				db=types.SimpleNamespace(after_commit=types.SimpleNamespace(add=lambda fn: fn()), after_rollback=types.SimpleNamespace(add=lambda fn: None))),
 			"json": json, "hashlib": hashlib, "_request": self.request, "ANALYSIS_CACHE_SECONDS": 100}
 		node = next(n for n in ast.parse(source.read_text()).body if isinstance(n, ast.FunctionDef) and n.name == "evaluate_quotations")
 		node.decorator_list = []
