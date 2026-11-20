@@ -9,9 +9,11 @@ import {
   Receipt,
   FileText,
   HelpCircle,
+  Scale,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
+import Section from "../../components/Section";
 import { createTileNav } from "../../lib/tileNav";
 
 const MODULE_DEFS = [
@@ -81,6 +83,19 @@ export default function PurchaseDashboard() {
   return (
     <DashboardShell>
       <ModuleGrid items={modules} onClick={handleTileClick} />
+      <Section title={t("purchase.tools.title")}>
+        <ModuleGrid
+          cols={1}
+          items={[{
+            key: "quotationComparison",
+            icon: Scale,
+            titleKey: "purchase.tools.quotationComparison.title",
+            descriptionKey: "purchase.tools.quotationComparison.description",
+            route: "/purchase/quotation-comparison",
+          }]}
+          onClick={(tile) => navigate(tile.route)}
+        />
+      </Section>
     </DashboardShell>
   );
 }

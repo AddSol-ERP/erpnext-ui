@@ -45,3 +45,50 @@ class ProviderRequestTests(unittest.TestCase):
 
 if __name__ == "__main__":
 	unittest.main()
+
+class AnalysisCacheTests(unittest.TestCase):
+	def setUp(self):
+		import copy
+		import hashlib
+		import json
+		from contextlib import nullcontext
+		self.data = {"company": "Example", "quotations": [{"name": "B", "rate": 2}, {"name": "A", "rate": 1}]}
+		self.compare = Mock(side_effect=lambda names: copy.deepcopy(self.data))
+		self.settings = types.SimpleNamespace(provider="OpenRouter", model="openrouter/free", response_language="English", timeout_seconds=30)
+		self.values = {}
+		self.cache = types.SimpleNamespace(
+			get_value=lambda key, **kwargs: self.values.get(key),
+			set_value=lambda key, value, **kwargs: self.values.update({key: value}),
+			make_key=lambda key: key, lock=lambda *args, **kwargs: nullcontext(),
+		)
+		self.request = Mock(return_value="analysis")
+		self.context = {"compare_quotations": self.compare, "_settings": lambda: (self.settings, "secret"),
+			"frappe": types.SimpleNamespace(session=types.SimpleNamespace(user="buyer"), cache=lambda: self.cache),
+			"json": json, "hashlib": hashlib, "_request": self.request, "ANALYSIS_CACHE_SECONDS": 100}
+		node = next(n for n in ast.parse(source.read_text()).body if isinstance(n, ast.FunctionDef) and n.name == "evaluate_quotations")
+		node.decorator_list = []
+		exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), self.context)
+
+	def test_reuses_identical_data_but_checks_access_each_time(self):
+		evaluate = self.context["evaluate_quotations"]
+		self.assertFalse(evaluate(["A", "B"])["cached"])
+		self.assertTrue(evaluate(["B", "A"])["cached"])
+		self.assertEqual(self.compare.call_count, 2)
+		self.assertEqual(self.request.call_count, 1)
+
+	def test_changed_data_model_or_user_requires_new_analysis(self):
+		evaluate = self.context["evaluate_quotations"]
+		evaluate(["A", "B"])
+		self.data["quotations"][0]["rate"] = 3
+		evaluate(["A", "B"])
+		self.settings.model = "new-model"
+		evaluate(["A", "B"])
+		self.context["frappe"].session.user = "another-buyer"
+		evaluate(["A", "B"])
+		self.assertEqual(self.request.call_count, 4)
+
+	def test_errors_are_not_cached(self):
+		self.request.side_effect = [ValueError("failed"), "ok"]
+		with self.assertRaises(ValueError):
+			self.context["evaluate_quotations"](["A", "B"])
+		self.assertFalse(self.context["evaluate_quotations"](["A", "B"])["cached"])

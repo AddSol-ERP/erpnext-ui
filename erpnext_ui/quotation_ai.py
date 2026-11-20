@@ -1,5 +1,6 @@
 """Provider-backed quotation analysis. Credentials never leave the server."""
 
+import hashlib
 import json
 
 import frappe
@@ -10,6 +11,7 @@ from erpnext_ui.quotation_comparison import compare_quotations
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 SETTINGS_DOCTYPE = "UI Quotation AI Settings"
+ANALYSIS_CACHE_SECONDS = 30 * 24 * 60 * 60
 PROVIDERS = {
 	"openai": ("OpenAI", OPENAI_RESPONSES_URL),
 	"opencode zen": ("OpenCode Zen", "https://opencode.ai/zen/v1/responses"),
@@ -122,5 +124,31 @@ def evaluate_quotations(names):
 		"do not rank suppliers or claim lowest cost. Final decisions belong to the buyer. "
 		"Reply in " + (settings.response_language or "English")[:60] + "."
 	)
-	text = _request(settings, key, instructions, json.dumps(comparison, default=str, ensure_ascii=False))
-	return {"analysis": text, "model": settings.model, "provider": settings.provider}
+	# Canonicalize the selection so a different click order reuses the same analysis.
+	comparison["quotations"].sort(key=lambda quote: quote["name"])
+	content = json.dumps(comparison, default=str, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+	identity = json.dumps({
+		"user": frappe.session.user,
+		"provider": settings.provider.strip().lower(),
+		"model": settings.model.strip(),
+		"instructions": instructions,
+		"content": content,
+	}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+	fingerprint = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+	cache = frappe.cache()
+	cache_key = "quotation_ai:analysis:" + fingerprint
+	cached = cache.get_value(cache_key, expires=True)
+	if cached:
+		return {**cached, "cached": True, "comparison": comparison}
+
+	# Serialize concurrent identical requests across workers and recheck inside the lock.
+	lock_key = cache.make_key("quotation_ai:lock:" + fingerprint)
+	timeout = max(1, min(int(settings.timeout_seconds or 30), 300))
+	with cache.lock(lock_key, timeout=timeout + 30, blocking_timeout=timeout + 10):
+		cached = cache.get_value(cache_key, expires=True)
+		if cached:
+			return {**cached, "cached": True, "comparison": comparison}
+		text = _request(settings, key, instructions, content)
+		result = {"analysis": text, "model": settings.model, "provider": settings.provider}
+		cache.set_value(cache_key, result, expires_in_sec=ANALYSIS_CACHE_SECONDS)
+		return {**result, "cached": False, "comparison": comparison}

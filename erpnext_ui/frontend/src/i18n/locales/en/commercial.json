@@ -33,6 +33,7 @@
 		}
 	},
 	"purchase": {
+		"tools": { "title": "Tools", "quotationComparison": { "title": "Supplier Quotation Comparison", "description": "Select supplier quotations to compare prices and terms" } },
 		"header": {
 			"title": "Purchase",
 			"subtitle": "Manage suppliers, request quotes, place orders, receive goods, and process invoices"

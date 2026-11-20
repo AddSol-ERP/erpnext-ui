@@ -16,6 +16,7 @@ def compare_quotations(names):
 	for name in names:
 		doc = frappe.get_doc("Supplier Quotation", name)
 		doc.check_permission("read")
+		doc.apply_fieldlevel_read_permissions()
 		if company and doc.company != company:
 			frappe.throw(_("All quotations must belong to the same company."))
 		company = doc.company
@@ -37,9 +38,17 @@ def compare_quotations(names):
 			"docstatus": doc.docstatus, "grand_total": doc.grand_total,
 			"base_grand_total": doc.base_grand_total if doc.currency == company_doc.default_currency or doc.get("conversion_rate") else None,
 			"conversion_rate": doc.get("conversion_rate"), "warnings": warnings,
+			"net_total": doc.get("net_total"), "total_taxes_and_charges": doc.get("total_taxes_and_charges"),
+			"terms_template": doc.get("tc_name"), "terms": doc.get("terms"),
+			"payment_terms_template": doc.get("payment_terms_template"),
+			"payment_schedule": [{"payment_term": row.get("payment_term"), "description": row.get("description"),
+				"due_date": row.get("due_date"), "invoice_portion": row.get("invoice_portion"),
+				"payment_amount": row.get("payment_amount")} for row in (doc.get("payment_schedule") or [])],
 			"has_active_order": _has_active_order(doc.name),
 			"items": [{"item_code": row.item_code, "item_name": row.item_name, "qty": row.qty,
-				"uom": row.uom, "rate": row.rate, "amount": row.amount} for row in doc.items],
+				"uom": row.uom, "rate": row.rate, "amount": row.amount,
+				"pricing_uom": row.get("custom_pricing_uom"),
+				"rate_per_pricing_uom": row.get("custom_rate_per_pricing_uom")} for row in doc.items],
 		})
 	return {"company": company, "company_currency": company_doc.default_currency, "quotations": result}
 
@@ -107,3 +116,48 @@ def save_evaluation(names):
 	finally:
 		frappe.flags.creating_quotation_evaluation = False
 	return {"name": doc.name}
+
+
+@frappe.whitelist(allow_guest=False)
+def search_quotations(company=None, supplier=None, project=None, material_request=None,
+		request_for_quotation=None, status=None, date_from=None, date_to=None, page=0):
+	"""Find permitted parent quotations without joining child tables to paginated lists."""
+	frappe.has_permission("Supplier Quotation", "read", throw=True)
+	try:
+		page = int(page)
+	except (TypeError, ValueError):
+		frappe.throw(_("Invalid page number."))
+	if page < 0 or page > 10000:
+		frappe.throw(_("Invalid page number."))
+	parent_filters = {}
+	for key, value in (("company", company), ("supplier", supplier), ("status", status)):
+		if value:
+			parent_filters[key] = value
+	if date_from and date_to and getdate(date_from) > getdate(date_to):
+		frappe.throw(_("The start date cannot be after the end date."))
+	if date_from and date_to:
+		parent_filters["transaction_date"] = ["between", [date_from, date_to]]
+	elif date_from:
+		parent_filters["transaction_date"] = [">=", date_from]
+	elif date_to:
+		parent_filters["transaction_date"] = ["<=", date_to]
+
+	child_filters = {key: value for key, value in (
+		("project", project), ("material_request", material_request),
+		("request_for_quotation", request_for_quotation),
+	) if value}
+	if child_filters:
+		# Restrict the candidate parent names only; get_list below enforces the
+		# caller's quotation permissions before any result reaches the client.
+		meta = frappe.get_meta("Supplier Quotation Item")
+		if any(not meta.get_field(key) or meta.get_field(key).permlevel for key in child_filters):
+			frappe.throw(_("A requested quotation filter is unavailable."))
+		parents = frappe.get_all("Supplier Quotation Item", filters=child_filters,
+			pluck="parent", distinct=True, limit_page_length=0)
+		if not parents:
+			return {"quotations": [], "has_more": False}
+		parent_filters["name"] = ["in", parents]
+	rows = frappe.get_list("Supplier Quotation", filters=parent_filters,
+		fields=["name", "supplier", "company", "currency", "transaction_date", "valid_till", "docstatus", "grand_total"],
+		order_by="modified desc, name desc", limit_start=page * 20, limit_page_length=21)
+	return {"quotations": rows[:20], "has_more": len(rows) > 20}
