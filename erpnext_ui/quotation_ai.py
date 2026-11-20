@@ -1,4 +1,4 @@
-"""OpenAI-backed quotation analysis. Credentials never leave the server."""
+"""Provider-backed quotation analysis. Credentials never leave the server."""
 
 import json
 
@@ -13,6 +13,7 @@ SETTINGS_DOCTYPE = "UI Quotation AI Settings"
 PROVIDERS = {
 	"openai": ("OpenAI", OPENAI_RESPONSES_URL),
 	"opencode zen": ("OpenCode Zen", "https://opencode.ai/zen/v1/responses"),
+	"openrouter": ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions"),
 }
 
 
@@ -22,7 +23,7 @@ def _settings():
 		frappe.throw(_("AI evaluation is disabled in UI Quotation AI Settings."))
 	provider = PROVIDERS.get((settings.provider or "").strip().lower())
 	if not provider:
-		frappe.throw(_("Set the provider to OpenAI or OpenCode Zen in UI Quotation AI Settings."))
+		frappe.throw(_("Set the provider to OpenAI, OpenCode Zen or OpenRouter in UI Quotation AI Settings."))
 	label, endpoint = provider
 	if (settings.endpoint or "").strip() not in ("", endpoint):
 		frappe.throw(_("The endpoint for {0} must be {1}.").format(label, endpoint))
@@ -60,28 +61,41 @@ def _error_message(response):
 
 def _request(settings, key, instructions, content):
 	label, endpoint = PROVIDERS[(settings.provider or "").strip().lower()]
+	if label == "OpenRouter":
+		body = {"model": settings.model.strip(), "messages": [
+			{"role": "system", "content": instructions}, {"role": "user", "content": content},
+		]}
+	else:
+		body = {"model": settings.model.strip(), "instructions": instructions, "input": content, "store": False}
 	try:
 		response = requests.post(
 			endpoint,
 			headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-			json={"model": settings.model.strip(), "instructions": instructions, "input": content, "store": False},
+			json=body,
 			timeout=max(1, min(int(settings.timeout_seconds or 30), 300)),
 			allow_redirects=False,
 		)
 	except requests.RequestException:
 		frappe.throw(_("Unable to connect to the AI provider. Check server connectivity and timeout settings."))
 	if not response.ok:
-		if label == "OpenCode Zen":
-			frappe.throw(_("OpenCode Zen request failed (HTTP {0}). Check your Zen API key, model access, credits and limits.").format(response.status_code))
+		if label != "OpenAI":
+			frappe.throw(_("{0} request failed (HTTP {1}). Check the API key, model access, credits and limits.").format(label, response.status_code))
 		frappe.throw(_error_message(response))
 	try:
 		payload = response.json()
-		texts = [part.get("text", "") for item in payload.get("output", []) if item.get("type") == "message"
-			for part in item.get("content", []) if part.get("type") == "output_text"]
-		text = "\n".join(filter(None, texts)).strip()
-	except (ValueError, AttributeError, TypeError):
-		text = ""
-	if not text or payload.get("status") != "completed":
+		if label == "OpenRouter":
+			choice = payload["choices"][0]
+			text = choice["message"]["content"]
+			complete = choice.get("finish_reason") == "stop"
+		else:
+			texts = [part.get("text", "") for item in payload.get("output", []) if item.get("type") == "message"
+				for part in item.get("content", []) if part.get("type") == "output_text"]
+			text = "\n".join(filter(None, texts))
+			complete = payload.get("status") == "completed"
+		text = text.strip() if isinstance(text, str) else ""
+	except (ValueError, AttributeError, TypeError, KeyError, IndexError):
+		text, complete = "", False
+	if not text or not complete:
 		frappe.throw(_("The AI provider did not return a complete text response."))
 	return text
 
