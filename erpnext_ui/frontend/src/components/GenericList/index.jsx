@@ -14,6 +14,7 @@ import { StatusBadge } from "../List/StatusBadge";
 import useListPagination from "../../hooks/useListPagination";
 import { listFilterHandlers } from "../../lib/filterChips";
 import { Plus, RefreshCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /** Extract the hub name from the first segment of the current path. */
 function useHub() {
@@ -521,7 +522,7 @@ export default function GenericListPage({ doctypeOverride }) {
       onRetry={loadData}
       actionBar={
         <>
-        {isQuotationList && <div className="flex items-center gap-3 px-4 py-2"><button type="button" className="btn btn-primary" disabled={selectedQuotations.length < 2 || selectedQuotations.length > 20} onClick={() => navigate("/purchase/quotation-comparison", { state: { names: selectedQuotations } })}>Compare selected ({selectedQuotations.length})</button><span className="text-sm text-muted-foreground">Select 2 to 20 quotations.</span></div>}
+        {isQuotationList && <div className="flex items-center gap-3 px-4 py-2"><Button type="button" disabled={selectedQuotations.length < 2 || selectedQuotations.length > 20} onClick={() => navigate("/purchase/quotation-comparison", { state: { names: selectedQuotations } })}>Compare selected ({selectedQuotations.length})</Button><span className="text-sm text-muted-foreground">Select 2 to 20 quotations.</span></div>}
         <ActionBar
           onSearch={handleSearch}
           resultCount={totalItems}
