@@ -133,7 +133,7 @@ export default function ChildTable({
               <TableHead className="w-10">#</TableHead>
 
               {visibleColumns.map((col) => (
-                <TableHead key={col.field}>{col.label}</TableHead>
+                <TableHead key={col.field} className={col.type === "link" && col.options === "Item" ? "min-w-[24rem]" : undefined}>{col.label}</TableHead>
               ))}
 
               {compact && <TableHead className="w-20" />}
@@ -159,7 +159,7 @@ export default function ChildTable({
 
                   {/* FIELDS */}
                   {visibleColumns.map((col) => (
-                    <TableCell key={col.field}>
+                    <TableCell key={col.field} className={col.type === "link" && col.options === "Item" ? "min-w-[24rem]" : undefined}>
                       <FieldRenderer
                         type={col.type}
                         value={row[col.field]}
@@ -263,7 +263,7 @@ export default function ChildTable({
         title={`${title} · ${t("common.row", { n: editingRow + 1 })}`}
         footer={<Button variant="outline" onClick={() => setEditingRow(null)}>{t("common.close")}</Button>}>
         <div className="grid gap-4 sm:grid-cols-2">
-          {columns.map((column) => <FormField key={column.field} label={column.label} required={column.required && !disabled}>
+          {columns.map((column) => <FormField key={column.field} label={column.label} required={column.required && !disabled} className={column.type === "link" && column.options === "Item" ? "sm:col-span-2" : undefined}>
             <FieldRenderer type={column.type} value={data[editingRow][column.field]} options={column.options}
               disabled={disabled || column.readOnly} onChange={(next) => handleChange(editingRow, column.field, next)} />
           </FormField>)}

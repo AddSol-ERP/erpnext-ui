@@ -525,6 +525,7 @@
   "fromSalesOrder": "Select from project sales orders",
   "noSalesItems": "No eligible finished products found in accessible submitted sales orders for this project.",
   "fetchingRates": "Fetching material rates…",
-  "refreshRates": "Fetch material rates"
+  "refreshRates": "Fetch material rates",
+  "deliveryDate": "Delivery date"
  }
 }

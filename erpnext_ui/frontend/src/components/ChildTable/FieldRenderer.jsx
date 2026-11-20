@@ -8,7 +8,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
       return (
         <Input
           type="number"
-          value={value || ""}
+          value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
         />
@@ -18,7 +18,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
       const opts = typeof options === "string" ? options.split("\n") : [];
       return (
         <FormSelect
-          value={value || ""}
+          value={value ?? ""}
           onChange={onChange}
           placeholder="—"
           options={opts.map((o) => ({ value: o, label: o }))}
@@ -33,7 +33,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
           <input
             type="checkbox"
             className="size-4 accent-[var(--brand-primary)]"
-            checked={!!value}
+            checked={Number(value) === 1}
             onChange={(e) => onChange(e.target.checked ? 1 : 0)}
             disabled={disabled}
           />
@@ -54,7 +54,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
     default:
       return (
         <Input
-          value={value || ""}
+          value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
         />

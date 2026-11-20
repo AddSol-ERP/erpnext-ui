@@ -116,6 +116,7 @@ def project_sales_order_items(project):
 			result.append(
 				{
 					"sales_order": doc.name,
+					"delivery_date": row.get("delivery_date"),
 					"row": row.name,
 					"item_code": item.name,
 					"item_name": item.item_name,

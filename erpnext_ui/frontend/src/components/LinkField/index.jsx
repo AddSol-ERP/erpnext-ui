@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
@@ -74,7 +74,7 @@ export default function LinkField({
   /* ===============================
      POSITION CALCULATION
   =============================== */
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!inputRef.current) return;
 
     const rect = inputRef.current.getBoundingClientRect();
@@ -83,12 +83,15 @@ export default function LinkField({
     // viewport coordinates. getBoundingClientRect() already returns those --
     // adding window.scrollX/scrollY would shift the dropdown by the current
     // page scroll offset and detach it from the input.
+    const width = doctype === "Item"
+      ? Math.min(Math.max(rect.width, 560), window.innerWidth - 24)
+      : rect.width;
     setPosition({
       top: rect.bottom,
-      left: rect.left,
-      width: rect.width,
+      left: doctype === "Item" ? Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) : rect.left,
+      width,
     });
-  };
+  }, [doctype]);
 
   useEffect(() => {
     if (show) {
@@ -101,7 +104,7 @@ export default function LinkField({
       window.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("resize", updatePosition);
     };
-  }, [show]);
+  }, [show, updatePosition]);
 
   /* ===============================
      SEARCH
@@ -285,9 +288,9 @@ export default function LinkField({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => commit(opt.value)}
             >
-              <span className="text-sm font-medium">{opt.value}</span>
+              <span className={doctype === "Item" ? "whitespace-normal break-words text-sm font-medium [overflow-wrap:anywhere]" : "text-sm font-medium"}>{opt.value}</span>
               {opt.description && (
-                <span className="truncate text-xs text-muted-foreground">
+                <span className={doctype === "Item" ? "whitespace-normal break-words text-xs text-muted-foreground [overflow-wrap:anywhere]" : "truncate text-xs text-muted-foreground"}>
                   {opt.description}
                 </span>
               )}
@@ -313,6 +316,7 @@ export default function LinkField({
           ref={inputRef}
           type="text"
           value={query}
+          title={doctype === "Item" ? query : undefined}
           onChange={(e) => handleSearch(e.target.value)}
           onFocus={handleFocus}
           onBlur={handleBlur}

@@ -252,7 +252,7 @@ export default function GenericFormPage() {
     if (isBomForm && ["routing", "with_operations"].includes(fieldname)) {
       const request = ++routingRequest.current;
       const nextDoc = { ...docRef.current, [fieldname]: value };
-      if (operationsEnabled(nextDoc) && nextDoc.routing) {
+      if (operationsEnabled(nextDoc) && nextDoc.routing && (fieldname === "routing" || !nextDoc.operations?.length)) {
         setRoutingLoading(true);
         try {
           const res = await get(`resource/Routing/${encodeURIComponent(nextDoc.routing)}`);
@@ -646,8 +646,9 @@ export default function GenericFormPage() {
             )
           )
             return;
-          if (f.default && !isNew) return;
-          if (f.default) {
+          // Keep every metadata field available for hydration on edit. Defaults
+          // initialize new documents; saved values (including 0/null) own edits.
+          if (isNew && f.default) {
             initialDoc[f.fieldname] = f.default;
           } else if (f.fieldtype === "Check") {
             initialDoc[f.fieldname] = 0;
@@ -993,7 +994,7 @@ export default function GenericFormPage() {
                 if (field.hidden) return null;
 
                 return (
-                  <div key={field.fieldname} className={colClass}>
+                  <div key={field.fieldname} className={isBomForm && field.fieldname === "item" ? "md:col-span-12" : colClass}>
                     {field.fieldtype === "Check" ? (
                       renderField(field)
                     ) : (

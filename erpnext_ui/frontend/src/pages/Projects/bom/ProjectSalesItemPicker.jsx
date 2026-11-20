@@ -30,6 +30,7 @@ export default function ProjectSalesItemPicker({ project, disabled, onSelect }) 
       <div className="flex flex-col gap-2">{rows.map((row) => <button type="button" key={row.row} className="border border-border p-3 text-start hover:bg-muted focus-visible:outline-primary" onClick={() => { onSelect(row); setOpen(false); }}>
         <span className="block text-sm font-medium">{row.item_code} · {row.item_name}</span>
         <span className="block text-xs text-muted-foreground">{row.sales_order} · {row.qty} {row.uom}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{t("bomCreation.deliveryDate")}: {row.delivery_date || "—"}</span>
       </button>)}</div>
     </AppModal>
   </>;

@@ -122,7 +122,7 @@ class BomCreationTests(unittest.TestCase):
 		self.assertFalse(result.get("operations"))
 
 	def test_project_sales_items_filter_orders_and_preserve_units(self):
-		order = Doc(name="SO-1", items=[Doc(name="ROW-1", item_code="FG", qty=12, uom="Box")])
+		order = Doc(name="SO-1", items=[Doc(name="ROW-1", item_code="FG", qty=12, uom="Box", delivery_date="2026-12-05")])
 		item = Doc(name="FG", item_name="Product", stock_uom="Nos", is_stock_item=1)
 		item.has_permission = Mock(return_value=True)
 		self.frappe.get_list = Mock(return_value=[Doc(name="SO-1")])
@@ -131,6 +131,7 @@ class BomCreationTests(unittest.TestCase):
 		)
 		result = self.module.project_sales_order_items("PROJECT")
 		self.assertEqual(result[0]["sales_order"], "SO-1")
+		self.assertEqual(result[0]["delivery_date"], "2026-12-05")
 		self.assertEqual((result[0]["stock_uom"], result[0]["uom"]), ("Nos", "Box"))
 		filters = self.frappe.get_list.call_args.kwargs["filters"]
 		self.assertEqual(filters["project"], "PROJECT")

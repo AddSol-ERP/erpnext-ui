@@ -3943,3 +3943,45 @@ rows show pricing UOM/per-UOM rate alongside native rate/amount. Deploy with ben
 migrate and restart for controller override, plus rebuilt frontend assets.
 Checks: 25 BOM backend tests, targeted lint, existing project/BOM render checks
 and production build pass. Live ERPNext save/cost-update needs site verification.
+
+### Sales order item delivery dates in BOM picker (2026-11-20)
+
+Project sales-order item response includes each Sales Order Item.delivery_date.
+Finished-product selection modal shows its labelled delivery date under order
+and quantity, with an em dash when missing. No order-header fallback hides a
+missing row date. Nine backend tests, touched lint and production build pass.
+
+### BOM edit preserves fields that have defaults (2026-11-20)
+
+Fixed GenericForm hydration dropping every metadata field with a default on edit.
+Those keys were absent before saved data merged, hiding quantity/conversion_rate
+and omitting them from save payloads. All editable metadata keys now initialize;
+defaults apply only on create, saved values including zero/null win on edit.
+Verified actual loader extracted in Node with saved quantity 42, conversion 83.25,
+zero checkbox/null link plus new defaults. Targeted ESLint, project/BOM smoke and
+production build pass.
+
+### BOM operations edit preservation (2026-11-20)
+
+Confirmed saved operations/row identifiers and With Operations hydrate intact
+through the default-field loader fix. Child field renderer now displays zero
+numeric values instead of blanks and respects string checkbox 0. Re-enabling
+With Operations retains existing saved/manual operation rows; routing loads when
+rows are empty or an actual routing selection changes. Existing project/BOM
+smoke, targeted lint, actual edit-loader check with operation flags/zero rates/
+sequence IDs and production build pass.
+
+### Readable long item selections (2026-11-20)
+
+Item LinkField dropdowns now widen to at least 560px where viewport permits,
+clamp within mobile/desktop viewport, and wrap full item codes/descriptions.
+Selected item code is shown in wrapping helper text beneath the input and in its
+tooltip. BOM/template finished item takes full form-row width; shared child-table
+Item columns have 24rem minimum width with existing horizontal scrolling, and
+item pickers span the row-edit dialog width. Search/commit behavior unchanged.
+Targeted ESLint, project/BOM smoke and production build pass.
+
+Long item selection alignment correction (2026-11-20): removed duplicate selected
+item text below LinkField because it changed row heights/alignment. Wider wrapping
+dropdown, input tooltip and wider item columns remain. ESLint and production build
+pass.
