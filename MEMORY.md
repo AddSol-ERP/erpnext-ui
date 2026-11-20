@@ -3785,3 +3785,17 @@ tax rows through ERPNext and inspect its selected Purchase Taxes and Charges
 Template; no automatic deletion of financial tax rows or tolerance relaxation.
 The native set_taxes path skips populated tax tables, so the earlier second
 set_missing_values call alone does not establish where duplication originated.
+
+## Shared saved quotation comparisons (2026-11-20)
+
+Saved evaluations are shared across owners for Purchase User, Purchase Manager,
+and System Manager. Purchasing readers still need access to all source Supplier
+Quotations and the Company; System Manager/Administrator have administrative
+access. Purchasing roles can create snapshots through the comparison service
+and edit decision notes; delete/share are reserved for System Manager. Existing
+snapshot, source, company, and AI fields remain immutable. Raw AI requests remain
+owner restricted. The list endpoint and Desk permission query no longer filter
+by owner. The post-model-sync share_quotation_evaluation_permissions patch also
+adds unrestricted supported-role permissions when Custom DocPerm masks defaults,
+preserving other custom roles/levels. Deploy with bench migrate and restart.
+Validation: 34 quotation tests pass; backend-only change, no frontend build.

@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate
 
+
 @frappe.whitelist(allow_guest=False)
 def compare_quotations(names):
 	if isinstance(names, str):
@@ -180,7 +181,7 @@ def search_quotations(company=None, supplier=None, project=None, material_reques
 
 @frappe.whitelist(allow_guest=False)
 def list_evaluations(start=0):
-	"""Page through the caller's snapshots, checking access to every source."""
+	"""Page through shared snapshots, enforcing the caller's document/source access."""
 	frappe.has_permission("UI Quotation Evaluation", "read", throw=True)
 	try:
 		start = int(start)
@@ -191,7 +192,7 @@ def list_evaluations(start=0):
 	result = []
 	position = start
 	for _batch in range(20):
-		candidates = frappe.get_all("UI Quotation Evaluation", filters={"owner": frappe.session.user},
+		candidates = frappe.get_all("UI Quotation Evaluation",
 			pluck="name", order_by="creation desc, name desc", limit_start=position, limit_page_length=50)
 		for name in candidates:
 			doc = frappe.get_doc("UI Quotation Evaluation", name)

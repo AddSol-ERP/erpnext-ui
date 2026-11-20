@@ -34,3 +34,4 @@ erpnext_ui.patches.v1_0.classify_dimension_parameters
 erpnext_ui.patches.v1_0.refresh_pricing_dimension_values
 
 erpnext_ui.patches.v1_0.apply_uom_pricing_layout
+erpnext_ui.patches.v1_0.share_quotation_evaluation_permissions

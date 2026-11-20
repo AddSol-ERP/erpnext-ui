@@ -55,7 +55,9 @@ class SnapshotTests(unittest.TestCase):
 			def insert(inner): self.saved.append(inner.data)
 		def get_doc(value, name=None):
 			if isinstance(value, dict):
-				doc = Doc(); doc.data = value; return doc
+				doc = Doc()
+				doc.data = value
+				return doc
 			return self.log
 		self.frappe = types.SimpleNamespace(has_permission=Mock(), get_doc=get_doc, parse_json=json.loads,
 			as_json=lambda value: json.dumps(value, default=str), flags=types.SimpleNamespace(),
@@ -92,7 +94,7 @@ class SavedComparisonTests(unittest.TestCase):
 		result = self.ctx["list_evaluations"]()
 		self.assertEqual([row["name"] for row in result["entries"]], ["QEV-1"])
 		self.assertEqual(result["entries"][0]["suppliers"], ["Supplier"])
-		self.assertEqual(self.frappe.get_all.call_args.kwargs["filters"], {"owner": "buyer"})
+		self.assertNotIn("owner", self.frappe.get_all.call_args.kwargs.get("filters", {}))
 
 	def test_list_provides_next_position_without_skipping_the_next_record(self):
 		names = [f"QEV-{index}" for index in range(21)]
