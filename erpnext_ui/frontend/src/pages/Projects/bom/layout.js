@@ -30,7 +30,16 @@ export const BOM_TABLE_COLUMNS = {
   "UI BOM Template Item": ["item_code", "qty", "uom", "rate", "bom_no"],
   "UI BOM Template Operation": ["operation", "workstation", "time_in_mins", "hour_rate"],
   "UI BOM Template Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate"],
-  "BOM Item": ["item_code", "qty", "uom", "custom_pricing_uom", "custom_rate_per_pricing_uom", "rate", "amount", "bom_no"],
+  "BOM Item": ["item_code", "qty", "uom", "custom_pricing_uom", "custom_rate_per_pricing_uom", "rate", "amount", "custom_purchase_rate", "custom_purchase_amount"],
   "BOM Operation": ["operation", "workstation", "time_in_mins", "hour_rate", "operating_cost"],
   "BOM Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate", "amount"],
 };
+
+export function bomTableColumns(doctype, fields) {
+  const columns = BOM_TABLE_COLUMNS[doctype];
+  if (!columns) return undefined;
+  const available = new Set(fields.filter((field) => !field.hidden).map((field) => field.fieldname));
+  return doctype === "BOM Item" && available.has("custom_purchase_rate") && available.has("custom_purchase_amount")
+    ? columns.filter((field) => !["rate", "amount"].includes(field))
+    : columns;
+}

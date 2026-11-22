@@ -1,7 +1,7 @@
 import { inspectionFieldVisible } from "../../pages/Projects/bom/visibility";
 import ProjectSalesItemPicker from "../../pages/Projects/bom/ProjectSalesItemPicker";
 import { operationsEnabled, routingOperations, operationFieldVisible } from "../../pages/Projects/bom/routing";
-import { buildBomLayout, BOM_TABLE_COLUMNS } from "../../pages/Projects/bom/layout";
+import { buildBomLayout, bomTableColumns } from "../../pages/Projects/bom/layout";
 import { deskNewUrl, deskDocUrl } from "../../lib/deskUrl";
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -900,6 +900,7 @@ export default function GenericFormPage() {
 
     fields.forEach((field) => {
       if (isBomForm && (!operationFieldVisible(field.fieldname, doc) || !inspectionFieldVisible(field.fieldname, doc))) return;
+      if (decodedDoctype === "BOM" && field.fieldname === "custom_approved_vendor_files" && Number(doc.custom_avl_applicable) !== 1) return;
       const ft = field.fieldtype;
 
       if (["Section Break", "Column Break", "Tab Break", "Fold", "Page Break"].includes(ft)) {
@@ -937,7 +938,7 @@ export default function GenericFormPage() {
                   title={cf.label}
                   bomAttachments={decodedDoctype === "BOM" && cf.fieldname === "items" && attachmentsEnabled}
                   bomName={decodedName}
-                  compactFields={isBomForm ? BOM_TABLE_COLUMNS[cf.options] || childFields.filter((field) => field.in_list_view || field.reqd).map((field) => field.fieldname) : undefined}
+                  compactFields={isBomForm ? bomTableColumns(cf.options, childFields) || childFields.filter((field) => field.in_list_view || field.reqd).map((field) => field.fieldname) : undefined}
                   pricingSide={["Purchase Order", "Purchase Receipt", "Purchase Invoice", "Supplier Quotation", "Material Request"].includes(decodedDoctype) ? "buying" : ["Sales Order", "Sales Invoice", "Delivery Note", "Quotation", "POS Invoice"].includes(decodedDoctype) ? "selling" : undefined}
                   columns={childFields
                     .filter(
