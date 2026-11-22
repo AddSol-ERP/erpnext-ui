@@ -27,7 +27,7 @@ export function buildBomLayout(fields, t, { template = false } = {}) {
 }
 
 export const BOM_TABLE_COLUMNS = {
-  "UI BOM Template Item": ["item_code", "qty", "uom", "rate", "bom_no"],
+  "UI BOM Template Item": ["item_code", "qty", "uom", "rate"],
   "UI BOM Template Operation": ["operation", "workstation", "time_in_mins", "hour_rate"],
   "UI BOM Template Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate"],
   "BOM Item": ["item_code", "qty", "uom", "custom_pricing_uom", "custom_rate_per_pricing_uom", "rate", "amount", "custom_purchase_rate", "custom_purchase_amount"],

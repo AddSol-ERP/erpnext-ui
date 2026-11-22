@@ -618,7 +618,16 @@ export default function GenericFormPage() {
       setLoading(true);
       try {
         const metaRes = await get(`resource/DocType/${decodedDoctype}`);
-        const fields = metaRes.data?.fields || [];
+        let bomMeta = null;
+        if (decodedDoctype === "BOM") {
+          try {
+            const response = await get("method/addsol_devoltrans_custom.api.design_package.bom_form_metadata");
+            bomMeta = response.message;
+          } catch (error) {
+            if (error.status !== 404 && error.status !== 417) throw error;
+          }
+        }
+        const fields = bomMeta?.BOM?.fields || metaRes.data?.fields || [];
         setMeta(fields);
 
         const childMetaCache = {};
@@ -628,6 +637,10 @@ export default function GenericFormPage() {
         await Promise.all(
           tableFields.map(async (tf) => {
             try {
+              if (tf.options === "BOM Item" && bomMeta?.["BOM Item"]) {
+                childMetaCache[tf.options] = bomMeta["BOM Item"].fields || [];
+                return;
+              }
               const childRes = await get(`resource/DocType/${tf.options}`);
               childMetaCache[tf.options] = childRes.data?.fields || [];
             } catch {
