@@ -500,6 +500,7 @@
   "backToProject": "العودة إلى المشروع"
  },
  "bomForm": {
+  "approvedVendors": "قائمة الموردين المعتمدين",
   "details": "تفاصيل قائمة المواد",
   "materials": "المواد الخام",
   "operations": "العمليات",

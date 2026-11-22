@@ -500,6 +500,7 @@
   "backToProject": "परियोजना पर वापस जाएँ"
  },
  "bomForm": {
+  "approvedVendors": "स्वीकृत विक्रेता सूची",
   "details": "BOM विवरण",
   "materials": "कच्चा माल",
   "operations": "संचालन",

@@ -500,6 +500,7 @@
   "backToProject": "Back to project"
  },
  "bomForm": {
+  "approvedVendors": "Approved Vendor List",
   "details": "BOM details",
   "materials": "Raw materials",
   "operations": "Operations",

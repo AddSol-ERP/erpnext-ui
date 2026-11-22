@@ -11,6 +11,7 @@ export function buildBomLayout(fields, t, { template = false } = {}) {
     ["operations", ["with_operations", "transfer_material_against", "routing", "fg_based_operating_cost", "operating_cost_per_bom_quantity", "operations"]],
     ["scrap", ["scrap_items", "process_loss_percentage", "process_loss_qty"]],
     ["costing", ["rm_cost_as_per", "buying_price_list", "price_list_currency", "plc_conversion_rate", "currency", "conversion_rate", "operating_cost", "raw_material_cost", "scrap_material_cost", "base_operating_cost", "base_raw_material_cost", "base_scrap_material_cost", "total_cost", "base_total_cost"]],
+    ...(!template ? [["approvedVendors", ["custom_avl_applicable", "custom_approved_vendor_files"]]] : []),
   ];
   const sections = groups.map(([key, names]) => {
     const selected = names.flatMap((name) => available.filter((field) => field.fieldname === name));
@@ -40,6 +41,6 @@ export function bomTableColumns(doctype, fields) {
   if (!columns) return undefined;
   const available = new Set(fields.filter((field) => !field.hidden).map((field) => field.fieldname));
   return doctype === "BOM Item" && available.has("custom_purchase_rate") && available.has("custom_purchase_amount")
-    ? columns.filter((field) => !["rate", "amount"].includes(field))
+    ? columns.filter((field) => !["rate", "amount", "custom_pricing_uom", "custom_rate_per_pricing_uom"].includes(field))
     : columns;
 }
