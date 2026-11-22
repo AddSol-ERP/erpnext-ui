@@ -167,6 +167,20 @@ class TransactionPricingTests(unittest.TestCase):
 		self.assertEqual(row.custom_estimated_pricing_amount, 1600)
 		self.assertEqual(row.amount, 1520)
 
+	def test_unpriced_draft_keeps_formula_estimate_without_changing_amount(self):
+		for doctype in ("Material Request", "Supplier Quotation"):
+			for rate in (None, 0, ""):
+				with self.subTest(doctype=doctype, rate=rate):
+					doc, row = self.document(rate=rate, measurement=19)
+					doc.doctype = doctype
+					doc.docstatus = 0
+					doc.material_request_type = "Purchase"
+					self.run_pricing(doc)
+					self.assertEqual(row.custom_estimated_chargeable_qty, 20)
+					self.assertEqual(row.custom_pricing_uom, "Square Metre")
+					self.assertIsNone(row.custom_estimated_pricing_amount)
+					self.assertEqual((row.rate, row.amount, row.custom_chargeable_qty), (1, 10, 19))
+
 	def test_missing_rate_and_invalid_formula_fail_save(self):
 		for rate in (None, 0, -1):
 			with self.subTest(rate=rate), self.assertRaises(ValueError):
@@ -211,7 +225,8 @@ class TransactionPricingTests(unittest.TestCase):
 					row.rate = row.amount = 0
 					before = dict(row)
 					self.run_pricing(doc)
-					self.assertEqual(row, before)
+					self.assertEqual({key: row[key] for key in before}, before)
+					self.assertEqual(row.custom_estimated_chargeable_qty, 20)
 
 	def test_unpriced_material_request_does_not_require_direct_entry_measurement(self):
 		doc, row = self.document(rate=0, measurement=0)
@@ -219,7 +234,8 @@ class TransactionPricingTests(unittest.TestCase):
 		doc.material_request_type = "Purchase"
 		before = dict(row)
 		self.run_pricing(doc, state(mode="Direct Entry"))
-		self.assertEqual(row, before)
+		self.assertEqual({key: row[key] for key in before}, before)
+		self.assertIsNone(row.custom_estimated_chargeable_qty)
 
 	def test_material_request_supplied_negative_rate_is_rejected(self):
 		doc, _ = self.document(rate=-1)
@@ -237,7 +253,8 @@ class TransactionPricingTests(unittest.TestCase):
 		doc["items"].append(unpriced)
 		self.run_pricing(doc)
 		self.assertEqual(priced.amount, 1600)
-		self.assertEqual(unpriced, before)
+		self.assertEqual({key: unpriced[key] for key in before}, before)
+		self.assertEqual(unpriced.custom_estimated_chargeable_qty, 20)
 
 	def test_rfq_supplier_quotation_drafts_allow_missing_rates(self):
 		for rate in (None, "", 0, "0"):
@@ -247,7 +264,8 @@ class TransactionPricingTests(unittest.TestCase):
 				doc.docstatus = 0
 				before = dict(row)
 				self.run_pricing(doc, state(mode="Direct Entry"))
-				self.assertEqual(row, before)
+				self.assertEqual({key: row[key] for key in before}, before)
+				self.assertIsNone(row.custom_estimated_chargeable_qty)
 
 	def test_supplier_response_requires_rates_even_while_native_document_is_draft(self):
 		doc, _ = self.document(rate=0)

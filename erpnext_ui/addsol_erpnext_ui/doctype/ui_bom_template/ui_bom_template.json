@@ -46,6 +46,7 @@
    "label": "Finished Item",
    "fieldtype": "Link",
    "options": "Item",
+   "hidden": 1,
    "description": "Optional: choose the finished item when creating the BOM."
   },
   {
@@ -60,6 +61,7 @@
    "label": "Finished UOM",
    "fieldtype": "Link",
    "options": "UOM",
+   "hidden": 1,
    "fetch_from": "item.stock_uom"
   },
   {
@@ -145,12 +147,14 @@
    "fieldname": "currency",
    "label": "Currency",
    "fieldtype": "Link",
-   "options": "Currency"
+   "options": "Currency",
+   "hidden": 1
   },
   {
    "fieldname": "conversion_rate",
    "label": "Conversion Rate",
    "fieldtype": "Float",
+   "hidden": 1,
    "default": "1"
   },
   {
@@ -220,7 +224,7 @@
  ],
  "autoname": "naming_series:",
  "title_field": "template_name",
- "search_fields": "template_name,item",
+ "search_fields": "template_name",
  "sort_field": "modified",
  "sort_order": "DESC",
  "track_changes": 1

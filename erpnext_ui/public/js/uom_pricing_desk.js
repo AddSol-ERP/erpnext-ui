@@ -66,7 +66,6 @@ function refresh_saved_pricing_estimates(frm) {
 	// Refresh also runs after Save. Never write previews back into saved rows:
 	// null versus a stored numeric zero alone can mark the document unsaved.
 	(frm.doc.items || []).forEach((row) => {
-		REQUESTS[row.name] = (REQUESTS[row.name] || 0) + 1;
 		show_saved_pricing_estimate(frm, row);
 	});
 }
@@ -113,6 +112,9 @@ BUYING.concat(SELLING).forEach((doctype) => {
 	const child = doctype === "Quotation" ? "Quotation Item" : `${doctype} Item`;
 	frappe.ui.form.on(doctype, {
 		refresh: refresh_saved_pricing_estimates,
+		before_save(frm) {
+			(frm.doc.items || []).forEach((row) => { REQUESTS[row.name] = (REQUESTS[row.name] || 0) + 1; });
+		},
 		material_request_type(frm) { (frm.doc.items || []).forEach((row) => update_pricing_estimate(frm, row)); },
 	});
 	const refreshRow = (frm, cdt, cdn) => update_pricing_estimate(frm, locals[cdt]?.[cdn]);

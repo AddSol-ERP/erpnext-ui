@@ -508,6 +508,15 @@
   "additional": "Additional details"
  },
  "bomCreation": {
+  "designPackage": "Design package",
+  "designPackageHelp": "Create project items and draft BOMs for eligible items on a submitted sales order.",
+  "salesOrder": "Sales Order",
+  "selectOrder": "Select a sales order",
+  "noOrders": "No accessible open, submitted sales orders found for this project.",
+  "packageCreated": "Draft BOMs created:",
+  "packageNoNew": "No new BOMs were created. Existing drafts are reused; ineligible items are skipped.",
+  "createPackage": "Create design package",
+  "creatingPackage": "Creating…",
   "choose": "Choose how to create your BOM",
   "help": "Select a starting point, then review and save your BOM.",
   "template": "Predefined template",

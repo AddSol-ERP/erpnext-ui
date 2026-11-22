@@ -62,9 +62,13 @@ def _apply_uom_pricing(doc, side, *, recalculate_totals=True):
 				if hasattr(row, "get")
 				else getattr(row, "custom_rate_per_pricing_uom", None)
 			)
-			if optional_rate is None or (isinstance(optional_rate, str) and not optional_rate.strip()):
-				continue
-			if float(optional_rate) == 0:
+			if optional_rate is None or (isinstance(optional_rate, str) and not optional_rate.strip()) or float(optional_rate) == 0:
+				doc_qty = float(row.get("qty") or 0)
+				if doc_qty > 0:
+					estimate = uom_pricing.get_pricing_estimate(item_code, doc_qty, side)
+					row.custom_pricing_uom = estimate.get("pricing_uom") if estimate.get("enabled") else None
+					row.custom_estimated_chargeable_qty = estimate.get("calculated_chargeable_qty")
+					row.custom_estimated_pricing_amount = None
 				continue
 		contract = preserved_contract(doc, row)
 		pricing_state = (

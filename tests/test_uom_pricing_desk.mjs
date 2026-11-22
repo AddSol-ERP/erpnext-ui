@@ -17,8 +17,9 @@ handlers["Purchase Order"].refresh(frm);
 assert.equal(requests.length, 0, "refresh must display persisted values without fetching previews");
 assert.equal(writes, 0, "refresh after save must not dirty the PO");
 handlers["Purchase Order Item"].item_code(frm, row.doctype, row.name);
+handlers["Purchase Order"].refresh(frm);
 reply(0, 20);
-assert.equal(row.custom_estimated_chargeable_qty, 20);
+assert.equal(row.custom_estimated_chargeable_qty, 20, "a form refresh during item selection must not discard the estimate");
 assert.equal(row.custom_estimated_pricing_amount, 1600);
 assert.equal(row.custom_chargeable_qty, 19, "estimated quantity must never replace the entered measure");
 row.custom_chargeable_qty = 18;
@@ -44,6 +45,7 @@ assert.equal(row.custom_chargeable_qty, 18, "clearing an estimate must preserve 
 row.qty = 10;
 handlers["Purchase Order Item"].qty(frm, row.doctype, row.name);
 const beforeRefresh = writes;
+handlers["Purchase Order"].before_save(frm);
 handlers["Purchase Order"].refresh(frm);
 reply(3, 20);
 assert.equal(writes, beforeRefresh, "a pre-save preview must not write after the save refresh");

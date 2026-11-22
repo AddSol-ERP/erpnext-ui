@@ -1,6 +1,7 @@
 """Draft preparation must isolate source documents and enforce source access."""
 
 import importlib.util
+import json
 import sys
 import types
 import unittest
@@ -30,6 +31,13 @@ class Doc(dict):
 
 
 class BomCreationTests(unittest.TestCase):
+	def test_template_hides_finished_item_and_transaction_currency(self):
+		path = Path(__file__).resolve().parents[1] / "erpnext_ui/addsol_erpnext_ui/doctype/ui_bom_template/ui_bom_template.json"
+		fields = {field["fieldname"]: field for field in json.loads(path.read_text())["fields"]}
+		for name in ("item", "uom", "currency", "conversion_rate"):
+			self.assertTrue(fields[name].get("hidden"), name)
+		self.assertFalse(fields["quantity"].get("hidden"))
+
 	def setUp(self):
 		self.project = Doc(name="PROJECT", company="ACME")
 		self.source = Doc(
@@ -64,11 +72,16 @@ class BomCreationTests(unittest.TestCase):
 		self.frappe.has_permission.assert_called_with("BOM", "create", throw=True)
 
 	def test_template_rows_do_not_keep_source_identities(self):
+		self.source.uom = "Box"
+		self.source.currency = "USD"
+		self.source.conversion_rate = 83
 		result = self.module.prepare_copy("PROJECT", "TEMPLATE", "UI BOM Template")
 		self.assertEqual(result["items"][0]["item_code"], "RAW")
 		self.assertNotIn("parent", result["items"][0])
 		self.assertNotIn("name", result["items"][0])
 		self.assertEqual(result["quantity"], 2)
+		for field in ("item", "uom", "currency", "conversion_rate"):
+			self.assertNotIn(field, result)
 		self.assertEqual(self.source["items"][0]["name"], "OLD-ROW")
 
 	def test_disabled_template_rejected(self):

@@ -45,17 +45,13 @@ def prepare_copy(project, source_bom, source_type="BOM"):
 
 
 TEMPLATE_FIELDS = (
-	"item",
 	"quantity",
-	"uom",
 	"with_operations",
 	"routing",
 	"transfer_material_against",
 	"process_loss_percentage",
 	"rm_cost_as_per",
 	"buying_price_list",
-	"currency",
-	"conversion_rate",
 	"allow_alternative_item",
 )
 TABLE_FIELDS = {
