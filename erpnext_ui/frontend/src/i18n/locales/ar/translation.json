@@ -154,7 +154,9 @@
     "mode": "الوضع",
     "brandColor": "لون العلامة التجارية",
     "secondaryColor": "اللون الثانوي",
-    "language": "اللغة"
+    "language": "اللغة",
+    "textSize": "حجم النص",
+    "fontSize": { "extraSmall": "صغير جدًا", "small": "صغير", "medium": "متوسط", "extraLarge": "كبير جدًا" }
   },
   "language": {
     "en": "English",

@@ -154,7 +154,9 @@
     "mode": "मोड",
     "brandColor": "ब्रांड रंग",
     "secondaryColor": "द्वितीयक रंग",
-    "language": "भाषा"
+    "language": "भाषा",
+    "textSize": "पाठ का आकार",
+    "fontSize": { "extraSmall": "बहुत छोटा", "small": "छोटा", "medium": "मध्यम", "extraLarge": "बहुत बड़ा" }
   },
   "language": {
     "en": "English",

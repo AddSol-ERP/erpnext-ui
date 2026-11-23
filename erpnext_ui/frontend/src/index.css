@@ -10,6 +10,8 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
+	--app-font-scale: 1;
+	font-size: calc(100% * var(--app-font-scale));
 	/* ============================================================
      BRAND (INDIGO DEFAULT)
      ============================================================ */
@@ -266,7 +268,7 @@
 	--child-table-head-bg: rgba(15, 23, 42, 0.03);
 	--child-table-head-text: rgba(15, 23, 42, 0.65);
 
-	--child-table-head-font-size: 11px;
+	--child-table-head-font-size: calc(11px * var(--app-font-scale));
 	--child-table-head-letter-spacing: 0.5px;
 
 	--child-table-head-padding: 8px 10px;
@@ -385,14 +387,14 @@
 
 /* ✅ APPLY gradient ONLY HERE */
 .page-title-text {
-	font-size: 20px;
+	font-size: calc(20px * var(--app-font-scale));
 	font-weight: 600;
 	letter-spacing: 0.3px;
 }
 
 /* ✅ subtitle clean */
 .page-subtitle {
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 	color: var(--text-muted);
 	opacity: 0.9;
 }
@@ -471,13 +473,13 @@ body {
 }
 
 .stat-value {
-	font-size: 20px;
+	font-size: calc(20px * var(--app-font-scale));
 	font-weight: 600;
 	letter-spacing: 0.3px;
 }
 
 .stat-label {
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 	color: var(--text-secondary);
 }
 
@@ -496,7 +498,7 @@ body {
 	justify-content: center;
 	gap: 6px;
 
-	font-size: 14px;
+	font-size: calc(14px * var(--app-font-scale));
 	font-weight: 500;
 
 	transition: all 0.2s ease;
@@ -508,7 +510,7 @@ body {
 
 /* Icon inside button */
 .btn i {
-	font-size: 14px;
+	font-size: calc(14px * var(--app-font-scale));
 }
 
 /* Disabled */
@@ -604,7 +606,7 @@ body {
 	border-radius: 8px;
 	padding: 4px 12px;
 	height: 32px;
-	font-size: 13px;
+	font-size: calc(13px * var(--app-font-scale));
 }
 
 .btn-filter:hover {
@@ -640,13 +642,13 @@ body {
 .btn-sm {
 	height: 32px;
 	padding: 0 12px;
-	font-size: 13px;
+	font-size: calc(13px * var(--app-font-scale));
 }
 
 .btn-lg {
 	height: 44px;
 	padding: 0 20px;
-	font-size: 15px;
+	font-size: calc(15px * var(--app-font-scale));
 }
 
 /* Wrapper */
@@ -809,12 +811,12 @@ body {
    TEXT
 ================================ */
 .list-title {
-	font-size: 14px;
+	font-size: calc(14px * var(--app-font-scale));
 	font-weight: 600;
 }
 
 .list-sub {
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 }
 
 /* ===============================
@@ -938,7 +940,7 @@ body {
 	position: absolute;
 	left: 12px;
 
-	font-size: 14px;
+	font-size: calc(14px * var(--app-font-scale));
 	color: var(--text-muted);
 
 	pointer-events: none;
@@ -1058,7 +1060,7 @@ body {
    SECTION TITLE
 ================================ */
 .form-section-title {
-	font-size: 14px;
+	font-size: calc(14px * var(--app-font-scale));
 	font-weight: 600;
 
 	margin-bottom: 12px;
@@ -1082,7 +1084,7 @@ body {
 
 /* LABEL */
 .form-label {
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 	font-weight: 500;
 	color: var(--text-muted);
 }
@@ -1204,7 +1206,7 @@ textarea.form-control {
 	width: 40px;
 	text-align: center;
 
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 	color: var(--text-muted);
 }
 
@@ -1222,7 +1224,7 @@ textarea.form-control {
 
 	color: var(--bs-body-color);
 
-	font-size: 13px;
+	font-size: calc(13px * var(--app-font-scale));
 	padding: 2px 6px;
 
 	transition: all 0.2s ease;
@@ -1283,7 +1285,7 @@ textarea.form-control {
 	padding: 30px;
 
 	color: var(--text-muted);
-	font-size: 13px;
+	font-size: calc(13px * var(--app-font-scale));
 }
 
 /* =========================================
@@ -1310,7 +1312,7 @@ textarea.form-control {
 		justify-content: space-between;
 		align-items: center;
 
-		font-size: 13px;
+		font-size: calc(13px * var(--app-font-scale));
 		font-weight: 500;
 
 		margin-bottom: 8px;
@@ -1321,7 +1323,7 @@ textarea.form-control {
 	}
 
 	.child-label {
-		font-size: 11px;
+		font-size: calc(11px * var(--app-font-scale));
 		color: var(--text-muted);
 		margin-bottom: 2px;
 	}
@@ -1394,7 +1396,7 @@ textarea.form-control {
 
 	color: var(--text-primary);
 
-	font-size: 14px;
+	font-size: calc(14px * var(--app-font-scale));
 	font-weight: 500;
 
 	cursor: pointer;
@@ -1420,7 +1422,7 @@ textarea.form-control {
    FILE NAME DISPLAY
 ================================ */
 .file-upload-name {
-	font-size: 13px;
+	font-size: calc(13px * var(--app-font-scale));
 	color: var(--text-muted);
 
 	max-width: 200px;
@@ -1611,7 +1613,7 @@ body {
 	width: 100%;
 
 	text-align: center;
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 	color: var(--text-muted);
 
 	padding: 8px 12px;
@@ -1679,7 +1681,7 @@ body {
 }
 
 .form-select-sm {
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 	padding: 2px 6px;
 }
 
@@ -1714,7 +1716,7 @@ body {
 
 	background: rgba(79, 70, 229, 0.1);
 	color: var(--brand-primary);
-	font-size: 14px;
+	font-size: calc(14px * var(--app-font-scale));
 }
 
 /* Clamp */
@@ -1760,7 +1762,7 @@ body {
 
 /* ICON */
 .toast-icon {
-	font-size: 18px;
+	font-size: calc(18px * var(--app-font-scale));
 	display: flex;
 	align-items: center;
 }
@@ -1775,7 +1777,7 @@ body {
 }
 
 .toast-sub {
-	font-size: 12px;
+	font-size: calc(12px * var(--app-font-scale));
 	opacity: 0.7;
 	margin-top: 2px;
 }
@@ -2074,6 +2076,14 @@ body {
 	--radius-3xl: calc(var(--radius) * 2.2);
 	--radius-4xl: calc(var(--radius) * 2.6);
 }
+
+/* Tailwind's arbitrary pixel text sizes need explicit scaling; rem-based sizes
+   already follow the root font size above. */
+:root[data-font-size] [class~="text-[8px]"] { font-size: calc(8px * var(--app-font-scale)); }
+:root[data-font-size] [class~="text-[10px]"] { font-size: calc(10px * var(--app-font-scale)); }
+:root[data-font-size] [class~="text-[11px]"] { font-size: calc(11px * var(--app-font-scale)); }
+:root[data-font-size] [class~="text-[13px]"] { font-size: calc(13px * var(--app-font-scale)); }
+:root[data-font-size] [class~="text-[15px]"] { font-size: calc(15px * var(--app-font-scale)); }
 
 @layer base {
   * {

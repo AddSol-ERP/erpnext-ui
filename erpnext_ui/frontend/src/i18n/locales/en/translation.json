@@ -154,7 +154,9 @@
     "mode": "Mode",
     "brandColor": "Brand color",
     "secondaryColor": "Secondary color",
-    "language": "Language"
+    "language": "Language",
+    "textSize": "Text size",
+    "fontSize": { "extraSmall": "Extra small", "small": "Small", "medium": "Medium", "extraLarge": "Extra large" }
   },
   "language": {
     "en": "English",

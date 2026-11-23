@@ -8,6 +8,7 @@ import { HeaderProvider } from "./context/HeaderContext";
 import { ToastProvider } from "./context/ToastContext";
 import { RoleProvider } from "./context/RoleContext";
 import applyTheme from "./utils/theme";
+import { readSavedFontSize } from "./utils/fontSize";
 
 // Initialize theme on app load
 function initializeTheme() {
@@ -26,6 +27,7 @@ function initializeTheme() {
 }
 
 initializeTheme();
+readSavedFontSize();
 
 const rootElement = document.getElementById("root");
 
@@ -51,6 +53,7 @@ const mountErpUI = function (id) {
   if (!el) return;
 
   initializeTheme();
+  readSavedFontSize();
 
   const root = ReactDOM.createRoot(el);
   root.render(
