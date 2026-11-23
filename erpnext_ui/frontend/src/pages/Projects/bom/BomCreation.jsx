@@ -9,6 +9,7 @@ import FormSection from "../../../components/FormSection";
 import { FormField } from "../../../components/FormField";
 import LinkField from "../../../components/LinkField";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function BomCreation() {
   const { project } = useParams();
@@ -28,6 +29,10 @@ function Creation({ project }) {
   const [packageError, setPackageError] = useState("");
   const [packageResult, setPackageResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [config, setConfig] = useState(null);
+  const [selected, setSelected] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [draftConfig, setDraftConfig] = useState(null);
   const back = `/projects/view/${encodeURIComponent(project)}`;
   useEffect(() => {
     let active = true;
@@ -36,6 +41,18 @@ function Creation({ project }) {
     }).catch((e) => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [project]);
+  useEffect(() => {
+    if (orders === null) return;
+    let active = true;
+    get("method/addsol_devoltrans_custom.api.design_package.configuration", { project })
+      .then((res) => {
+        if (!active) return;
+        setConfig(res.message);
+        setSelected(res.message.config.items.map((item) => item.number));
+      })
+      .catch((e) => { if (active) setPackageError(e.message); });
+    return () => { active = false; };
+  }, [project, orders]);
   useEffect(() => {
     let active = true;
     get("method/addsol_devoltrans_custom.api.design_package.sales_orders", { project })
@@ -64,8 +81,27 @@ function Creation({ project }) {
     setPackageError("");
     setPackageResult(null);
     try {
-      const response = await post("method/addsol_devoltrans_custom.api.design_package.create", { project, sales_order: order });
+      const response = await post("method/addsol_devoltrans_custom.api.design_package.create", { project, sales_order: order, selected, revision: config.revision });
       setPackageResult(response.message);
+    } catch (e) { setPackageError(e.message); }
+    finally { setBusy(false); }
+  };
+  const editConfig = () => {
+    setDraftConfig({ routing: config.config.routing, items: config.config.items.map((item) => ({ ...item })) });
+    setEditing(true);
+    setPackageError("");
+  };
+  const changeItem = (index, field, value) => setDraftConfig((current) => ({ ...current,
+    items: current.items.map((item, i) => i === index ? { ...item, [field]: value } : item),
+  }));
+  const saveConfig = async () => {
+    setBusy(true);
+    setPackageError("");
+    try {
+      const response = await post("method/addsol_devoltrans_custom.api.design_package.save_configuration", { project, config: draftConfig, revision: config.revision });
+      setConfig(response.message);
+      setSelected(response.message.config.items.map((item) => item.number));
+      setEditing(false);
     } catch (e) { setPackageError(e.message); }
     finally { setBusy(false); }
   };
@@ -79,12 +115,30 @@ function Creation({ project }) {
         </select>
       </FormField>
       {!orders.length && <p className="mt-2 text-sm text-muted-foreground">{t("bomCreation.noOrders")}</p>}
+      {config && !editing && <div className="mt-4 space-y-2">
+        <p className="text-sm font-medium">{t("bomCreation.selectComponents")}</p>
+        <p className="text-xs text-muted-foreground">{t("bomCreation.componentsHelp")}</p>
+        <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setSelected(config.config.items.map((item) => item.number))}>{t("bomCreation.selectAll")}</Button><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setSelected([])}>{t("bomCreation.clearAll")}</Button>{config.can_edit && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={editConfig}>{t("bomCreation.editDefaults")}</Button>}</div>
+        <div className="max-h-80 overflow-auto border border-border p-2">{config.config.items.map((item) => <label key={item.number} className="flex items-center gap-2 p-2 text-sm"><input type="checkbox" disabled={busy} checked={selected.includes(item.number)} onChange={(event) => { const checked = event.target.checked; setSelected((current) => checked ? [...current, item.number] : current.filter((number) => number !== item.number)); }} /><span>{item.number} · {item.item_name} · {item.qty}</span></label>)}</div>
+      </div>}
+      {editing && <div className="mt-4 space-y-3">
+        <p className="text-sm text-muted-foreground">{t("bomCreation.defaultsHelp")}</p>
+        <FormField label={t("bomCreation.designRouting")} required><LinkField doctype="Routing" value={draftConfig.routing} onChange={(value) => setDraftConfig((current) => ({ ...current, routing: value }))} disabled={busy} /></FormField>
+        <div className="space-y-2">{draftConfig.items.map((item, index) => <div key={index} className="grid gap-2 rounded border border-border p-3 md:grid-cols-12">
+          <div className="md:col-span-2"><FormField label={t("bomCreation.componentCode")}><Input value={item.number} onChange={(event) => changeItem(index, "number", event.target.value)} disabled={busy} /></FormField></div>
+          <div className="md:col-span-3"><FormField label={t("bomCreation.componentName")}><Input value={item.item_name} onChange={(event) => changeItem(index, "item_name", event.target.value)} disabled={busy} /></FormField></div>
+          <div className="md:col-span-4"><FormField label={t("bomCreation.componentGroup")}><LinkField doctype="Item Group" filters={{ is_group: 0 }} value={item.item_group} onChange={(value) => changeItem(index, "item_group", value)} disabled={busy} /></FormField></div>
+          <div className="md:col-span-2"><FormField label={t("bomCreation.componentQty")}><Input type="number" min="0.001" step="any" value={item.qty} onChange={(event) => changeItem(index, "qty", event.target.value)} disabled={busy} /></FormField></div>
+          <div className="flex items-end"><Button type="button" variant="outline" disabled={busy} onClick={() => setDraftConfig((current) => ({ ...current, items: current.items.filter((_, i) => i !== index) }))}>{t("bomCreation.removeComponent")}</Button></div>
+        </div>)}</div>
+        <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setDraftConfig((current) => ({ ...current, items: [...current.items, { number: "", item_name: "", item_group: "", qty: 1 }] }))}>{t("bomCreation.addComponent")}</Button><Button type="button" disabled={busy} onClick={saveConfig}>{t("bomCreation.saveDefaults")}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => setEditing(false)}>{t("common.cancel")}</Button></div>
+      </div>}
       {packageError && <p role="alert" className="mt-2 text-destructive">{packageError}</p>}
       {packageResult && <div role="status" className="mt-3 text-sm">
         <p>{t(packageResult.created.length ? "bomCreation.packageCreated" : "bomCreation.packageNoNew")}</p>
         {packageResult.created.map((name) => <button key={name} type="button" className="mr-3 text-primary underline" onClick={() => navigate(`/projects/BOM/${encodeURIComponent(name)}`)}>{name}</button>)}
       </div>}
-      <Button className="mt-4" disabled={!order || busy} onClick={createPackage}>{t(busy ? "bomCreation.creatingPackage" : "bomCreation.createPackage")}</Button>
+      <Button className="mt-4" disabled={!order || !config || busy || editing} onClick={createPackage}>{t(busy ? "bomCreation.creatingPackage" : "bomCreation.createPackage")}</Button>
     </FormSection>}
     <FormSection title={t("bomCreation.choose")} description={t("bomCreation.help")}>
       <div role="radiogroup" aria-label={t("bomCreation.choose")} className="grid gap-3 md:grid-cols-3">
