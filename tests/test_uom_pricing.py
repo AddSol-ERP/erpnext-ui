@@ -167,6 +167,23 @@ class TransactionPricingTests(unittest.TestCase):
 		self.assertEqual(row.custom_estimated_pricing_amount, 1600)
 		self.assertEqual(row.amount, 1520)
 
+	def test_po_quantity_change_scales_saved_measure_before_tolerance(self):
+		from unittest.mock import Mock
+
+		from erpnext_ui import pricing_contracts
+
+		doc, row = self.document(rate=80, measurement=3768)
+		doc.doctype, doc.name = "Purchase Order", "PO-1"
+		row.name, row.qty = "ROW-1", 3768
+		source = type(row)(item_code="SHEET", qty=1884, custom_chargeable_qty=3768)
+		database = Mock()
+		database.get_value.return_value = source
+		with patch.object(pricing_contracts.frappe, "db", database, create=True):
+			self.run_pricing(doc, {**state(), "tolerance_minus": 10, "tolerance_plus": 10})
+		self.assertEqual(row.custom_chargeable_qty, 7536)
+		self.assertEqual(row.custom_estimated_chargeable_qty, 7536)
+		self.assertEqual(row.amount, 7536 * 80)
+
 	def test_unpriced_draft_keeps_formula_estimate_without_changing_amount(self):
 		for doctype in ("Material Request", "Supplier Quotation"):
 			for rate in (None, 0, ""):

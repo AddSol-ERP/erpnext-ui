@@ -63,6 +63,26 @@ class ContractTests(unittest.TestCase):
 			)
 		self.assertEqual(contracts.contract_measure(contract, Doc(qty=4, custom_chargeable_qty=125)), 125)
 
+	def test_po_qty_change_scales_unchanged_persisted_measure(self):
+		db = Mock()
+		db.get_value.return_value = Doc(item_code="PLATE", qty=1, custom_chargeable_qty=3768)
+		with patch.object(contracts.frappe, "db", db, create=True):
+			doc = Doc(doctype="Purchase Order", name="PO-1")
+			row = Doc(name="ROW-1", item_code="PLATE", qty=2, custom_chargeable_qty=3768)
+			self.assertEqual(contracts.purchase_order_measure(doc, row, 3768), (7536, True))
+			self.assertEqual(contracts.purchase_order_measure(doc, row, 7500), (7500, False))
+			row["qty"] = 0.5
+			self.assertEqual(contracts.purchase_order_measure(doc, row, 3768), (1884, True))
+
+	def test_po_source_mapping_scales_but_receipt_measure_is_unchanged(self):
+		db = Mock()
+		db.get_value.return_value = Doc(item_code="PLATE", qty=10, custom_chargeable_qty=300)
+		with patch.object(contracts.frappe, "db", db, create=True):
+			row = Doc(item_code="PLATE", qty=4, supplier_quotation_item="SQ-ROW")
+			self.assertEqual(contracts.purchase_order_measure(Doc(doctype="Purchase Order"), row, 300), (120, True))
+			self.assertEqual(contracts.purchase_order_measure(Doc(doctype="Purchase Receipt"), row, 300), (300, False))
+			self.assertEqual(db.get_value.call_args.args[1], {"name": "SQ-ROW", "docstatus": 1})
+
 	def test_old_order_prices_in_kg_when_current_item_rule_is_different(self):
 		contract = dict(source=self.source(), linked=True, snapshot=snapshot())
 		with patch.object(

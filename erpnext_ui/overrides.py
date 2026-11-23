@@ -30,7 +30,12 @@ class QualityInspection(StockQualityInspection):
 
 def _apply_uom_pricing(doc, side, *, recalculate_totals=True):
 	from erpnext_ui import uom_pricing
-	from erpnext_ui.pricing_contracts import contract_measure, contract_state, preserved_contract
+	from erpnext_ui.pricing_contracts import (
+		contract_measure,
+		contract_state,
+		preserved_contract,
+		purchase_order_measure,
+	)
 
 	# Returns (credit/debit notes) must reverse the original transaction's pricing
 	# UOM, rate and measure snapshot. ERPNext's return creation already copies the
@@ -96,9 +101,12 @@ def _apply_uom_pricing(doc, side, *, recalculate_totals=True):
 		# added to the row form, so it stays blank).
 		chargeable_override = None
 		if hasattr(row, "get"):
-			cq = contract_measure(contract, row) if contract else row.get("custom_chargeable_qty")
+			cq, scaled = purchase_order_measure(doc, row, row.get("custom_chargeable_qty"))
+			if contract and not scaled:
+				cq = contract_measure(contract, row)
 		else:
 			cq = getattr(row, "custom_chargeable_qty", None)
+			scaled = False
 		if cq not in (None, "", 0, 0.0) and str(cq).strip():
 			try:
 				chargeable_override = float(cq)
@@ -124,7 +132,7 @@ def _apply_uom_pricing(doc, side, *, recalculate_totals=True):
 			else None
 		)
 		row.custom_pricing_uom = pricing["pricing_uom"]
-		if contract:
+		if contract or scaled:
 			row.custom_chargeable_qty = pricing["chargeable_qty"]
 		row.custom_pricing_snapshot = frappe.as_json(
 			{

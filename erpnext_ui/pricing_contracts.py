@@ -1,6 +1,7 @@
 """Resolve preserved document pricing from persisted rows, never client snapshots."""
 
 import json
+import math
 
 import frappe
 
@@ -68,3 +69,39 @@ def contract_measure(contract, row):
 	):
 		return float(source.custom_chargeable_qty) * float(row.get("qty")) / float(source.qty)
 	return entered
+
+
+def purchase_order_measure(doc, row, entered):
+	"""Scale an unchanged PO total when its ordered quantity changes.
+
+	Use persisted values rather than client snapshots. A newly mapped quotation
+	line may still carry its source total, while an edited draft PO carries its
+	previous saved total. A different entered value is an explicit override.
+	"""
+	if doc.doctype != "Purchase Order" or entered in (None, "", 0, 0.0):
+		return entered, False
+	candidates = []
+	if row.get("name") and doc.get("name"):
+		candidates.append(("Purchase Order Item", {"name": row.name, "parent": doc.name}))
+	if row.get("supplier_quotation_item"):
+		candidates.append(("Supplier Quotation Item", {"name": row.supplier_quotation_item, "docstatus": 1}))
+	for doctype, filters in candidates:
+		source = frappe.db.get_value(
+			doctype, filters, ["item_code", "qty", "custom_chargeable_qty"], as_dict=True
+		)
+		if not source or source.item_code != row.get("item_code"):
+			continue
+		try:
+			old_qty = float(source.qty or 0)
+			new_qty = float(row.get("qty") or 0)
+			old_measure = float(source.custom_chargeable_qty or 0)
+			current_measure = float(entered)
+		except (TypeError, ValueError):
+			return entered, False
+		if not all(math.isfinite(value) and value > 0 for value in (old_qty, new_qty, old_measure, current_measure)):
+			return entered, False
+		if math.isclose(current_measure, old_measure, rel_tol=1e-9, abs_tol=1e-9) and old_qty != new_qty:
+			return old_measure * new_qty / old_qty, True
+		# A persisted PO row takes precedence over its upstream quotation.
+		return entered, False
+	return entered, False
