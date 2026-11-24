@@ -94,14 +94,17 @@ for (const language of ["en", "hi", "ar"]) {
     value={[{item_code: "RAW-001", qty: 2, description: "Preserved detail"}]} /></I18nextProvider>);
   assert(html.includes("RAW-001"));
   assert(html.includes(i18n.t("common.edit")));
+  assert(html.includes('aria-label="' + i18n.t("common.edit") + '"'), "Edit is an accessible icon button");
   assert(!html.includes("Detailed description"));
   const desktopBody = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/)[1];
-  assert.equal(desktopBody.split(`>${i18n.t("common.edit")}</button>`).length - 1, 1, "One desktop Edit action per row");
+  assert.equal(desktopBody.split(`aria-label="${i18n.t("common.edit")}"`).length - 1, 1, "One desktop Edit icon per row");
+  assert.equal(desktopBody.split(`aria-label="${i18n.t("common.delete")}"`).length - 1, 1, "One desktop Delete icon per row");
   assert(!desktopBody.includes("</td><button"), "Buttons must be inside table cells");
   const mobileBody = html.split('class="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto overscroll-contain p-3 md:hidden"')[1];
-  assert.equal(mobileBody.split(`>${i18n.t("common.edit")}</button>`).length - 1, 1, "One mobile Edit action per row");
+  assert.equal(mobileBody.split(`aria-label="${i18n.t("common.edit")}"`).length - 1, 1, "One mobile Edit icon per row");
+  assert.equal(mobileBody.split(`aria-label="${i18n.t("common.delete")}"`).length - 1, 1, "One mobile Delete icon per row");
 }
-console.log("BOM layout preserves native/custom fields and compact materials render in EN/HI/AR");
+console.log("BOM layout preserves native/custom fields and compact materials render with accessible row actions in EN/HI/AR");
 
 for (const language of ["en", "hi", "ar"]) {
   await i18n.changeLanguage(language);

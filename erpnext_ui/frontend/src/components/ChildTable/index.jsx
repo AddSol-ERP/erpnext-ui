@@ -4,7 +4,7 @@ import { FormField } from "../FormField";
 import UomPricingEstimate from "../UomPricingEstimate";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import FieldRenderer from "./FieldRenderer";
 import { get } from "../../services/api";
 import { Button } from "@/components/ui/button";
@@ -148,16 +148,15 @@ export default function ChildTable({
                 <TableHead key={col.field} className={colWidthClass(col)}>{col.label}</TableHead>
               ))}
 
-              {compact && <TableHead className="w-20" />}
               {bomAttachments && <TableHead>{t("attachments.open")}</TableHead>}
-              <TableHead className="w-12" />
+              <TableHead className={compact ? "w-20" : "w-12"} />
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={visibleColumns.length + (compact ? 3 : 2) + (bomAttachments ? 1 : 0)}>
+                <TableCell colSpan={visibleColumns.length + 2 + (bomAttachments ? 1 : 0)}>
                   {emptyMessage}
                 </TableCell>
               </TableRow>
@@ -185,21 +184,35 @@ export default function ChildTable({
                     </TableCell>
                   ))}
 
-                  {compact && <TableCell><Button variant="outline" size="sm" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button></TableCell>}
                   {bomAttachments && <TableCell><Button type="button" variant="outline" size="sm" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button></TableCell>}
-                  {/* DELETE */}
                   <TableCell>
-                    {!disabled && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => deleteRow(rowIndex)}
-                        aria-label={t("common.delete")}
-                      >
-                        <Trash2 />
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {compact && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setEditingRow(rowIndex)}
+                          aria-label={t(disabled ? "common.view" : "common.edit")}
+                          title={t(disabled ? "common.view" : "common.edit")}
+                        >
+                          {disabled ? <Eye /> : <Pencil />}
+                        </Button>
+                      )}
+                      {!disabled && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => deleteRow(rowIndex)}
+                          aria-label={t("common.delete")}
+                          title={t("common.delete")}
+                        >
+                          <Trash2 />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -226,20 +239,35 @@ export default function ChildTable({
                   {t("common.row", { n: rowIndex + 1 })}
                 </span>
 
-                {!disabled && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => deleteRow(rowIndex)}
-                    aria-label={t("common.delete")}
-                  >
-                    <Trash2 />
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {compact && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setEditingRow(rowIndex)}
+                      aria-label={t(disabled ? "common.view" : "common.edit")}
+                      title={t(disabled ? "common.view" : "common.edit")}
+                    >
+                      {disabled ? <Eye /> : <Pencil />}
+                    </Button>
+                  )}
+                  {!disabled && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => deleteRow(rowIndex)}
+                      aria-label={t("common.delete")}
+                      title={t("common.delete")}
+                    >
+                      <Trash2 />
+                    </Button>
+                  )}
+                </div>
               </div>
 
-              {compact && <Button variant="outline" size="sm" className="mb-3" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button>}
               {bomAttachments && <Button type="button" variant="outline" size="sm" className="mb-3" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button>}
               {/* FIELDS */}
               <div className="flex flex-col gap-2">
