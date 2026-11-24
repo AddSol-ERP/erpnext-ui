@@ -31,7 +31,11 @@ export const BOM_TABLE_COLUMNS = {
   "UI BOM Template Item": ["item_code", "qty", "uom", "rate"],
   "UI BOM Template Operation": ["operation", "workstation", "time_in_mins", "hour_rate"],
   "UI BOM Template Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate"],
-  "BOM Item": ["item_code", "qty", "uom", "custom_pricing_uom", "custom_rate_per_pricing_uom", "rate", "amount", "custom_purchase_rate", "custom_purchase_amount"],
+  // item_name sits beside item_code on purpose: a BOM row is recognised by the
+  // material's name, and ERPNext stores it on the child row (BOM.set_bom_material_details
+  // fills it from the Item master) and returns it again from get_bom_material_detail,
+  // so the preview endpoint keeps it current while the form is edited.
+  "BOM Item": ["item_code", "item_name", "qty", "uom", "custom_pricing_uom", "custom_rate_per_pricing_uom", "rate", "amount", "custom_purchase_rate", "custom_purchase_amount"],
   "BOM Operation": ["operation", "workstation", "time_in_mins", "hour_rate", "operating_cost"],
   "BOM Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate", "amount"],
 };

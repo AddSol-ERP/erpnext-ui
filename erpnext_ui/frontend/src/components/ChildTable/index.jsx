@@ -109,6 +109,18 @@ export default function ChildTable({
     </div>
   );
 
+  // The Item code and Item name columns split the row's width between them.
+  // A cell's width floor has to come from a class here: the inputs are
+  // `w-full min-w-0`, so a text column with no floor collapses to its header
+  // and a reader sees a 24rem code beside a 6rem name. The code is a short
+  // stable identifier — it keeps a smaller floor, and the name, which is what
+  // the row is recognised by, gets the wide one.
+  const colWidthClass = (col) => {
+    if (col.field === "item_name") return "min-w-[24rem]";
+    if (col.type === "link" && col.options === "Item") return "min-w-[14rem]";
+    return undefined;
+  };
+
   return (
     <div className="rounded-none bg-card ring-1 ring-foreground/10">
       {/* HEADER */}
@@ -133,7 +145,7 @@ export default function ChildTable({
               <TableHead className="w-10">#</TableHead>
 
               {visibleColumns.map((col) => (
-                <TableHead key={col.field} className={col.type === "link" && col.options === "Item" ? "min-w-[24rem]" : undefined}>{col.label}</TableHead>
+                <TableHead key={col.field} className={colWidthClass(col)}>{col.label}</TableHead>
               ))}
 
               {compact && <TableHead className="w-20" />}
@@ -159,7 +171,7 @@ export default function ChildTable({
 
                   {/* FIELDS */}
                   {visibleColumns.map((col) => (
-                    <TableCell key={col.field} className={col.type === "link" && col.options === "Item" ? "min-w-[24rem]" : undefined}>
+                    <TableCell key={col.field} className={colWidthClass(col)}>
                       <FieldRenderer
                         type={col.type}
                         value={row[col.field]}
