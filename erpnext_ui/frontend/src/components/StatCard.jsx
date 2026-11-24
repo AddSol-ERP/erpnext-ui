@@ -12,9 +12,9 @@ export default function StatCard({ value, label, icon, color, hint, loading, cla
   const isStringIcon = typeof Icon === "string";
 
   return (
-    <div className={`group flex items-center gap-3 bg-card p-4 ring-1 ring-foreground/10 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10 hover:ring-primary/40 ${className}`}>
+    <div className={`group flex items-center gap-2.5 bg-card p-3 ring-1 ring-foreground/10 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10 hover:ring-primary/40 ${className}`}>
       <div
-        className="flex size-11 shrink-0 items-center justify-center rounded-xl"
+        className="flex size-9 shrink-0 items-center justify-center rounded-lg"
         style={{ background: `color-mix(in srgb, ${resolved} 12%, transparent)` }}
       >
         {isStringIcon ? (

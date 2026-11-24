@@ -44,6 +44,7 @@ import {
 } from "../../lib/formValidation";
 import {
   buildLayoutTree,
+  sectionsAsTabs,
   resolveLayoutMode,
   buildSteps,
   sectionFieldNames,
@@ -179,17 +180,16 @@ export default function GenericFormPage() {
     [decodedDoctype],
   );
 
-  const layoutMode = useMemo(
-    () =>
-      meta
-        ? resolveLayoutMode(meta, doctypeConfig?.form?.layout)
-        : "single",
-    [meta, doctypeConfig],
-  );
+  const explicitLayout = doctypeConfig?.form?.layout;
+  const layoutMode = useMemo(() => {
+    if (!meta) return "single";
+    const resolved = resolveLayoutMode(meta, explicitLayout);
+    return !isBomForm && !explicitLayout && sectionsAsTabs(buildLayoutTree(meta)).length > buildLayoutTree(meta).length ? "tabs" : resolved;
+  }, [meta, explicitLayout, isBomForm]);
 
   const tabsTree = useMemo(
-    () => meta ? isBomForm ? buildBomLayout(meta, t, { template: decodedDoctype === "UI BOM Template" }) : buildLayoutTree(meta) : [],
-    [meta, decodedDoctype, isBomForm, t],
+    () => meta ? isBomForm ? buildBomLayout(meta, t, { template: decodedDoctype === "UI BOM Template" }) : explicitLayout === "stepper" ? buildLayoutTree(meta) : sectionsAsTabs(buildLayoutTree(meta)) : [],
+    [meta, decodedDoctype, isBomForm, explicitLayout, t],
   );
 
   const hasCompactTabs = tabsTree.length > 0;
@@ -915,7 +915,7 @@ export default function GenericFormPage() {
     );
   };
 
-  const renderSectionFields = (fields) => {
+  const renderSectionFields = (fields, fillTable = false) => {
     const rows = [];
     let currentRow = [];
 
@@ -947,7 +947,7 @@ export default function GenericFormPage() {
     if (currentRow.length > 0) rows.push(currentRow);
 
     return (
-      <div>
+      <div className={fillTable ? "flex min-h-0 flex-1 flex-col" : undefined}>
         {rows.map((row, rowIdx) => {
           if (row.length === 1 && row[0].fieldtype === "Table") {
             const cf = row[0];
@@ -956,11 +956,14 @@ export default function GenericFormPage() {
             const editableChildFields = childFields.filter((field) => field.fieldname && !field.hidden && !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break", "HTML", "Button"].includes(field.fieldtype) && !["parent", "parenttype", "parentfield", "idx", "custom_estimated_chargeable_qty", "custom_estimated_pricing_amount"].includes(field.fieldname));
             const listChildFields = editableChildFields.filter((field) => field.in_list_view || field.reqd);
             return (
-              <div key={rowIdx} className="mb-3">
+              <div key={rowIdx} className={fillTable ? "flex min-h-0 flex-1 flex-col" : "mb-3"}>
                 <ChildTable
+                  fillHeight={fillTable}
                   title={cf.label}
                   bomAttachments={decodedDoctype === "BOM" && cf.fieldname === "items" && attachmentsEnabled}
                   bomName={decodedName}
+                  totalField={decodedDoctype === "BOM" && cf.fieldname === "items" ? (bomTableColumns(cf.options, childFields)?.includes("amount") ? "amount" : "custom_purchase_amount") : undefined}
+                  currency={doc.currency}
                   compactFields={(isBomForm && bomTableColumns(cf.options, childFields)) || (listChildFields.length ? listChildFields : editableChildFields.slice(0, 4)).map((field) => field.fieldname)}
                   pricingSide={["Purchase Order", "Purchase Receipt", "Purchase Invoice", "Supplier Quotation", "Material Request"].includes(decodedDoctype) ? "buying" : ["Sales Order", "Sales Invoice", "Delivery Note", "Quotation", "POS Invoice"].includes(decodedDoctype) ? "selling" : undefined}
                   columns={editableChildFields
@@ -986,7 +989,7 @@ export default function GenericFormPage() {
                     }))}
                   value={doc[cf.fieldname] || []}
                   onChange={(val) => handleFieldChange(cf.fieldname, val)}
-                  disabled={isReadOnly || (cf.fieldname === "operations" && routingLoading)}
+                  disabled={isReadOnly || !!cf.read_only || (cf.fieldname === "operations" && routingLoading)}
                 />
               </div>
             );
@@ -1051,7 +1054,7 @@ export default function GenericFormPage() {
     return index === 0;
   };
 
-  const renderSectionCard = (section, key, sectionIndex = 0, total = 1) => {
+  const renderSectionCard = (section, key, sectionIndex = 0, total = 1, fillTable = false, sectionTab = false) => {
     if (!section.fields.length) return null;
     const secKey = key ?? section.label;
     const errorCount = sectionErrorCount(section);
@@ -1066,8 +1069,9 @@ export default function GenericFormPage() {
         title={section.label}
         description={section.description}
         icon={sectionIcon(section)}
-        className={isBomForm ? "mb-0 ring-0 hover:shadow-none" : "mb-3"}
-        collapsible
+        className={`${isBomForm ? "mb-0 ring-0 hover:shadow-none" : "mb-3"} ${sectionIndex > 0 ? "border-t border-border/70" : ""} ${fillTable ? "flex min-h-0 flex-1 flex-col" : ""}`}
+        contentClassName={fillTable ? "flex min-h-0 flex-1 flex-col" : undefined}
+        collapsible={!sectionTab}
         defaultOpen={defaultOpen}
         errorCount={errorCount}
         open={open}
@@ -1075,7 +1079,7 @@ export default function GenericFormPage() {
           setSectionOpenOverrides((prev) => ({ ...prev, [secKey]: next }));
         }}
       >
-        {renderSectionFields(section.fields)}
+        {renderSectionFields(section.fields, fillTable)}
       </FormSection>
     );
   };
@@ -1114,7 +1118,7 @@ export default function GenericFormPage() {
               <TabsTrigger
                 key={tab.id}
                 value={String(i)}
-                className="min-h-9 flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-1 text-xs font-medium text-muted-foreground shadow-none after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                className="min-h-9 flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-1 text-xs font-medium text-muted-foreground shadow-none after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
               >
                 {tab.label || (tabList.length === 1 ? t("common.details") : t("common.tab", { n: i + 1 }))}
                 {errCount > 0 && (
@@ -1125,12 +1129,14 @@ export default function GenericFormPage() {
               </TabsTrigger>
             );
           })}
-          <TabsTrigger value={String(tabList.length)} className="min-h-9 flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-1 text-xs font-medium text-muted-foreground shadow-none after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none">
+          <TabsTrigger value={String(tabList.length)} className="min-h-9 flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-1 text-xs font-medium text-muted-foreground shadow-none after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none">
             {t("common.metadata")}
           </TabsTrigger>
         </TabsList>
-        {tabList.map((tab, i) => (
-          <TabsContent key={tab.id} value={String(i)} className="m-0 min-h-0 overflow-y-auto overscroll-contain border-s border-border/60 p-0">
+        {tabList.map((tab, i) => {
+          const visibleFields = tab.sections.length === 1 ? tab.sections[0].fields.filter((field) => !field.hidden && !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break"].includes(field.fieldtype)) : [];
+          const fillTable = !stepper && !tab.description && visibleFields.length === 1 && visibleFields[0].fieldtype === "Table";
+          return <TabsContent key={tab.id} value={String(i)} className={`m-0 min-h-0 border-s border-border/60 p-0 ${fillTable ? "flex-col overflow-hidden data-[state=active]:flex" : "overflow-y-auto overscroll-contain"}`}>
             {tab.description && (
               <p className="mb-3 text-xs text-muted-foreground">
                 {tab.description}
@@ -1142,10 +1148,12 @@ export default function GenericFormPage() {
                 `${tab.id}-s${si}`,
                 si,
                 tab.sections.length,
+                fillTable,
+                tab.sectionTab && tab.sections.length === 1,
               ),
             )}
-          </TabsContent>
-        ))}
+          </TabsContent>;
+        })}
         <TabsContent value={String(tabList.length)} className="m-0 min-h-0 overflow-y-auto overscroll-contain border-s border-border/60 p-0">
           {renderMetadata()}
         </TabsContent>

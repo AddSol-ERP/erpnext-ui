@@ -575,7 +575,7 @@ export default function AppShell({ children }) {
         </header>
 
         <main
-          className={`min-h-0 flex-1 ${["list", "tabbed-form"].includes(shellMode) ? "p-0" : "p-4"} ${
+          className={`min-h-0 flex-1 ${["list", "tabbed-form"].includes(shellMode) ? "px-4" : "p-4"} ${
             ["list", "tabbed-form"].includes(shellMode)
               ? "overflow-hidden"
               : "overflow-x-hidden overflow-y-auto"

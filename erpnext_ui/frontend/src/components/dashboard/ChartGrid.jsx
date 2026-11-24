@@ -12,7 +12,7 @@ export default function ChartGrid({ children, className = "" }) {
   if (!items.length) return null;
 
   return (
-    <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${className}`}>
+    <div className={`grid grid-cols-1 gap-2 md:grid-cols-2 ${className}`}>
       {items.map((child, i) => {
         if (!isValidElement(child)) return child;
         const corners = gridCorners({

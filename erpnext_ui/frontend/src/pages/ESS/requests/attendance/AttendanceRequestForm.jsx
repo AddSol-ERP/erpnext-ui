@@ -21,6 +21,7 @@ import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import { FormField } from "../../../../components/FormField";
 import { DocStatusField } from "../../../../components/DocStatusField";
 import FormSection from "../../../../components/FormSection";
+import EssSectionTabs from "../../../../components/EssSectionTabs";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import FormSelect from "../../../../components/FormSelect";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
@@ -48,6 +49,8 @@ const formatDayMonth = (value, locale) =>
     day: "2-digit",
     month: "short",
   });
+
+const ATTENDANCE_FIELD_TABS = { employee: 0, company: 0, from_date: 0, to_date: 0, half_day: 1, half_day_date: 1, include_holidays: 1, shift: 1, reason: 2, explanation: 2 };
 
 export default function AttendanceRequestForm() {
   const { name } = useParams();
@@ -374,8 +377,6 @@ export default function AttendanceRequestForm() {
       );
     } catch (e) {
       const message = e?.message || t("common.cancelFailed");
-      toast.error(message);
-      // Keep the reason on the page too, in case the toast is missed.
       setError(message);
     } finally {
       setCancelling(false);
@@ -410,7 +411,6 @@ export default function AttendanceRequestForm() {
       );
       navigate("/ess/attendance-request");
     } catch (e) {
-      toast.error(e?.message || t("common.deleteFailed"));
       setError(e?.message || t("common.deleteFailed"));
     } finally {
       setDeleting(false);
@@ -518,7 +518,6 @@ export default function AttendanceRequestForm() {
       navigate("/ess/attendance-request");
     } catch (e) {
       const message = e?.message || t("common.submitFailed");
-      toast.error(message);
       setError(message);
     } finally {
       setSubmitting(false);
@@ -637,7 +636,7 @@ export default function AttendanceRequestForm() {
 
   /* ================= UI ================= */
   return (
-    <div className="mx-auto w-full max-w-[1100px] space-y-3 pt-4">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col gap-3">
       <ConfirmDialog
         open={cancelOpen}
         loading={cancelling}
@@ -666,9 +665,10 @@ export default function AttendanceRequestForm() {
         })}
       />
 
-      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} toastOnly />
 
       {/* BASIC */}
+      <EssSectionTabs fieldErrors={fieldErrors} fieldTabs={ATTENDANCE_FIELD_TABS}>
       <FormSection
         title={t("requests.attendance.sectionDetails")}
         icon={CalendarDays}
@@ -928,6 +928,7 @@ export default function AttendanceRequestForm() {
           />
         </FormField>
       </FormSection>
+      </EssSectionTabs>
     </div>
   );
 }

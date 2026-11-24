@@ -78,7 +78,8 @@ function resolveStatus(row, statusField) {
     Number(row.docstatus) === 0 && row.workflow_state
       ? row.workflow_state
       : statusField === "docstatus"
-        ? { 0: "Draft", 1: "Submitted", 2: "Cancelled" }[row.docstatus] || "Draft"
+        ? { 0: "Draft", 1: "Submitted", 2: "Cancelled" }[row.docstatus] ||
+          "Draft"
         : row[statusField];
 
   if (!statusField && !(Number(row.docstatus) === 0 && row.workflow_state)) {
@@ -181,12 +182,25 @@ export default function GenericListPage({ doctypeOverride }) {
   }, [decodedDoctype]);
 
   useEffect(() => {
-    if (hub !== "purchase" || decodedDoctype !== "Supplier Quotation" || !data.length) return;
+    if (
+      hub !== "purchase" ||
+      decodedDoctype !== "Supplier Quotation" ||
+      !data.length
+    )
+      return;
     let active = true;
-    getMethod("method/erpnext_ui.quotation_comparison.quotation_order_status", { names: JSON.stringify(data.map((row) => row.name)) })
-      .then((status) => { if (active) setQuotationOrderStatus(status); })
-      .catch(() => { if (active) setQuotationOrderStatus(null); });
-    return () => { active = false; };
+    getMethod("method/erpnext_ui.quotation_comparison.quotation_order_status", {
+      names: JSON.stringify(data.map((row) => row.name)),
+    })
+      .then((status) => {
+        if (active) setQuotationOrderStatus(status);
+      })
+      .catch(() => {
+        if (active) setQuotationOrderStatus(null);
+      });
+    return () => {
+      active = false;
+    };
   }, [data, hub, decodedDoctype]);
 
   const filterUi = useMemo(
@@ -530,26 +544,57 @@ export default function GenericListPage({ doctypeOverride }) {
 
   const listData = data.map(mapToList);
 
-  const isQuotationList = hub === "purchase" && decodedDoctype === "Supplier Quotation";
-  const toggleQuotation = (name) => setSelectedQuotations((current) =>
-    current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
-  );
+  const isQuotationList =
+    hub === "purchase" && decodedDoctype === "Supplier Quotation";
+  const toggleQuotation = (name) =>
+    setSelectedQuotations((current) =>
+      current.includes(name)
+        ? current.filter((item) => item !== name)
+        : [...current, name],
+    );
   const selection = (name) => (
-    <input type="checkbox" aria-label={`Select ${name}`} checked={selectedQuotations.includes(name)}
-      onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}
-      onChange={() => toggleQuotation(name)} />
+    <input
+      type="checkbox"
+      aria-label={`Select ${name}`}
+      checked={selectedQuotations.includes(name)}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      onChange={() => toggleQuotation(name)}
+    />
   );
 
   const columns = [
-    ...(isQuotationList ? [{ id: "select", header: "Select", cell: (row) => selection(row.raw.name) }] : []),
-    { id: "id", header: t("common.id"), cell: (row) => <span className="whitespace-nowrap font-medium">{row.raw.name}</span> },
+    ...(isQuotationList
+      ? [
+          {
+            id: "select",
+            header: "Select",
+            cell: (row) => selection(row.raw.name),
+          },
+        ]
+      : []),
     {
-      id: "title",
-      header: t("common.name"),
+      id: "id",
+      header: `${t("common.id")} / ${t("common.name")}`,
       cell: (row) => (
-        <div className="min-w-0 truncate" title={[row.title, row.subtitle].filter(Boolean).join(" · ")}>
-          <span>{row.title === row.raw.name ? "" : row.title}</span>
-          {row.subtitle ? <span className="text-muted-foreground">{row.title !== row.raw.name ? " · " : ""}{row.subtitle}</span> : null}
+        <div
+          className="min-w-0 leading-tight"
+          title={[
+            row.raw.name,
+            row.title !== row.raw.name ? row.title : "",
+            row.subtitle,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        >
+          <span className="block whitespace-nowrap">{row.raw.name}</span>
+          {(row.title !== row.raw.name || row.subtitle) && (
+            <span className="block max-w-xs truncate text-xs font-normal text-muted-foreground">
+              {[row.title !== row.raw.name ? row.title : "", row.subtitle]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          )}
         </div>
       ),
     },
@@ -579,14 +624,34 @@ export default function GenericListPage({ doctypeOverride }) {
       onRetry={loadData}
       actionBar={
         <>
-        {isQuotationList && <div className="flex items-center gap-3 px-4 py-2"><Button type="button" disabled={selectedQuotations.length < 2 || selectedQuotations.length > 20} onClick={() => navigate("/purchase/quotation-comparison", { state: { names: selectedQuotations } })}>Compare selected ({selectedQuotations.length})</Button><span className="text-sm text-muted-foreground">Select 2 to 20 quotations.</span></div>}
-        <ActionBar
-          onSearch={handleSearch}
-          resultCount={totalItems}
-          filterConfig={filterConfig}
-          selectedFilters={selectedFilters}
-          {...filterUi}
-        />
+          {isQuotationList && (
+            <div className="flex items-center gap-3 px-4 py-2">
+              <Button
+                type="button"
+                disabled={
+                  selectedQuotations.length < 2 ||
+                  selectedQuotations.length > 20
+                }
+                onClick={() =>
+                  navigate("/purchase/quotation-comparison", {
+                    state: { names: selectedQuotations },
+                  })
+                }
+              >
+                Compare selected ({selectedQuotations.length})
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Select 2 to 20 quotations.
+              </span>
+            </div>
+          )}
+          <ActionBar
+            onSearch={handleSearch}
+            resultCount={totalItems}
+            filterConfig={filterConfig}
+            selectedFilters={selectedFilters}
+            {...filterUi}
+          />
         </>
       }
       cards={
@@ -607,7 +672,6 @@ export default function GenericListPage({ doctypeOverride }) {
           columns={columns}
           data={listData}
           rowKey={(row) => row.raw?.name}
-          showIndex={false}
           onRowClick={(row) => handleRowClick(row.raw)}
           loading={loading}
           rowOffset={limit_start}

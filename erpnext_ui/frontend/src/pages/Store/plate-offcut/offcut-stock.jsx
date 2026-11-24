@@ -149,6 +149,7 @@ export default function OffcutStock({ tabs }) {
         }
       >
         <DataTable
+          rowOffset={(page - 1) * PAGE_SIZE}
           columns={columns}
           data={rows}
           loading={loading}

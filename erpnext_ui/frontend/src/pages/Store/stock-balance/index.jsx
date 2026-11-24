@@ -62,16 +62,16 @@ const fmt = (v, digits = 2) =>
  * failure for a purely cosmetic mistake, so the count lives in one place and
  * storecheck compares it against the rendered header.
  */
-const COLUMN_COUNT = 11;
+const COLUMN_COUNT = 12;
 
-export function BalanceTable({ rows = [], expanded, onToggle, onReturn, navigate }) {
+export function BalanceTable({ rows = [], expanded, onToggle, onReturn, navigate, rowOffset = 0 }) {
   const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-            <th className="w-8 py-2 pr-1" />
+            <th className="w-8 py-2 pr-1">#</th>
             <th className="w-10 py-2" />
             <th className="py-2 pr-3 font-medium">{t("common.name")}</th>
             <th className="py-2 pr-3 text-end font-medium">{t("store.balance.opening")}</th>
@@ -82,10 +82,11 @@ export function BalanceTable({ rows = [], expanded, onToggle, onReturn, navigate
             <th className="py-2 pr-3 text-end font-medium">{t("store.balance.reserved")}</th>
             <th className="py-2 pr-3 text-end font-medium">{t("store.balance.value")}</th>
             <th className="py-2 text-end font-medium">{t("store.balance.rate")}</th>
+            <th className="w-10 py-2"><span className="sr-only">{t("common.actions")}</span></th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {rows.map((row, index) => {
             const key = `${row.item_code}|${row.warehouse}`;
             const open = expanded === key;
             const closed = (row.closing_qty || 0) <= 0;
@@ -95,6 +96,7 @@ export function BalanceTable({ rows = [], expanded, onToggle, onReturn, navigate
                 className="cursor-pointer border-b border-border/40 hover:bg-accent/40"
                 onClick={() => onToggle(row)}
               >
+                <td className="py-2 pr-1 tabular-nums text-muted-foreground">{rowOffset + index + 1}</td>
                 <td className="py-2 pr-1">
                   <ChevronRight
                     className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
@@ -363,6 +365,7 @@ export default function StockBalance() {
 
         <BalanceTable
           rows={rows}
+          rowOffset={limit_start}
           expanded={expanded}
           onToggle={toggle}
           navigate={navigate}

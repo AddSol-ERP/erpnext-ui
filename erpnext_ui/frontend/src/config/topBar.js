@@ -9,6 +9,7 @@ export const TOP_BAR = {
   /** Desk launcher lives in the user menu; keep the standalone icon off. */
   showDesk: false,
   showLanguage: true,
+  showFontSize: true,
   showTheme: true,
   showUser: true,
   /**

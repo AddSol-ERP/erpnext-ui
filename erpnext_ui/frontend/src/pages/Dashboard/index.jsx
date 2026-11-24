@@ -136,16 +136,16 @@ export default function Dashboard() {
           className="cursor-pointer rounded-none transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10 hover:ring-primary/40"
           onClick={() => navigate(approvals.route)}
         >
-          <CardContent className="flex items-center justify-between gap-3 p-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-500">
-                <approvals.icon className="size-6" />
+          <CardContent className="flex items-center justify-between gap-3 p-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
+                <approvals.icon className="size-5" />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-base font-semibold">
+                <div className="truncate text-sm font-semibold">
                   {t(approvals.titleKey)}
                 </div>
-                <div className="truncate text-sm text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   {t(approvals.descriptionKey)}
                 </div>
               </div>

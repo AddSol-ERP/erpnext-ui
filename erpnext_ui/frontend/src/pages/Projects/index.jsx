@@ -88,8 +88,7 @@ export default function Projects() {
     raw: project,
   })), [result.rows, t]);
   const columns = useMemo(() => [
-    { id: "projectId", header: t("projects.projectId"), cell: (row) => <span className="whitespace-nowrap font-medium">{row.raw.name}</span> },
-    { id: "project", header: t("manufacturing.project"), cell: (row) => <span className="block max-w-xs truncate">{row.title}</span> },
+    { id: "projectId", header: `${t("projects.projectId")} / ${t("manufacturing.project")}`, cell: (row) => <div className="min-w-0 leading-tight"><span className="block whitespace-nowrap">{row.raw.name}</span>{row.title !== row.raw.name && <span className="block max-w-xs truncate text-xs font-normal text-muted-foreground" title={row.title}>{row.title}</span>}</div> },
     { id: "company", header: t("store.filters.company"), hideBelow: "lg", cell: (row) => <span className="text-xs text-muted-foreground">{row.raw.company || "—"}</span> },
     { id: "customer", header: t("store.filters.customer"), hideBelow: "lg", cell: (row) => <span className="text-xs text-muted-foreground">{row.raw.customer || "—"}</span> },
     { id: "status", header: t("common.status"), cell: (row) => <StatusBadge tone={row.statusColor}>{row.statusLabel}</StatusBadge> },
@@ -99,7 +98,7 @@ export default function Projects() {
   const openProject = (project) => navigate(`/projects/view/${encodeURIComponent(project.name)}`);
   const tabs = <div role="group" aria-label={t("projects.activity")} className="inline-flex shrink-0 items-center self-stretch">
     {["active", "inactive"].map((value) => <button key={value} type="button" aria-pressed={tab === value}
-      className={`min-h-9 border-b-2 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === value ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+      className={`min-h-9 border-b-2 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === value ? "border-primary bg-primary/10 text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
       onClick={() => { if (tab !== value) { setLoading(true); setParams({ tab: value }); } }}>
       {t(`projects.${value}`)}{result.counts[value] != null && !loading ? ` (${result.counts[value]})` : ""}
     </button>)}
@@ -114,7 +113,7 @@ export default function Projects() {
     tabs={tabs}
     actionBar={<div className={headerTarget ? "xl:hidden" : undefined}><ActionBar onSearch={setSearchInput} value={searchInput} resultCount={total} compact topBarSearch={false} /></div>}
     cards={listData.map((item, index) => <ListRow key={item.raw.name} item={item} index={page * PAGE_SIZE + index + 1} onClick={openProject} />)}
-    table={<DataTable columns={columns} data={listData} rowKey={(row) => row.raw.name} onRowClick={(row) => openProject(row.raw)} showIndex={false} className="[&_th]:h-8 [&_th]:px-2.5 [&_td]:px-2.5 [&_td]:py-1" />}
+    table={<DataTable columns={columns} data={listData} rowKey={(row) => row.raw.name} onRowClick={(row) => openProject(row.raw)} rowOffset={page * PAGE_SIZE} className="[&_th]:h-8 [&_th]:px-2.5 [&_td]:px-2.5 [&_td]:py-1" />}
     pagination={<Pagination currentPage={page + 1} totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))} totalItems={total} pageSize={PAGE_SIZE}
       disabled={loading} onPageChange={(value) => { setPage(value - 1); setLoading(true); }} />}
     isEmpty={!loading && !listData.length}

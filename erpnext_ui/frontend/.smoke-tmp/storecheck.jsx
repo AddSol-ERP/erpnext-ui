@@ -682,7 +682,7 @@ ok(
 );
 ok(
   "balance: the trail spans every column",
-  /<td col[Ss]pan="11"/.test(balanceHtmlExpanded),
+  /<td col[Ss]pan="12"/.test(balanceHtmlExpanded),
   "expected a full-width cell; a mismatched colspan squeezes the trail into column 1",
 );
 ok(

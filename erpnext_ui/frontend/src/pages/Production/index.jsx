@@ -57,26 +57,26 @@ export default function ProductionDashboard() {
       <Button size="sm" onClick={() => setStartOpen(true)}><Play />{t("production.startWork")}</Button>
       <Button size="sm" variant="outline" disabled={loading} onClick={loadData}>{t("common.refresh")}</Button>
     </div>
-    {error && <div role="alert" className="rounded-lg border border-border bg-card p-4 text-sm">{t("production.loadFailed")} <Button size="sm" variant="outline" onClick={loadData}>{t("common.retry")}</Button></div>}
-    <div className="grid gap-4 md:grid-cols-2">
+    {error && <div role="alert" className="border border-border bg-card p-3 text-sm">{t("production.loadFailed")} <Button size="sm" variant="outline" onClick={loadData}>{t("common.retry")}</Button></div>}
+    <div className="grid gap-2 md:grid-cols-2">
       {SECTIONS.map((section) => {
         const Icon = section.icon;
-        return <section key={section.doctype} className="rounded-xl border border-border bg-card p-5">
-          <button type="button" className="flex w-full items-center gap-3 text-start" onClick={() => navigate(section.path)}>
-            <span className="rounded-lg bg-primary/10 p-3 text-primary"><Icon className="size-5" /></span>
-            <span className="flex-1"><span className="block font-semibold">{t(section.title)}</span><span className="text-xs text-muted-foreground">{t(section.subtitle)}</span></span>
+        return <section key={section.doctype} className="border border-border bg-card p-3">
+          <button type="button" className="flex w-full items-center gap-2.5 text-start" onClick={() => navigate(section.path)}>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="size-5" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{t(section.title)}</span><span className="block text-xs text-muted-foreground">{t(section.subtitle)}</span></span>
             <ArrowRight className="size-4 text-primary rtl:rotate-180" />
           </button>
-          <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4">
-            {TAB_KEYS.map((key) => <button key={key} type="button" onClick={() => navigate(`${section.path}?tab=${key}`)} className="rounded-lg p-2 text-start transition-colors hover:bg-muted">
-              <span className="block text-2xl font-semibold tabular-nums">{loading ? "…" : error ? "—" : counts[section.doctype]?.[key] ?? 0}</span>
+          <div className="mt-2 grid grid-cols-3 gap-1 border-t border-border/60 pt-2">
+            {TAB_KEYS.map((key) => <button key={key} type="button" onClick={() => navigate(`${section.path}?tab=${key}`)} className="rounded-md px-2 py-1 text-start transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring">
+              <span className="block text-lg font-semibold tabular-nums leading-tight">{loading ? "…" : error ? "—" : counts[section.doctype]?.[key] ?? 0}</span>
               <span className="text-xs text-muted-foreground">{t(LABELS[key])}</span>
             </button>)}
           </div>
         </section>;
       })}
     </div>
-    {!loading && !error && <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t("production.overviewAnalysis", {
+    {!loading && !error && <div className="border border-border bg-card px-3 py-2 text-xs text-muted-foreground">{t("production.overviewAnalysis", {
       orders: counts["Work Order"]?.ongoing || 0, jobs: counts["Job Card"]?.ongoing || 0,
       waitingOrders: counts["Work Order"]?.waiting || 0, waitingJobs: counts["Job Card"]?.waiting || 0,
     })}</div>}

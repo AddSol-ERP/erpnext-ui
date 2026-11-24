@@ -77,6 +77,7 @@ const bomFields = [
   { fieldname: "item", fieldtype: "Link", label: "Item" },
   { fieldname: "quantity", fieldtype: "Float", label: "Quantity" },
   { fieldname: "items", fieldtype: "Table", label: "Items" },
+  { fieldname: "exploded_items", fieldtype: "Table", label: "Exploded Items", read_only: 1 },
   { fieldname: "with_operations", fieldtype: "Check", label: "With operations" },
   { fieldname: "custom_engineering_note", fieldtype: "Data", label: "Engineering note" },
   { fieldname: "secret", fieldtype: "Data", hidden: 1 },
@@ -84,11 +85,13 @@ const bomFields = [
 for (const language of ["en", "hi", "ar"]) {
   await i18n.changeLanguage(language);
   const tree = buildBomLayout(bomFields, i18n.t.bind(i18n));
-  assert.equal(tree.length, 4);
+  assert.equal(tree.length, 5);
   assert.equal(tree[0].sections[0].label, i18n.t("bomForm.details"));
   assert.equal(tree[1].label, i18n.t("bomForm.materials"));
+  assert.equal(tree[2].label, i18n.t("bomForm.explodedItems"));
+  assert.deepEqual(tree[2].sections[0].fields.map((field) => field.fieldname), ["exploded_items"]);
   const names = tree.flatMap((tab) => tab.sections.flatMap((section) => section.fields.map((field) => field.fieldname)));
-  assert.deepEqual([...names].sort(), ["item", "quantity", "items", "with_operations", "custom_engineering_note"].sort());
+  assert.deepEqual([...names].sort(), ["item", "quantity", "items", "exploded_items", "with_operations", "custom_engineering_note"].sort());
   const html = renderToString(<I18nextProvider i18n={i18n}><ChildTable title="BOM materials" compactFields={["item_code", "qty"]}
     columns={[{field: "item_code", label: "Material", type: "text"}, {field: "qty", label: "Quantity", type: "number"}, {field: "description", label: "Detailed description", type: "text"}]}
     value={[{item_code: "RAW-001", qty: 2, description: "Preserved detail"}]} /></I18nextProvider>);
@@ -100,12 +103,19 @@ for (const language of ["en", "hi", "ar"]) {
   assert(desktopBody.includes("lucide-pencil"));
   assert(!/<input\b/.test(desktopBody), "Rows must not have inline inputs");
   assert(!desktopBody.includes("</td><button"), "Buttons must be inside table cells");
-  const mobileBody = html.split('class="flex flex-col gap-2 p-2 md:hidden"')[1];
-  assert.equal(mobileBody.split(`aria-label="${i18n.t("common.edit")} ·`).length - 1, 1, "One mobile Edit action per row");
-  assert(!/<input\b/.test(mobileBody), "Mobile rows must not have inline inputs");
+  assert(html.includes("max-h-[min(28rem,55dvh)]"), "The child table scrolls within the viewport");
+  assert(html.includes("sticky top-0"), "Column headers stay visible while scrolling");
+  assert(!html.includes("md:hidden"), "The same table is available on mobile");
   const readOnly = renderToString(<I18nextProvider i18n={i18n}><ChildTable disabled title="Materials" columns={[{field: "item_code", label: "Material", type: "text"}]} value={[{item_code: "RAW-001"}]} /></I18nextProvider>);
   assert(readOnly.includes(`aria-label="${i18n.t("common.view")} ·`));
   assert(readOnly.includes("lucide-eye"));
+  for (const field of ["amount", "custom_purchase_amount"]) {
+    const total = renderToString(<I18nextProvider i18n={i18n}><ChildTable title="Materials" totalField={field} currency="INR" columns={[{field: "item_code", label: "Item"}, {field, label: "Amount", type: "number"}, {field: "uom", label: "UOM"}]} value={[{[field]: 10.5}, {[field]: 4.25}]} /></I18nextProvider>);
+    assert(total.includes("14.75"), `${field}: total should sum the selected amount`);
+    assert(total.includes(i18n.t(field === "amount" ? "bomForm.totalAmount" : "bomForm.totalPurchaseAmount")));
+    const footer = total.match(/<tfoot[\s\S]*?<\/tfoot>/)?.[0];
+    assert(footer && footer.includes('colSpan="2"') && (footer.match(/colSpan="2"/g) || []).length === 2, `${field}: footer must align with the amount column`);
+  }
 }
 console.log("BOM layout preserves native/custom fields and compact materials render in EN/HI/AR");
 

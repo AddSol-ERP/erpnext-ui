@@ -340,7 +340,7 @@ export default function PurchaseReceiptPicker() {
         id: "supplier",
         header: t("store.receipt.supplier"),
         cell: (row) => (
-          <span className="truncate text-sm">{row.supplier_name || row.supplier}</span>
+          <span className="truncate text-xs">{row.supplier_name || row.supplier}</span>
         ),
       },
       {

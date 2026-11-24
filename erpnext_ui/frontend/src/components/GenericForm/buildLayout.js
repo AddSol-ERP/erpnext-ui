@@ -114,6 +114,28 @@ export function buildLayoutTree(fields = []) {
   return visibleTabs;
 }
 
+/** Promote named sections to tabs while keeping unnamed sections with their group. */
+export function sectionsAsTabs(tabs = []) {
+  return tabs.flatMap((tab) => {
+    if (tab.sections.length < 2 || !tab.sections.some((section) => section.label)) return [tab];
+    const groups = [];
+    for (const section of tab.sections) {
+      if (!groups.length || section.label) {
+        groups.push({
+          id: `${tab.id}-section-${groups.length}`,
+          label: section.label || tab.label,
+          description: groups.length === 0 ? tab.description : "",
+          sections: [section],
+          sectionTab: true,
+        });
+      } else {
+        groups[groups.length - 1].sections.push(section);
+      }
+    }
+    return groups;
+  });
+}
+
 /**
  * Auto-select layout mode (config override applied by caller before this).
  */

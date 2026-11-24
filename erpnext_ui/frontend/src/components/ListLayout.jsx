@@ -84,7 +84,7 @@ export default function ListLayout({
     >
       {/* Single card: toolbar + content + footer */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none bg-card">
-        {tabs && <nav className="shrink-0 overflow-x-auto border-b border-border/60 [&>div]:!flex-nowrap [&>div]:!gap-0 [&>div]:!pb-0 [&_button]:!min-h-9 [&_button]:!shrink-0 [&_button]:!rounded-none [&_button]:!border-b-2 [&_button]:!border-transparent [&_button]:!bg-transparent [&_button]:!px-3 [&_button]:!py-0 [&_button]:!text-xs [&_button]:!shadow-none [&_button]:!ring-0 [&_button:focus-visible]:!ring-2 [&_button:focus-visible]:!ring-ring [&_button[aria-pressed=true]]:!border-primary [&_button[aria-pressed=true]]:!text-primary [&_button[aria-current=page]]:!border-primary [&_button[aria-current=page]]:!text-primary">{tabs}</nav>}
+        {tabs && <nav className="shrink-0 overflow-x-auto border-b border-border/60 [&>div]:!flex-nowrap [&>div]:!gap-0 [&>div]:!pb-0 [&_button]:!min-h-9 [&_button]:!shrink-0 [&_button]:!rounded-none [&_button]:!border-b-2 [&_button]:!border-transparent [&_button]:!bg-transparent [&_button]:!px-3 [&_button]:!py-0 [&_button]:!text-xs [&_button]:!shadow-none [&_button]:!ring-0 [&_button:focus-visible]:!ring-2 [&_button:focus-visible]:!ring-ring [&_button[aria-pressed=true]]:!border-primary [&_button[aria-pressed=true]]:!bg-primary/10 [&_button[aria-pressed=true]]:!text-primary [&_button[aria-current=page]]:!border-primary [&_button[aria-current=page]]:!bg-primary/10 [&_button[aria-current=page]]:!text-primary">{tabs}</nav>}
         <div className="flex min-h-0 flex-1 flex-col">
         {/* Body — single scroll container (tables stick here, no nested scrollers) */}
         <div className="list-body relative flex min-h-0 flex-1">

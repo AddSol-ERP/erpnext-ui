@@ -8,6 +8,7 @@ export function buildBomLayout(fields, t, { template = false } = {}) {
   const groups = [
     ["details", [...(template ? ["naming_series", "template_name", "enabled", "description"] : []), "item", "company", "project", "quantity", "uom", "is_active", "is_default", "allow_alternative_item", "set_rate_of_sub_assembly_item_based_on_bom"]],
     ["materials", ["items"]],
+    ...(!template ? [["explodedItems", ["exploded_items"]]] : []),
     ["operations", ["with_operations", "transfer_material_against", "routing", "fg_based_operating_cost", "operating_cost_per_bom_quantity", "operations"]],
     ["scrap", ["scrap_items", "process_loss_percentage", "process_loss_qty"]],
     ["costing", ["rm_cost_as_per", "buying_price_list", "price_list_currency", "plc_conversion_rate", "currency", "conversion_rate", "operating_cost", "raw_material_cost", "scrap_material_cost", "base_operating_cost", "base_raw_material_cost", "base_scrap_material_cost", "total_cost", "base_total_cost"]],
@@ -32,6 +33,7 @@ export const BOM_TABLE_COLUMNS = {
   "UI BOM Template Operation": ["operation", "workstation", "time_in_mins", "hour_rate"],
   "UI BOM Template Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate"],
   "BOM Item": ["item_code", "qty", "uom", "custom_pricing_uom", "custom_rate_per_pricing_uom", "rate", "amount", "custom_purchase_rate", "custom_purchase_amount"],
+  "BOM Explosion Item": ["item_code", "item_name", "stock_qty", "stock_uom", "rate", "amount"],
   "BOM Operation": ["operation", "workstation", "time_in_mins", "hour_rate", "operating_cost"],
   "BOM Scrap Item": ["item_code", "stock_qty", "stock_uom", "rate", "amount"],
 };

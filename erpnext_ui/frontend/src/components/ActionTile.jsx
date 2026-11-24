@@ -24,7 +24,7 @@ export default function ActionTile({ tile, onClick, className = "" }) {
 
   return (
     <div
-      className={`group flex h-full cursor-pointer flex-col bg-card p-4 text-card-foreground ring-1 ring-foreground/10 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10 hover:ring-primary/40 ${className}`}
+      className={`group flex h-full cursor-pointer flex-col bg-card p-3 text-card-foreground ring-1 ring-foreground/10 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10 hover:ring-primary/40 ${className}`}
       onClick={() => onClick(tile)}
       role="button"
       tabIndex={0}
@@ -36,9 +36,9 @@ export default function ActionTile({ tile, onClick, className = "" }) {
       }}
     >
       {/* HEADER */}
-      <div className="mb-3 flex items-start gap-3">
+      <div className="flex items-center gap-2.5">
         <div
-          className="flex size-11 shrink-0 items-center justify-center rounded-xl"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg"
           style={{
             background: `color-mix(in srgb, ${color} 12%, transparent)`,
           }}
@@ -51,8 +51,8 @@ export default function ActionTile({ tile, onClick, className = "" }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">{title}</div>
-          <div className="mt-0.5 truncate text-sm text-muted-foreground">
+          <div className="truncate font-semibold" title={title}>{title}</div>
+          <div className="truncate text-xs text-muted-foreground" title={description}>
             {description}
           </div>
         </div>
@@ -65,13 +65,9 @@ export default function ActionTile({ tile, onClick, className = "" }) {
             {tile.badge}
           </Badge>
         ) : null}
-      </div>
-
-      {/* FOOTER */}
-      <div className="mt-auto flex justify-end">
         {tile.createRoute && (
           <button
-            className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/85"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/85"
             onClick={(e) => {
               e.stopPropagation();
               onClick(tile, true);

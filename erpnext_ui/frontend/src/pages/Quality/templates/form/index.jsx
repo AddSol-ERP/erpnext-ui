@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ClipboardList, ListChecks } from "lucide-react";
+import { ClipboardList, ListChecks, Pencil, Trash2 } from "lucide-react";
 import { get } from "../../../../services/api";
 import { saveDocument } from "../../../../lib/docTransition";
 import { useNavigate, useParams } from "react-router-dom";
@@ -13,6 +13,9 @@ import { focusFirstError } from "../../../../lib/formValidation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import AppModal from "../../../../components/AppModal";
 import ResponseConfigEditor from "../../components/ResponseConfigEditor";
 import {
   defaultResponseConfig,
@@ -32,12 +35,19 @@ import {
 export default function QualityTemplateForm() {
   const navigate = useNavigate();
   const { name } = useParams();
-  const { setHeader } = useHeader();
+  const { setHeader, setShellMode } = useHeader();
   const toast = useToast();
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [activeTab, setActiveTab] = useState("details");
+  const [editingRow, setEditingRow] = useState(null);
+
+  useEffect(() => {
+    setShellMode?.("tabbed-form");
+    return () => setShellMode?.("default");
+  }, [setShellMode]);
 
   const [doc, setDoc] = useState({
     quality_inspection_template_name: "",
@@ -73,6 +83,7 @@ export default function QualityTemplateForm() {
       const data = res.data;
 
       setDoc({
+        ...data,
         quality_inspection_template_name:
           data.quality_inspection_template_name || "",
         item_quality_inspection_parameter: (
@@ -90,6 +101,7 @@ export default function QualityTemplateForm() {
   /* ================= ROW ================= */
 
   const addRow = () => {
+    setEditingRow(doc.item_quality_inspection_parameter.length);
     setDoc((prev) => ({
       ...prev,
       item_quality_inspection_parameter: [
@@ -230,6 +242,7 @@ export default function QualityTemplateForm() {
 
     setFieldErrors(errs);
     if (Object.keys(errs).length) {
+      setActiveTab(errs.quality_inspection_template_name ? "details" : "parameters");
       // The banner states the SITUATION; the field carries the message. Both
       // are on screen at once here, so repeating the sentence says it twice.
       requestAnimationFrame(() => focusFirstError(errs));
@@ -306,7 +319,12 @@ export default function QualityTemplateForm() {
   /* ================= UI ================= */
 
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 pt-4">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-0 flex-1 gap-0 overflow-hidden bg-card">
+      <TabsList className="h-auto w-full shrink-0 justify-start gap-0 overflow-x-auto rounded-none border-b border-border/60 bg-card p-0">
+        {[ ["details", t("quality.basicInfo")], ["parameters", t("quality.inspectionParameters")], ["metadata", t("common.metadata")] ].map(([id, label]) => <TabsTrigger key={id} value={id} className="min-h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-1 text-xs text-muted-foreground shadow-none after:hidden data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary">{label}</TabsTrigger>)}
+      </TabsList>
+      <TabsContent value="details" className="m-0 min-h-0 overflow-y-auto p-0">
 
       {/* BASIC */}
       <FormSection title={t("quality.basicInfo")} icon={ClipboardList}>
@@ -329,8 +347,10 @@ export default function QualityTemplateForm() {
           </FormField>
         </div>
       </FormSection>
+      </TabsContent>
 
       {/* PARAMETERS */}
+      <TabsContent value="parameters" className="m-0 min-h-0 overflow-y-auto p-0">
       <FormSection
         title={t("quality.inspectionParameters")}
         icon={ListChecks}
@@ -351,8 +371,13 @@ export default function QualityTemplateForm() {
           <span className="sr-only">{t("quality.inspectionParameters")}</span>
         </FormField>
 
-        {doc.item_quality_inspection_parameter.map((row, idx) => (
-          <div key={idx} className="rounded-lg border border-border p-3">
+        <Table containerClassName="max-h-[min(60dvh,40rem)] overflow-auto" containerProps={{ role: "region", "aria-label": t("quality.inspectionParameters"), tabIndex: 0 }}>
+          <TableHeader className="sticky top-0 z-10 bg-table-header"><TableRow><TableHead>#</TableHead><TableHead>{t("quality.parameter")}</TableHead><TableHead>{t("quality.responseType")}</TableHead><TableHead className="text-end">{t("common.actions")}</TableHead></TableRow></TableHeader>
+          <TableBody>{doc.item_quality_inspection_parameter.map((row, idx) => <TableRow key={idx}><TableCell>{idx + 1}</TableCell><TableCell>{row.specification || "—"}</TableCell><TableCell>{t(`quality.responseTypes.${row.responseConfig?.type || "numeric_range"}`)}</TableCell><TableCell><div className="flex justify-end gap-1"><Button type="button" variant="ghost" size="icon-sm" aria-label={`${t("common.edit")} · ${t("common.row", { n: idx + 1 })}`} onClick={() => setEditingRow(idx)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-destructive" aria-label={`${t("common.delete")} · ${t("common.row", { n: idx + 1 })}`} onClick={() => removeRow(idx)}><Trash2 /></Button></div></TableCell></TableRow>)}</TableBody>
+        </Table>
+        <AppModal show={editingRow != null} onClose={() => setEditingRow(null)} title={t("quality.parameter")} width="lg" footer={<Button type="button" variant="outline" onClick={() => setEditingRow(null)}>{t("common.close")}</Button>}>
+        {doc.item_quality_inspection_parameter.map((row, idx) => idx === editingRow && (
+          <div key={idx} className="p-2">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* PARAM */}
               <FormField label={t("quality.parameter")} required>
@@ -380,17 +405,6 @@ export default function QualityTemplateForm() {
                 />
               </div>
 
-              {/* REMOVE */}
-              <div className="flex items-end justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
-                  onClick={() => removeRow(idx)}
-                >
-                  {t("quality.remove")}
-                </Button>
-              </div>
             </div>
 
             {/* VALUE INPUTS */}
@@ -494,7 +508,11 @@ export default function QualityTemplateForm() {
             </div>
           </div>
         ))}
+        </AppModal>
       </FormSection>
+      </TabsContent>
+      <TabsContent value="metadata" className="m-0 min-h-0 overflow-y-auto p-0"><dl className="grid grid-cols-1 gap-4 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">{[[t("common.id"), doc.name], [t("common.created"), doc.creation], [t("common.modified"), doc.modified], [t("common.owner"), doc.owner]].map(([label, value]) => <div key={label}><dt className="mb-1 text-xs font-semibold text-muted-foreground">{label}</dt><dd className="break-words">{value || "—"}</dd></div>)}</dl></TabsContent>
+    </Tabs>
     </div>
   );
 }
