@@ -87,6 +87,10 @@ export function deleteAttachment(fileName) {
   return post(`method/${NS}.delete_document_attachment`, { file_name: fileName });
 }
 
+export function attachDocumentLink({ doctype, docname, typeKey, url, fileName, remark, bomItem }) {
+  return post(`method/${NS}.attach_document_link`, { doctype, docname, type_key: typeKey, url, file_name: fileName, remark, bom_item: bomItem });
+}
+
 /** The `accept` attribute for one type, e.g. ".pdf,.jpg,.jpeg,.png". */
 export function acceptFor(type) {
   return (type?.extensions || []).map((ext) => `.${ext}`).join(",");

@@ -111,6 +111,39 @@ export const DOCTYPE_CONFIG = {
     searchFields: ["employee_name", "employee"],
     readOnly: true,      // renders ERPNext print format instead of editable form
   },
+  ToDo: {
+    // ToDo is assignment-scoped in Frappe: users can see their assigned rows
+    // without having permission to read DocType/Workflow records required by
+    // GenericForm. Open the stock form, which uses Frappe's native ToDo access.
+    nativeForm: true,
+    list: {
+      titleField: "description",
+      titleFieldIsHtml: true,
+      titleMaxLength: 100,
+      titleHeaderKey: "common.description",
+      subtitleField: "reference_type",
+      metaField: "date",
+      metaHeaderKey: "common.dueDate",
+      statusField: "status",
+      additionalColumns: [
+        {
+          field: "custom_for_information_only",
+          headerKey: "dashboard.myTodos.taskType",
+          format: "todoKind",
+          hideBelow: "md",
+        },
+        { field: "priority", headerKey: "common.priority", hideBelow: "lg" },
+        { field: "assigned_by", headerKey: "common.assignedBy", hideBelow: "lg" },
+        { field: "reference_name", headerKey: "common.referenceDocument", hideBelow: "lg" },
+      ],
+    },
+    searchFields: ["description", "reference_name"],
+    form: {
+      titleField: "description",
+      titleFieldIsHtml: true,
+      titleMaxLength: 100,
+    },
+  },
   "Job Opening": {
     list: {
       titleField: "job_title",

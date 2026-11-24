@@ -479,6 +479,7 @@
   }
  },
  "projects": {
+  "projectId": "Project ID",
   "title": "Projects",
   "subtitle": "Manage projects, bills of materials and production planning",
   "active": "Active",
@@ -503,6 +504,9 @@
   "approvedVendors": "Approved Vendor List",
   "details": "BOM details",
   "materials": "Raw materials",
+  "explodedItems": "Exploded Items",
+  "totalAmount": "Total amount",
+  "totalPurchaseAmount": "Total purchase amount",
   "operations": "Operations",
   "scrap": "Scrap and process loss",
   "costing": "Costing and currency",

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Download, Filter, Printer, Search, X } from "lucide-react";
+import { Download, Filter, MoreHorizontal, Printer, RefreshCcw, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
@@ -24,6 +26,7 @@ import { mapVariant } from "../../lib/mapVariant";
 import ActiveFilterChips from "../List/ActiveFilterChips";
 import FilterFields from "../FilterModal/FilterFields";
 import { buildFilterChips } from "../../lib/filterChips";
+import { useListFloatingActions } from "../List/floatingActions";
 
 function ActionIcon({ icon }) {
   if (!icon) return null;
@@ -33,19 +36,23 @@ function ActionIcon({ icon }) {
 }
 
 /** Page actions from setHeader (New / Refresh / …) as labeled buttons. */
-function HeaderActions({ actions }) {
+function HeaderActions({ actions, hideRefreshOnDesktop = false, refreshLabel }) {
+  const { t } = useTranslation();
   if (!actions?.length) return null;
+
+  const secondaryActions = actions.filter((action) => action.label !== refreshLabel);
+  const visibleActions = secondaryActions.length > 1 ? actions.filter((action) => action.label === refreshLabel) : actions;
 
   return (
     <>
-      {actions.map((action, i) => {
+      {visibleActions.map((action, i) => {
         const map = mapVariant(action.variant);
         return (
           <Button
             key={`${action.label ?? i}-${i}`}
             size="sm"
             variant={map.variant}
-            className={map.className}
+            className={cn(map.className, hideRefreshOnDesktop && action.label === refreshLabel && "xl:hidden")}
             onClick={action.onClick}
             disabled={action.disabled}
             title={action.label}
@@ -55,6 +62,10 @@ function HeaderActions({ actions }) {
           </Button>
         );
       })}
+      {secondaryActions.length > 1 && <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="sm"><MoreHorizontal />{t("common.moreActions")}</Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end">{secondaryActions.map((action, i) => <DropdownMenuItem key={`${action.label ?? i}-${i}`} disabled={action.disabled} onSelect={action.onClick}><ActionIcon icon={action.icon} />{action.label}</DropdownMenuItem>)}</DropdownMenuContent>
+      </DropdownMenu>}
     </>
   );
 }
@@ -82,6 +93,12 @@ export default function ActionBar({
   onPrint,
   onExport,
   extra = null,
+  leading = null,
+  compact = false,
+  searchClassName,
+  resultCountClassName,
+  headerActionsClassName,
+  topBarSearch = true,
   value,
   defaultValue = "",
   debounce = 400,
@@ -98,7 +115,10 @@ export default function ActionBar({
   inlineFilters = false,
 }) {
   const { t } = useTranslation();
-  const { header, shellMode } = useHeader();
+  const { header, shellMode, listToolbarOwner, registerListToolbar } = useHeader();
+  const toolbarId = useId();
+  const floatingTarget = useListFloatingActions();
+  const [headerTarget, setHeaderTarget] = useState(null);
   const isMobile = useIsMobile();
   const isControlled = value !== undefined;
   const [inner, setInner] = useState(defaultValue);
@@ -106,7 +126,21 @@ export default function ActionBar({
   const onSearchRef = useRef(onSearch);
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState({});
-  const headerActions = shellMode === "list" ? header?.actions || [] : [];
+  const actions = shellMode === "list" ? header?.actions || [] : [];
+  const primaryActions = actions.filter((action) => action?.variant === "btn-primary");
+  const headerActions = primaryActions.length === 1 ? actions.filter((action) => action !== primaryActions[0]) : actions;
+  const isHeaderOwner = topBarSearch && shellMode === "list" && listToolbarOwner === toolbarId && !!headerTarget;
+  const refreshAction = headerActions.find((action) => action.label === t("common.refresh"));
+
+  useEffect(() => {
+    if (!topBarSearch || shellMode !== "list" || !registerListToolbar) return undefined;
+    return registerListToolbar(toolbarId);
+  }, [topBarSearch, shellMode, registerListToolbar, toolbarId]);
+  useEffect(() => {
+    if (!topBarSearch || shellMode !== "list") return undefined;
+    const frame = requestAnimationFrame(() => setHeaderTarget(document.getElementById("list-header-search")));
+    return () => cancelAnimationFrame(frame);
+  }, [topBarSearch, shellMode]);
 
   useEffect(() => {
     onSearchRef.current = onSearch;
@@ -165,6 +199,7 @@ export default function ActionBar({
   // width 0 = not measured yet, so default to the compact control rather than
   // rendering a row of filters that immediately wraps.
   const showInline =
+    !floatingTarget &&
     inlineFilters &&
     ownsFilter &&
     filterFieldCount > 0 &&
@@ -218,10 +253,38 @@ export default function ActionBar({
     </>
   );
 
+  const filterControl = showFilterButton && ownsFilter && !showInline ? (
+    isMobile ? (
+      <Button variant="outline" size="sm" className={cn("relative gap-1.5", floatingTarget && "size-9 bg-card p-0")}
+        aria-label={filterLabel} title={filterLabel} aria-expanded={filterOpen} onClick={openFilter}>
+        <Filter />{count > 0 ? <span className={cn("flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground", floatingTarget && "absolute -end-1 -top-1")}>{count}</span> : <span className="sr-only">{t("common.filters")}</span>}
+      </Button>
+    ) : (
+      <Popover open={filterOpen} onOpenChange={(open) => { if (open) setDraftFilters({ ...filters }); setFilterOpen(open); }}>
+        <PopoverTrigger asChild><Button variant="outline" size="sm" className={cn("relative gap-1.5", floatingTarget && "size-9 bg-card p-0")} aria-label={filterLabel} title={filterLabel} aria-expanded={filterOpen}><Filter /><span className={cn("hidden sm:inline", floatingTarget && "sm:sr-only")}>{filterLabel}</span>{floatingTarget && count > 0 && <span className="absolute -end-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">{count}</span>}</Button></PopoverTrigger>
+        <PopoverContent align="end" side={floatingTarget ? "top" : "bottom"} sideOffset={6} className="w-80 rounded-none bg-card p-0">
+          <div className="border-b border-border/60 px-3 py-2 text-sm font-medium">{t("common.filters")}</div>
+          <div className="max-h-[min(60vh,420px)] overflow-y-auto p-3">{panelBody}</div>
+          <div className="flex justify-end gap-2 border-t border-border/60 p-2">{panelFooter}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  ) : showFilterButton ? (
+    <Button variant="outline" size="icon-sm" className={cn("relative", floatingTarget && "size-9 bg-card")} onClick={openFilter} aria-label={filterLabel} title={filterLabel}>
+      <Filter />{showFilterCount && count > 0 && <span className="absolute -end-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">{count}</span>}
+    </Button>
+  ) : null;
+
   return (
     <div className="rounded-none bg-transparent">
+      {isHeaderOwner && createPortal(<div className="flex items-center gap-2"><div className="relative w-40 2xl:w-60"><Search aria-hidden="true" className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input type="search" className="h-8 ps-8" aria-label={t("common.search")} placeholder={t("common.searchPlaceholder")} value={searchValue} onChange={(event) => emit(event.target.value)} /></div>{resultCount != null && resultCount !== "" && <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">{t("common.resultCount", { count: resultCount })}</span>}{refreshAction && <Button type="button" variant="outline" size="icon-sm" disabled={refreshAction.disabled} onClick={refreshAction.onClick} aria-label={refreshAction.label} title={refreshAction.label}><ActionIcon icon={refreshAction.icon || RefreshCcw} /></Button>}</div>, headerTarget)}
+      {floatingTarget && createPortal(<>
+        {onPrint && <Button type="button" variant="outline" size="icon-sm" className="size-9 bg-card" onClick={onPrint} aria-label={t("common.print")} title={t("common.print")}><Printer /></Button>}
+        {filterControl}
+      </>, floatingTarget)}
       {/* ROW 1: search + inline filters + actions (flush inside list card) */}
-      <div ref={rowRef} className="flex flex-wrap items-center gap-2 p-2 sm:p-3">
+      <div ref={rowRef} data-slot="list-action-row" className={cn("flex flex-wrap items-center gap-2 p-2 sm:p-3", compact && "sm:gap-3 sm:px-3 sm:py-1")}>
+        {leading}
         {/* SEARCH — full width on mobile. With inline filters it takes a fixed
             slot instead of `sm:w-1/2`: five filters plus a half-width search
             box do not fit in one row, and the half is taken from the filters
@@ -229,7 +292,9 @@ export default function ActionBar({
         <div
           className={cn(
             "relative min-w-40",
-            showInline ? "w-56 shrink-0" : "w-full sm:w-1/2 sm:flex-none",
+            showInline ? "w-56 shrink-0" : compact ? "w-full sm:w-56 sm:flex-none" : "w-full sm:w-1/2 sm:flex-none",
+            searchClassName,
+            isHeaderOwner && "xl:hidden",
           )}
         >
           <Search className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -256,7 +321,7 @@ export default function ActionBar({
 
         {/* RESULT COUNT — total matching rows */}
         {resultCount != null && resultCount !== "" ? (
-          <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-border/70 bg-muted/50 px-2.5 text-xs font-medium tabular-nums text-muted-foreground">
+          <span className={cn("inline-flex h-7 shrink-0 items-center rounded-full border border-border/70 bg-muted/50 px-2.5 text-xs font-medium tabular-nums text-muted-foreground", resultCountClassName, isHeaderOwner && "xl:hidden")}>
             {t("common.resultCount", { count: resultCount })}
           </span>
         ) : null}
@@ -290,7 +355,7 @@ export default function ActionBar({
         >
           {extra}
 
-          {onPrint && (
+          {onPrint && !floatingTarget && (
             <Button
               variant="outline"
               size="icon-sm"
@@ -313,74 +378,9 @@ export default function ActionBar({
           )}
 
           {/* Page actions from setHeader (list mode) — before Filter */}
-          <HeaderActions actions={headerActions} />
+          <span className={cn("contents", headerActionsClassName)}><HeaderActions actions={headerActions} hideRefreshOnDesktop={isHeaderOwner} refreshLabel={t("common.refresh")} /></span>
 
-          {showFilterButton && ownsFilter && !showInline ? (
-            isMobile ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                aria-label={filterLabel}
-                aria-expanded={filterOpen}
-                onClick={openFilter}
-              >
-                <Filter />
-                {count > 0 ? (
-                  <span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                    {count}
-                  </span>
-                ) : (
-                  <span className="sr-only">{t("common.filters")}</span>
-                )}
-              </Button>
-            ) : (
-              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    aria-label={filterLabel}
-                    aria-expanded={filterOpen}
-                  >
-                    <Filter />
-                    <span className="hidden sm:inline">{filterLabel}</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  sideOffset={6}
-                  className="w-80 rounded-none bg-card p-0"
-                >
-                  <div className="border-b border-border/60 px-3 py-2 text-sm font-medium">
-                    {t("common.filters")}
-                  </div>
-                  <div className="max-h-[min(60vh,420px)] overflow-y-auto p-3">
-                    {panelBody}
-                  </div>
-                  <div className="flex justify-end gap-2 border-t border-border/60 p-2">
-                    {panelFooter}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )
-          ) : showFilterButton ? (
-            <Button
-              variant="outline"
-              size="icon-sm"
-              className="relative"
-              onClick={openFilter}
-              aria-label={filterLabel}
-            >
-              <Filter />
-              {showFilterCount && count > 0 ? (
-                <span className="absolute -end-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                  {count}
-                </span>
-              ) : null}
-            </Button>
-          ) : null}
+          {!floatingTarget && filterControl}
         </div>
       </div>
 

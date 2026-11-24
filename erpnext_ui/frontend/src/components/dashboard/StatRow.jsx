@@ -16,7 +16,7 @@ export default function StatRow({ children }) {
   const count = items.length;
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
       {items.map((child, i) => {
         if (!isValidElement(child)) return child;
         const corners = gridCorners({ breakpoints: BREAKPOINTS, index: i, count });

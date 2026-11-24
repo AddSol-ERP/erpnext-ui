@@ -479,6 +479,7 @@
   }
  },
  "projects": {
+  "projectId": "परियोजना आईडी",
   "title": "परियोजनाएँ",
   "subtitle": "परियोजनाएँ, सामग्री सूची और उत्पादन योजना प्रबंधित करें",
   "active": "सक्रिय",
@@ -503,6 +504,9 @@
   "approvedVendors": "स्वीकृत विक्रेता सूची",
   "details": "BOM विवरण",
   "materials": "कच्चा माल",
+  "explodedItems": "विस्तृत सामग्री",
+  "totalAmount": "कुल राशि",
+  "totalPurchaseAmount": "कुल खरीद राशि",
   "operations": "संचालन",
   "scrap": "स्क्रैप और प्रक्रिया हानि",
   "costing": "लागत और मुद्रा",

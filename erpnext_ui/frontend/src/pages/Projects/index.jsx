@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, RefreshCcw } from "lucide-react";
+import { Plus, RefreshCcw, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useHeader } from "../../context/HeaderContext";
 import { get } from "../../services/api";
 import ActionBar from "../../components/ActionBar";
@@ -20,6 +23,8 @@ export default function Projects() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "inactive" ? "inactive" : "active";
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [headerTarget, setHeaderTarget] = useState(null);
   const page = Math.max(0, Number.parseInt(params.get("page"), 10) || 0);
   const setPage = (value) => {
     const nextPage = typeof value === "function" ? value(page) : value;
@@ -34,6 +39,18 @@ export default function Projects() {
   const [result, setResult] = useState({ rows: [], counts: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setHeaderTarget(document.getElementById("project-list-header-search")));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== search) { setSearch(searchInput); setPage(0); setLoading(true); }
+    }, 400);
+    return () => clearTimeout(timer);
+    // setPage changes URL state and is needed only when the search changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput, search]);
   useEffect(() => {
     setHeader({ title: t("projects.title"), subtitle: t("projects.subtitle"), breadcrumbs: [
       { label: t("common.home"), path: "/" }, { label: t("projects.title") },
@@ -71,7 +88,7 @@ export default function Projects() {
     raw: project,
   })), [result.rows, t]);
   const columns = useMemo(() => [
-    { id: "project", header: t("manufacturing.project"), cell: (row) => <div className="min-w-0"><div className="truncate font-medium">{row.title}</div><div className="truncate text-xs text-muted-foreground">{row.raw.name}</div></div> },
+    { id: "projectId", header: `${t("projects.projectId")} / ${t("manufacturing.project")}`, cell: (row) => <div className="min-w-0 leading-tight"><span className="block whitespace-nowrap">{row.raw.name}</span>{row.title !== row.raw.name && <span className="block max-w-xs truncate text-xs font-normal text-muted-foreground" title={row.title}>{row.title}</span>}</div> },
     { id: "company", header: t("store.filters.company"), hideBelow: "lg", cell: (row) => <span className="text-xs text-muted-foreground">{row.raw.company || "—"}</span> },
     { id: "customer", header: t("store.filters.customer"), hideBelow: "lg", cell: (row) => <span className="text-xs text-muted-foreground">{row.raw.customer || "—"}</span> },
     { id: "status", header: t("common.status"), cell: (row) => <StatusBadge tone={row.statusColor}>{row.statusLabel}</StatusBadge> },
@@ -79,25 +96,27 @@ export default function Projects() {
     { id: "due", header: t("projects.due"), cell: (row) => <span className="text-xs text-muted-foreground">{row.raw.expected_end_date || "—"}</span> },
   ], [t]);
   const openProject = (project) => navigate(`/projects/view/${encodeURIComponent(project.name)}`);
-  const tabs = <div role="group" aria-label={t("projects.activity")} className="flex min-w-0 flex-wrap items-center gap-1.5 pb-2">
+  const tabs = <div role="group" aria-label={t("projects.activity")} className="inline-flex shrink-0 items-center self-stretch">
     {["active", "inactive"].map((value) => <button key={value} type="button" aria-pressed={tab === value}
-      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${tab === value ? "bg-primary/15 text-primary ring-1 ring-primary/40" : "text-chrome-muted hover:bg-muted hover:text-chrome-foreground"}`}
-      onClick={() => { setLoading(true); setParams({ tab: value }); }}>
+      className={`min-h-9 border-b-2 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === value ? "border-primary bg-primary/10 text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+      onClick={() => { if (tab !== value) { setLoading(true); setParams({ tab: value }); } }}>
       {t(`projects.${value}`)}{result.counts[value] != null && !loading ? ` (${result.counts[value]})` : ""}
     </button>)}
   </div>;
-  return <ListLayout
+  return <>
+  {headerTarget && createPortal(<div className="flex items-center gap-2"><div className="relative w-40 2xl:w-60"><Search aria-hidden="true" className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input type="search" className="h-8 ps-8" aria-label={t("common.search")} placeholder={t("common.searchPlaceholder")} value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></div><span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">{t("common.resultCount", { count: total })}</span><Button type="button" variant="outline" size="icon-sm" disabled={loading} onClick={() => setRefresh((value) => value + 1)} aria-label={t("common.refresh")} title={t("common.refresh")}><RefreshCcw /></Button></div>, headerTarget)}
+  <ListLayout
     contentMode="auto"
-    tabs={tabs}
     loading={loading}
     error={error}
     onRetry={() => setRefresh((value) => value + 1)}
-    actionBar={<ActionBar onSearch={(value) => { if (value === search) return; setSearch(value); setPage(0); setLoading(true); }} resultCount={total} />}
+    tabs={tabs}
+    actionBar={<div className={headerTarget ? "xl:hidden" : undefined}><ActionBar onSearch={setSearchInput} value={searchInput} resultCount={total} compact topBarSearch={false} /></div>}
     cards={listData.map((item, index) => <ListRow key={item.raw.name} item={item} index={page * PAGE_SIZE + index + 1} onClick={openProject} />)}
-    table={<DataTable columns={columns} data={listData} rowKey={(row) => row.raw.name} onRowClick={(row) => openProject(row.raw)} rowOffset={page * PAGE_SIZE} />}
+    table={<DataTable columns={columns} data={listData} rowKey={(row) => row.raw.name} onRowClick={(row) => openProject(row.raw)} rowOffset={page * PAGE_SIZE} className="[&_th]:h-8 [&_th]:px-2.5 [&_td]:px-2.5 [&_td]:py-1" />}
     pagination={<Pagination currentPage={page + 1} totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))} totalItems={total} pageSize={PAGE_SIZE}
       disabled={loading} onPageChange={(value) => { setPage(value - 1); setLoading(true); }} />}
     isEmpty={!loading && !listData.length}
     emptyTitle={t(tab === "active" ? "projects.emptyActive" : "projects.emptyInactive")}
-  />;
+  /></>;
 }

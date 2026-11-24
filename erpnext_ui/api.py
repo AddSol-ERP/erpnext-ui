@@ -562,6 +562,77 @@ def get_current_user():
     return {"user": user, "roles": filtered}
 
 
+@frappe.whitelist(allow_guest=False)
+def get_my_open_todos():
+	"""Return the authenticated user's open ToDos, grouped by information flag.
+
+	The session user is the only allowed assignee source. This endpoint backs the
+	SPA home page, so accepting an `allocated_to` argument would let a caller
+	probe another user's task descriptions and references.
+	"""
+	user = frappe.session.user
+	from frappe.utils.data import strip_html
+
+	base_filters = {"allocated_to": user, "status": "Open"}
+	information_field = "custom_for_information_only"
+	has_information_field = frappe.db.has_column("ToDo", information_field)
+
+	def get_rows(filters, or_filters=None):
+		fields = [
+			"name",
+			"description",
+			"date",
+			"priority",
+			"color",
+			"reference_type",
+			"reference_name",
+		]
+		if has_information_field:
+			fields.append(information_field)
+		rows = frappe.get_list(
+			"ToDo",
+			filters=filters,
+			or_filters=or_filters,
+			fields=fields,
+			order_by="date asc, creation desc",
+			# The card shows three rows at once and scrolls through the remaining
+			# tasks; load a generous bounded list so scrolling doesn't stop at six.
+			page_length=100,
+		)
+		return [
+			{**row, "description": strip_html(row.get("description") or "").strip()}
+			for row in rows
+		]
+
+	information_filters = {**base_filters}
+	if has_information_field:
+		information_filters[information_field] = 1
+
+	total_count = frappe.db.count("ToDo", filters=base_filters)
+	information_count = (
+		frappe.db.count("ToDo", filters=information_filters) if has_information_field else 0
+	)
+	action_count = total_count - information_count
+	action_or_filters = (
+		[
+			["ToDo", information_field, "=", 0],
+			["ToDo", information_field, "is", "not set"],
+		]
+		if has_information_field
+		else None
+	)
+	action_todos = get_rows(base_filters, action_or_filters)
+	information_todos = get_rows(information_filters) if has_information_field else []
+
+	return {
+		"total": total_count,
+		"action_needed_count": action_count,
+		"information_count": information_count,
+		"action_needed_todos": action_todos,
+		"information_todos": information_todos,
+	}
+
+
 def boot_session(bootinfo):
     """Redirect operational users to the custom UI after login.
 

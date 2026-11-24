@@ -227,6 +227,7 @@ export default function MaterialRequestList() {
           <button
             key={s.id}
             type="button"
+            aria-pressed={scope === s.id}
             onClick={() => setScope(s.id)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               scope === s.id

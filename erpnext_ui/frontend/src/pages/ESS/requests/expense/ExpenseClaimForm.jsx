@@ -19,6 +19,7 @@ import { useDocStatus } from "../../../../hooks/useDocStatus";
 import { getApprovalMeta } from "../../../../lib/approvalMeta";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
+import EssSectionTabs from "../../../../components/EssSectionTabs";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import FormSelect from "../../../../components/FormSelect";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
@@ -37,6 +38,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { localDateISO } from "../../../../utils/localDateTime";
+
+const EXPENSE_FIELD_TABS = { employee: 0, company: 0, expense_approver: 0, posting_date: 0, expenses: 1, remark: 2 };
 
 export default function ExpenseClaimForm() {
   const { name } = useParams();
@@ -161,7 +164,6 @@ export default function ExpenseClaimForm() {
 
   /* ================= APPROVER ================= */
   const [approvers, setApprovers] = useState([]);
-  const [approverError, setApproverError] = useState("");
 
   // fetchApprovers setState after awaited API responses; the compiler rule
   // conservatively flags any setState-reaching call from an effect.
@@ -174,7 +176,9 @@ export default function ExpenseClaimForm() {
     );
 
     setApprovers(list);
-    setApproverError(list.length ? "" : message);
+    if (!list.length && message && !docRef.current.docstatus) {
+      toast.warning(t("requests.expense.approverUnavailable"));
+    }
 
     setDoc((prev) => {
       const stillValid = list.some((a) => a.value === prev.expense_approver);
@@ -538,7 +542,6 @@ export default function ExpenseClaimForm() {
       navigate("/ess/expense-claim");
     } catch (e) {
       const message = e?.message || t("common.submitFailed");
-      toast.error(message);
       setError(message);
     } finally {
       setSubmitting(false);
@@ -559,7 +562,6 @@ export default function ExpenseClaimForm() {
       navigate("/ess/expense-claim");
     } catch (e) {
       const message = e?.message || t("common.deleteFailed");
-      toast.error(message);
       setError(message);
     } finally {
       setDeleting(false);
@@ -587,7 +589,6 @@ export default function ExpenseClaimForm() {
       navigate("/ess/expense-claim");
     } catch (e) {
       const message = e?.message || t("common.cancelFailed");
-      toast.error(message);
       setError(message);
     } finally {
       setCancelling(false);
@@ -716,7 +717,7 @@ export default function ExpenseClaimForm() {
 
   /* ================= UI ================= */
   return (
-    <div className="mx-auto w-full max-w-[1100px] space-y-3 pt-4">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col gap-3">
       <ConfirmDialog
         open={cancelOpen}
         loading={cancelling}
@@ -742,9 +743,10 @@ export default function ExpenseClaimForm() {
         })}
       />
 
-      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} toastOnly />
 
       {/* BASIC */}
+      <EssSectionTabs fieldErrors={fieldErrors} fieldTabs={EXPENSE_FIELD_TABS}>
       <FormSection
         title={t("requests.expense.sectionDetails")}
         icon={User}
@@ -810,11 +812,6 @@ export default function ExpenseClaimForm() {
             />
           )}
 
-          {approverError && !isSubmitted && (
-            <small className="text-xs text-amber-600 dark:text-amber-400">
-              {approverError}
-            </small>
-          )}
         </FormField>
 
         <FormField
@@ -968,6 +965,7 @@ export default function ExpenseClaimForm() {
           />
         </FormField>
       </FormSection>
+      </EssSectionTabs>
 
       <RequiredAttachmentDialog
         show={!isEdit && showAttach}

@@ -28,6 +28,7 @@ import {
 import { useDocStatus } from "../../../../hooks/useDocStatus";
 import { FormField } from "../../../../components/FormField";
 import FormSection from "../../../../components/FormSection";
+import EssSectionTabs from "../../../../components/EssSectionTabs";
 import FormErrorSummary from "../../../../components/FormErrorSummary";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import { AttachDialog, RequiredAttachmentDialog } from "../../../../components/Attachments";
@@ -43,6 +44,8 @@ import LinkField from "../../../../components/LinkField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+
+const LEAVE_FIELD_TABS = { employee: 0, leave_approver: 0, leave_type: 0, from_date: 0, to_date: 0, half_day: 1, description: 1 };
 
 export default function LeaveApplicationForm() {
   const { name } = useParams();
@@ -111,7 +114,6 @@ export default function LeaveApplicationForm() {
   const [fieldErrors, setFieldErrors] = useState({});
 
   const [leaveBalance, setLeaveBalance] = useState(null);
-  const [approverError, setApproverError] = useState("");
   const [approvers, setApprovers] = useState([]);
 
   const [scope, setScope] = useState({
@@ -268,7 +270,9 @@ export default function LeaveApplicationForm() {
     );
 
     setApprovers(list);
-    setApproverError(list.length ? "" : message);
+    if (!list.length && message && !docRef.current.docstatus) {
+      toast.warning(t(/please set leave approver/i.test(message) ? "requests.leave.approverSetupHelp" : "requests.leave.approverLookupHelp"));
+    }
 
     setDoc((prev) => {
       // Keep the current approver if it is still a valid named approver.
@@ -290,6 +294,8 @@ export default function LeaveApplicationForm() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchApprovers(doc.employee);
     }
+    // Approver lookup runs when the selected employee changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.employee]);
 
   /* ================= LEAVE DETAILS ================= */
@@ -561,7 +567,6 @@ export default function LeaveApplicationForm() {
     // firing a request that can only come back as a server-side throw.
     if (!action && !canSubmitDocument({ doctype: "Leave Application", doc: docRef.current })) {
       const message = t("requests.leave.awaitingApproval");
-      toast.error(message);
       setError(message);
       return;
     }
@@ -578,7 +583,6 @@ export default function LeaveApplicationForm() {
       navigate("/ess/leave");
     } catch (e) {
       const message = e?.message || t("common.submitFailed");
-      toast.error(message);
       setError(message);
     } finally {
       setSubmitting(false);
@@ -608,7 +612,6 @@ export default function LeaveApplicationForm() {
       );
     } catch (e) {
       const message = e?.message || t("requests.leave.approvalFailed");
-      toast.error(message);
       setError(message);
     } finally {
       setApproving(false);
@@ -636,7 +639,6 @@ export default function LeaveApplicationForm() {
       toast.success(t("common.cancelledSuccess", { name }));
     } catch (e) {
       const message = e?.message || t("common.cancelFailed");
-      toast.error(message);
       setError(message);
     } finally {
       setCancelling(false);
@@ -671,8 +673,6 @@ export default function LeaveApplicationForm() {
       );
       navigate("/ess/leave");
     } catch (e) {
-      toast.error(e?.message || t("common.deleteFailed"));
-      // Keep the reason on the page too, in case the toast is missed.
       setError(e?.message || t("common.deleteFailed"));
     } finally {
       setDeleting(false);
@@ -824,7 +824,7 @@ export default function LeaveApplicationForm() {
 
   /* ================= UI ================= */
   return (
-    <div className="mx-auto w-full max-w-[1100px] space-y-3 pt-4">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col gap-3">
       <ConfirmDialog
         open={rejectOpen}
         loading={approving}
@@ -863,7 +863,7 @@ export default function LeaveApplicationForm() {
         })}
       />
 
-      <FormErrorSummary summary={error} fieldErrors={fieldErrors} />
+      <FormErrorSummary summary={error} fieldErrors={fieldErrors} toastOnly />
 
       {awaitingApproval && (
         <div
@@ -874,15 +874,7 @@ export default function LeaveApplicationForm() {
         </div>
       )}
 
-      {approverError && !isSubmitted && (
-        <div
-          role="alert"
-          className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400"
-        >
-          {approverError}
-        </div>
-      )}
-
+      <EssSectionTabs fieldErrors={fieldErrors} fieldTabs={LEAVE_FIELD_TABS}>
       <FormSection
         title={t("requests.leave.sectionDetails")}
         icon={CalendarDays}
@@ -1074,6 +1066,7 @@ export default function LeaveApplicationForm() {
           />
         </FormField>
       </FormSection>
+      </EssSectionTabs>
 
       <RequiredAttachmentDialog
         show={!isEdit && showAttach}

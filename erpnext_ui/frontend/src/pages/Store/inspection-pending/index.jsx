@@ -430,6 +430,7 @@ export default function InspectionPendingReport() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-4 py-2.5 font-medium">#</th>
                   <th className="px-4 py-2.5 font-medium">
                     {t("store.filters.item")}
                   </th>
@@ -455,7 +456,7 @@ export default function InspectionPendingReport() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("common.loading")}
@@ -464,19 +465,20 @@ export default function InspectionPendingReport() {
                 ) : displayRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
                       {t("store.inspectionPending.empty")}
                     </td>
                   </tr>
                 ) : (
-                  displayRows.map((row) => (
+                  displayRows.map((row, index) => (
                     <tr
                       key={`${row.item_code}|${row.batch_no || ""}|${row.serial_no || ""}|${row.warehouse}`}
                       className="cursor-pointer border-b border-border/40 last:border-0 hover:bg-accent/40"
                       onClick={() => inspectRow(row)}
                     >
+                      <td className="px-4 py-3 tabular-nums text-muted-foreground">{limit_start + index + 1}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium">
                           {row.item_name || row.item_code}

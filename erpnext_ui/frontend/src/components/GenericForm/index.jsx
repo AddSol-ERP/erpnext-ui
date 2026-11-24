@@ -44,6 +44,7 @@ import {
 } from "../../lib/formValidation";
 import {
   buildLayoutTree,
+  sectionsAsTabs,
   resolveLayoutMode,
   buildSteps,
   sectionFieldNames,
@@ -51,6 +52,7 @@ import {
 } from "./buildLayout";
 import { getFieldRenderer } from "./fieldTypes";
 import { getDoctypeConfig } from "../../config/doctypes";
+import { plainText, shortenText } from "../../lib/displayText";
 import { fetchAttachmentConfig } from "../../lib/attachments";
 import { AttachDialog, RequiredAttachmentDialog } from "../Attachments";
 import { Spinner } from "@/components/ui/spinner";
@@ -92,7 +94,7 @@ export default function GenericFormPage() {
   const hub = useHub();
   const location = useLocation();
   const navigate = useNavigate();
-  const { setHeader } = useHeader();
+  const { setHeader, setShellMode } = useHeader();
   const toast = useToast();
   const { t } = useTranslation();
 
@@ -179,18 +181,24 @@ export default function GenericFormPage() {
     [decodedDoctype],
   );
 
-  const layoutMode = useMemo(
-    () =>
-      meta
-        ? resolveLayoutMode(meta, doctypeConfig?.form?.layout)
-        : "single",
-    [meta, doctypeConfig],
-  );
+  const explicitLayout = doctypeConfig?.form?.layout;
+  const layoutMode = useMemo(() => {
+    if (!meta) return "single";
+    const resolved = resolveLayoutMode(meta, explicitLayout);
+    return !isBomForm && !explicitLayout && sectionsAsTabs(buildLayoutTree(meta)).length > buildLayoutTree(meta).length ? "tabs" : resolved;
+  }, [meta, explicitLayout, isBomForm]);
 
   const tabsTree = useMemo(
-    () => meta ? isBomForm ? buildBomLayout(meta, t, { template: decodedDoctype === "UI BOM Template" }) : buildLayoutTree(meta) : [],
-    [meta, decodedDoctype, isBomForm, t],
+    () => meta ? isBomForm ? buildBomLayout(meta, t, { template: decodedDoctype === "UI BOM Template" }) : explicitLayout === "stepper" ? buildLayoutTree(meta) : sectionsAsTabs(buildLayoutTree(meta)) : [],
+    [meta, decodedDoctype, isBomForm, explicitLayout, t],
   );
+
+  const hasCompactTabs = tabsTree.length > 0;
+  useEffect(() => {
+    if (loading || !hasCompactTabs) return undefined;
+    setShellMode?.("tabbed-form");
+    return () => setShellMode?.("default");
+  }, [loading, hasCompactTabs, setShellMode]);
 
   const steps = useMemo(
     () => (layoutMode === "stepper" ? buildSteps(tabsTree) : []),
@@ -352,10 +360,11 @@ export default function GenericFormPage() {
     if (!firstField) return;
 
     if (layoutMode === "stepper" && steps.length) {
+      setActiveTab(0);
       const idx = findGroupIndexForField(steps, firstField);
       setActiveStep(idx);
       setMaxReached((m) => Math.max(m, idx));
-    } else if (layoutMode === "tabs" && tabsTree.length > 1) {
+    } else if (tabsTree.length) {
       const idx = findGroupIndexForField(tabsTree, firstField);
       setActiveTab(idx);
     }
@@ -836,12 +845,22 @@ export default function GenericFormPage() {
     const focusFirstErr = () => {
       requestAnimationFrame(() => focusFirstError(errors));
     };
+    const titleField = doctypeConfig.form?.titleField;
+    const rawDocTitle = titleField ? doc[titleField] : doc.name;
+    const docTitle = titleField
+      ? shortenText(
+          doctypeConfig.form?.titleFieldIsHtml
+            ? plainText(rawDocTitle)
+            : rawDocTitle,
+          doctypeConfig.form?.titleMaxLength,
+        ) || doc.name || decodedDoctype
+      : doc.name || decodedDoctype;
 
     setHeader({
       status,
       title: isNew
         ? t("common.createNew", { name: decodedDoctype })
-        : `${doc.name || decodedDoctype}`,
+        : docTitle,
       subtitle: isNew
         ? t("common.createNew", { name: decodedDoctype })
         : t("common.editing", { name: decodedDoctype }),
@@ -852,7 +871,7 @@ export default function GenericFormPage() {
           label: decodedDoctype,
           path: `/${hub}/${encodeURIComponent(decodedDoctype)}`,
         },
-        { label: isNew ? t("common.new") : doc.name || "" },
+        { label: isNew ? t("common.new") : docTitle },
       ],
       actions,
       errorCount,
@@ -907,7 +926,7 @@ export default function GenericFormPage() {
     );
   };
 
-  const renderSectionFields = (fields) => {
+  const renderSectionFields = (fields, fillTable = false) => {
     const rows = [];
     let currentRow = [];
 
@@ -939,37 +958,34 @@ export default function GenericFormPage() {
     if (currentRow.length > 0) rows.push(currentRow);
 
     return (
-      <div>
+      <div className={fillTable ? "flex min-h-0 flex-1 flex-col" : undefined}>
         {rows.map((row, rowIdx) => {
           if (row.length === 1 && row[0].fieldtype === "Table") {
             const cf = row[0];
             const childFields =
               cf.options && childMeta[cf.options] ? childMeta[cf.options] : [];
+            const editableChildFields = childFields.filter((field) => field.fieldname && !field.hidden && !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break", "HTML", "Button"].includes(field.fieldtype) && !["parent", "parenttype", "parentfield", "idx", "custom_estimated_chargeable_qty", "custom_estimated_pricing_amount"].includes(field.fieldname));
+            const listChildFields = editableChildFields.filter((field) => field.in_list_view || field.reqd);
             return (
-              <div key={rowIdx} className="mb-4">
+              <div key={rowIdx} className={fillTable ? "flex min-h-0 flex-1 flex-col" : "mb-3"}>
                 <ChildTable
+                  fillHeight={fillTable}
+                  inlineBomFields={decodedDoctype === "BOM"}
                   title={cf.label}
                   bomAttachments={decodedDoctype === "BOM" && cf.fieldname === "items" && attachmentsEnabled}
                   bomName={decodedName}
-                  compactFields={isBomForm ? bomTableColumns(cf.options, childFields) || childFields.filter((field) => field.in_list_view || field.reqd).map((field) => field.fieldname) : undefined}
+                  totalField={decodedDoctype === "BOM" && cf.fieldname === "items" ? (bomTableColumns(cf.options, childFields)?.includes("amount") ? "amount" : "custom_purchase_amount") : undefined}
+                  currency={doc.currency}
+                  compactFields={(isBomForm && bomTableColumns(cf.options, childFields)) || (listChildFields.length ? listChildFields : editableChildFields.slice(0, 4)).map((field) => field.fieldname)}
                   pricingSide={["Purchase Order", "Purchase Receipt", "Purchase Invoice", "Supplier Quotation", "Material Request"].includes(decodedDoctype) ? "buying" : ["Sales Order", "Sales Invoice", "Delivery Note", "Quotation", "POS Invoice"].includes(decodedDoctype) ? "selling" : undefined}
-                  columns={childFields
-                    .filter(
-                      (c) =>
-                        c.fieldname &&
-                        !c.hidden &&
-                        (!isBomForm || !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break", "HTML", "Button"].includes(c.fieldtype)) &&
-                        !["custom_estimated_chargeable_qty", "custom_estimated_pricing_amount"].includes(c.fieldname) &&
-                        c.fieldname !== "parent" &&
-                        c.fieldname !== "parenttype" &&
-                        c.fieldname !== "parentfield" &&
-                        c.fieldname !== "idx",
-                    )
+                  columns={editableChildFields
                     .map((c) => ({
                       field: c.fieldname,
                       label: c.label,
                       type:
-                        c.fieldtype === "Check"
+                        c.fieldtype === "Attach" || c.fieldtype === "Attach Image"
+                          ? "attach"
+                          : c.fieldtype === "Check"
                           ? "checkbox"
                           : c.fieldtype === "Select"
                             ? "select"
@@ -985,9 +1001,11 @@ export default function GenericFormPage() {
                       readOnly: !!c.read_only,
                       fetchFrom: c.fetch_from,
                     }))}
+                  attachmentDoctype={decodedDoctype}
+                  attachmentDocname={!isNew ? decodedName : undefined}
                   value={doc[cf.fieldname] || []}
                   onChange={(val) => handleFieldChange(cf.fieldname, val)}
-                  disabled={isReadOnly || (cf.fieldname === "operations" && routingLoading)}
+                  disabled={isReadOnly || !!cf.read_only || (cf.fieldname === "operations" && routingLoading)}
                 />
               </div>
             );
@@ -996,12 +1014,12 @@ export default function GenericFormPage() {
           return (
             <div
               key={rowIdx}
-              className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-12"
+              className="mb-2 grid grid-cols-1 gap-2 md:grid-cols-12"
             >
               {row.map((field) => {
                 const colClass =
                   row.length >= 3
-                    ? "md:col-span-4"
+                    ? "md:col-span-6 lg:col-span-4 xl:col-span-3"
                     : row.length === 2
                       ? "md:col-span-6"
                       : "md:col-span-12";
@@ -1052,7 +1070,7 @@ export default function GenericFormPage() {
     return index === 0;
   };
 
-  const renderSectionCard = (section, key, sectionIndex = 0, total = 1) => {
+  const renderSectionCard = (section, key, sectionIndex = 0, total = 1, fillTable = false, sectionTab = false) => {
     if (!section.fields.length) return null;
     const secKey = key ?? section.label;
     const errorCount = sectionErrorCount(section);
@@ -1067,8 +1085,9 @@ export default function GenericFormPage() {
         title={section.label}
         description={section.description}
         icon={sectionIcon(section)}
-        className={isBomForm ? "mb-0 ring-0 hover:shadow-none" : "mb-4"}
-        collapsible
+        className={`${isBomForm ? "mb-0 ring-0 hover:shadow-none" : "mb-3"} ${sectionIndex > 0 ? "border-t border-border/70" : ""} ${fillTable ? "flex min-h-0 flex-1 flex-col" : ""}`}
+        contentClassName={fillTable ? "flex min-h-0 flex-1 flex-col" : undefined}
+        collapsible={!sectionTab}
         defaultOpen={defaultOpen}
         errorCount={errorCount}
         open={open}
@@ -1076,20 +1095,24 @@ export default function GenericFormPage() {
           setSectionOpenOverrides((prev) => ({ ...prev, [secKey]: next }));
         }}
       >
-        {renderSectionFields(section.fields)}
+        {renderSectionFields(section.fields, fillTable)}
       </FormSection>
     );
   };
 
-  const renderTabsTree = (tabList) => {
-    if (!tabList.length) return null;
+  const renderMetadata = () => (
+    <dl className="grid grid-cols-1 gap-4 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      {[[t("common.id"), doc.name], [t("common.created"), doc.creation], [t("common.modified"), doc.modified], [t("common.owner"), doc.owner]].map(([label, value]) => (
+        <div key={label} className="min-w-0">
+          <dt className="mb-1 text-xs font-semibold text-muted-foreground">{label}</dt>
+          <dd className="break-words text-foreground">{!isNew && value ? value : "—"}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 
-    if (tabList.length === 1) {
-      const sections = tabList[0].sections;
-      return sections.map((s, i) =>
-        renderSectionCard(s, `${tabList[0].id}-s${i}`, i, sections.length),
-      );
-    }
+  const renderTabsTree = (tabList, stepper = false) => {
+    if (!tabList.length) return null;
 
     return (
       <Tabs
@@ -1098,13 +1121,11 @@ export default function GenericFormPage() {
           setActiveTab(Number(v));
           setSummary("");
         }}
-        className={isBomForm ? "w-full gap-0 border border-border/70 bg-card shadow-sm" : "w-full"}
+        className="min-h-0 w-full flex-1 gap-0 overflow-hidden bg-card"
       >
         <TabsList
-          variant={isBomForm ? "default" : "line"}
-          className={isBomForm
-            ? "h-auto w-full flex-wrap justify-start gap-0 rounded-none border-b border-border/60 bg-muted/30 p-0"
-            : "h-auto w-full flex-wrap justify-start gap-1.5 border-b border-border/60 bg-transparent px-1 py-1.5"}
+          variant="default"
+          className="h-auto w-full shrink-0 justify-start gap-0 overflow-x-auto rounded-none border-b border-border/60 bg-card p-0"
         >
           {tabList.map((tab, i) => {
             const names = sectionFieldNames(tab.sections);
@@ -1113,11 +1134,9 @@ export default function GenericFormPage() {
               <TabsTrigger
                 key={tab.id}
                 value={String(i)}
-                className={isBomForm
-                  ? "h-auto flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 py-2.5 text-xs font-medium text-chrome-muted shadow-none transition-colors after:hidden hover:bg-muted hover:text-chrome-foreground data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
-                  : "gap-2 rounded-md border border-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=active]:font-semibold hover:text-foreground"}
+                className="min-h-9 flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-1 text-xs font-medium text-muted-foreground shadow-none after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
               >
-                {tab.label || t("common.tab", { n: i + 1 })}
+                {tab.label || (tabList.length === 1 ? t("common.details") : t("common.tab", { n: i + 1 }))}
                 {errCount > 0 && (
                   <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold tabular-nums text-destructive-foreground">
                     {errCount}
@@ -1126,24 +1145,34 @@ export default function GenericFormPage() {
               </TabsTrigger>
             );
           })}
+          <TabsTrigger value={String(tabList.length)} className="min-h-9 flex-none gap-2 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-1 text-xs font-medium text-muted-foreground shadow-none after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none">
+            {t("common.metadata")}
+          </TabsTrigger>
         </TabsList>
-        {tabList.map((tab, i) => (
-          <TabsContent key={tab.id} value={String(i)} className={isBomForm ? "m-0 p-0" : "pt-4"}>
+        {tabList.map((tab, i) => {
+          const visibleFields = tab.sections.length === 1 ? tab.sections[0].fields.filter((field) => !field.hidden && !["Section Break", "Column Break", "Tab Break", "Fold", "Page Break"].includes(field.fieldtype)) : [];
+          const fillTable = !stepper && !tab.description && visibleFields.length === 1 && visibleFields[0].fieldtype === "Table";
+          return <TabsContent key={tab.id} value={String(i)} className={`m-0 min-h-0 border-s border-border/60 p-0 ${fillTable ? "flex-col overflow-hidden data-[state=active]:flex" : "overflow-y-auto overscroll-contain"}`}>
             {tab.description && (
               <p className="mb-3 text-xs text-muted-foreground">
                 {tab.description}
               </p>
             )}
-            {tab.sections.map((s, si) =>
+            {stepper ? renderStepper() : tab.sections.map((s, si) =>
               renderSectionCard(
                 s,
                 `${tab.id}-s${si}`,
                 si,
                 tab.sections.length,
+                fillTable,
+                tab.sectionTab && tab.sections.length === 1,
               ),
             )}
-          </TabsContent>
-        ))}
+          </TabsContent>;
+        })}
+        <TabsContent value={String(tabList.length)} className="m-0 min-h-0 overflow-y-auto overscroll-contain border-s border-border/60 p-0">
+          {renderMetadata()}
+        </TabsContent>
       </Tabs>
     );
   };
@@ -1227,7 +1256,7 @@ export default function GenericFormPage() {
 
   let body = null;
   if (layoutMode === "stepper") {
-    body = renderStepper();
+    body = renderTabsTree([{ id: "form-steps", label: t("common.details"), sections: [] }], true);
   } else {
     body = renderTabsTree(tabsTree);
   }
@@ -1254,8 +1283,8 @@ export default function GenericFormPage() {
         onClose={() => setShowAttachments(false)}
       />
 
-      <div className={isBomForm ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
-      <FormErrorSummary summary={summary} fieldErrors={errors} className="mb-4" />
+      <div className={hasCompactTabs ? "mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden" : isBomForm ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
+      <FormErrorSummary summary={summary} fieldErrors={errors} className={hasCompactTabs ? "mx-3 mb-4 mt-3 sm:mx-4" : "mb-4"} />
 
       <RequiredAttachmentDialog
         show={isNew && showAttachments}
@@ -1266,30 +1295,10 @@ export default function GenericFormPage() {
         disabled={saving}
       />
 
-      {decodedDoctype === "BOM" && ratesLoading && <p role="status" className="mb-3 text-sm text-muted-foreground">{t("bomCreation.fetchingRates")}</p>}
-      {decodedDoctype === "BOM" && ratesError && <p role="alert" className="mb-3 text-sm text-destructive">{ratesError}</p>}
+      {decodedDoctype === "BOM" && ratesLoading && <p role="status" className={`mb-3 text-sm text-muted-foreground ${hasCompactTabs ? "px-4 pt-3" : ""}`}>{t("bomCreation.fetchingRates")}</p>}
+      {decodedDoctype === "BOM" && ratesError && <p role="alert" className={`mb-3 text-sm text-destructive ${hasCompactTabs ? "px-4 pt-3" : ""}`}>{ratesError}</p>}
       {body}
 
-      {/* Read-only system info for existing docs */}
-      {!isNew && (
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-4">
-          <div>
-            <span className="font-medium">{t("common.id")}:</span> {doc.name}
-          </div>
-          <div>
-            <span className="font-medium">{t("common.created")}:</span>{" "}
-            {doc.creation}
-          </div>
-          <div>
-            <span className="font-medium">{t("common.modified")}:</span>{" "}
-            {doc.modified}
-          </div>
-          <div>
-            <span className="font-medium">{t("common.owner")}:</span>{" "}
-            {doc.owner}
-          </div>
-        </div>
-      )}
     </div>
     </>
   );

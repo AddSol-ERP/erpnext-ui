@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ThemePanel from "../Theme";
 import LanguageSwitcher from "../LanguageSwitcher";
+import FontSizeControl from "../FontSizeControl";
 import { TOP_BAR } from "../../config/topBar";
 
 /** Shared breadcrumb row (desktop inline + mobile wrap). */
@@ -181,6 +182,7 @@ export function GlobalTools() {
   return (
     <div className="flex shrink-0 items-center gap-1">
       {TOP_BAR.showLanguage && <LanguageSwitcher />}
+      {TOP_BAR.showFontSize && <FontSizeControl />}
       {TOP_BAR.showTheme && <ThemePanel applyTheme={applyTheme} />}
       {TOP_BAR.showUser && (
         <DropdownMenu>

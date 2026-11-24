@@ -1,4 +1,6 @@
 import { cn } from "cn";
+import { useContext } from "react";
+import { FormFeedbackContext } from "./feedbackContext";
 
 /**
  * FormField: label + control + optional hint/error.
@@ -18,12 +20,13 @@ export function FormField({
   children,
   className,
 }) {
+  const { toastOnly } = useContext(FormFeedbackContext);
   // ERPNext meta can pass reqd as 0/1 — never render a raw number in JSX.
   const showRequired = Boolean(required);
 
   return (
     <div
-      className={cn("flex flex-col gap-1.5", className)}
+      className={cn("flex flex-col gap-1", toastOnly && error && "[&_[data-slot=input]]:border-destructive [&_[data-slot=select-trigger]]:border-destructive [&_[data-slot=textarea]]:border-destructive", className)}
       data-field={name}
       aria-invalid={error ? true : undefined}
     >
@@ -43,7 +46,7 @@ export function FormField({
       {error && (
         <p
           role="alert"
-          className="text-xs font-medium text-destructive"
+          className={toastOnly ? "sr-only" : "text-xs font-medium text-destructive"}
         >
           {error}
         </p>

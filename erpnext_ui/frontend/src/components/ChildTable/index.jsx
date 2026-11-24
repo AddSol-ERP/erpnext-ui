@@ -4,14 +4,16 @@ import { FormField } from "../FormField";
 import UomPricingEstimate from "../UomPricingEstimate";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import FieldRenderer from "./FieldRenderer";
 import { get } from "../../services/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -27,13 +29,33 @@ export default function ChildTable({
   compactFields,
   bomAttachments = false,
   bomName,
+  totalField,
+  currency,
+  fillHeight = false,
+  inlineBomFields = false,
+  attachmentDoctype,
+  attachmentDocname,
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState(value || []);
   const [editingRow, setEditingRow] = useState(null);
   const [attachmentRow, setAttachmentRow] = useState(null);
-  const compact = Array.isArray(compactFields);
-  const visibleColumns = compact ? columns.filter((column) => compactFields.includes(column.field)) : columns;
+  const visibleColumns = Array.isArray(compactFields) ? columns.filter((column) => compactFields.includes(column.field)) : columns;
+  const rowActionLabel = t(disabled ? "common.view" : "common.edit");
+  const RowActionIcon = disabled ? Eye : Pencil;
+  const totalColumnIndex = visibleColumns.findIndex((column) => column.field === totalField);
+  const cellValue = (row, field) => inlineBomFields && field === "custom_purchase_amount" && row.qty !== "" && row.custom_purchase_rate !== "" && row.qty != null && row.custom_purchase_rate != null
+    ? Math.round((Number(row.qty) * Number(row.custom_purchase_rate) + Number.EPSILON) * 100) / 100
+    : row[field];
+  const total = totalField ? data.reduce((sum, row) => {
+    const value = Number(cellValue(row, totalField));
+    return Number.isFinite(value) ? sum + value : sum;
+  }, 0) : null;
+  const displayValue = (row, column) => {
+    const value = cellValue(row, column.field);
+    if (column.type === "checkbox") return t(Number(value) === 1 ? "common.yes" : "common.no");
+    return value == null || value === "" ? "—" : String(value);
+  };
 
   useEffect(() => {
     // Mirror the controlled `value` prop into local editing state —
@@ -49,6 +71,7 @@ export default function ChildTable({
 
   const handleChange = async (rowIndex, field, val) => {
     const updated = [...data];
+    updated[rowIndex] = { ...updated[rowIndex] };
     updated[rowIndex][field] = val;
 
     // ===== Auto-calculate amount = qty × rate =====
@@ -96,6 +119,7 @@ export default function ChildTable({
       newRow[col.field] = col.default || "";
     });
     update([...data, newRow]);
+    setEditingRow(data.length);
   };
 
   const deleteRow = (index) => {
@@ -104,66 +128,52 @@ export default function ChildTable({
   };
 
   const emptyMessage = (
-    <div className="py-6 text-center text-sm text-muted-foreground">
+    <div className="py-4 text-center text-sm text-muted-foreground">
       {t("common.noData")}
     </div>
   );
-
-  // The Item code and Item name columns split the row's width between them.
-  // A cell's width floor has to come from a class here: the inputs are
-  // `w-full min-w-0`, so a text column with no floor collapses to its header
-  // and a reader sees a 24rem code beside a 6rem name. The code is a short
-  // stable identifier — it keeps a smaller floor, and the name, which is what
-  // the row is recognised by, gets the wide one.
-  const colWidthClass = (col) => {
-    if (col.field === "item_name") return "min-w-[24rem]";
-    if (col.type === "link" && col.options === "Item") return "min-w-[14rem]";
-    return undefined;
-  };
+  const headClass = "h-9 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground";
+  const columnWidth = (column) => column.field === "item_name" ? "min-w-[24rem]" : column.type === "link" && column.options === "Item" ? "min-w-[14rem]" : "";
 
   return (
-    <div className="rounded-none bg-card ring-1 ring-foreground/10">
+    <div className={`min-w-0 bg-card ${fillHeight ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ""}`}>
       {/* HEADER */}
-      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2 sm:px-4">
         <div className="text-sm font-semibold">{title}</div>
 
         {!disabled && (
-          <Button size="sm" onClick={addRow}>
+          <Button type="button" size="sm" onClick={addRow}>
             <Plus />
             {t("common.addRow")}
           </Button>
         )}
       </div>
 
-      {/* =========================
-          DESKTOP TABLE
-      ========================= */}
-      <div className="hidden md:block">
-        <Table containerClassName="max-h-[min(28rem,60vh)] overflow-auto overscroll-contain" containerProps={{ tabIndex: 0, role: "region", "aria-label": title }}>
-          <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow>
-              <TableHead className="w-10">#</TableHead>
+      <div className={fillHeight ? "flex min-h-0 flex-1 flex-col" : undefined}>
+        <Table className="[&_td]:px-3 [&_td]:py-1" containerClassName={fillHeight ? "min-h-0 flex-1 overflow-auto overscroll-contain" : "max-h-[min(28rem,55dvh)] overflow-auto overscroll-contain"} containerProps={{ tabIndex: 0, role: "region", "aria-label": title }}>
+          <TableHeader className="sticky top-0 z-10 bg-table-header shadow-[0_1px_0_rgba(15,23,42,0.06)] [&_tr]:border-border/70">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className={`${headClass} w-10`}>#</TableHead>
 
               {visibleColumns.map((col) => (
-                <TableHead key={col.field} className={colWidthClass(col)}>{col.label}</TableHead>
+                <TableHead key={col.field} className={`${headClass} ${columnWidth(col)}`}>{col.label}</TableHead>
               ))}
 
-              {compact && <TableHead className="w-20" />}
-              {bomAttachments && <TableHead>{t("attachments.open")}</TableHead>}
-              <TableHead className="w-12" />
+              {bomAttachments && <TableHead className={headClass}>{t("attachments.open")}</TableHead>}
+              <TableHead className={`${headClass} w-20 text-end`}>{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={visibleColumns.length + (compact ? 3 : 2) + (bomAttachments ? 1 : 0)}>
+                <TableCell colSpan={visibleColumns.length + 2 + (bomAttachments ? 1 : 0)}>
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
               data.map((row, rowIndex) => (
-                <TableRow key={rowIndex}>
+                <TableRow key={rowIndex} className="border-border/50 hover:bg-primary/[0.05]">
                   {/* INDEX */}
                   <TableCell className="text-muted-foreground">
                     {rowIndex + 1}
@@ -171,26 +181,24 @@ export default function ChildTable({
 
                   {/* FIELDS */}
                   {visibleColumns.map((col) => (
-                    <TableCell key={col.field} className={colWidthClass(col)}>
-                      <FieldRenderer
-                        type={col.type}
-                        value={row[col.field]}
-                        options={col.options}
-                        onChange={(val) =>
-                          handleChange(rowIndex, col.field, val)
-                        }
-                        disabled={disabled || col.readOnly}
-                      />
-                      {pricingSide && col.field === "custom_chargeable_qty" && <UomPricingEstimate row={row} side={pricingSide} readOnly={disabled || !!row.docstatus} />}
+                    <TableCell key={col.field} className={columnWidth(col)}>
+                      {inlineBomFields && !disabled && !col.readOnly && col.type === "number" && ["qty", "stock_qty", "rate", "custom_purchase_rate", "hour_rate", "time_in_mins"].includes(col.field) && !(col.field === "rate" && row.is_stock_item != null && Number(row.is_stock_item) === 1) ? (
+                        <Input type="number" step="any" className="h-7 w-24 px-2 text-end text-xs tabular-nums" value={row[col.field] ?? ""}
+                          aria-label={`${col.label} · ${t("common.row", { n: rowIndex + 1 })}`}
+                          onChange={(event) => handleChange(rowIndex, col.field, event.target.value)} />
+                      ) : col.type === "attach" && /^\/(?:private\/)?files\//.test(row[col.field] || "") ? (
+                        <a className="block max-w-72 truncate text-primary underline" href={row[col.field]} target="_blank" rel="noopener noreferrer">{row[col.field].split("/").pop()}</a>
+                      ) : <span className="block max-w-72 truncate" title={displayValue(row, col)}>{displayValue(row, col)}</span>}
                     </TableCell>
                   ))}
 
-                  {compact && <TableCell><Button variant="outline" size="sm" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button></TableCell>}
                   {bomAttachments && <TableCell><Button type="button" variant="outline" size="sm" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button></TableCell>}
-                  {/* DELETE */}
                   <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => setEditingRow(rowIndex)} aria-label={`${rowActionLabel} · ${t("common.row", { n: rowIndex + 1 })}`} title={rowActionLabel}><RowActionIcon /></Button>
                     {!disabled && (
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon-sm"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -200,84 +208,43 @@ export default function ChildTable({
                         <Trash2 />
                       </Button>
                     )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
+          {totalField && totalColumnIndex >= 0 && <TableFooter className="sticky bottom-0 z-10 bg-card">
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={totalColumnIndex + 1} className="text-end text-muted-foreground">
+                {t(totalField === "custom_purchase_amount" ? "bomForm.totalPurchaseAmount" : "bomForm.totalAmount")}
+              </TableCell>
+              <TableCell className="font-semibold tabular-nums">
+                {currency ? `${currency} ` : ""}{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </TableCell>
+              <TableCell colSpan={visibleColumns.length - totalColumnIndex + (bomAttachments ? 1 : 0)} />
+            </TableRow>
+          </TableFooter>}
         </Table>
       </div>
 
-      {/* =========================
-          MOBILE CARD VIEW
-      ========================= */}
-      <div className="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto overscroll-contain p-3 md:hidden" role="region" aria-label={title} tabIndex={0}>
-        {data.length === 0 ? (
-          emptyMessage
-        ) : (
-          data.map((row, rowIndex) => (
-            <div
-              key={rowIndex}
-              className="rounded-lg border border-border bg-background p-3"
-            >
-              {/* HEADER */}
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {t("common.row", { n: rowIndex + 1 })}
-                </span>
-
-                {!disabled && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => deleteRow(rowIndex)}
-                    aria-label={t("common.delete")}
-                  >
-                    <Trash2 />
-                  </Button>
-                )}
-              </div>
-
-              {compact && <Button variant="outline" size="sm" className="mb-3" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button>}
-              {bomAttachments && <Button type="button" variant="outline" size="sm" className="mb-3" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button>}
-              {/* FIELDS */}
-              <div className="flex flex-col gap-2">
-                {visibleColumns.map((col) => (
-                  <div key={col.field}>
-                    <div className="mb-1 text-xs text-muted-foreground">
-                      {col.label}
-                    </div>
-
-                    <FieldRenderer
-                      type={col.type}
-                      value={row[col.field]}
-                      options={col.options}
-                      onChange={(val) =>
-                        handleChange(rowIndex, col.field, val)
-                      }
-                      disabled={disabled || col.readOnly}
-                    />
-                    {pricingSide && col.field === "custom_chargeable_qty" && <UomPricingEstimate row={row} side={pricingSide} readOnly={disabled || !!row.docstatus} />}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
       {bomAttachments && attachmentRow != null && data[attachmentRow] && <AppModal show onClose={() => setAttachmentRow(null)} width="lg"
         title={`${t("attachments.open")} · ${data[attachmentRow].item_code || attachmentRow + 1}`}>
         <AttachmentsPanel key={`${bomName || "new"}-${data[attachmentRow].name || attachmentRow}`} doctype="BOM"
           docname={bomName && data[attachmentRow].name ? bomName : null} bomItem={data[attachmentRow].name} readOnly={disabled} />
       </AppModal>}
-      {compact && editingRow != null && data[editingRow] && <AppModal show onClose={() => setEditingRow(null)} width="lg"
+      {editingRow != null && data[editingRow] && <AppModal show onClose={() => setEditingRow(null)} width="lg"
         title={`${title} · ${t("common.row", { n: editingRow + 1 })}`}
         footer={<Button variant="outline" onClick={() => setEditingRow(null)}>{t("common.close")}</Button>}>
         <div className="grid gap-4 sm:grid-cols-2">
-          {columns.map((column) => <FormField key={column.field} label={column.label} required={column.required && !disabled} className={column.type === "link" && column.options === "Item" ? "sm:col-span-2" : undefined}>
-            <FieldRenderer type={column.type} value={data[editingRow][column.field]} options={column.options}
+          {columns.map((column) => column.type === "checkbox" ? <div key={column.field} className="flex min-h-8 items-center gap-2 text-sm md:min-h-7">
+            <FieldRenderer id={`child-row-${column.field}`} type={column.type} value={data[editingRow][column.field]} options={column.options}
               disabled={disabled || column.readOnly} onChange={(next) => handleChange(editingRow, column.field, next)} />
+            <label htmlFor={`child-row-${column.field}`}>{column.label}{column.required && !disabled && <span className="ms-1 text-destructive">*</span>}</label>
+          </div> : <FormField key={column.field} label={column.label} required={column.required && !disabled} className={column.type === "link" && column.options === "Item" ? "sm:col-span-2" : undefined}>
+            <FieldRenderer type={column.type} value={data[editingRow][column.field]} options={column.options}
+              disabled={disabled || column.readOnly} attachmentDoctype={attachmentDoctype} attachmentDocname={attachmentDocname} attachmentField={column.field} onChange={(next) => handleChange(editingRow, column.field, next)} />
+            {pricingSide && column.field === "custom_chargeable_qty" && <UomPricingEstimate row={data[editingRow]} side={pricingSide} readOnly={disabled || !!data[editingRow].docstatus} />}
           </FormField>)}
         </div>
       </AppModal>}

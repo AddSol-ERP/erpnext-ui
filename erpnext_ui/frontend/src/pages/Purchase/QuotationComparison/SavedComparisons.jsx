@@ -42,7 +42,7 @@ export default function SavedComparisons() {
   return <ListLayout loading={loading} error={error} onRetry={() => { setLoading(true); setRefresh((value) => value + 1); }} contentMode="auto"
     actionBar={<div className="flex flex-wrap justify-end gap-2 px-4 py-3"><Button size="sm" variant="outline" onClick={() => { setLoading(true); setRefresh((value) => value + 1); }}><RefreshCcw />Refresh</Button><Button size="sm" onClick={() => navigate("/purchase/quotation-comparison")}><Plus />New comparison</Button></div>}
     cards={result.entries.map((entry) => <ListRow key={entry.name} item={{ title: entry.name, subtitle: `${entry.company} · ${entry.suppliers?.join(", ") || `${entry.quotation_count} quotations`}`, meta: entry.evaluation_date, raw: entry }} onClick={open} />)}
-    table={<DataTable columns={columns} data={result.entries} rowKey={(row) => row.name} onRowClick={open} />}
+    table={<DataTable columns={columns} data={result.entries} rowKey={(row) => row.name} onRowClick={open} rowOffset={offset} />}
     footer={<div className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-muted-foreground"><span>Page {offsets.length}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={offsets.length === 1} onClick={() => { setLoading(true); setOffsets((current) => current.slice(0, -1)); }}>Previous</Button><Button size="sm" variant="outline" disabled={result.next_start == null} onClick={() => { setLoading(true); setOffsets((current) => [...current, result.next_start]); }}>Next</Button></div></div>}
     isEmpty={!loading && !result.entries.length && result.next_start == null && offsets.length === 1} emptyTitle="No saved comparisons" emptyDescription="Start a comparison and save a snapshot to see it here." />;
 }

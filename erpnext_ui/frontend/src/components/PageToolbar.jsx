@@ -109,7 +109,7 @@ export default function PageToolbar({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-chrome px-3 py-2 text-chrome-foreground shadow-[0_-4px_24px_rgba(15,23,42,0.06)] pb-[max(0.5rem,env(safe-area-inset-bottom))] print:hidden md:px-4"
+      className="relative z-40 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-chrome px-3 py-2 text-chrome-foreground shadow-[0_-4px_24px_rgba(15,23,42,0.06)] pb-[max(0.5rem,env(safe-area-inset-bottom))] print:hidden md:px-4"
       style={{
         "--foreground": "var(--chrome-foreground)",
         "--muted-foreground": "var(--chrome-muted)",

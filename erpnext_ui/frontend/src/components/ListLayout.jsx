@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ListPlus } from "lucide-react";
+import { ListPlus, Plus } from "lucide-react";
 import {
   Empty,
   EmptyHeader,
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
 import { useHeader } from "../context/HeaderContext";
+import { ListFloatingActionsContext } from "./List/floatingActions";
 
 /**
  * List shell: one elevated card wrapping toolbar → (optional tabs) → content → footer.
@@ -35,6 +36,8 @@ export default function ListLayout({
   contentMode = "children",
   pagination,
   footer,
+  footerAlways = false,
+  floatingAction,
   tabs,
   emptyState,
   emptyTitle,
@@ -47,7 +50,12 @@ export default function ListLayout({
   className,
 }) {
   const { t } = useTranslation();
-  const { setShellMode } = useHeader();
+  const { setShellMode, header } = useHeader();
+  const [floatingTarget, setFloatingTarget] = useState(null);
+  const primaryActions = (header?.actions || []).filter((action) => action?.variant === "btn-primary");
+  const primaryAction = primaryActions.length === 1 ? primaryActions[0] : null;
+  const ActionIcon = primaryAction?.icon && typeof primaryAction.icon !== "string" ? primaryAction.icon : Plus;
+  const effectiveFloatingAction = floatingAction || (primaryAction && <Button type="button" size="icon-sm" className="size-9" disabled={primaryAction.disabled} onClick={primaryAction.onClick} aria-label={primaryAction.label} title={primaryAction.label}>{typeof primaryAction.icon === "string" ? <i className={primaryAction.icon} /> : <ActionIcon />}</Button>);
 
   // Lists render setHeader actions inside ActionBar — hide bottom PageToolbar actions.
   useEffect(() => {
@@ -64,9 +72,10 @@ export default function ListLayout({
         (children == null || (Array.isArray(children) && children.length === 0))));
 
   const showFooter =
-    (footer || pagination) && !loading && !error && !showEmpty;
+    (footer || pagination) && (footerAlways || (!loading && !error && !showEmpty));
 
   return (
+    <ListFloatingActionsContext.Provider value={floatingTarget}>
     <div
       className={cn(
         "mx-auto flex h-full w-full max-w-[1600px] flex-col motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200",
@@ -74,21 +83,12 @@ export default function ListLayout({
       )}
     >
       {/* Single card: toolbar + content + footer */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border border-border/70 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)]">
-        {/* Optional status tabs (top strip) */}
-        {tabs ? (
-          <div className="shrink-0 border-b border-border/60 px-3 pt-2 sm:px-4">
-            {tabs}
-          </div>
-        ) : null}
-
-        {/* Toolbar: search / filters / export — flush inside card */}
-        {actionBar ? (
-          <div className="shrink-0 border-b border-border/60">{actionBar}</div>
-        ) : null}
-
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none bg-card">
+        {tabs && <nav className="shrink-0 overflow-x-auto border-b border-border/60 [&>div]:!flex-nowrap [&>div]:!gap-0 [&>div]:!pb-0 [&_button]:!min-h-9 [&_button]:!shrink-0 [&_button]:!rounded-none [&_button]:!border-b-2 [&_button]:!border-transparent [&_button]:!bg-transparent [&_button]:!px-3 [&_button]:!py-0 [&_button]:!text-xs [&_button]:!shadow-none [&_button]:!ring-0 [&_button:focus-visible]:!ring-2 [&_button:focus-visible]:!ring-ring [&_button[aria-pressed=true]]:!border-primary [&_button[aria-pressed=true]]:!bg-primary/10 [&_button[aria-pressed=true]]:!text-primary [&_button[aria-current=page]]:!border-primary [&_button[aria-current=page]]:!bg-primary/10 [&_button[aria-current=page]]:!text-primary">{tabs}</nav>}
+        <div className="flex min-h-0 flex-1 flex-col">
         {/* Body — single scroll container (tables stick here, no nested scrollers) */}
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div className="list-body relative flex min-h-0 flex-1">
+        <div className="list-scroll min-w-0 flex-1 overflow-auto overscroll-contain [&_table_th]:h-8 [&_table_th]:px-2.5 [&_table_td]:px-2.5 [&_table_td]:py-1">
           {loading ? (
             <div className="flex flex-col">
               {[
@@ -163,14 +163,16 @@ export default function ListLayout({
             </>
           )}
         </div>
+        <div ref={setFloatingTarget} className="list-action-rail absolute bottom-3 end-3 z-20 flex flex-col items-center gap-2 empty:hidden print:hidden [&>button]:shadow-md">{effectiveFloatingAction}</div>
+        </div>
 
-        {/* Footer: results + pagination inside card */}
-        {showFooter ? (
-          <div className="shrink-0 border-t border-border/60 bg-card/80 px-3 py-2 sm:px-4">
-            {footer || pagination}
-          </div>
-        ) : null}
+        <div className="hidden min-h-9 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-border/60 bg-card px-2 py-0.5 has-[>div:not(:empty)]:flex">
+          {showFooter && <div className="min-w-0">{footer || pagination}</div>}
+          {actionBar && <div className="min-w-0 flex-1 basis-full sm:basis-auto [&_[data-slot=list-action-row]]:!p-0">{actionBar}</div>}
+        </div>
+        </div>
       </div>
     </div>
+    </ListFloatingActionsContext.Provider>
   );
 }

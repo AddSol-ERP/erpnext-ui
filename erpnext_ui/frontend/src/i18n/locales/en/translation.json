@@ -1,5 +1,6 @@
 {
   "common": {
+    "moreActions": "More actions",
     "appName": "Addsol UI",
     "save": "Save",
     "cancel": "Cancel",
@@ -29,6 +30,11 @@
     "retry": "Retry",
     "all": "All",
     "name": "Name",
+    "description": "Description",
+    "dueDate": "Due Date",
+    "priority": "Priority",
+    "assignedBy": "Assigned By",
+    "referenceDocument": "Reference Document",
     "status": "Status",
     "date": "Date",
     "time": "Time",
@@ -67,6 +73,8 @@
     "created": "Created",
     "modified": "Modified",
     "owner": "Owner",
+    "metadata": "Metadata",
+    "details": "Details",
     "module": "{name} module",
     "createNew": "Create a new {name}",
     "editing": "Editing {name}",
@@ -154,7 +162,9 @@
     "mode": "Mode",
     "brandColor": "Brand color",
     "secondaryColor": "Secondary color",
-    "language": "Language"
+    "language": "Language",
+    "textSize": "Text size",
+    "fontSize": { "extraSmall": "Extra small", "small": "Small", "medium": "Medium", "extraLarge": "Extra large" }
   },
   "language": {
     "en": "English",
@@ -213,7 +223,26 @@
     "openRequests": "Open Requests",
     "pendingApprovals": "Pending Approvals",
     "activeJobs": "Active Jobs",
-    "qcPending": "QC Pending"
+    "qcPending": "QC Pending",
+    "atAGlance": "At a glance",
+    "modulesTitle": "Modules",
+    "myTodos": {
+      "title": "My To-Dos",
+      "subtitle": "Open tasks assigned to you",
+      "taskType": "Task Type",
+      "actionNeeded": "Action Needed",
+      "forInformation": "For Information",
+      "emptySection": "No tasks in this section.",
+      "viewAll": "View all",
+      "helpButton": "My To-Dos help",
+      "helpTitle": "My To-Dos Help and User Guide",
+      "loading": "Loading your To-Dos",
+      "loadFailed": "Could not load your To-Dos. Please try again later.",
+      "emptyTitle": "You’re all caught up",
+      "emptyDescription": "New tasks assigned to you will show up here.",
+      "due": "Due {date}",
+      "priority": { "high": "High", "low": "Low" }
+    }
   },
   "userMenu": {
     "profile": "Profile",
@@ -221,6 +250,10 @@
     "logout": "Logout"
   },
   "attachments": {
+    "addLink": "Add link",
+    "linkUrl": "Link URL",
+    "linkName": "Link name (optional)",
+    "invalidLink": "Enter a valid HTTP or HTTPS link.",
     "dialogTitle": "Documents — {doctype}",
     "none": "No documents attached yet.",
     "addFiles": "Add files",

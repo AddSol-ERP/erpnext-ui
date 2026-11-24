@@ -18,6 +18,7 @@ export default function DataTable({
   rowOffset = 0,
   showIndex = true,
 }) {
+  const firstDataColumn = columns.findIndex((column) => !["select", "selection"].includes(column.id));
   if (loading) {
     return (
       <div className={cn("relative w-full bg-transparent", className)}>
@@ -39,13 +40,13 @@ export default function DataTable({
 
   return (
     <div className={cn("relative w-full bg-transparent", className)}>
-      <table className="w-full caption-bottom text-sm">
+      <table className="w-full caption-bottom text-xs">
         <thead className="sticky top-0 z-10 bg-table-header shadow-[0_1px_0_rgba(15,23,42,0.06)] [&_tr]:border-b [&_tr]:border-border/70">
           <tr>
             {showIndex && (
               <th
                 scope="col"
-                className="h-10 w-10 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground"
+                className="h-10 w-10 px-3 text-start align-middle text-xs font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground"
               >
                 #
               </th>
@@ -55,7 +56,7 @@ export default function DataTable({
                 key={col.id}
                 scope="col"
                 className={cn(
-                  "h-10 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground",
+                  "h-10 px-3 text-start align-middle text-xs font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground",
                   col.hideBelow === "md" && "hidden md:table-cell",
                   col.hideBelow === "lg" && "hidden lg:table-cell",
                   col.className,
@@ -95,15 +96,16 @@ export default function DataTable({
                 }
               >
                 {showIndex && (
-                  <td className="px-3 py-2.5 align-middle text-sm tabular-nums text-muted-foreground">
+                  <td className="px-3 py-2.5 align-middle text-xs tabular-nums text-muted-foreground">
                     {rowOffset + index + 1}
                   </td>
                 )}
-                {columns.map((col) => (
+                {columns.map((col, columnIndex) => (
                   <td
                     key={col.id}
                     className={cn(
-                      "px-3 py-2.5 align-middle text-sm",
+                      "px-3 py-2.5 align-middle text-xs",
+                      columnIndex === firstDataColumn ? "font-medium text-[var(--text-secondary)]" : "text-muted-foreground",
                       col.cellClassName,
                       col.hideBelow === "md" && "hidden md:table-cell",
                       col.hideBelow === "lg" && "hidden lg:table-cell",

@@ -1,5 +1,6 @@
 {
   "common": {
+    "moreActions": "المزيد من الإجراءات",
     "appName": "واجهة أديسول",
     "save": "حفظ",
     "cancel": "إلغاء",
@@ -29,6 +30,11 @@
     "retry": "إعادة المحاولة",
     "all": "الكل",
     "name": "الاسم",
+    "description": "الوصف",
+    "dueDate": "تاريخ الاستحقاق",
+    "priority": "الأولوية",
+    "assignedBy": "أُسند بواسطة",
+    "referenceDocument": "المستند المرجعي",
     "status": "الحالة",
     "date": "التاريخ",
     "time": "الوقت",
@@ -67,6 +73,8 @@
     "created": "تاريخ الإنشاء",
     "modified": "آخر تعديل",
     "owner": "المالك",
+    "metadata": "البيانات الوصفية",
+    "details": "التفاصيل",
     "module": "وحدة {name}",
     "createNew": "إنشاء {name} جديد",
     "editing": "تحرير {name}",
@@ -154,7 +162,9 @@
     "mode": "الوضع",
     "brandColor": "لون العلامة التجارية",
     "secondaryColor": "اللون الثانوي",
-    "language": "اللغة"
+    "language": "اللغة",
+    "textSize": "حجم النص",
+    "fontSize": { "extraSmall": "صغير جدًا", "small": "صغير", "medium": "متوسط", "extraLarge": "كبير جدًا" }
   },
   "language": {
     "en": "English",
@@ -213,7 +223,26 @@
     "openRequests": "الطلبات المفتوحة",
     "pendingApprovals": "الموافقات المعلقة",
     "activeJobs": "الوظائف النشطة",
-    "qcPending": "فحص الجودة معلق"
+    "qcPending": "فحص الجودة معلق",
+    "atAGlance": "لمحة سريعة",
+    "modulesTitle": "الوحدات",
+    "myTodos": {
+      "title": "المهام الخاصة بي",
+      "subtitle": "المهام المفتوحة المسندة إليك",
+      "taskType": "نوع المهمة",
+      "actionNeeded": "يتطلب إجراءً",
+      "forInformation": "للعلم فقط",
+      "emptySection": "لا توجد مهام في هذا القسم.",
+      "viewAll": "عرض الكل",
+      "helpButton": "مساعدة مهامي",
+      "helpTitle": "مساعدة المهام ودليل المستخدم",
+      "loading": "جارٍ تحميل مهامك",
+      "loadFailed": "تعذر تحميل مهامك. يرجى المحاولة مرة أخرى لاحقًا.",
+      "emptyTitle": "لا توجد مهام معلقة",
+      "emptyDescription": "ستظهر هنا المهام الجديدة المسندة إليك.",
+      "due": "تاريخ الاستحقاق {date}",
+      "priority": { "high": "عالية", "low": "منخفضة" }
+    }
   },
   "userMenu": {
     "profile": "الملف الشخصي",
@@ -221,6 +250,10 @@
     "logout": "تسجيل الخروج"
   },
   "attachments": {
+    "addLink": "إضافة رابط",
+    "linkUrl": "عنوان الرابط",
+    "linkName": "اسم الرابط (اختياري)",
+    "invalidLink": "أدخل رابط HTTP أو HTTPS صالحًا.",
     "dialogTitle": "المستندات — {doctype}",
     "none": "لا توجد مستندات مرفقة بعد.",
     "addFiles": "إضافة ملفات",
