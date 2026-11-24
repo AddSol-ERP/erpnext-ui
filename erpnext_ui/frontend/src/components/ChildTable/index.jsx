@@ -8,6 +8,7 @@ import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import FieldRenderer from "./FieldRenderer";
 import { get } from "../../services/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -31,6 +32,9 @@ export default function ChildTable({
   totalField,
   currency,
   fillHeight = false,
+  inlineBomFields = false,
+  attachmentDoctype,
+  attachmentDocname,
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState(value || []);
@@ -40,12 +44,15 @@ export default function ChildTable({
   const rowActionLabel = t(disabled ? "common.view" : "common.edit");
   const RowActionIcon = disabled ? Eye : Pencil;
   const totalColumnIndex = visibleColumns.findIndex((column) => column.field === totalField);
+  const cellValue = (row, field) => inlineBomFields && field === "custom_purchase_amount" && row.qty !== "" && row.custom_purchase_rate !== "" && row.qty != null && row.custom_purchase_rate != null
+    ? Math.round((Number(row.qty) * Number(row.custom_purchase_rate) + Number.EPSILON) * 100) / 100
+    : row[field];
   const total = totalField ? data.reduce((sum, row) => {
-    const value = Number(row[totalField]);
+    const value = Number(cellValue(row, totalField));
     return Number.isFinite(value) ? sum + value : sum;
   }, 0) : null;
   const displayValue = (row, column) => {
-    const value = row[column.field];
+    const value = cellValue(row, column.field);
     if (column.type === "checkbox") return t(Number(value) === 1 ? "common.yes" : "common.no");
     return value == null || value === "" ? "—" : String(value);
   };
@@ -64,6 +71,7 @@ export default function ChildTable({
 
   const handleChange = async (rowIndex, field, val) => {
     const updated = [...data];
+    updated[rowIndex] = { ...updated[rowIndex] };
     updated[rowIndex][field] = val;
 
     // ===== Auto-calculate amount = qty × rate =====
@@ -174,7 +182,13 @@ export default function ChildTable({
                   {/* FIELDS */}
                   {visibleColumns.map((col) => (
                     <TableCell key={col.field} className={columnWidth(col)}>
-                      <span className="block max-w-72 truncate" title={displayValue(row, col)}>{displayValue(row, col)}</span>
+                      {inlineBomFields && !disabled && !col.readOnly && col.type === "number" && ["qty", "stock_qty", "rate", "custom_purchase_rate", "hour_rate", "time_in_mins"].includes(col.field) && !(col.field === "rate" && row.is_stock_item != null && Number(row.is_stock_item) === 1) ? (
+                        <Input type="number" step="any" className="h-7 w-24 px-2 text-end text-xs tabular-nums" value={row[col.field] ?? ""}
+                          aria-label={`${col.label} · ${t("common.row", { n: rowIndex + 1 })}`}
+                          onChange={(event) => handleChange(rowIndex, col.field, event.target.value)} />
+                      ) : col.type === "attach" && /^\/(?:private\/)?files\//.test(row[col.field] || "") ? (
+                        <a className="block max-w-72 truncate text-primary underline" href={row[col.field]} target="_blank" rel="noopener noreferrer">{row[col.field].split("/").pop()}</a>
+                      ) : <span className="block max-w-72 truncate" title={displayValue(row, col)}>{displayValue(row, col)}</span>}
                     </TableCell>
                   ))}
 
@@ -229,7 +243,7 @@ export default function ChildTable({
             <label htmlFor={`child-row-${column.field}`}>{column.label}{column.required && !disabled && <span className="ms-1 text-destructive">*</span>}</label>
           </div> : <FormField key={column.field} label={column.label} required={column.required && !disabled} className={column.type === "link" && column.options === "Item" ? "sm:col-span-2" : undefined}>
             <FieldRenderer type={column.type} value={data[editingRow][column.field]} options={column.options}
-              disabled={disabled || column.readOnly} onChange={(next) => handleChange(editingRow, column.field, next)} />
+              disabled={disabled || column.readOnly} attachmentDoctype={attachmentDoctype} attachmentDocname={attachmentDocname} attachmentField={column.field} onChange={(next) => handleChange(editingRow, column.field, next)} />
             {pricingSide && column.field === "custom_chargeable_qty" && <UomPricingEstimate row={data[editingRow]} side={pricingSide} readOnly={disabled || !!data[editingRow].docstatus} />}
           </FormField>)}
         </div>

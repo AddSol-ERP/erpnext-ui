@@ -970,6 +970,7 @@ export default function GenericFormPage() {
               <div key={rowIdx} className={fillTable ? "flex min-h-0 flex-1 flex-col" : "mb-3"}>
                 <ChildTable
                   fillHeight={fillTable}
+                  inlineBomFields={decodedDoctype === "BOM"}
                   title={cf.label}
                   bomAttachments={decodedDoctype === "BOM" && cf.fieldname === "items" && attachmentsEnabled}
                   bomName={decodedName}
@@ -982,7 +983,9 @@ export default function GenericFormPage() {
                       field: c.fieldname,
                       label: c.label,
                       type:
-                        c.fieldtype === "Check"
+                        c.fieldtype === "Attach" || c.fieldtype === "Attach Image"
+                          ? "attach"
+                          : c.fieldtype === "Check"
                           ? "checkbox"
                           : c.fieldtype === "Select"
                             ? "select"
@@ -998,6 +1001,8 @@ export default function GenericFormPage() {
                       readOnly: !!c.read_only,
                       fetchFrom: c.fetch_from,
                     }))}
+                  attachmentDoctype={decodedDoctype}
+                  attachmentDocname={!isNew ? decodedName : undefined}
                   value={doc[cf.fieldname] || []}
                   onChange={(val) => handleFieldChange(cf.fieldname, val)}
                   disabled={isReadOnly || !!cf.read_only || (cf.fieldname === "operations" && routingLoading)}
