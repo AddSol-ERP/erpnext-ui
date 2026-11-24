@@ -183,6 +183,30 @@ outright, and that a wrong value surfaces as a bare `417` with no field name.
 
 ---
 
+## 1.2 Git — never commit unless asked
+
+**Do not create a commit unless the user asks for it in the request they are
+making.** `git commit`, `git commit --amend`, and any history operation that
+writes commits (merge, rebase, cherry-pick) are all commits; `git push`
+publishes them, so it needs the same explicit ask. Nothing else counts as
+asking — "looks good", "thanks", or finishing the described task is not a
+request to commit.
+
+Finishing a change means: edit, rebuild (§2), lint, run the relevant suite, and
+**report it**. Leave the worktree dirty so the user reviews it with
+`git diff` themselves.
+
+- The build-artifact rule (§2) still requires `public/erp_ui/` to be
+  **rebuilt** as part of a frontend change. Committing that rebuild is a
+  separate step, taken only on request.
+- When the user *does* ask, stage only the files belonging to that change and
+  state what was staged. Never reach for `git add -A` / `git commit -a`.
+- When a push is blocked by remote work, integrating it (`fetch`, rebase or
+  merge) is part of the ask — but keep the remote side intact: no force-push,
+  no dropping remote commits, and prefer the remote version on any conflict.
+
+---
+
 ## 2. The build-artifact rule
 
 `npm run build` writes **directly into `erpnext_ui/public/erp_ui/`** with
@@ -192,9 +216,10 @@ Both mount paths resolve the hashed bundle through
 `public/erp_ui/.vite/manifest.json` under key `"src/main.jsx"`
 (`www/addsol_ui.py:15-23`, `addsol_erpnext_ui/page/addsol_ui/addsol_ui.js:6-15`).
 
-**A frontend change is not finished until you have rebuilt and committed
+**A frontend change is not finished until you have rebuilt
 `erpnext_ui/public/erp_ui/`.** Otherwise the deployed app serves stale code with
-no error anywhere.
+no error anywhere. *Committing* that rebuild happens only when the user asks —
+see §1.2; a rebuilt-but-uncommitted bundle is the normal resting state.
 
 ---
 
