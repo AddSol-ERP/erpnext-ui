@@ -725,8 +725,10 @@ ok("toolbar: compact path keeps flex-1 so actions stay right-aligned",
    /flex-1/.test(actionsCls), actionsCls.slice(0, 120));
 ok("toolbar: compact path does not use ml-auto",
    !/ml-auto/.test(actionsCls));
-ok("toolbar: search falls back to the existing half-width on the compact path",
-   /sm:w-1\/2 sm:flex-none/.test(toolbarHtml));
+ok("toolbar: search uses a capped fixed slot on the compact path",
+   /sm:w-72 lg:w-80 sm:flex-none/.test(toolbarHtml) &&
+   !/sm:w-1\/2 sm:flex-none/.test(toolbarHtml),
+   "ListLayout is full-bleed, so a half-row search is a 700px input on a wide window");
 ok("toolbar: the filter dropdown is still offered when not inline",
    /aria-label/.test(toolbarHtml) && /justify-end/.test(toolbarHtml));
 

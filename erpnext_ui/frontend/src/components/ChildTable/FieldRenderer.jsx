@@ -2,7 +2,23 @@ import LinkField from "../LinkField";
 import FormSelect from "../FormSelect";
 import { Input } from "@/components/ui/input";
 
-function FieldRenderer({ type, value, options, onChange, disabled = false }) {
+/**
+ * In-grid treatment for a cell control.
+ *
+ * The default Input/SelectTrigger border turns every row into a strip of
+ * outlined boxes, which reads as a form rather than a data grid. In a cell the
+ * control is invisible until it is touched: no border at rest, a faint one on
+ * hover (the row tint alone doesn't say WHICH cell is editable), and the normal
+ * ring on focus. `disabled:bg-transparent` keeps a read-only grid flat too —
+ * otherwise a submitted document boxes every cell again; the dimmed text from
+ * `disabled:opacity-50` is the read-only signal.
+ */
+const CELL_CLS =
+  "border-transparent bg-transparent hover:border-input/60 dark:bg-transparent dark:hover:bg-transparent disabled:bg-transparent dark:disabled:bg-transparent";
+
+function FieldRenderer({ type, value, options, onChange, disabled = false, cell = false }) {
+  const cls = cell ? CELL_CLS : undefined;
+
   switch (type) {
     case "number":
       return (
@@ -11,6 +27,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
+          className={cls}
         />
       );
 
@@ -23,6 +40,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
           placeholder="—"
           options={opts.map((o) => ({ value: o, label: o }))}
           disabled={disabled}
+          className={cls}
         />
       );
     }
@@ -48,6 +66,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
           onChange={onChange}
           placeholder="…"
           disabled={disabled}
+          className={cls}
         />
       );
 
@@ -57,6 +76,7 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
+          className={cls}
         />
       );
   }

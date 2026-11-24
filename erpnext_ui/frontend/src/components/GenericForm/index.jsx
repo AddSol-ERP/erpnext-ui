@@ -907,7 +907,7 @@ export default function GenericFormPage() {
     );
   };
 
-  const renderSectionFields = (fields) => {
+  const renderSectionFields = (fields, fillBOMItems = false) => {
     const rows = [];
     let currentRow = [];
 
@@ -939,16 +939,20 @@ export default function GenericFormPage() {
     if (currentRow.length > 0) rows.push(currentRow);
 
     return (
-      <div>
+      <div className={fillBOMItems ? "flex min-h-0 flex-1 flex-col" : undefined}>
         {rows.map((row, rowIdx) => {
           if (row.length === 1 && row[0].fieldtype === "Table") {
             const cf = row[0];
             const childFields =
               cf.options && childMeta[cf.options] ? childMeta[cf.options] : [];
             return (
-              <div key={rowIdx} className="mb-4">
+              <div
+                key={rowIdx}
+                className={fillBOMItems ? "flex min-h-0 flex-1 flex-col" : "mb-4"}
+              >
                 <ChildTable
                   title={cf.label}
+                  fillHeight={fillBOMItems}
                   bomAttachments={decodedDoctype === "BOM" && cf.fieldname === "items" && attachmentsEnabled}
                   bomName={decodedName}
                   compactFields={isBomForm ? bomTableColumns(cf.options, childFields) || childFields.filter((field) => field.in_list_view || field.reqd).map((field) => field.fieldname) : undefined}
@@ -1057,6 +1061,8 @@ export default function GenericFormPage() {
     const secKey = key ?? section.label;
     const errorCount = sectionErrorCount(section);
     const hasErr = errorCount > 0;
+    // BOM materials is a primary work surface, so its grid takes the form's remaining height.
+    const fillBOMItems = isBomForm && section.fields.some((field) => field.fieldname === "items");
     const defaultOpen = sectionDefaultOpen(section, sectionIndex, total);
     const override = sectionOpenOverrides[secKey];
     const open = hasErr ? true : override !== undefined ? override : defaultOpen;
@@ -1067,7 +1073,10 @@ export default function GenericFormPage() {
         title={section.label}
         description={section.description}
         icon={sectionIcon(section)}
-        className={isBomForm ? "mb-0 ring-0 hover:shadow-none" : "mb-4"}
+        className={fillBOMItems
+          ? "mb-0 flex min-h-0 flex-1 flex-col ring-0 hover:shadow-none"
+          : isBomForm ? "mb-0 ring-0 hover:shadow-none" : "mb-4"}
+        contentClassName={fillBOMItems ? "flex min-h-0 flex-1 flex-col overflow-hidden p-0" : undefined}
         collapsible
         defaultOpen={defaultOpen}
         errorCount={errorCount}
@@ -1076,7 +1085,7 @@ export default function GenericFormPage() {
           setSectionOpenOverrides((prev) => ({ ...prev, [secKey]: next }));
         }}
       >
-        {renderSectionFields(section.fields)}
+        {renderSectionFields(section.fields, fillBOMItems)}
       </FormSection>
     );
   };
@@ -1098,12 +1107,14 @@ export default function GenericFormPage() {
           setActiveTab(Number(v));
           setSummary("");
         }}
-        className={isBomForm ? "w-full gap-0 border border-border/70 bg-card shadow-sm" : "w-full"}
+        className={isBomForm
+          ? "flex h-full min-h-0 w-full flex-1 flex-col gap-0 border border-border/70 bg-card shadow-sm"
+          : "w-full"}
       >
         <TabsList
           variant={isBomForm ? "default" : "line"}
           className={isBomForm
-            ? "h-auto w-full flex-wrap justify-start gap-0 rounded-none border-b border-border/60 bg-muted/30 p-0"
+            ? "h-auto w-full shrink-0 flex-wrap justify-start gap-0 rounded-none border-b border-border/60 bg-muted/30 p-0"
             : "h-auto w-full flex-wrap justify-start gap-1.5 border-b border-border/60 bg-transparent px-1 py-1.5"}
         >
           {tabList.map((tab, i) => {
@@ -1128,7 +1139,7 @@ export default function GenericFormPage() {
           })}
         </TabsList>
         {tabList.map((tab, i) => (
-          <TabsContent key={tab.id} value={String(i)} className={isBomForm ? "m-0 p-0" : "pt-4"}>
+          <TabsContent key={tab.id} value={String(i)} className={isBomForm ? "m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0" : "pt-4"}>
             {tab.description && (
               <p className="mb-3 text-xs text-muted-foreground">
                 {tab.description}
@@ -1254,7 +1265,9 @@ export default function GenericFormPage() {
         onClose={() => setShowAttachments(false)}
       />
 
-      <div className={isBomForm ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
+      <div className={isBomForm
+        ? "mx-auto flex h-full min-h-0 w-full max-w-none flex-col pt-1"
+        : "mx-auto w-full max-w-[1100px]"}>
       <FormErrorSummary summary={summary} fieldErrors={errors} className="mb-4" />
 
       <RequiredAttachmentDialog

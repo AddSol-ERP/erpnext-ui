@@ -220,16 +220,19 @@ export default function ActionBar({
 
   return (
     <div className="rounded-none bg-transparent">
-      {/* ROW 1: search + inline filters + actions (flush inside list card) */}
-      <div ref={rowRef} className="flex flex-wrap items-center gap-2 p-2 sm:p-3">
-        {/* SEARCH — full width on mobile. With inline filters it takes a fixed
-            slot instead of `sm:w-1/2`: five filters plus a half-width search
-            box do not fit in one row, and the half is taken from the filters
-            that the inline row exists to give space to. */}
+      {/* ROW 1: search + inline filters + actions (flush inside list surface) */}
+      <div ref={rowRef} className="flex flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
+        {/* SEARCH — full width on mobile, a capped fixed slot on desktop: five
+            filters plus a half-width search box do not fit in one row, and the
+            half is taken from the filters that the inline row exists to give
+            space to. With ListLayout full-bleed the old `sm:w-1/2` also meant a
+            700px input on a 1440px window, so the slot is capped instead. */}
         <div
           className={cn(
             "relative min-w-40",
-            showInline ? "w-56 shrink-0" : "w-full sm:w-1/2 sm:flex-none",
+            showInline
+              ? "w-56 shrink-0"
+              : "w-full sm:w-72 lg:w-80 sm:flex-none",
           )}
         >
           <Search className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -386,7 +389,7 @@ export default function ActionBar({
 
       {/* ROW 2: applied filter chips */}
       {chips.length > 0 ? (
-        <div className="px-2 pb-2 sm:px-3">
+        <div className="px-3 pb-2 sm:px-4">
           <ActiveFilterChips chips={chips} onClearAll={onClearFilters} />
         </div>
       ) : null}

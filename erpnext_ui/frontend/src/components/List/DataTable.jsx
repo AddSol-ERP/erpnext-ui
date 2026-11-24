@@ -21,12 +21,12 @@ export default function DataTable({
   if (loading) {
     return (
       <div className={cn("relative w-full bg-transparent", className)}>
-        <div className="border-b border-border/70 bg-table-header px-3 py-3">
+        <div className="border-b border-border/70 bg-table-header px-3 py-2">
           <Skeleton className="h-3 w-24" />
         </div>
         <div className="divide-y divide-border/60">
           {["w-1/3", "w-1/2", "w-2/5", "w-1/4", "w-3/5"].map((w, i) => (
-            <div key={i} className="flex items-center gap-3 px-3 py-3.5">
+            <div key={i} className="flex items-center gap-3 px-3 py-2">
               <Skeleton className="h-4 w-6 shrink-0" />
               <Skeleton className={cn("h-3.5", w)} />
               <Skeleton className="ms-auto h-3 w-16 shrink-0" />
@@ -45,7 +45,7 @@ export default function DataTable({
             {showIndex && (
               <th
                 scope="col"
-                className="h-10 w-10 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground"
+                className="h-9 w-10 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground"
               >
                 #
               </th>
@@ -55,7 +55,7 @@ export default function DataTable({
                 key={col.id}
                 scope="col"
                 className={cn(
-                  "h-10 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground",
+                  "h-9 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground",
                   col.hideBelow === "md" && "hidden md:table-cell",
                   col.hideBelow === "lg" && "hidden lg:table-cell",
                   col.className,
@@ -74,8 +74,14 @@ export default function DataTable({
                 key={rowKey(row, index)}
                 className={cn(
                   "group border-b border-border/50 transition-colors last:border-b-0",
+                  // No accent rail here, unlike ListRow: a `before:` pseudo on a
+                  // <tr> is wrapped into an anonymous table cell by the layout
+                  // engine, which inserts a phantom leading column and shifts
+                  // every body cell one column right of its header (the Status
+                  // header landed above the Qty cells). The hover tint carries
+                  // the affordance on desktop instead.
                   clickable &&
-                    "cursor-pointer hover:bg-primary/[0.04] focus-visible:bg-primary/[0.04] focus-visible:outline-none",
+                    "cursor-pointer hover:bg-primary/[0.05] focus-visible:bg-primary/[0.05] focus-visible:outline-none",
                   rowClassName?.(row),
                 )}
                 tabIndex={clickable ? 0 : undefined}
@@ -95,7 +101,7 @@ export default function DataTable({
                 }
               >
                 {showIndex && (
-                  <td className="px-3 py-2.5 align-middle text-sm tabular-nums text-muted-foreground">
+                  <td className="px-3 py-1.5 align-middle text-sm tabular-nums text-muted-foreground">
                     {rowOffset + index + 1}
                   </td>
                 )}
@@ -103,7 +109,7 @@ export default function DataTable({
                   <td
                     key={col.id}
                     className={cn(
-                      "px-3 py-2.5 align-middle text-sm",
+                      "px-3 py-1.5 align-middle text-sm",
                       col.cellClassName,
                       col.hideBelow === "md" && "hidden md:table-cell",
                       col.hideBelow === "lg" && "hidden lg:table-cell",

@@ -1195,9 +1195,16 @@ ok(
 // Three flex children used to claim it at once: search was `sm:w-1/2`, and BOTH
 // the filter row and the action cluster were `flex-1`. The filters got what was
 // left after search took half and actions took half of the remainder.
+//
+// The non-inline slot is now a capped fixed width rather than `sm:w-1/2`, because
+// ListLayout went full-bleed: on a 1440px window a half-row search was a 700px
+// input. The assertion is on the invariant (a fixed slot, never a fraction of
+// the row), not on the old literal.
 
 ok("toolbar: inline search takes a fixed slot instead of half the row",
-   /showInline \? "w-56 shrink-0" : "w-full sm:w-1\/2 sm:flex-none"/.test(actionBarSrc));
+   /showInline\s*\?\s*"w-56 shrink-0"\s*:\s*"w-full sm:w-72 lg:w-80 sm:flex-none"/.test(actionBarSrc) &&
+   !/sm:w-1\/2 sm:flex-none/.test(actionBarSrc),
+   "a fraction of the row makes the input grow with the window; the full-bleed toolbar hands the slack to filters and actions");
 ok("toolbar: the action cluster yields the slack only when inline",
    /showInline \? "ml-auto" : "flex-1"/.test(actionBarSrc) &&
    /"flex shrink-0 flex-wrap items-center justify-end gap-1\.5"/.test(actionBarSrc),

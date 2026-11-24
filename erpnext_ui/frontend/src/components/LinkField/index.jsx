@@ -23,6 +23,12 @@ export default function LinkField({
    * is every existing caller, so their request bodies are unchanged.
    */
   filters,
+  /**
+   * Extra classes for the text input, used by ChildTable's `cell` treatment so
+   * a link cell flattens exactly like the data cells around it. Defaults to
+   * undefined, so every other caller renders as before.
+   */
+  className,
 }) {
   const { t } = useTranslation();
 
@@ -327,6 +333,7 @@ export default function LinkField({
           role="combobox"
           aria-expanded={show}
           aria-autocomplete="list"
+          className={className}
         />
       </div>
 

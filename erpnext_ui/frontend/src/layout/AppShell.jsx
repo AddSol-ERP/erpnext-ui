@@ -573,12 +573,17 @@ export default function AppShell({ children }) {
         </header>
 
         <main
-          className={`min-h-0 flex-1 p-4 ${
+          className={`min-h-0 flex-1 ${
             shellMode === "list"
-              ? "overflow-hidden"
-              : "overflow-x-hidden overflow-y-auto"
+              // List shell: no page padding at all — ListLayout's grid runs
+              // edge-to-edge under the top bar. Padding here would just re-add
+              // the margin box the full-bleed table exists to remove.
+              ? "overflow-hidden p-0"
+              : "p-4 overflow-x-hidden overflow-y-auto"
           } ${
-            toolbarVisible ? "pb-24 print:pb-4" : "pb-4"
+            shellMode === "list"
+              ? "print:pb-0"
+              : toolbarVisible ? "pb-24 print:pb-4" : "pb-4"
           }`}
         >
           {children}

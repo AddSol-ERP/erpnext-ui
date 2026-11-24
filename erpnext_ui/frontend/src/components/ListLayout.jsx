@@ -69,12 +69,18 @@ export default function ListLayout({
   return (
     <div
       className={cn(
-        "mx-auto flex h-full w-full max-w-[1600px] flex-col motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200",
+        // Full-bleed on purpose: the old `max-w-[1600px] mx-auto` card floated a
+        // bordered, shadowed box inside page padding, so four layers of chrome
+        // (page pad > card border > toolbar pad > cell pad) wrapped the data and
+        // a 1440px screen showed 14 rows. The grid now owns the content area
+        // edge-to-edge; AppShell drops its own padding in list shellMode.
+        "flex h-full w-full flex-col motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200",
         className,
       )}
     >
-      {/* Single card: toolbar + content + footer */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border border-border/70 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)]">
+      {/* Single surface: toolbar + content + footer. Hairlines separate the
+          bands; there is no outer box to eat horizontal space. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
         {/* Optional status tabs (top strip) */}
         {tabs ? (
           <div className="shrink-0 border-b border-border/60 px-3 pt-2 sm:px-4">
@@ -82,7 +88,7 @@ export default function ListLayout({
           </div>
         ) : null}
 
-        {/* Toolbar: search / filters / export — flush inside card */}
+        {/* Toolbar: search / filters / export — flush inside the surface */}
         {actionBar ? (
           <div className="shrink-0 border-b border-border/60">{actionBar}</div>
         ) : null}
@@ -100,12 +106,12 @@ export default function ListLayout({
               ].map(([titleW, subW], i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 border-b border-border/50 px-4 py-3.5"
+                  className="flex items-center gap-3 border-b border-border/50 px-4 py-2"
                 >
-                  <Skeleton className="size-8 shrink-0 rounded-none" />
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <Skeleton className={cn("h-3.5", titleW)} />
-                    <Skeleton className={cn("h-3", subW)} />
+                  <Skeleton className="h-4 w-6 shrink-0 rounded-none" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <Skeleton className={cn("h-3", titleW)} />
+                    <Skeleton className={cn("h-2.5", subW)} />
                   </div>
                   <Skeleton className="hidden h-5 w-16 rounded-full sm:block" />
                 </div>
@@ -164,9 +170,9 @@ export default function ListLayout({
           )}
         </div>
 
-        {/* Footer: results + pagination inside card */}
+        {/* Footer: results + pagination, one hairline above the grid */}
         {showFooter ? (
-          <div className="shrink-0 border-t border-border/60 bg-card/80 px-3 py-2 sm:px-4">
+          <div className="shrink-0 border-t border-border/60 bg-card px-3 py-1.5 sm:px-4">
             {footer || pagination}
           </div>
         ) : null}

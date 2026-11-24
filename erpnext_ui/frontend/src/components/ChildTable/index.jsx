@@ -5,6 +5,7 @@ import UomPricingEstimate from "../UomPricingEstimate";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2 } from "lucide-react";
+import { cn } from "cn";
 import FieldRenderer from "./FieldRenderer";
 import { get } from "../../services/api";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export default function ChildTable({
   compactFields,
   bomAttachments = false,
   bomName,
+  fillHeight = false,
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState(value || []);
@@ -104,10 +106,16 @@ export default function ChildTable({
   };
 
   const emptyMessage = (
-    <div className="py-6 text-center text-sm text-muted-foreground">
+    <div className="py-4 text-center text-sm text-muted-foreground">
       {t("common.noData")}
     </div>
   );
+
+  // Column heads match DataTable exactly (h-9, 11px uppercase muted): the
+  // child grid and the list grid are the same visual object, so their headers
+  // must read the same. `w-10` is kept on the index head for column alignment.
+  const headCls =
+    "h-9 px-3 text-start align-middle text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase text-muted-foreground";
 
   // The Item code and Item name columns split the row's width between them.
   // A cell's width floor has to come from a class here: the inputs are
@@ -122,9 +130,15 @@ export default function ChildTable({
   };
 
   return (
-    <div className="rounded-none bg-card ring-1 ring-foreground/10">
-      {/* HEADER */}
-      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+    // Full-bleed surface, matching ListLayout: no ring, no shadow. The parent
+    // (FormSection, or the BOM Tabs card) already draws the boundary, so a ring
+    // here was a card inside a card — the same chrome ListLayout dropped. The
+    // bands are separated by hairlines instead.
+    <div className={`bg-card ${fillHeight ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ""}`}>
+      {/* HEADER — same band rhythm as ActionBar (px-3 py-2 sm:px-4). shrink-0:
+          in fillHeight the outer div is a flex column, and a header that could
+          shrink would push the grid's scroll area past its bounds. */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2 sm:px-4">
         <div className="text-sm font-semibold">{title}</div>
 
         {!disabled && (
@@ -138,19 +152,25 @@ export default function ChildTable({
       {/* =========================
           DESKTOP TABLE
       ========================= */}
-      <div className="hidden md:block">
-        <Table containerClassName="max-h-[min(28rem,60vh)] overflow-auto overscroll-contain" containerProps={{ tabIndex: 0, role: "region", "aria-label": title }}>
-          <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow>
-              <TableHead className="w-10">#</TableHead>
+      <div className={fillHeight ? "hidden md:flex md:min-h-0 md:flex-1 md:flex-col" : "hidden md:block"}>
+        <Table
+          containerClassName={fillHeight ? "min-h-0 flex-1 overflow-auto overscroll-contain" : "max-h-[min(28rem,60vh)] overflow-auto overscroll-contain"}
+          containerProps={{ tabIndex: 0, role: "region", "aria-label": title }}
+        >
+          {/* Same header band as DataTable: tinted, hairline underneath, so a
+              scrolling body passes beneath an opaque strip rather than showing
+              through a translucent one. */}
+          <TableHeader className="sticky top-0 z-10 bg-table-header shadow-[0_1px_0_rgba(15,23,42,0.06)] [&_tr]:border-border/70">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className={cn(headCls, "w-10")}>#</TableHead>
 
               {visibleColumns.map((col) => (
-                <TableHead key={col.field} className={colWidthClass(col)}>{col.label}</TableHead>
+                <TableHead key={col.field} className={cn(headCls, colWidthClass(col))}>{col.label}</TableHead>
               ))}
 
-              {compact && <TableHead className="w-20" />}
-              {bomAttachments && <TableHead>{t("attachments.open")}</TableHead>}
-              <TableHead className="w-12" />
+              {compact && <TableHead className={cn(headCls, "w-20")} />}
+              {bomAttachments && <TableHead className={headCls}>{t("attachments.open")}</TableHead>}
+              <TableHead className={cn(headCls, "w-12")} />
             </TableRow>
           </TableHeader>
 
@@ -163,16 +183,24 @@ export default function ChildTable({
               </TableRow>
             ) : (
               data.map((row, rowIndex) => (
-                <TableRow key={rowIndex}>
+                // Same row language as DataTable: hairline separators at 50%
+                // and the primary hover tint. The tint is not decorative —
+                // clicking anywhere in a child row lands in one of its inputs,
+                // so the row behaves as clickable and must read as one.
+                <TableRow
+                  key={rowIndex}
+                  className="border-border/50 hover:bg-primary/[0.05]"
+                >
                   {/* INDEX */}
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="px-3 py-1 align-middle text-muted-foreground">
                     {rowIndex + 1}
                   </TableCell>
 
                   {/* FIELDS */}
                   {visibleColumns.map((col) => (
-                    <TableCell key={col.field} className={colWidthClass(col)}>
+                    <TableCell key={col.field} className={cn("px-3 py-1 align-middle", colWidthClass(col))}>
                       <FieldRenderer
+                        cell
                         type={col.type}
                         value={row[col.field]}
                         options={col.options}
@@ -185,10 +213,10 @@ export default function ChildTable({
                     </TableCell>
                   ))}
 
-                  {compact && <TableCell><Button variant="outline" size="sm" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button></TableCell>}
-                  {bomAttachments && <TableCell><Button type="button" variant="outline" size="sm" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button></TableCell>}
+                  {compact && <TableCell className="px-3 py-1 align-middle"><Button variant="outline" size="sm" onClick={() => setEditingRow(rowIndex)}>{t(disabled ? "common.view" : "common.edit")}</Button></TableCell>}
+                  {bomAttachments && <TableCell className="px-3 py-1 align-middle"><Button type="button" variant="outline" size="sm" onClick={() => { setEditingRow(null); setAttachmentRow(rowIndex); }}>{t("attachments.open")}</Button></TableCell>}
                   {/* DELETE */}
-                  <TableCell>
+                  <TableCell className="px-3 py-1 align-middle">
                     {!disabled && (
                       <Button
                         variant="ghost"
@@ -211,14 +239,14 @@ export default function ChildTable({
       {/* =========================
           MOBILE CARD VIEW
       ========================= */}
-      <div className="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto overscroll-contain p-3 md:hidden" role="region" aria-label={title} tabIndex={0}>
+      <div className={`flex flex-col gap-2 overflow-y-auto overscroll-contain p-3 md:hidden ${fillHeight ? "min-h-0 flex-1" : "max-h-[min(28rem,60vh)]"}`} role="region" aria-label={title} tabIndex={0}>
         {data.length === 0 ? (
           emptyMessage
         ) : (
           data.map((row, rowIndex) => (
             <div
               key={rowIndex}
-              className="rounded-lg border border-border bg-background p-3"
+              className="rounded-none border border-border/60 bg-background p-3"
             >
               {/* HEADER */}
               <div className="mb-2 flex items-center justify-between">

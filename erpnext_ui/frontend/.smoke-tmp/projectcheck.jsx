@@ -98,7 +98,14 @@ for (const language of ["en", "hi", "ar"]) {
   const desktopBody = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/)[1];
   assert.equal(desktopBody.split(`>${i18n.t("common.edit")}</button>`).length - 1, 1, "One desktop Edit action per row");
   assert(!desktopBody.includes("</td><button"), "Buttons must be inside table cells");
-  const mobileBody = html.split('class="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto overscroll-contain p-3 md:hidden"')[1];
+  // Anchor on `md:hidden`, not the full class string: the container's classes
+  // are styling (they changed once already when fillHeight was added, and will
+  // change again with density work). `md:hidden` is the one semantic marker —
+  // it appears exactly once here, and in no child control — so it identifies
+  // the mobile region without pinning the styling.
+  const mobileSplit = html.split("md:hidden");
+  assert.equal(mobileSplit.length, 2, "exactly one mobile (md:hidden) region");
+  const mobileBody = mobileSplit[1];
   assert.equal(mobileBody.split(`>${i18n.t("common.edit")}</button>`).length - 1, 1, "One mobile Edit action per row");
 }
 console.log("BOM layout preserves native/custom fields and compact materials render in EN/HI/AR");
