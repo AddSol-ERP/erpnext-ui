@@ -112,7 +112,8 @@ rebuild is committed, or both mount paths serve stale code.
 | `boot_session` | `:25` | `erpnext_ui.api.boot_session` → forces `home_page` |
 | `app_include_js` | `:32` | injects `addsol_ui_nav.js` on **every desk page** |
 | `doctype_js` | `:49` | injects `supplier_quotation_desk.js` on the Supplier Quotation form |
-| `after_migrate` | `:258-262` | workflows, attachment settings, supplier quotation settings, quality inspection settings |
+| `override_doctype_class` | current | `NotificationWithTodos` preserves Frappe's Notification send path and adds opt-in ToDo creation after a rule matches; the app's existing doctype overrides are in the same hook |
+| `after_migrate` | current | ToDo FYI and Notification-to-ToDo Custom Fields, workflows, attachment settings, supplier quotation settings, quality inspection settings |
 
 Note `after_migrate`, **not `after_install`**: a fresh `bench install-app` seeds
 no workflows; the first `bench migrate` does.
@@ -128,6 +129,7 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 |---|---|---|
 | `get_ui_access()` | `:45-73` | **The security boundary.** Returns only booleans: `{approvals:{dt:bool}, reports:{key:bool}}`. Never role names or doctype metadata. |
 | `get_current_user()` | `:83-100` | `{user, roles}`, filters out `"All"`/`"Guest"` (`:98`) |
+| `get_my_open_todos()` | new | Open ToDos assigned to `frappe.session.user`, split by `ToDo.custom_for_information_only` into Action Needed / For Information; returns each task's color for its home-card accent, blank flags count as Action Needed, and accepts no user parameter. The custom Check field is created and old NULL values are normalized by `setup.todo.setup_todo_fields` after migrate. |
 | `get_csrf_token()` | `:125-143` | The SPA is static assets and never evaluates desk's boot script, so `frappe.csrf_token` doesn't exist client-side. Without this, **every write fails** `CSRFTokenError`. |
 | `leave_balance_report(...)` | `:361-492` | ⚠️ bare whitelist (guest-reachable) |
 | `leave_balance_employees(...)` | `:495-533` | ⚠️ bare whitelist |
@@ -141,6 +143,16 @@ endpoints but means they are reachable pre-login; `_get_scope()` collapses to
 | **`get_custom_report_data(report_key, filters=None)`** | `:2526` | Runs a Script Report that lives in ANOTHER app. Takes a **key**, never a report name. See §3.8. |
 | **`get_pending_inspection_items(warehouse=None, item_code=None, batch_no=None, serial_no=None, start=0, limit=50, as_of_date=None)`** | new | Store: pending-QC stock, split/filterable by serial and batch. See §3.9. |
 | `boot_session(bootinfo)` | `:103-122` | hook |
+
+#### Notification-generated ToDos
+
+The stock `Notification` doctype still owns event, condition, channel and recipient delivery. The custom fields installed by `setup.notification_todos.setup_notification_todo_fields` add an optional To-Do action: a Jinja description, assignee selected as one User / a User Link field on the triggering document / all enabled users with a Role, optional date field plus day offset, priority, color, and FYI flag. `NotificationWithTodos` subclasses Frappe's v15 controller and calls the core `send()` first; it creates the task only after Frappe has matched the notification event and condition, preserving all standard channels.
+
+Each generated ToDo references the triggering document and records the Notification name. `custom_notification_task_key` is a unique hash of Notification + source document + assignee, so repeated Save/Value Change triggers refresh the same open task rather than multiplying rows. Closed/Cancelled generated tasks remain terminal and are not recreated by later saves. Task-creation exceptions are logged and do not block the source document save. There is no new DocType and no modification to Frappe's source files.
+
+Before each task is created or refreshed, `NotificationWithTodos.assignee_can_read_source` calls `frappe.has_permission(doc=source, ptype="read", user=assignee)`. A false result skips that assignee and writes an Error Log entry with the Notification, assignee, and source document for Administrator review; permission-check exceptions also fail closed and are logged. Role-based assignment therefore creates tasks only for users who can read that particular triggering document. The check runs before the idempotent upsert, so a later event cannot refresh a task after the assignee has lost access.
+
+This is an event-time gate; it does not proactively revisit every generated ToDo when a user's document permissions change. Existing generated tasks may need explicit remediation if their assignee's access is later revoked.
 
 **48 functions decorated `@frappe.whitelist`; 3 use the bare decorator, which
 defaults to `allow_guest=True`.** That is deliberate for the read-only report

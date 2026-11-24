@@ -52,6 +52,7 @@ import {
 } from "./buildLayout";
 import { getFieldRenderer } from "./fieldTypes";
 import { getDoctypeConfig } from "../../config/doctypes";
+import { plainText, shortenText } from "../../lib/displayText";
 import { fetchAttachmentConfig } from "../../lib/attachments";
 import { AttachDialog, RequiredAttachmentDialog } from "../Attachments";
 import { Spinner } from "@/components/ui/spinner";
@@ -844,12 +845,22 @@ export default function GenericFormPage() {
     const focusFirstErr = () => {
       requestAnimationFrame(() => focusFirstError(errors));
     };
+    const titleField = doctypeConfig.form?.titleField;
+    const rawDocTitle = titleField ? doc[titleField] : doc.name;
+    const docTitle = titleField
+      ? shortenText(
+          doctypeConfig.form?.titleFieldIsHtml
+            ? plainText(rawDocTitle)
+            : rawDocTitle,
+          doctypeConfig.form?.titleMaxLength,
+        ) || doc.name || decodedDoctype
+      : doc.name || decodedDoctype;
 
     setHeader({
       status,
       title: isNew
         ? t("common.createNew", { name: decodedDoctype })
-        : `${doc.name || decodedDoctype}`,
+        : docTitle,
       subtitle: isNew
         ? t("common.createNew", { name: decodedDoctype })
         : t("common.editing", { name: decodedDoctype }),
@@ -860,7 +871,7 @@ export default function GenericFormPage() {
           label: decodedDoctype,
           path: `/${hub}/${encodeURIComponent(decodedDoctype)}`,
         },
-        { label: isNew ? t("common.new") : doc.name || "" },
+        { label: isNew ? t("common.new") : docTitle },
       ],
       actions,
       errorCount,

@@ -16,6 +16,7 @@ import {
   FolderKanban,
 } from "lucide-react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
+import MyTodos from "./MyTodos";
 import StatRow from "../../components/dashboard/StatRow";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import StatCard from "../../components/StatCard";
@@ -50,7 +51,6 @@ const MODULE_DEFS = [
 
 const STAT_DEFS = [
   { key: "openRequests", labelKey: "dashboard.openRequests", icon: Inbox },
-  { key: "pendingApprovals", labelKey: "dashboard.pendingApprovals", icon: CheckSquare },
   { key: "activeJobs", labelKey: "dashboard.activeJobs", icon: Cog },
   { key: "qcPending", labelKey: "dashboard.qcPending", icon: ShieldCheck },
 ];
@@ -120,7 +120,6 @@ export default function Dashboard() {
       ...m,
       titleKey: m.key === "projects" ? "projects.title" : `modules.${m.key}.title`,
       descriptionKey: m.key === "projects" ? "projects.subtitle" : `modules.${m.key}.description`,
-      badge: m.highlight ? counts.pendingApprovals : undefined,
     }),
   );
 
@@ -130,8 +129,7 @@ export default function Dashboard() {
   return (
     <DashboardShell>
 
-      {/* Highlight Approvals */}
-      {approvals && (
+      {approvals && counts.pendingApprovals > 0 && (
         <Card
           className="cursor-pointer rounded-none transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10 hover:ring-primary/40"
           onClick={() => navigate(approvals.route)}
@@ -151,30 +149,51 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {approvals.badge > 0 && (
-              <Badge
-                variant="outline"
-                className="shrink-0 bg-destructive/15 px-2.5 py-1 text-sm text-destructive ring-destructive/30"
-              >
-                {approvals.badge}
-              </Badge>
-            )}
+            <Badge
+              variant="outline"
+              className="shrink-0 bg-destructive/15 px-2 py-0.5 text-xs text-destructive ring-destructive/30"
+            >
+              {counts.pendingApprovals}
+            </Badge>
           </CardContent>
         </Card>
       )}
 
-      <StatRow>
-        {STAT_DEFS.map((s) => (
-          <StatCard
-            key={s.key}
-            value={counts[s.key]}
-            label={t(s.labelKey)}
-            icon={s.icon}
-          />
-        ))}
-      </StatRow>
+      <MyTodos />
 
-      <ModuleGrid items={others} onClick={(tile) => navigate(tile.route)} />
+      <section className="space-y-2" aria-labelledby="dashboard-overview-heading">
+        <h2
+          id="dashboard-overview-heading"
+          className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+        >
+          {t("dashboard.atAGlance")}
+        </h2>
+        <StatRow>
+          {STAT_DEFS.map((s) => (
+            <StatCard
+              key={s.key}
+              value={counts[s.key]}
+              label={t(s.labelKey)}
+              icon={s.icon}
+            />
+          ))}
+        </StatRow>
+      </section>
+
+      {others.length > 0 && (
+        <section
+          className="space-y-3 border-t border-border/70 pt-4 md:pt-6"
+          aria-labelledby="dashboard-modules-heading"
+        >
+          <h2
+            id="dashboard-modules-heading"
+            className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+          >
+            {t("dashboard.modulesTitle")}
+          </h2>
+          <ModuleGrid items={others} onClick={(tile) => navigate(tile.route)} mobileCols={2} />
+        </section>
+      )}
     </DashboardShell>
   );
 }

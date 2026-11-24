@@ -117,7 +117,7 @@ for (const language of ["en", "hi", "ar"]) {
     assert(footer && footer.includes('colSpan="2"') && (footer.match(/colSpan="2"/g) || []).length === 2, `${field}: footer must align with the amount column`);
   }
 }
-console.log("BOM layout preserves native/custom fields and compact materials render in EN/HI/AR");
+console.log("BOM layout preserves native/custom fields and compact materials render with accessible row actions in EN/HI/AR");
 
 for (const language of ["en", "hi", "ar"]) {
   await i18n.changeLanguage(language);
@@ -135,9 +135,10 @@ for (const language of ["en", "hi", "ar"]) {
   const tabs = buildBomLayout(templateMeta.fields, i18n.t.bind(i18n), { template: true });
   assert.equal(tabs.length, 5);
   const details = tabs[0].sections[0].fields.map((f) => f.fieldname);
-  for (const field of ["template_name", "enabled", "description", "item", "company"]) assert(details.includes(field));
+  for (const field of ["template_name", "enabled", "description", "company"]) assert(details.includes(field));
+  assert(!details.includes("item"));
   const names = tabs.flatMap((tab) => tab.sections.flatMap((section) => section.fields.map((field) => field.fieldname)));
-  const expected = templateMeta.fields.filter((f) => !["Tab Break", "Section Break", "Column Break"].includes(f.fieldtype)).map((f) => f.fieldname);
+  const expected = templateMeta.fields.filter((f) => !f.hidden && !["Tab Break", "Section Break", "Column Break"].includes(f.fieldtype)).map((f) => f.fieldname);
   assert.deepEqual([...names].sort(), expected.sort());
   for (const table of templateMeta.fields.filter((f) => f.fieldtype === "Table")) assert(BOM_TABLE_COLUMNS[table.options]?.length);
 }
