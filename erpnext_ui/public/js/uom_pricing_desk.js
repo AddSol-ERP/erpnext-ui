@@ -3,6 +3,36 @@ const BUYING = ["Purchase Receipt", "Purchase Invoice", "Purchase Order", "Suppl
 const SELLING = ["Sales Invoice", "Sales Order", "Delivery Note", "Quotation", "POS Invoice"];
 const REQUESTS = {};
 
+// Extend only the PO update dialog; keep ERPNext's own fields and row controls.
+function install_purchase_order_update_pricing() {
+	if (typeof erpnext === "undefined" || !erpnext.utils?.update_child_items || erpnext.utils.update_child_items.__uom_pricing) return;
+	const original = erpnext.utils.update_child_items;
+	function update_child_items_with_pricing(opts) {
+		if (opts.frm?.doctype !== "Purchase Order" || opts.child_docname !== "items") return original.apply(this, arguments);
+		const Dialog = frappe.ui.Dialog;
+		frappe.ui.Dialog = function (config) {
+			const table = config.fields?.find((field) => field.fieldname === "trans_items" && field.fieldtype === "Table");
+			if (table) {
+				table.fields.push({ fieldname: "custom_rate_per_pricing_uom", fieldtype: "Float", label: __("Rate per Pricing UOM"), in_list_view: 1 });
+				const byName = new Map((opts.frm.doc.items || []).map((row) => [row.name, row]));
+				(table.data || []).forEach((row) => { row.custom_rate_per_pricing_uom = byName.get(row.docname)?.custom_rate_per_pricing_uom || 0; });
+				config.update_items = function () {
+					const rows = this.get_values()?.trans_items;
+					if (!rows) return;
+					frappe.call({ method: "erpnext_ui.purchase_order_update.update_items", freeze: true,
+						args: { parent_doctype_name: opts.frm.doc.name, trans_items: rows.filter((row) => row.item_code) },
+						callback: () => { this.hide(); opts.frm.reload_doc(); } });
+				};
+			}
+			return new Dialog(config);
+		};
+		try { return original.apply(this, arguments); }
+		finally { frappe.ui.Dialog = Dialog; }
+	}
+	update_child_items_with_pricing.__uom_pricing = true;
+	erpnext.utils.update_child_items = update_child_items_with_pricing;
+}
+
 function pricing_side(frm) {
 	return BUYING.includes(frm.doctype) ? "buying" : "selling";
 }
@@ -111,7 +141,10 @@ function update_pricing_estimate(frm, row) {
 BUYING.concat(SELLING).forEach((doctype) => {
 	const child = doctype === "Quotation" ? "Quotation Item" : `${doctype} Item`;
 	frappe.ui.form.on(doctype, {
-		refresh: refresh_saved_pricing_estimates,
+		refresh(frm) {
+			if (frm.doctype === "Purchase Order") install_purchase_order_update_pricing();
+			refresh_saved_pricing_estimates(frm);
+		},
 		before_save(frm) {
 			(frm.doc.items || []).forEach((row) => { REQUESTS[row.name] = (REQUESTS[row.name] || 0) + 1; });
 		},

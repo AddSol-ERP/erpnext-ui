@@ -219,6 +219,7 @@ export default function PurchaseReceiptForm() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [serialDetails, setSerialDetails] = useState(null);
 
   /**
    * Rate edit policy, read from Buying Settings at runtime.
@@ -1585,6 +1586,17 @@ export default function PurchaseReceiptForm() {
         onConfirm={handleDelete}
       />
       <AppModal
+        show={Boolean(serialDetails)}
+        onClose={() => setSerialDetails(null)}
+        title={`${t("store.receipt.serialNumberLabel")} · ${serialDetails?.itemCode || ""}`}
+        width="md"
+        footer={<Button type="button" variant="outline" onClick={() => setSerialDetails(null)}>{t("common.close")}</Button>}
+      >
+        <ul className="divide-y divide-border" aria-label={t("store.receipt.serialNumberLabel")}>
+          {(serialDetails?.serials || []).map((serial, index) => <li key={`${index}-${serial}`} className="break-all px-1 py-2 text-sm">{serial}</li>)}
+        </ul>
+      </AppModal>
+      <AppModal
         show={purchaseOrderPickerOpen}
         onClose={() => {
           if (!addingPurchaseOrder) {
@@ -1857,9 +1869,13 @@ export default function PurchaseReceiptForm() {
                           <span className="font-medium">{t("store.receipt.batchNumberLabel")}:</span> {batchNumbers.join(", ")}
                         </span>
                       ) : null}
-                      {serialNumbers.length ? (
-                        <span className="break-all">
-                          <span className="font-medium">{t("store.receipt.serialNumberLabel")}:</span> {serialNumbers.join(", ")}
+                      {serialNumbers.length > 1 ? (
+                        <button type="button" className="font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setSerialDetails({ itemCode: row.item_code, serials: serialNumbers })}>
+                          {t("store.receipt.viewSerialNumbers", { count: serialNumbers.length })}
+                        </button>
+                      ) : serialNumbers.length === 1 ? (
+                        <span className="min-w-0 max-w-48 truncate" title={serialNumbers[0]}>
+                          <span className="font-medium">{t("store.receipt.serialNumberLabel")}:</span> {serialNumbers[0]}
                         </span>
                       ) : null}
                       {!hasPurchaseOrders && looksWeighed ? (

@@ -144,6 +144,7 @@
       "serialNumbers": "الأرقام التسلسلية ({count} × {uom})",
       "batchNumberLabel": "رقم الدفعة",
       "serialNumberLabel": "الرقم التسلسلي",
+      "viewSerialNumbers": "عرض الأرقام التسلسلية ({count})",
       "serialAuto": "سيتم إنشاء {count} من الأرقام التسلسلية تلقائيًا. لا حاجة للكتابة.",
       "serialTyped": "رقم تسلسلي واحد لكل سطر، بإجمالي {count}.",
       "serialWillGenerate": "سيتم إنشاؤه من السلسلة {series}.",

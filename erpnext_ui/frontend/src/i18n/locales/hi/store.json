@@ -144,6 +144,7 @@
       "serialNumbers": "सीरियल नंबर ({count} × {uom})",
       "batchNumberLabel": "बैच नंबर",
       "serialNumberLabel": "सीरियल नंबर",
+      "viewSerialNumbers": "सीरियल नंबर देखें ({count})",
       "serialAuto": "{count} सीरियल नंबर स्वतः बन जाएँगे। कुछ नहीं भरना है।",
       "serialTyped": "प्रति पंक्ति एक सीरियल नंबर, कुल {count}।",
       "serialWillGenerate": "श्रृंखला {series} से बनाया जाएगा।",
