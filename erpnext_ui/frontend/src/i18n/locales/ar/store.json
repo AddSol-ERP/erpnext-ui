@@ -524,6 +524,7 @@
       "actualChargeableQtyHint": "الكمية الفعلية المستلمة أو المقاسة بوحدة التسعير — مثلاً من قراءة الميزان الجسري أو إيصال المورد. اتركه فارغاً لاستخدام التقدير المحسوب أدناه.",
       "estimatedChargeableQty": "الكمية التقديرية ({uom})",
       "estimatedPricingAmount": "المبلغ التقديري",
+      "chargeablePricingAmount": "المبلغ حسب الكمية المحتسبة",
       "noFormulaEstimate": "لا يوجد تقدير بصيغة",
       "estimateLoading": "جارٍ حساب التقدير…",
       "estimateFailed": "تعذر حساب تقدير الصنف.",

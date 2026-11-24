@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { get } from "../services/api";
 
-// This display never writes to the row or uses the entered chargeable quantity.
+// This display never writes to the row; estimates and entered quantities stay distinct.
 export default function UomPricingEstimate({ row, side = "buying", readOnly = false }) {
   const { t } = useTranslation();
   const [result, setResult] = useState(null);
@@ -39,9 +39,12 @@ export default function UomPricingEstimate({ row, side = "buying", readOnly = fa
   const baseline = estimate.calculated_chargeable_qty;
   const rate = row?.custom_rate_per_pricing_uom;
   const amount = baseline != null && rate !== "" && rate != null && Number.isFinite(Number(rate)) ? baseline * Number(rate) : null;
+  const enteredQty = Number(row?.custom_chargeable_qty);
+  const actualAmount = enteredQty > 0 && rate !== "" && rate != null && Number.isFinite(Number(rate)) ? enteredQty * Number(rate) : null;
   return <div className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs" aria-live="polite">
     <div>{t("store.form.estimatedChargeableQty", { uom: estimate.pricing_uom })}: <strong className="tabular-nums">{baseline ?? t("store.form.noFormulaEstimate")}</strong></div>
     {amount != null && <div>{t("store.form.estimatedPricingAmount")}: <strong className="tabular-nums">{Number(amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>}
+    {actualAmount != null && <div>{t("store.form.chargeablePricingAmount")}: <strong className="tabular-nums">{actualAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>}
     <p className="text-muted-foreground">{t("store.form.estimateFromItem")}</p>
   </div>;
 }

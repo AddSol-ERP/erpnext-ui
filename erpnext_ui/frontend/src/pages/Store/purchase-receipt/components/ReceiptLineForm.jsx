@@ -170,6 +170,7 @@ export default function ReceiptLineForm({
             rate_per_uom: rate,
             doc_qty: qty,
             side: "buying",
+            chargeable_qty: Number(rowRef.current?.custom_chargeable_qty) !== 0 ? rowRef.current?.custom_chargeable_qty : undefined,
           },
         );
         if (cancelled) return;

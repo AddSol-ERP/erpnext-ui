@@ -524,6 +524,7 @@
       "actualChargeableQtyHint": "The quantity actually received or measured in the pricing UOM -- for example, from a weighbridge reading or supplier slip. Leave blank to use the calculated estimate shown below.",
       "estimatedChargeableQty": "Estimated quantity ({uom})",
       "estimatedPricingAmount": "Estimated amount",
+      "chargeablePricingAmount": "Amount based on chargeable quantity",
       "noFormulaEstimate": "No formula estimate",
       "estimateLoading": "Calculating estimate…",
       "estimateFailed": "Could not calculate the Item estimate.",

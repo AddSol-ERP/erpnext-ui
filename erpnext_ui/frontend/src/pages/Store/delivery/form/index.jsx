@@ -228,6 +228,7 @@ export default function DeliveryNoteForm() {
             rate_per_uom: rate,
             doc_qty: qty,
             side: "selling",
+            chargeable_qty: Number(row.custom_chargeable_qty) !== 0 ? row.custom_chargeable_qty : undefined,
           });
           if (cancelled) return;
           const message = res?.message ?? res ?? {};
