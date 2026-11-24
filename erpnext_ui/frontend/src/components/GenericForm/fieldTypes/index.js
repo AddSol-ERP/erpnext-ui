@@ -21,6 +21,8 @@ import CurrencyField from "./CurrencyField";
 import FloatField from "./FloatField";
 import IntField from "./IntField";
 import ReadonlyField from "./ReadonlyField";
+import ColorField from "./ColorField";
+import TextEditorField from "./TextEditorField";
 
 const FIELD_RENDERERS = {
   /* Basic text */
@@ -28,6 +30,7 @@ const FIELD_RENDERERS = {
   "Small Text": TextField,
   Text: TextField,
   "Long Text": TextField,
+  "Text Editor": TextEditorField,
 
   /* Select / Options */
   Select: SelectField,
@@ -49,6 +52,9 @@ const FIELD_RENDERERS = {
 
   /* Boolean */
   Check: CheckboxField,
+
+  // Frappe Color fields need a picker; the generic Data fallback only accepts text.
+  Color: ColorField,
 
   /* Read-only / display */
   "Read Only": ReadonlyField,
@@ -73,3 +79,5 @@ export { default as CurrencyField } from "./CurrencyField";
 export { default as FloatField } from "./FloatField";
 export { default as IntField } from "./IntField";
 export { default as ReadonlyField } from "./ReadonlyField";
+export { default as ColorField } from "./ColorField";
+export { default as TextEditorField } from "./TextEditorField";

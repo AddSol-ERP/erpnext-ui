@@ -20,25 +20,30 @@ import { cn } from "cn";
  * looked correct and done nothing.
  */
 const COL_CLASSES = {
+  1: "xl:grid-cols-1",
+  2: "xl:grid-cols-2",
+  3: "xl:grid-cols-3",
+  4: "xl:grid-cols-4",
+};
+const MOBILE_COL_CLASSES = {
   1: "grid-cols-1",
-  2: "grid-cols-1 xl:grid-cols-2",
-  3: "grid-cols-1 xl:grid-cols-3",
-  4: "grid-cols-1 xl:grid-cols-4",
+  2: "grid-cols-2",
 };
 
 /**
  * Uniform ActionTile grid.
  *
- * `cols` is how many columns the grid lays out at `xl` and up; one column
- * below that. It defaults to four, which is what every hub has always used.
+ * `cols` is the column count at `xl` and up. `mobileCols` controls narrow
+ * screens and defaults to one so existing hub layouts keep their full-width tiles.
  *
  * items: tile objects; onClick(tile, isCreate?) shared handler.
  * Outer-perimeter corners injected per cell via gridCorners.
  */
-export default function ModuleGrid({ items = [], onClick, cols = 4 }) {
+export default function ModuleGrid({ items = [], onClick, cols = 4, mobileCols = 1 }) {
   if (!items.length) return null;
 
   const columnCount = COL_CLASSES[cols] ? cols : 4;
+  const mobileColumnCount = MOBILE_COL_CLASSES[mobileCols] ? mobileCols : 1;
 
   // The breakpoints MUST list the same steps as the grid class, in the same
   // order: `gridCorners` is currently inert -- a deliberate no-op -- which is
@@ -46,12 +51,18 @@ export default function ModuleGrid({ items = [], onClick, cols = 4 }) {
   // day corner rounding is re-enabled it would be computing for one number
   // of columns while the CSS lays out another.
   const breakpoints =
-    columnCount > 1
-      ? [{ cols: 1 }, { min: "xl", cols: columnCount }]
-      : [{ cols: 1 }];
+    columnCount !== mobileColumnCount
+      ? [{ cols: mobileColumnCount }, { min: "xl", cols: columnCount }]
+      : [{ cols: mobileColumnCount }];
 
   return (
-    <div className={cn("grid gap-4", COL_CLASSES[columnCount])}>
+    <div
+      className={cn(
+        "grid gap-4",
+        MOBILE_COL_CLASSES[mobileColumnCount],
+        COL_CLASSES[columnCount],
+      )}
+    >
       {items.map((tile, i) => (
         <ActionTile
           key={tile.key ?? tile.route ?? tile.title ?? i}

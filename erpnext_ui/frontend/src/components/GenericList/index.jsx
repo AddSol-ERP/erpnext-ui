@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useHeader } from "../../context/HeaderContext";
 import { get, getMethod } from "../../services/api";
 import { getDoctypeConfig } from "../../config/doctypes";
+import { plainText, shortenText } from "../../lib/displayText";
 import { openInDesk } from "../../lib/deskUrl";
 import ActionBar from "../ActionBar";
 import Pagination from "../Pagination";
@@ -122,6 +123,7 @@ export default function GenericListPage({ doctypeOverride }) {
   const { t } = useTranslation();
 
   const [data, setData] = useState([]);
+  const [loadedFieldsByDoctype, setLoadedFieldsByDoctype] = useState({});
   const [search, setSearch] = useState("");
   const [selectedFilters, setSelectedFilters] = useState({});
   const [filterConfig, setFilterConfig] = useState(null);
@@ -292,6 +294,8 @@ export default function GenericListPage({ doctypeOverride }) {
     if (cfg.subtitleField) customFields.push(cfg.subtitleField);
     if (cfg.metaField) customFields.push(cfg.metaField);
     if (cfg.statusField) customFields.push(cfg.statusField);
+    customFields.push(...(cfg.additionalFields || []));
+    customFields.push(...(cfg.additionalColumns || []).map((column) => column.field));
 
     // Drop any column the doctype does not have.
     //
@@ -338,7 +342,7 @@ export default function GenericListPage({ doctypeOverride }) {
       }
     }
 
-    const fields = [...BASE_FIELDS, ...usable];
+    const fields = [...BASE_FIELDS, ...new Set(usable)];
     // Only remember a list that was validated against real meta. Without meta
     // every configured column is sent unvalidated -- and a failed lookup must
     // not be frozen in place, or Refresh could never repair the list after a
@@ -391,6 +395,11 @@ export default function GenericListPage({ doctypeOverride }) {
       const meta = await doctypeMeta();
       const real = meta?.fields?.map((f) => f.fieldname) || null;
       const fields = await getFields();
+      setLoadedFieldsByDoctype((current) =>
+        current[decodedDoctype] === fields
+          ? current
+          : { ...current, [decodedDoctype]: fields },
+      );
       const filters = buildFilters();
       const orFilters = buildOrFilters(real);
 
@@ -517,11 +526,27 @@ export default function GenericListPage({ doctypeOverride }) {
   const mapToList = (row) => {
     const cfg = config.list;
     const status = resolveStatus(row, cfg.statusField);
+    const rawTitle = cfg.titleField ? row[cfg.titleField] || row.name || "—" : row.name;
+    const titleText = cfg.titleFieldIsHtml ? plainText(rawTitle) : String(rawTitle);
+    const todoSubtitle = decodedDoctype === "ToDo"
+      ? [
+          t(Number(row.custom_for_information_only) === 1
+            ? "dashboard.myTodos.forInformation"
+            : "dashboard.myTodos.actionNeeded"),
+          row.priority,
+          row.date,
+          [row.reference_type, row.reference_name].filter(Boolean).join(" · "),
+        ].filter(Boolean).join(" · ")
+      : null;
 
     return {
-      title: cfg.titleField ? row[cfg.titleField] || row.name || "—" : row.name,
-      subtitle: `${cfg.subtitleField ? row[cfg.subtitleField] || "" : ""}${hub === "purchase" && decodedDoctype === "Supplier Quotation" && quotationOrderStatus?.[row.name] ? " · Purchase order exists" : ""}`,
+      title: shortenText(titleText, cfg.titleMaxLength),
+      titleHeader: cfg.titleHeaderKey ? t(cfg.titleHeaderKey) : t("common.name"),
+      subtitle: decodedDoctype === "ToDo"
+        ? todoSubtitle
+        : `${cfg.subtitleField ? row[cfg.subtitleField] || "" : ""}${hub === "purchase" && decodedDoctype === "Supplier Quotation" && quotationOrderStatus?.[row.name] ? " · Purchase order exists" : ""}`,
       meta: cfg.metaField ? row[cfg.metaField] || "" : "",
+      metaHeader: cfg.metaHeaderKey ? t(cfg.metaHeaderKey) : t("common.modified"),
       statusLabel: status.label,
       statusColor: status.color,
       raw: row,
@@ -544,7 +569,9 @@ export default function GenericListPage({ doctypeOverride }) {
     ...(isQuotationList ? [{ id: "select", header: "Select", cell: (row) => selection(row.raw.name) }] : []),
     {
       id: "title",
-      header: t("common.name"),
+      header: config.list.titleHeaderKey
+        ? t(config.list.titleHeaderKey)
+        : t("common.name"),
       cell: (row) => (
         <div className="min-w-0">
           <div className="truncate font-medium">{row.title}</div>
@@ -558,12 +585,31 @@ export default function GenericListPage({ doctypeOverride }) {
     },
     {
       id: "meta",
-      header: t("common.modified"),
+      header: listData[0]?.metaHeader || (config.list.metaHeaderKey ? t(config.list.metaHeaderKey) : t("common.modified")),
       hideBelow: "lg",
       cell: (row) => (
         <span className="text-xs text-muted-foreground">{row.meta}</span>
       ),
     },
+    ...(config.list.additionalColumns || [])
+      .filter((column) => {
+        const validatedFields = loadedFieldsByDoctype[decodedDoctype];
+        return !validatedFields || validatedFields.includes(column.field);
+      })
+      .map((column) => ({
+        id: column.field,
+        header: t(column.headerKey),
+        hideBelow: column.hideBelow,
+        cell: (row) => column.format === "todoKind" ? (
+          <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+            {t(Number(row.raw[column.field]) === 1
+              ? "dashboard.myTodos.forInformation"
+              : "dashboard.myTodos.actionNeeded")}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">{row.raw[column.field] || "—"}</span>
+        ),
+      })),
     {
       id: "status",
       header: t("common.status"),

@@ -160,7 +160,11 @@ jinja = {
 # `before_validate` does not run at all on create, since it is gated on
 # `_action in ("save", "submit")`. So no hook can run early enough. Overriding
 # `insert` can. See erpnext_ui/overrides.py for the full account.
+# Notification also uses a class override: its `send()` is reached only after
+# Frappe has matched the configured event and condition, avoiding a second,
+# divergent notification-rule evaluator for task creation.
 override_doctype_class = {
+	"Notification": "erpnext_ui.notification_todos.NotificationWithTodos",
 	"BOM": "erpnext_ui.bom_costing.UomPricingBOM",
 	"Quality Inspection": "erpnext_ui.overrides.QualityInspection",
 	"Purchase Receipt": "erpnext_ui.overrides.UomPricingPurchaseReceipt",
@@ -285,6 +289,8 @@ after_sync = [
 ]
 
 after_migrate = [
+	"erpnext_ui.setup.todo.setup_todo_fields",
+	"erpnext_ui.setup.notification_todos.setup_notification_todo_fields",
 	"erpnext_ui.setup.uom_pricing_layout.execute",
 	"erpnext_ui.setup.workflows.setup_workflows",
 	"erpnext_ui.setup.attachment_settings.setup_attachment_settings",
