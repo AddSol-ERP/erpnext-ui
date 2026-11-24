@@ -2,7 +2,7 @@ import LinkField from "../LinkField";
 import FormSelect from "../FormSelect";
 import { Input } from "@/components/ui/input";
 
-function FieldRenderer({ type, value, options, onChange, disabled = false }) {
+function FieldRenderer({ type, value, options, onChange, id, disabled = false }) {
   switch (type) {
     case "number":
       return (
@@ -29,10 +29,11 @@ function FieldRenderer({ type, value, options, onChange, disabled = false }) {
 
     case "checkbox":
       return (
-        <div className="flex justify-center">
+        <div className="flex items-center">
           <input
             type="checkbox"
-            className="size-4 accent-[var(--brand-primary)]"
+            id={id}
+            className="size-4 shrink-0 accent-[var(--brand-primary)]"
             checked={Number(value) === 1}
             onChange={(e) => onChange(e.target.checked ? 1 : 0)}
             disabled={disabled}

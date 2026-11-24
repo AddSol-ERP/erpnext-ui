@@ -23,7 +23,7 @@ export function FormField({
 
   return (
     <div
-      className={cn("flex flex-col gap-1.5", className)}
+      className={cn("flex flex-col gap-1", className)}
       data-field={name}
       aria-invalid={error ? true : undefined}
     >

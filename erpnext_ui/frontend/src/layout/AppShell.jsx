@@ -511,13 +511,13 @@ function AppSidebar() {
 }
 
 /**
- * AppShell — single sticky top bar + fixed light chrome PageToolbar.
+ * AppShell — single sticky top bar + docked light chrome PageToolbar.
  * Keeps HeaderContext/setHeader API unchanged for all pages.
  *
  * Layout:
  *   [☰][←][⌂] │ Title · breadcrumbs ──────── │ [🌐][🎨][(user)]
  *   main content (scrolls; pb when toolbar visible)
- *   [fixed light chrome bottom bar — status chips (start) + actions (end)]
+ *   [docked light chrome bottom bar — status chips (start) + actions (end)]
  *
  * shellMode "list" (set by ListLayout): bottom-bar actions are suppressed —
  * they render inside ActionBar next to Filter instead.
@@ -569,22 +569,24 @@ export default function AppShell({ children }) {
             breadcrumbs={breadcrumbs}
             status={status}
           />
+          <div id="project-list-header-search" className="hidden min-w-0 shrink-0 xl:block" />
+          <div id="list-header-search" className="hidden min-w-0 shrink-0 xl:block" />
           <GlobalTools />
         </header>
 
         <main
-          className={`min-h-0 flex-1 p-4 ${
-            shellMode === "list"
+          className={`min-h-0 flex-1 ${["list", "tabbed-form"].includes(shellMode) ? "p-0" : "p-4"} ${
+            ["list", "tabbed-form"].includes(shellMode)
               ? "overflow-hidden"
               : "overflow-x-hidden overflow-y-auto"
           } ${
-            toolbarVisible ? "pb-24 print:pb-4" : "pb-4"
+            ["list", "tabbed-form"].includes(shellMode) ? "pb-0" : "pb-4"
           }`}
         >
           {children}
         </main>
 
-        {/* Fixed light bottom bar: page actions (forms) + status chips */}
+        {/* Docked bottom bar: page actions (forms) + status chips */}
         {toolbarVisible && (
           <PageToolbar
             actions={bottomActions}

@@ -300,11 +300,7 @@ export default function StockBalance() {
       actionBar={
         <ActionBar
           onSearch={handleSearch}
-          // No resultCount: the card footer already renders "Showing 1-20 of 47"
-          // through Pagination. With a single page Pagination still shows it
-          // (`singlePageWithMeta`, Pagination:77-78), so nothing is lost -- the
-          // toolbar pill was a second, weaker copy of a number the user could
-          // already read one line below.
+          resultCount={totalItems}
           filterConfig={filterConfig}
           selectedFilters={filters}
           // Five filters on a report is exactly the case where hiding them

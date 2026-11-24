@@ -542,17 +542,14 @@ export default function GenericListPage({ doctypeOverride }) {
 
   const columns = [
     ...(isQuotationList ? [{ id: "select", header: "Select", cell: (row) => selection(row.raw.name) }] : []),
+    { id: "id", header: t("common.id"), cell: (row) => <span className="whitespace-nowrap font-medium">{row.raw.name}</span> },
     {
       id: "title",
       header: t("common.name"),
       cell: (row) => (
-        <div className="min-w-0">
-          <div className="truncate font-medium">{row.title}</div>
-          {row.subtitle ? (
-            <div className="truncate text-xs text-muted-foreground">
-              {row.subtitle}
-            </div>
-          ) : null}
+        <div className="min-w-0 truncate" title={[row.title, row.subtitle].filter(Boolean).join(" · ")}>
+          <span>{row.title === row.raw.name ? "" : row.title}</span>
+          {row.subtitle ? <span className="text-muted-foreground">{row.title !== row.raw.name ? " · " : ""}{row.subtitle}</span> : null}
         </div>
       ),
     },
@@ -610,6 +607,7 @@ export default function GenericListPage({ doctypeOverride }) {
           columns={columns}
           data={listData}
           rowKey={(row) => row.raw?.name}
+          showIndex={false}
           onRowClick={(row) => handleRowClick(row.raw)}
           loading={loading}
           rowOffset={limit_start}

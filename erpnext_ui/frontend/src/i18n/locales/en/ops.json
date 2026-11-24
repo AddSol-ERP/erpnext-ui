@@ -479,6 +479,7 @@
   }
  },
  "projects": {
+  "projectId": "Project ID",
   "title": "Projects",
   "subtitle": "Manage projects, bills of materials and production planning",
   "active": "Active",

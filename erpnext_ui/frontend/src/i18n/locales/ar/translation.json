@@ -1,5 +1,6 @@
 {
   "common": {
+    "moreActions": "المزيد من الإجراءات",
     "appName": "واجهة أديسول",
     "save": "حفظ",
     "cancel": "إلغاء",
@@ -67,6 +68,8 @@
     "created": "تاريخ الإنشاء",
     "modified": "آخر تعديل",
     "owner": "المالك",
+    "metadata": "البيانات الوصفية",
+    "details": "التفاصيل",
     "module": "وحدة {name}",
     "createNew": "إنشاء {name} جديد",
     "editing": "تحرير {name}",
@@ -221,6 +224,10 @@
     "logout": "تسجيل الخروج"
   },
   "attachments": {
+    "addLink": "إضافة رابط",
+    "linkUrl": "عنوان الرابط",
+    "linkName": "اسم الرابط (اختياري)",
+    "invalidLink": "أدخل رابط HTTP أو HTTPS صالحًا.",
     "dialogTitle": "المستندات — {doctype}",
     "none": "لا توجد مستندات مرفقة بعد.",
     "addFiles": "إضافة ملفات",

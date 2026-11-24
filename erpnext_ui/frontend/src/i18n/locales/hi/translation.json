@@ -1,5 +1,6 @@
 {
   "common": {
+    "moreActions": "अन्य कार्रवाइयाँ",
     "appName": "ऐडसॉल यूआई",
     "save": "सहेजें",
     "cancel": "रद्द करें",
@@ -67,6 +68,8 @@
     "created": "निर्माण",
     "modified": "अंतिम संशोधन",
     "owner": "स्वामी",
+    "metadata": "मेटाडेटा",
+    "details": "विवरण",
     "module": "{name} मॉड्यूल",
     "createNew": "नया {name} बनाएँ",
     "editing": "{name} संपादित कर रहे हैं",
@@ -221,6 +224,10 @@
     "logout": "लॉग आउट"
   },
   "attachments": {
+    "addLink": "लिंक जोड़ें",
+    "linkUrl": "लिंक URL",
+    "linkName": "लिंक का नाम (वैकल्पिक)",
+    "invalidLink": "मान्य HTTP या HTTPS लिंक दर्ज करें।",
     "dialogTitle": "दस्तावेज़ — {doctype}",
     "none": "अभी तक कोई दस्तावेज़ संलग्न नहीं है।",
     "addFiles": "फ़ाइलें जोड़ें",

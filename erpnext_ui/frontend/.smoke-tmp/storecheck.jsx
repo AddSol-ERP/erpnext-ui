@@ -735,19 +735,16 @@ ok("toolbar: the filter dropdown is still offered when not inline",
 /* =======================================================================
    Two removals/additions that must not silently regress.
 
-   1. The Stock Balance toolbar dropped its "N results" pill because the card
-      footer already shows it. The assertion that matters is the SECOND one:
-      Pagination still renders the range on a SINGLE page. If that ever stops
-      happening, the toolbar pill was carrying the only copy of the number and
-      its removal would have lost information rather than duplicated it.
+   1. Stock Balance shows its total in the toolbar; pagination does not repeat
+      the result range, including when there is only one page.
    ======================================================================= */
 
 const pagSinglePage = renderWithFetch(
   {},
   <Pagination currentPage={1} totalPages={1} totalItems={2} pageSize={20} onPageChange={() => {}} />,
 ).html;
-ok("balance: the footer still states the total when there is only one page",
-   /Showing/.test(pagSinglePage) && /2/.test(pagSinglePage), pagSinglePage.replace(/<[^>]+>/g, " ").slice(0, 120));
+ok("balance: pagination does not repeat the result range",
+   !/Showing/.test(pagSinglePage), pagSinglePage.replace(/<[^>]+>/g, " ").slice(0, 120));
 
 const balancePageSrc = readFileSync(
   new URL("../../src/pages/Store/stock-balance/index.jsx", import.meta.url), "utf8");
@@ -755,10 +752,8 @@ const balanceToolbar = balancePageSrc.slice(
   balancePageSrc.indexOf("<ActionBar"),
   balancePageSrc.indexOf("/>", balancePageSrc.indexOf("<ActionBar")),
 );
-ok("balance: the toolbar does not repeat the result count",
-   // Match the PROP, not the word: the comment above it explains the removal
-   // and says "No resultCount", which a bare /resultCount/ happily matches.
-   !/resultCount=\{/.test(balanceToolbar),
+ok("balance: the toolbar shows the result count",
+   /resultCount=\{totalItems\}/.test(balanceToolbar),
    balanceToolbar.replace(/\s+/g, " ").slice(0, 140));
 ok("balance: the footer still receives totalItems",
    /totalItems=\{totalItems\}/.test(balancePageSrc));

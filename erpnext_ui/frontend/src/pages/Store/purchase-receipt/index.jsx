@@ -382,25 +382,11 @@ export default function PurchaseReceiptPicker() {
       onRetry={loadData}
       tabs={receiptTabs}
       actionBar={
-        <div className="flex flex-col gap-3">
-          <div className="mx-3 my-3 flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-3 sm:mx-4 sm:my-4 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <span className={`flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${supplier ? "bg-emerald-500/10 text-emerald-700" : "bg-primary/10 text-primary"}`}>
-                {supplier ? <CheckCircle2 className="size-4" /> : "1"}
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">{supplier ? t("store.receipt.supplierSelected") : t("store.receipt.supplierStepTitle")}</p>
-                {supplier ? (
-                  <>
-                    <p className="truncate text-base font-medium">{supplier}</p>
-                    <p className="text-xs text-muted-foreground">{t("store.receipt.supplierSelectedHint")}</p>
-                  </>
-                ) : (
-                  <p className="text-xs text-muted-foreground">{t("store.receipt.supplierStepHint")}</p>
-                )}
-              </div>
-            </div>
-            <Button type="button" onClick={openSupplierPicker} className="w-full shrink-0 sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {supplier && <CheckCircle2 className="size-4 shrink-0 text-emerald-700" />}
+            <span className="max-w-48 truncate text-sm font-medium" title={supplier || t("store.receipt.supplierStepTitle")}>{supplier || t("store.receipt.supplierStepTitle")}</span>
+            <Button type="button" size="sm" variant="outline" onClick={openSupplierPicker}>
               {supplier ? t("store.receipt.changeSupplier") : t("store.receipt.chooseSupplier")}
               <ArrowRight className="size-4" />
             </Button>

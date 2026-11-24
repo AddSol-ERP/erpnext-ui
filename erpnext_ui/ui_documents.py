@@ -1,5 +1,6 @@
 import os
 import re
+from urllib.parse import urlsplit
 
 import frappe
 from frappe import _
@@ -821,6 +822,45 @@ def upload_document(doctype, docname, type_key, file_name=None, remark=None, bom
 
 
 @frappe.whitelist(allow_guest=False)
+def attach_document_link(doctype, docname, type_key, url, file_name=None, remark=None, bom_item=None):
+    """Attach an external HTTP(S) link with the same parent permissions as a file."""
+    types = _attachment_types(doctype)
+    if types is None or type_key not in types:
+        frappe.throw(_("Unknown document attachment type."))
+    if not docname or docname in ("new-form", "new") or not frappe.db.exists(doctype, docname):
+        frappe.throw(_("Save the document before attaching links to it."))
+    _require_write(doctype, docname)
+    _validate_bom_item_scope(doctype, docname, bom_item)
+
+    url = (url or "").strip()
+    try:
+        parsed = urlsplit(url)
+        valid = parsed.scheme.lower() in ("http", "https") and parsed.hostname and not parsed.username and not parsed.password and not any(c.isspace() or ord(c) < 32 for c in url)
+    except ValueError:
+        valid = False
+    if not valid or len(url) > 2048:
+        frappe.throw(_("Enter a valid HTTP or HTTPS link."))
+
+    stem = _safe_stem(file_name, parsed.hostname, "url")
+    values = {
+        "doctype": "File",
+        "file_name": f"[{type_key}]{_next_sequence(doctype, docname, type_key)}-{stem}.url",
+        "file_url": url,
+        "attached_to_doctype": doctype,
+        "attached_to_name": docname,
+        "attached_to_field": "attachments",
+        "is_private": 1,
+    }
+    if remark and frappe.db.has_column("File", "ui_remark"):
+        values["ui_remark"] = remark.strip()[:140]
+    if bom_item:
+        values["ui_bom_item"] = bom_item
+    file_doc = frappe.get_doc(values)
+    file_doc.save(ignore_permissions=False)
+    return {"name": file_doc.name, "file_url": file_doc.file_url}
+
+
+@frappe.whitelist(allow_guest=False)
 def list_document_attachments(doctype, docname, bom_item=None):
     """Every stored attachment on one document, newest first.
 
@@ -882,6 +922,7 @@ def list_document_attachments(doctype, docname, bom_item=None):
                 "file_url": row.file_url,
                 "file_size": row.file_size,
                 "is_image": _is_image(row.file_name),
+                "is_link": (row.file_url or "").lower().startswith(("http://", "https://")),
                 "type_key": type_key,
                 "label": types[type_key]["label"],
                 # The operator's remark, written by upload_document; None

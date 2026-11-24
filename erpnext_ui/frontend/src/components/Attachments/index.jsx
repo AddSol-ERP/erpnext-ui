@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Camera, FileText, Trash2 } from "lucide-react";
+import { Camera, FileText, Link as LinkIcon, Trash2 } from "lucide-react";
 // The roundabout path is deliberate and matches every other modal in this app
 // (`../../components/AppModal`). The smoke suite's SSR_MODAL_STUB alias matches on
 // the string "components/AppModal", so the short "../AppModal" resolves to the
@@ -12,6 +12,7 @@ import ConfirmDialog from "../ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import {
   acceptFor,
+  attachDocumentLink,
   deleteAttachment,
   fetchAttachmentConfig,
   fetchAttachments,
@@ -100,6 +101,9 @@ export function AttachmentsPanel({
   const [nameDraft, setNameDraft] = useState("");
   const [remarkDraft, setRemarkDraft] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [linkType, setLinkType] = useState(null);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkName, setLinkName] = useState("");
 
   const canAttach = Boolean(docname) && !readOnly;
   const current = staged[stagedIndex] || null;
@@ -183,6 +187,26 @@ export function AttachmentsPanel({
     if (rest.length) seedDrafts(rest[nextIndex].file);
   };
 
+  const confirmLink = async () => {
+    if (!linkType || uploading || !canAttach) return;
+    setUploading(true);
+    setError("");
+    try {
+      const parsed = new URL(linkUrl.trim());
+      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error(t("attachments.invalidLink"));
+      await attachDocumentLink({ doctype, docname, bomItem, typeKey: linkType.type_key, url: parsed.href, fileName: linkName.trim() || undefined });
+      setLinkType(null);
+      setLinkUrl("");
+      setLinkName("");
+      await load();
+      onChange?.();
+    } catch (e) {
+      setError(e instanceof TypeError ? t("attachments.invalidLink") : e?.message || t("attachments.uploadFailed"));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!pendingDelete || readOnly) return;
     setError("");
@@ -235,7 +259,7 @@ export function AttachmentsPanel({
                   rel="noreferrer"
                   className="flex h-24 w-full flex-col items-center justify-center gap-1 p-2 text-center"
                 >
-                  <FileText className="size-5 text-muted-foreground" />
+                  {file.is_link ? <LinkIcon className="size-5 text-muted-foreground" /> : <FileText className="size-5 text-muted-foreground" />}
                 </a>
               )}
               <span className="block px-2 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -245,7 +269,7 @@ export function AttachmentsPanel({
                 className="block truncate px-2 text-xs"
                 title={displayName(file.file_name)}
               >
-                {displayName(file.file_name)}
+                {file.is_link ? displayName(file.file_name).replace(/\.url$/i, "") : displayName(file.file_name)}
               </span>
               {file.remark ? (
                 <span className="block line-clamp-2 px-2 pb-1 text-[11px] text-muted-foreground">
@@ -275,6 +299,12 @@ export function AttachmentsPanel({
       )}
 
       {/* The staging row for the current file. Inline, never a second modal. */}
+      {linkType && canAttach && <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-muted/30 p-3">
+        <span className="text-sm font-medium">{t("attachments.addLink")} — {linkType.label}</span>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">{t("attachments.linkUrl")}<input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://" className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" /></label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">{t("attachments.linkName")}<input value={linkName} maxLength={80} onChange={(e) => setLinkName(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" /></label>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" size="sm" disabled={uploading} onClick={() => setLinkType(null)}>{t("common.cancel")}</Button><Button type="button" size="sm" disabled={uploading || !linkUrl.trim()} onClick={confirmLink}>{t("attachments.addLink")}</Button></div>
+      </div>}
       {current && !readOnly ? (
         <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-muted/30 p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -347,6 +377,7 @@ export function AttachmentsPanel({
                 </span>
               </div>
               <div className="flex shrink-0 gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => { setLinkType(type); setLinkUrl(""); setLinkName(""); setError(""); }}><LinkIcon className="size-3.5" />{t("attachments.addLink")}</Button>
                 <input
                   ref={(el) => {
                     inputs.current[inputKey(type.type_key, "files")] = el;

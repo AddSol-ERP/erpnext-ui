@@ -7,7 +7,6 @@ import { cn } from "cn";
  * Sharp base (rounded-none) — outer corners applied by page/stack rules.
  *
  * - `icon`: leading icon for the header (defaults to a neutral list icon)
- * - accent rail on the start side when open / errored
  * - collapsible: title becomes a toggle; errorCount > 0 force-opens and
  *   shows a destructive count badge on the header.
  */
@@ -49,40 +48,27 @@ export default function FormSection({
       className={cn(
         "group/section relative overflow-hidden rounded-none bg-card ring-1 ring-foreground/10",
         "transition-shadow duration-200 hover:shadow-[var(--shadow-soft)]",
-        !collapsible && "p-4",
+        !collapsible && "p-3",
         className,
       )}
     >
-      {/* Start-side accent rail */}
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-y-0 start-0 w-[3px] transition-colors",
-          hasErrors
-            ? "bg-destructive"
-            : isOpen
-              ? "bg-primary/60"
-              : "bg-transparent group-hover/section:bg-primary/25",
-        )}
-      />
-
       {showHeader && (
         <div
           className={cn(
             "flex flex-wrap items-center justify-between gap-2",
             collapsible
               ? cn(
-                  "px-4 py-3",
+                  "min-h-9 px-3 py-1.5",
                   isOpen && "border-b border-border/60 bg-muted/40",
                 )
-              : "mb-3",
+              : "mb-2",
           )}
         >
           <div
             className={cn(
               "min-w-0",
               collapsible &&
-                "flex cursor-pointer items-start gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
+                "flex cursor-pointer items-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
             )}
             onClick={collapsible ? toggle : undefined}
             onKeyDown={
@@ -102,7 +88,7 @@ export default function FormSection({
             <span
               aria-hidden
               className={cn(
-                "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors",
                 hasErrors
                   ? "bg-destructive/15 text-destructive"
                   : "bg-[var(--icon-box-bg)] text-primary",
@@ -130,7 +116,7 @@ export default function FormSection({
             {collapsible && (
               <ChevronDown
                 className={cn(
-                  "ms-1 mt-1 size-4 shrink-0 text-muted-foreground transition-transform",
+                  "ms-1 size-4 shrink-0 text-muted-foreground transition-transform",
                   !isOpen && "-rotate-90",
                 )}
               />
@@ -144,7 +130,7 @@ export default function FormSection({
 
       {(!collapsible || isOpen) && (
         <div
-          className={cn(collapsible && "px-4 pt-3 pb-4", contentClassName)}
+          className={cn(collapsible && "px-3 pt-2 pb-3", contentClassName)}
         >
           {children}
         </div>

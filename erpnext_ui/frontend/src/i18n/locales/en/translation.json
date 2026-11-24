@@ -1,5 +1,6 @@
 {
   "common": {
+    "moreActions": "More actions",
     "appName": "Addsol UI",
     "save": "Save",
     "cancel": "Cancel",
@@ -67,6 +68,8 @@
     "created": "Created",
     "modified": "Modified",
     "owner": "Owner",
+    "metadata": "Metadata",
+    "details": "Details",
     "module": "{name} module",
     "createNew": "Create a new {name}",
     "editing": "Editing {name}",
@@ -221,6 +224,10 @@
     "logout": "Logout"
   },
   "attachments": {
+    "addLink": "Add link",
+    "linkUrl": "Link URL",
+    "linkName": "Link name (optional)",
+    "invalidLink": "Enter a valid HTTP or HTTPS link.",
     "dialogTitle": "Documents — {doctype}",
     "none": "No documents attached yet.",
     "addFiles": "Add files",
