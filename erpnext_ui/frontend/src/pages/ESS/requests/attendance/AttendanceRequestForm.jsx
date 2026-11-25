@@ -496,24 +496,7 @@ export default function AttendanceRequestForm() {
     setError("");
 
     try {
-      let docName = name;
-
-      // A new document must exist before it can be transitioned, so the first
-      // click saves it. With no Workflow we submit straight after, keeping the
-      // whole flow to a single click.
-      if (!docName) {
-        const res = await saveDocument({ doctype: "Attendance Request", doc: docRef.current });
-        docName = res?.data?.name;
-      }
-
-      // With a Workflow the transition can only be chosen against a saved
-      // document, so continue there where those buttons now exist.
-      if (hasWorkflow) {
-        navigate(`/ess/attendance-request/${docName}`);
-        return;
-      }
-
-      await submitDocument({ doctype: "Attendance Request", name: docName, action });
+      await submitDocument({ doctype: "Attendance Request", name, action });
       toast.success(t("common.submittedSuccess", { name: label }));
       navigate("/ess/attendance-request");
     } catch (e) {
