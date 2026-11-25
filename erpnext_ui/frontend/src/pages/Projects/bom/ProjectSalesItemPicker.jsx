@@ -22,7 +22,7 @@ export default function ProjectSalesItemPicker({ project, disabled, onSelect }) 
     finally { setLoading(false); }
   };
   return <>
-    <Button type="button" variant="outline" size="sm" disabled={disabled || !project} onClick={show}>{t("bomCreation.fromSalesOrder")}</Button>
+    <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 md:h-7" disabled={disabled || !project} onClick={show}>{t("bomCreation.fromSalesOrder")}</Button>
     <AppModal show={open} onClose={() => setOpen(false)} title={t("bomCreation.fromSalesOrder")} width="lg">
       {loading && <p>{t("common.loading")}</p>}
       {error && <p role="alert" className="text-destructive">{error}</p>}

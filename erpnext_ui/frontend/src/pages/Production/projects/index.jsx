@@ -107,7 +107,7 @@ function Workspace({ project }) {
       onQty={(value) => { invalidate(); setQty(value); }}
       onStart={(value) => { invalidate(); setStart(value); }}
       onWarehouse={(key, value) => { invalidate(); setWarehouses((old) => ({ ...old, [key]: value })); }}
-      onOpen={openDoc} onCreateOrders={createOrders} onTransfer={transfer} onOrder={setOrder} onJob={setJob} />
+      onOpen={openDoc} onCreateBom={() => navigate(`/projects/view/${encodeURIComponent(project)}/bom/create`)} onCreateOrders={createOrders} onTransfer={transfer} onOrder={setOrder} onJob={setJob} />
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-border/60 px-3 py-2.5 sm:px-4">
         <Button size="sm" variant="outline" disabled={busy || stepIndex === 0} onClick={() => selectStep(STEP_KEYS[stepIndex - 1])}><ArrowLeft className="rtl:rotate-180" />{t("common.back")}</Button>

@@ -908,8 +908,16 @@ export default function GenericFormPage() {
   ============================== */
   const renderField = (field) => {
     const Renderer = getFieldRenderer(field.fieldtype);
+    const showSalesItemPicker = decodedDoctype === "BOM" && field.fieldname === "item" && doc.project;
+    if (showSalesItemPicker) return <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 flex-1 basis-48"><Renderer field={field} value={doc[field.fieldname]}
+        onChange={(val) => handleFieldChange(field.fieldname, val)} error={errors[field.fieldname]} disabled={isReadOnly} /></div>
+      <ProjectSalesItemPicker key={doc.project} project={doc.project} disabled={isReadOnly || !!field.read_only} onSelect={(row) => {
+        handleFieldChange("item", row.item_code);
+        setDoc((prev) => ({ ...prev, uom: row.stock_uom }));
+      }} />
+    </div>;
     return (
-      <>
       <Renderer
         key={field.fieldname}
         field={field}
@@ -918,11 +926,6 @@ export default function GenericFormPage() {
         error={errors[field.fieldname]}
         disabled={isReadOnly}
       />
-      {decodedDoctype === "BOM" && field.fieldname === "item" && doc.project && <ProjectSalesItemPicker key={doc.project} project={doc.project} disabled={isReadOnly || !!field.read_only} onSelect={(row) => {
-        handleFieldChange("item", row.item_code);
-        setDoc((prev) => ({ ...prev, uom: row.stock_uom }));
-      }} />}
-      </>
     );
   };
 

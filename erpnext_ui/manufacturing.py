@@ -24,8 +24,8 @@ def workspace(project):
 	p = readable("Project", project)
 	result = {"project": p.as_dict()}
 	for key, dt, filters in (
-		("boms", "BOM", {"project": project, "is_active": 1}),
-		("sales_orders", "Sales Order", {"project": project, "docstatus": 1}),
+		("boms", "BOM", {"project": project, "company": p.company, "is_active": 1, "docstatus": 1}),
+		("sales_orders", "Sales Order", {"project": project, "company": p.company, "docstatus": 1}),
 		("plans", "Production Plan", {"project": project, "docstatus": ["!=", 2]}),
 		("work_orders", "Work Order", {"project": project, "docstatus": ["!=", 2]}),
 	):
@@ -109,6 +109,31 @@ def prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehou
 		if source == "Material Request":
 			allowed = {i.name for i in doc.items if i.project == project}
 			plan.set("po_items", [i for i in plan.po_items if i.material_request_item in allowed])
+			# ERPNext's mapper skips rows without an explicitly selected or default BOM,
+			# even when the project has a suitable submitted BOM for the item.
+			mapped = {i.material_request_item for i in plan.po_items}
+			missing = []
+			for item in doc.items:
+				pending = (flt(item.qty) - flt(item.ordered_qty)) * flt(item.conversion_factor)
+				if item.name not in allowed or item.name in mapped or pending <= 0:
+					continue
+				candidates = frappe.get_list(
+					"BOM",
+					filters={"project": project, "company": p.company, "item": item.item_code,
+						"docstatus": 1, "is_active": 1},
+					fields=["name"], limit_page_length=0,
+				)
+				if len(candidates) > 1:
+					frappe.throw(f"Multiple project BOMs found for {item.item_code}. Select a BOM on the Material Request item.")
+				if candidates:
+					bom = readable("BOM", candidates[0].name)
+					missing.append(frappe._dict({"name": item.name, "parent": doc.name,
+						"item_code": item.item_code, "warehouse": item.warehouse,
+						"description": item.description, "bom_no": bom.name,
+						"pending_qty": pending, "parent_item": None}))
+			if missing:
+				plan.add_items(missing)
+				plan.calculate_total_planned_qty()
 	else:
 		frappe.throw("Unknown production source.")
 	if not plan.po_items:

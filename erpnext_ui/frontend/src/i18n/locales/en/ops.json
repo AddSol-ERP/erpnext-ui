@@ -474,7 +474,7 @@
   "minutes": "min",
   "sources": {
    "Sales Order": "Project sales order",
-   "BOM": "Project BOM",
+   "BOM": "Existing BOM",
    "Material Request": "Manufacture material request"
   }
  },
