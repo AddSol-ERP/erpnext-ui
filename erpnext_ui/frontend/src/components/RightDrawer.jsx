@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -26,10 +27,12 @@ export default function RightDrawer({
   children,
   width = "md",
 }) {
+  const { i18n } = useTranslation();
   return (
     <Sheet open={show} onOpenChange={(open) => !open && onClose?.()}>
       <SheetContent
-        side="end"
+        side={i18n.dir() === "rtl" ? "left" : "right"}
+        showCloseButton={false}
         className={cn("flex w-full flex-col gap-0 p-0", widthMap[width] || widthMap.md)}
       >
         {/* HEADER */}

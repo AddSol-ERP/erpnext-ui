@@ -1,7 +1,9 @@
 import { inspectionFieldVisible } from "../../pages/Projects/bom/visibility";
 import ProjectSalesItemPicker from "../../pages/Projects/bom/ProjectSalesItemPicker";
+import ProjectSalesItemSelect from "../../pages/Projects/bom/ProjectSalesItemSelect";
 import { operationsEnabled, routingOperations, operationFieldVisible } from "../../pages/Projects/bom/routing";
-import { buildBomLayout, bomTableColumns } from "../../pages/Projects/bom/layout";
+import { buildBomLayout, buildPlanningBomLayout, bomTableColumns } from "../../pages/Projects/bom/layout";
+import { buildProductionPlanLayout } from "../../pages/Production/projects/productionPlanLayout";
 import { deskNewUrl, deskDocUrl } from "../../lib/deskUrl";
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -56,6 +58,7 @@ import { plainText, shortenText } from "../../lib/displayText";
 import { fetchAttachmentConfig } from "../../lib/attachments";
 import { AttachDialog, RequiredAttachmentDialog } from "../Attachments";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
 
 /** Extract the hub name from the first segment of the current path. */
 function useHub() {
@@ -89,10 +92,12 @@ function sectionIcon(section) {
    GENERIC FORM
    Adaptive layout: single | tabs | stepper
 =============================== */
-export default function GenericFormPage() {
-  const { doctype, name } = useParams();
+export default function GenericFormPage({ embedded }) {
+  const routeParams = useParams();
+  const { doctype, name } = embedded ? { doctype: embedded.doctype || "BOM", name: embedded.name || "new" } : routeParams;
   const hub = useHub();
-  const location = useLocation();
+  const routeLocation = useLocation();
+  const location = embedded ? { ...routeLocation, state: embedded.initialState } : routeLocation;
   const navigate = useNavigate();
   const { setHeader, setShellMode } = useHeader();
   const toast = useToast();
@@ -102,6 +107,9 @@ export default function GenericFormPage() {
   const [childMeta, setChildMeta] = useState({});
   const [doc, setDoc] = useState({});
   const [dirty, setDirty] = useState(false);
+  const [embeddedActions, setEmbeddedActions] = useState([]);
+  const onEmbeddedDirtyChange = embedded?.onDirtyChange;
+  useEffect(() => { onEmbeddedDirtyChange?.(dirty); }, [dirty, onEmbeddedDirtyChange]);
 
   // Always points at the newest document. The Save/Next/Submit buttons are
   // registered into the page toolbar by an effect that deliberately does not
@@ -188,17 +196,21 @@ export default function GenericFormPage() {
     return !isBomForm && !explicitLayout && sectionsAsTabs(buildLayoutTree(meta)).length > buildLayoutTree(meta).length ? "tabs" : resolved;
   }, [meta, explicitLayout, isBomForm]);
 
+  const isEmbedded = Boolean(embedded);
+  const isEmbeddedBom = isEmbedded && decodedDoctype === "BOM";
+  const isEmbeddedWorkOrder = isEmbedded && decodedDoctype === "Work Order";
+  const isProjectPlan = hub === "projects" && decodedDoctype === "Production Plan" && !isNew;
   const tabsTree = useMemo(
-    () => meta ? isBomForm ? buildBomLayout(meta, t, { template: decodedDoctype === "UI BOM Template" }) : explicitLayout === "stepper" ? buildLayoutTree(meta) : sectionsAsTabs(buildLayoutTree(meta)) : [],
-    [meta, decodedDoctype, isBomForm, explicitLayout, t],
+    () => meta ? isEmbeddedBom ? buildPlanningBomLayout(meta, t) : isProjectPlan ? buildProductionPlanLayout(meta, t) : isBomForm ? buildBomLayout(meta, t, { template: decodedDoctype === "UI BOM Template" }) : explicitLayout === "stepper" ? buildLayoutTree(meta) : sectionsAsTabs(buildLayoutTree(meta)) : [],
+    [meta, decodedDoctype, isBomForm, explicitLayout, t, isEmbeddedBom, isProjectPlan],
   );
 
   const hasCompactTabs = tabsTree.length > 0;
   useEffect(() => {
-    if (loading || !hasCompactTabs) return undefined;
+    if (embedded || loading || !hasCompactTabs) return undefined;
     setShellMode?.("tabbed-form");
     return () => setShellMode?.("default");
-  }, [loading, hasCompactTabs, setShellMode]);
+  }, [loading, hasCompactTabs, setShellMode, embedded]);
 
   const steps = useMemo(
     () => (layoutMode === "stepper" ? buildSteps(tabsTree) : []),
@@ -248,7 +260,9 @@ export default function GenericFormPage() {
   const handleFieldChange = async (fieldname, value) => {
     if (isReadOnly) return;
     markDirty();
-    setDoc((prev) => ({ ...prev, [fieldname]: value }));
+    setDoc((prev) => ({ ...prev, [fieldname]: value,
+      ...(decodedDoctype === "BOM" && fieldname === "project" && value !== prev.project && (!isNew || Array.isArray(location.state?.planningMaterials)) ? { item: "", uom: "" } : {}),
+    }));
     if (errors[fieldname]) {
       setErrors((prev) => {
         const next = { ...prev };
@@ -359,7 +373,10 @@ export default function GenericFormPage() {
     const firstField = Object.keys(errorMap).find((k) => errorMap[k]);
     if (!firstField) return;
 
-    if (layoutMode === "stepper" && steps.length) {
+    if (embedded) {
+      const idx = findGroupIndexForField(tabsTree, firstField);
+      setActiveTab(idx);
+    } else if (layoutMode === "stepper" && steps.length) {
       setActiveTab(0);
       const idx = findGroupIndexForField(steps, firstField);
       setActiveStep(idx);
@@ -459,7 +476,9 @@ export default function GenericFormPage() {
           : t("common.updatedSuccess", { name: decodedDoctype }),
       );
 
-      if (hub === "projects" && decodedDoctype === "Project" && saved.data?.name) {
+      if (embedded) {
+        embedded.onSaved(saved.data);
+      } else if (hub === "projects" && decodedDoctype === "Project" && saved.data?.name) {
         navigate(`/projects/view/${encodeURIComponent(saved.data.name)}`);
       } else if (hub === "projects" && payload.project && ["Production Plan", "Work Order", "Stock Entry"].includes(decodedDoctype)) {
         navigate(`/projects/view/${encodeURIComponent(payload.project)}/manufacturing?step=${decodedDoctype === "Production Plan" ? "plans" : "orders"}`);
@@ -550,7 +569,9 @@ export default function GenericFormPage() {
         }),
       );
       const project = docRef.current.project;
-      if (hub === "projects" && project && ["Production Plan", "Work Order", "Stock Entry"].includes(decodedDoctype)) {
+      if (embedded) {
+        embedded.onSubmitted(docName);
+      } else if (hub === "projects" && project && ["Production Plan", "Work Order", "Stock Entry"].includes(decodedDoctype)) {
         navigate(`/projects/view/${encodeURIComponent(project)}/manufacturing?step=${decodedDoctype === "Production Plan" ? "plans" : "orders"}`);
       } else if (hub === "projects" && project) {
         navigate(`/projects/view/${encodeURIComponent(project)}`);
@@ -650,6 +671,17 @@ export default function GenericFormPage() {
                 childMetaCache[tf.options] = bomMeta["BOM Item"].fields || [];
                 return;
               }
+              if (tf.options === "Work Order Operation") {
+                try {
+                  const response = await get("method/erpnext_ui.api.get_work_order_operation_meta");
+                  childMetaCache[tf.options] = response.message?.fields || [];
+                } catch (error) {
+                  if (error.status !== 404 && error.status !== 417) throw error;
+                  const response = await get(`resource/DocType/${tf.options}`);
+                  childMetaCache[tf.options] = response.data?.fields || [];
+                }
+                return;
+              }
               const childRes = await get(`resource/DocType/${tf.options}`);
               childMetaCache[tf.options] = childRes.data?.fields || [];
             } catch {
@@ -716,6 +748,14 @@ export default function GenericFormPage() {
         if (isNew && decodedDoctype === "BOM" && location.state?.manufacturingProject) {
           initialDoc.project = location.state.manufacturingProject;
           initialDoc.company = location.state.manufacturingCompany;
+          if (Array.isArray(location.state.planningMaterials)) {
+            initialDoc.items = location.state.planningMaterials.map((row) => ({ ...row }));
+          }
+          if (location.state.planningItem?.item_code) {
+            initialDoc.item = location.state.planningItem.item_code;
+            initialDoc.uom = location.state.planningItem.stock_uom || "";
+            initialDoc.quantity = location.state.planningQuantity;
+          }
         }
         setDoc(initialDoc);
         setDirty(false);
@@ -856,6 +896,12 @@ export default function GenericFormPage() {
         ) || doc.name || decodedDoctype
       : doc.name || decodedDoctype;
 
+    if (embedded) {
+      // Mirror the same workflow-aware toolbar into the embedded form.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEmbeddedActions(actions.filter((action) => action.label !== t("common.delete")));
+      return undefined;
+    }
     setHeader({
       status,
       title: isNew
@@ -908,8 +954,22 @@ export default function GenericFormPage() {
   ============================== */
   const renderField = (field) => {
     const Renderer = getFieldRenderer(field.fieldtype);
+    if (decodedDoctype === "BOM" && field.fieldname === "item" && ((isNew && Array.isArray(location.state?.planningMaterials)) || (!isNew && doc.project))) {
+      return <ProjectSalesItemSelect project={doc.project} value={doc.item} disabled={isReadOnly || !!field.read_only || !!location.state?.planningItem} onSelect={(row) => {
+        handleFieldChange("item", row?.item_code || "");
+        setDoc((prev) => ({ ...prev, uom: row?.stock_uom || "" }));
+      }} />;
+    }
+    const showSalesItemPicker = decodedDoctype === "BOM" && field.fieldname === "item" && doc.project;
+    if (showSalesItemPicker) return <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 flex-1 basis-48"><Renderer field={field} value={doc[field.fieldname]}
+        onChange={(val) => handleFieldChange(field.fieldname, val)} error={errors[field.fieldname]} disabled={isReadOnly} /></div>
+      <ProjectSalesItemPicker key={doc.project} project={doc.project} disabled={isReadOnly || !!field.read_only} onSelect={(row) => {
+        handleFieldChange("item", row.item_code);
+        setDoc((prev) => ({ ...prev, uom: row.stock_uom }));
+      }} />
+    </div>;
     return (
-      <>
       <Renderer
         key={field.fieldname}
         field={field}
@@ -918,11 +978,6 @@ export default function GenericFormPage() {
         error={errors[field.fieldname]}
         disabled={isReadOnly}
       />
-      {decodedDoctype === "BOM" && field.fieldname === "item" && doc.project && <ProjectSalesItemPicker key={doc.project} project={doc.project} disabled={isReadOnly || !!field.read_only} onSelect={(row) => {
-        handleFieldChange("item", row.item_code);
-        setDoc((prev) => ({ ...prev, uom: row.stock_uom }));
-      }} />}
-      </>
     );
   };
 
@@ -976,7 +1031,7 @@ export default function GenericFormPage() {
                   bomName={decodedName}
                   totalField={decodedDoctype === "BOM" && cf.fieldname === "items" ? (bomTableColumns(cf.options, childFields)?.includes("amount") ? "amount" : "custom_purchase_amount") : undefined}
                   currency={doc.currency}
-                  compactFields={(isBomForm && bomTableColumns(cf.options, childFields)) || (listChildFields.length ? listChildFields : editableChildFields.slice(0, 4)).map((field) => field.fieldname)}
+                  compactFields={(isBomForm && bomTableColumns(cf.options, childFields)) || (cf.options === "Work Order Operation" ? ["operation", "workstation", "time_in_mins", "custom_preferred_start", "custom_preferred_end", "planned_start_time", "planned_end_time"].filter((name) => editableChildFields.some((field) => field.fieldname === name)) : (listChildFields.length ? listChildFields : editableChildFields.slice(0, 4)).map((field) => field.fieldname))}
                   pricingSide={["Purchase Order", "Purchase Receipt", "Purchase Invoice", "Supplier Quotation", "Material Request"].includes(decodedDoctype) ? "buying" : ["Sales Order", "Sales Invoice", "Delivery Note", "Quotation", "POS Invoice"].includes(decodedDoctype) ? "selling" : undefined}
                   columns={editableChildFields
                     .map((c) => ({
@@ -987,6 +1042,8 @@ export default function GenericFormPage() {
                           ? "attach"
                           : c.fieldtype === "Check"
                           ? "checkbox"
+                          : c.fieldtype === "Datetime"
+                            ? "datetime"
                           : c.fieldtype === "Select"
                             ? "select"
                             : c.fieldtype === "Int" ||
@@ -1177,6 +1234,54 @@ export default function GenericFormPage() {
     );
   };
 
+  const renderPlanningBom = () => {
+    const current = tabsTree[activeTab];
+    if (!current) return null;
+    const next = () => {
+      const fields = current.sections.flatMap((section) => section.fields);
+      const stepErrors = validateRequired(doc, fields, t);
+      if (current.id === "materials" && !(doc.items || []).some((row) => row.item_code)) stepErrors.items = t("bomPlanning.materialRequired");
+      if (current.id === "operations" && operationsEnabled(doc) && !(doc.operations || []).some((row) => row.operation)) stepErrors.operations = t("bomPlanning.operationRequired");
+      if (!applyErrors(stepErrors)) return;
+      setActiveTab((index) => Math.min(index + 1, tabsTree.length - 1));
+      setMaxReached((index) => Math.max(index, activeTab + 1));
+    };
+    return <div className="flex min-h-0 flex-1 flex-col gap-2 md:flex-row">
+      <nav aria-label={t("bomPlanning.navigation")} className="flex gap-1 overflow-x-auto border-b border-border pb-1.5 md:w-44 md:shrink-0 md:flex-col md:border-b-0 md:border-e md:pe-2">
+        {tabsTree.map((tab, index) => <button key={tab.id} type="button" disabled={index > maxReached} aria-current={index === activeTab ? "step" : undefined} onClick={() => { setActiveTab(index); setSummary(""); }} className={`shrink-0 rounded px-2 py-1.5 text-start text-sm disabled:opacity-50 ${index === activeTab ? "bg-primary/10 font-semibold text-primary" : "hover:bg-muted"}`}>
+          <span className="me-2 tabular-nums">{index + 1}.</span>{tab.label}
+        </button>)}
+        <div className="flex shrink-0 gap-1 border-s border-border ps-2 md:mt-auto md:flex-col md:border-s-0 md:border-t md:ps-0 md:pt-2">{embeddedActions.filter((action) => [t("attachments.open"), t("bomCreation.refreshRates")].includes(action.label)).map((action, index) => <Button key={`${action.label}-${index}`} type="button" size="sm" variant="outline" className="justify-start" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}</div>
+      </nav>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <h2 className="px-2 pt-1 text-sm font-semibold">{current.label}</h2>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
+          {current.id === "review" ? <div className="space-y-3 px-3 py-2 text-sm"><p>{t("bomPlanning.reviewHelp")}</p><p><strong>{t("manufacturing.item")}:</strong> {doc.item || "—"} · {doc.quantity || "—"} {doc.uom || ""}</p><p>{t("manufacturing.selectedMaterials", { count: (doc.items || []).filter((row) => row.item_code).length })}</p><p>{t("bomPlanning.operationCount", { count: (doc.operations || []).filter((row) => row.operation).length })}</p></div> : current.sections.map((section, index) => renderSectionCard(section, `${current.id}-${index}`, index, current.sections.length, false, true))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-2 py-2"><Button type="button" variant="outline" size="sm" disabled={activeTab === 0} onClick={() => setActiveTab((index) => index - 1)}>{t("common.back")}</Button><span className="text-xs text-muted-foreground">{t("common.stepOf", { current: activeTab + 1, total: tabsTree.length })}</span><div className="flex flex-wrap gap-2">{embeddedActions.filter((action) => [t("common.save"), t("common.saving")].includes(action.label)).map((action) => <Button key="save-bom" type="button" size="sm" variant="outline" disabled={action.disabled} onClick={action.onClick}>{saving ? t("common.saving") : t("bomPlanning.saveDraft")}</Button>)}{current.id === "review" && embeddedActions.filter((action) => ![t("common.save"), t("common.saving"), t("attachments.open"), t("bomCreation.refreshRates")].includes(action.label)).map((action, index) => <Button key={`${action.label}-${index}`} type="button" size="sm" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}<Button type="button" size="sm" disabled={activeTab >= tabsTree.length - 1 || saving || routingLoading || ratesLoading} onClick={next}>{t("common.next")}</Button></div></div>
+      </div>
+    </div>;
+  };
+
+  const renderPlanningPlan = () => {
+    const current = tabsTree[activeTab];
+    const isMetadata = activeTab === tabsTree.length;
+    if (!current && !isMetadata) return null;
+    const showScheduleHelp = isEmbeddedWorkOrder && current?.sections.some((section) => section.fields.some((field) => field.fieldname === "operations")) && childMeta["Work Order Operation"]?.some((field) => field.fieldname === "custom_preferred_start");
+    const lateOperations = isEmbeddedWorkOrder && Number(doc.docstatus) === 1 ? (doc.operations || []).filter((row) => row.custom_preferred_end && row.planned_end_time && Date.parse(String(row.planned_end_time).replace(" ", "T")) > Date.parse(String(row.custom_preferred_end).replace(" ", "T"))) : [];
+    return <div className="flex min-h-0 flex-1 flex-col gap-2 md:flex-row">
+      <nav aria-label={t(isEmbeddedWorkOrder ? "manufacturing.workOrderSections" : "productionPlanForm.navigation")} className="flex gap-1 overflow-x-auto border-b border-border pb-1.5 md:w-44 md:shrink-0 md:flex-col md:border-b-0 md:border-e md:pe-2">
+        {[...tabsTree, { id: "metadata", label: t("common.metadata") }].map((tab, index) => <button key={tab.id} type="button" aria-current={index === activeTab ? "page" : undefined} onClick={() => { setActiveTab(index); setSummary(""); }} className={`shrink-0 rounded px-2 py-1.5 text-start text-sm ${index === activeTab ? "bg-primary/10 font-semibold text-primary" : "hover:bg-muted"}`}>{tab.label}</button>)}
+        <div className="flex shrink-0 gap-1 border-s border-border ps-2 md:mt-auto md:flex-col md:border-s-0 md:border-t md:ps-0 md:pt-2">{embeddedActions.filter((action) => action.label === t("attachments.open")).map((action) => <Button key="attachments" type="button" size="sm" variant="outline" className="justify-start" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}{!isEmbeddedWorkOrder && <Button type="button" size="sm" variant="outline" className="justify-start" disabled={dirty || saving} onClick={embedded.onClose}>{t("manufacturing.allPlans")}</Button>}</div>
+      </nav>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-1"><h2 className="text-sm font-semibold">{isMetadata ? t("common.metadata") : current.label}</h2>{embedded.header}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">{showScheduleHelp && <p className="mx-3 my-2 text-xs text-muted-foreground">{t("manufacturing.operationScheduleHelp")}</p>}{lateOperations.map((row, index) => <p key={row.name || index} role="status" className="mx-3 my-2 rounded bg-amber-500/10 px-3 py-2 text-sm">{t("manufacturing.operationEndLate", { operation: row.operation, actual: row.planned_end_time, preferred: row.custom_preferred_end })}</p>)}{isMetadata ? renderMetadata() : current.sections.map((section, index) => renderSectionCard(section, `${current.id}-${index}`, index, current.sections.length, false, true))}{!isEmbeddedWorkOrder && Number(doc.docstatus) === 0 && <p role="note" className="mx-3 my-2 rounded bg-muted/60 px-3 py-2 text-sm text-muted-foreground">{t("productionPlanForm.submitRequired")}</p>}</div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-2 py-2"><Button type="button" size="sm" variant="outline" disabled={activeTab === 0 || saving} onClick={() => setActiveTab((index) => index - 1)}>{t("common.back")}</Button><span className="text-xs text-muted-foreground">{t("common.stepOf", { current: activeTab + 1, total: tabsTree.length + 1 })}</span><div className="flex flex-wrap gap-2">{embeddedActions.filter((action) => action.label !== t("attachments.open")).map((action, index) => <Button key={`${action.label}-${index}`} type="button" size="sm" variant="outline" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}<Button type="button" size="sm" disabled={saving || (activeTab >= tabsTree.length && (isEmbeddedWorkOrder || Number(doc.docstatus) !== 1 || dirty))} onClick={() => activeTab >= tabsTree.length ? embedded.onNext?.() : setActiveTab((index) => index + 1)}>{t("common.next")}</Button></div></div>
+      </div>
+    </div>;
+  };
+
   const renderStepper = () => {
     if (!steps.length) return null;
     const step = steps[activeStep];
@@ -1255,7 +1360,11 @@ export default function GenericFormPage() {
   }
 
   let body = null;
-  if (layoutMode === "stepper") {
+  if (isEmbeddedBom) {
+    body = renderPlanningBom();
+  } else if (isEmbedded && (isProjectPlan || isEmbeddedWorkOrder)) {
+    body = renderPlanningPlan();
+  } else if (layoutMode === "stepper") {
     body = renderTabsTree([{ id: "form-steps", label: t("common.details"), sections: [] }], true);
   } else {
     body = renderTabsTree(tabsTree);
@@ -1283,7 +1392,7 @@ export default function GenericFormPage() {
         onClose={() => setShowAttachments(false)}
       />
 
-      <div className={hasCompactTabs ? "mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden" : isBomForm ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
+      <div className={embedded ? "mx-auto flex h-[min(65dvh,46rem)] min-h-0 w-full max-w-[1600px] flex-col overflow-hidden" : hasCompactTabs ? "mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden" : isBomForm ? "mx-auto w-full max-w-[1600px] pt-4" : "mx-auto w-full max-w-[1100px]"}>
       <FormErrorSummary summary={summary} fieldErrors={errors} className={hasCompactTabs ? "mx-3 mb-4 mt-3 sm:mx-4" : "mb-4"} />
 
       <RequiredAttachmentDialog

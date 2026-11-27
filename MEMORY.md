@@ -4082,3 +4082,31 @@ Long item selection alignment correction (2026-11-20): removed duplicate selecte
 item text below LinkField because it changed row heights/alignment. Wider wrapping
 dropdown, input tooltip and wider item columns remain. ESLint and production build
 pass.
+## Work Order operation scheduling preferences (2026-11-27)
+
+`add_operation_schedule_preferences` adds `custom_preferred_start` and
+`custom_preferred_end` to Work Order Operation. They are draft-only preferences,
+not the native calculated planned times. `PreferredScheduleWorkOrder` preserves
+native sequencing and capacity scheduling, advancing the native earliest start
+when the preferred start is later. Preferred end is a target, not an operation
+duration or a hard reservation; a late calculated end raises a warning. The
+embedded Work Order shows late targets after submission. The live child metadata
+endpoint is needed because REST DocType metadata omits Custom Fields. Deploy with
+bench migrate and restart; check for Work Order controller override conflicts with
+other installed apps. Native scheduling and Job Card behavior require live-site
+verification; the unit tests use a stubbed native controller.
+
+
+## Optional operation approvals (2026-11-27)
+
+BOM Operation and Work Order Operation have optional approval stage, role and
+reason. The work-order mapper copies rules by source BOM and operation order;
+work orders may adjust them before job cards are created. Job cards snapshot the
+rule at creation and protect their approval and operation identity from direct
+edits. The role-authorized approval endpoint records user and timestamp. The
+job-card controller blocks starts or completion as configured, including native
+job-card saves; the project start endpoint checks before attempting a material
+transfer. No configured stage leaves native behavior unchanged. Existing job
+cards are not retroactively assigned rules. Run `bench migrate` and restart
+Frappe to install the custom fields and controller override. Site-backed and
+browser verification is still required.

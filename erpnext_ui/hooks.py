@@ -166,6 +166,8 @@ jinja = {
 override_doctype_class = {
 	"Notification": "erpnext_ui.notification_todos.NotificationWithTodos",
 	"BOM": "erpnext_ui.bom_costing.UomPricingBOM",
+	"Work Order": "erpnext_ui.work_order_scheduling.PreferredScheduleWorkOrder",
+	"Job Card": "erpnext_ui.operation_approval.ApprovalJobCard",
 	"Quality Inspection": "erpnext_ui.overrides.QualityInspection",
 	"Purchase Receipt": "erpnext_ui.overrides.UomPricingPurchaseReceipt",
 	"Purchase Invoice": "erpnext_ui.overrides.UomPricingPurchaseInvoice",

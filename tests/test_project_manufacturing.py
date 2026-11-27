@@ -88,9 +88,52 @@ class ManufacturingTests(unittest.TestCase):
 		self.assertEqual(result["po_items"][0].warehouse, "FG")
 		self.assertEqual(result["mr_items"][0]["required_bom_qty"], 6)
 
+	def test_workspace_lists_cancelled_orders_only_in_complete_project_list(self):
+		orders = {"WO1": Doc(name="WO1", docstatus=1), "WO2": Doc(name="WO2", docstatus=2)}
+		original = frappe.get_doc.side_effect
+		frappe.get_doc.side_effect = lambda dt, name: orders[name] if dt == "Work Order" else original(dt, name)
+		def get_list(doctype, filters=None, **kwargs):
+			if doctype != "Work Order":
+				return []
+			return [Doc(name="WO1")] if "docstatus" in filters else [Doc(name="WO1"), Doc(name="WO2")]
+		frappe.get_list.side_effect = get_list
+		self.addCleanup(lambda: setattr(frappe.get_list, "side_effect", None))
+		result = manufacturing.workspace("P1")
+		self.assertEqual([row["name"] for row in result["work_orders"]], ["WO1"])
+		self.assertEqual([row["name"] for row in result["all_work_orders"]], ["WO1", "WO2"])
+
+	def test_multiple_boms_are_rejected(self):
+		with patch.object(frappe, "parse_json", lambda value: value, create=True):
+			with self.assertRaisesRegex(ValueError, "only one BOM"):
+				manufacturing.prepare_plan("P1", "BOM", None, 1, "RAW", "FG", "2026-11-17",
+					[{"bom": "B1", "qty": 2}, {"bom": "B2", "qty": 3}])
+
+	def test_duplicate_bom_is_rejected(self):
+		with patch.object(frappe, "parse_json", lambda value: value, create=True):
+			with self.assertRaisesRegex(ValueError, "only one BOM"):
+				manufacturing.prepare_plan("P1", "BOM", None, 1, "RAW", "FG", "2026-11-17",
+					[{"bom": "B1", "qty": 1}, {"bom": "B1", "qty": 2}])
+
+	def test_request_with_multiple_boms_is_rejected(self):
+		items = [Doc(name="ROW1", project="P1", qty=1, ordered_qty=0, conversion_factor=1),
+			Doc(name="ROW2", project="P1", qty=1, ordered_qty=0, conversion_factor=1)]
+		request = types.SimpleNamespace(name="MR1", company="C1", docstatus=1,
+			material_request_type="Manufacture", items=items, check_permission=Mock())
+		original = frappe.get_doc.side_effect
+		frappe.get_doc.side_effect = lambda dt, name: request if dt == "Material Request" else original(dt, name)
+		self.plan.get_items = Mock(side_effect=lambda: self.plan.po_items.extend([
+			Doc(material_request_item="ROW1", bom_no="B1"), Doc(material_request_item="ROW2", bom_no="B2")]))
+		with self.assertRaisesRegex(ValueError, "only one BOM"):
+			manufacturing.prepare_plan("P1", "Material Request", "MR1", 1, "RAW", "FG", "2026-11-17")
+
 	def test_other_project_bom_rejected(self):
 		self.bom.project = "P2"
-		with self.assertRaisesRegex(ValueError, "this project"):
+		with self.assertRaisesRegex(ValueError, "project"):
+			self.preview()
+
+	def test_other_company_bom_rejected(self):
+		self.bom.company = "C2"
+		with self.assertRaisesRegex(ValueError, "company"):
 			self.preview()
 
 	def test_unsubmitted_bom_rejected(self):
@@ -101,6 +144,48 @@ class ManufacturingTests(unittest.TestCase):
 	def test_zero_quantity_rejected(self):
 		with self.assertRaisesRegex(ValueError, "positive"):
 			self.preview(qty=0)
+
+	def test_material_request_uses_unique_project_bom_when_native_mapper_skips_item(self):
+		item = Doc(name="MRI1", project="P1", item_code="FG", qty=5, ordered_qty=2,
+			conversion_factor=2, warehouse="FG", description="Finished item")
+		request = types.SimpleNamespace(name="MR1", company="C1", docstatus=1,
+			material_request_type="Manufacture", items=[item], check_permission=Mock())
+		original_get_doc = frappe.get_doc.side_effect
+		frappe.get_doc.side_effect = lambda dt, name: request if dt == "Material Request" else original_get_doc(dt, name)
+		frappe.get_list.return_value = [Doc(name="B1")]
+		frappe._dict = Doc
+		self.plan.get_items = Mock()
+		self.plan.add_items = Mock(side_effect=lambda rows: self.plan.po_items.extend(
+			Doc(material_request_item=row.name, bom_no=row.bom_no) for row in rows
+		))
+		self.plan.calculate_total_planned_qty = Mock()
+		result = manufacturing.prepare_plan("P1", "Material Request", "MR1", 1, "RAW", "FG", "2026-11-17")
+		row = self.plan.add_items.call_args.args[0][0]
+		self.assertEqual((row.name, row.bom_no, row.pending_qty), ("MRI1", "B1", 6))
+		self.assertEqual(result["po_items"][0].material_request_item, "MRI1")
+
+	def test_request_preview_uses_selected_line_and_quantity(self):
+		items = [Doc(name="ROW1", project="P1", qty=5, ordered_qty=1, conversion_factor=2),
+			Doc(name="ROW2", project="P1", qty=3, ordered_qty=0, conversion_factor=1)]
+		request = types.SimpleNamespace(name="MR1", company="C1", docstatus=1,
+			material_request_type="Manufacture", items=items, check_permission=Mock())
+		original = frappe.get_doc.side_effect
+		frappe.get_doc.side_effect = lambda dt, name: request if dt == "Material Request" else original(dt, name)
+		self.plan.get_items = Mock(side_effect=lambda: self.plan.po_items.extend([
+			Doc(material_request_item="ROW1", bom_no="B1"), Doc(material_request_item="ROW2", bom_no="B2")]))
+		self.plan.calculate_total_planned_qty = Mock()
+		result = manufacturing.prepare_plan("P1", "Material Request", "MR1", 3, "RAW", "FG", "2026-11-17", request_item="ROW1")
+		self.assertEqual([(row.material_request_item, row.planned_qty) for row in result["po_items"]], [("ROW1", 3)])
+
+	def test_request_preview_rejects_quantity_above_outstanding(self):
+		item = Doc(name="ROW1", project="P1", qty=5, ordered_qty=1, conversion_factor=2)
+		request = types.SimpleNamespace(name="MR1", company="C1", docstatus=1,
+			material_request_type="Manufacture", items=[item], check_permission=Mock())
+		original = frappe.get_doc.side_effect
+		frappe.get_doc.side_effect = lambda dt, name: request if dt == "Material Request" else original(dt, name)
+		self.plan.get_items = Mock()
+		with self.assertRaisesRegex(ValueError, "outstanding"):
+			manufacturing.prepare_plan("P1", "Material Request", "MR1", 9, "RAW", "FG", "2026-11-17", request_item="ROW1")
 
 	def test_document_read_permission_is_enforced(self):
 		self.project.deny = True

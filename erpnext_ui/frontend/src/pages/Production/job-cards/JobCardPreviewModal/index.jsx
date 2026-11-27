@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Timer } from "lucide-react";
-import { get } from "../../../../services/api";
+import { get, post } from "../../../../services/api";
 import { useToast } from "../../../../context/ToastContext";
 import AppModal from "../../../../components/AppModal";
 import { StatusBadge } from "../../../../components/List/StatusBadge";
@@ -155,6 +155,18 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   // offers Resume -- it previously offered nothing, so a paused card had no
   // way back to work from this UI at all.
   const actions = fullDoc ? jobCardActionsFor(fullDoc.status) : [];
+  const approvalPending = !!fullDoc?.custom_approval_stage && !fullDoc?.custom_approval_by;
+  const blocked = (action) => approvalPending && (fullDoc.custom_approval_stage === "Before Start" || action === "complete");
+  const approve = async () => {
+    try {
+      setLoading(true);
+      await post("method/erpnext_ui.api.approve_operation_job_card", { name: doc.name });
+      await loadDoc();
+      onSuccess?.();
+    } catch (e) {
+      toast.error(e?.message || t("production.actionFailed"));
+    } finally { setLoading(false); }
+  };
 
   /* ===============================
      STATUS BADGE
@@ -204,7 +216,7 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
           key={key}
           variant={key === "start" || key === "resume" ? "default" : "outline"}
           className={`flex-1 ${ACTION_STYLE[key]}`}
-          disabled={loading}
+          disabled={loading || blocked(key)}
           onClick={() =>
             key === "complete" ? beginComplete() : handleAction(key)
           }
@@ -230,6 +242,13 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
+          {fullDoc.custom_approval_stage && <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p className="font-semibold">{fullDoc.custom_approval_by ? t("production.approvalGranted") : t("production.approvalPending")} · {fullDoc.custom_approval_stage}</p>
+            <p>{fullDoc.custom_approval_reason}</p>
+            <p>{t("production.approvalRole")}: {fullDoc.custom_approval_role}</p>
+            {fullDoc.custom_approval_by ? <p>{t("production.approvedBy")}: {fullDoc.custom_approval_by} · {fullDoc.custom_approval_at}</p> :
+              <Button type="button" size="sm" disabled={loading} onClick={approve}>{t("production.approveOperation")}</Button>}
+          </div>}
           {/* STATUS HEADER */}
           <div className="flex items-center justify-between gap-2">
             <div className="text-lg font-semibold">{fullDoc.operation}</div>

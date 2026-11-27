@@ -28,6 +28,22 @@ export function buildBomLayout(fields, t, { template = false } = {}) {
   }));
 }
 
+export function buildPlanningBomLayout(fields, t) {
+  const sections = buildBomLayout(fields, t).flatMap((tab) => tab.sections);
+  const groups = [
+    { id: "product", label: t("bomPlanning.product"), sections: [] },
+    { id: "materials", label: t("bomPlanning.materials"), sections: [] },
+    { id: "operations", label: t("bomPlanning.operations"), sections: [] },
+    { id: "extras", label: t("bomPlanning.extras"), sections: [] },
+  ];
+  for (const section of sections) {
+    const names = new Set(section.fields.map((field) => field.fieldname));
+    const index = names.has("item") ? 0 : names.has("items") || names.has("exploded_items") ? 1 : names.has("operations") || names.has("with_operations") ? 2 : 3;
+    groups[index].sections.push(section);
+  }
+  return [...groups.filter((group) => group.sections.length), { id: "review", label: t("bomPlanning.review"), sections: [] }];
+}
+
 export const BOM_TABLE_COLUMNS = {
   "UI BOM Template Item": ["item_code", "qty", "uom", "rate"],
   "UI BOM Template Operation": ["operation", "workstation", "time_in_mins", "hour_rate"],

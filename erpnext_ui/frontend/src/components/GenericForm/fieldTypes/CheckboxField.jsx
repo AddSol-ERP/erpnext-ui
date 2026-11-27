@@ -17,7 +17,7 @@ export default function CheckboxField({
           type="checkbox"
           id={field.fieldname}
           className="size-4 shrink-0 accent-[var(--brand-primary)]"
-          checked={!!value}
+          checked={value === true || Number(value) === 1}
           onChange={(e) => onChange(e.target.checked ? 1 : 0)}
           disabled={disabled || field.read_only}
         />

@@ -8,6 +8,9 @@ import DashboardShell from "../../components/dashboard/DashboardShell";
 import ModuleGrid from "../../components/dashboard/ModuleGrid";
 import DataTable from "../../components/List/DataTable";
 import { StatusBadge } from "../../components/List/StatusBadge";
+import { statusTone } from "../../components/List/statusTones";
+import { Button } from "@/components/ui/button";
+import WorkOrderProgressDrawer from "./WorkOrderProgressDrawer";
 
 export default function ProjectOverview() {
   const { project } = useParams();
@@ -19,6 +22,7 @@ function Overview({ project }) {
   const { setHeader } = useHeader();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState(null);
   useEffect(() => {
     let active = true;
     get("method/erpnext_ui.api.get_project_manufacturing", { project })
@@ -49,6 +53,40 @@ function Overview({ project }) {
         { key: "bom", icon: Layers, titleKey: "manufacturing.createBom", descriptionKey: "projects.bomHelp" },
         { key: "planning", icon: CalendarRange, titleKey: "projects.startPlanning", descriptionKey: "projects.planningHelp" },
       ]} onClick={(tile) => tile.key === "bom" ? createBom() : navigate(manufacturing)} />
+      {data.plans.some((plan) => Number(plan.docstatus) === 0) && <section className="overflow-hidden border border-border/70 bg-card">
+        <h3 className="border-b border-border/60 px-4 py-3 text-sm font-semibold">{t("manufacturing.draftPlans")}</h3>
+        <DataTable data={data.plans.filter((plan) => Number(plan.docstatus) === 0)} rowKey={(plan) => plan.name}
+          onRowClick={(plan) => navigate(`${manufacturing}?step=plans&plan=${encodeURIComponent(plan.name)}`)}
+          columns={[
+            { id: "name", header: t("common.name"), cell: (plan) => <span className="font-medium">{plan.name}</span> },
+            { id: "date", header: t("common.date"), cell: (plan) => plan.posting_date || "—" },
+            { id: "qty", header: t("manufacturing.qty"), cell: (plan) => plan.total_planned_qty ?? "—" },
+            { id: "status", header: t("common.status"), cell: () => <StatusBadge tone="open">{t("common.draft")}</StatusBadge> },
+            { id: "actions", header: t("common.actions"), cell: (plan) => <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); navigate(`${manufacturing}?step=plans&plan=${encodeURIComponent(plan.name)}`); }}>{t("manufacturing.resumePlan")}</Button> },
+          ]} />
+        <p className="px-4 py-2 text-xs text-muted-foreground">{t("manufacturing.resumePlanHelp")}</p>
+      </section>}
+      {data.plans.some((plan) => Number(plan.docstatus) === 1) && <section className="overflow-hidden border border-border/70 bg-card">
+        <h3 className="border-b border-border/60 px-4 py-3 text-sm font-semibold">{t("manufacturing.submittedPlans")}</h3>
+        <DataTable data={data.plans.filter((plan) => Number(plan.docstatus) === 1)} rowKey={(plan) => plan.name}
+          onRowClick={(plan) => navigate(`${manufacturing}?step=orders&plan=${encodeURIComponent(plan.name)}`)}
+          columns={[
+            { id: "name", header: t("common.name"), cell: (plan) => <span className="font-medium">{plan.name}</span> },
+            { id: "date", header: t("common.date"), cell: (plan) => plan.posting_date || "—" },
+            { id: "status", header: t("common.status"), cell: (plan) => plan.status || t("production.statusSubmitted") },
+            { id: "actions", header: t("common.actions"), cell: (plan) => <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); navigate(`${manufacturing}?step=orders&plan=${encodeURIComponent(plan.name)}`); }}>{t("manufacturing.continueOrders")}</Button> },
+          ]} />
+      </section>}
+      <section className="overflow-hidden border border-border/70 bg-card">
+        <h3 className="border-b border-border/60 px-4 py-3 text-sm font-semibold">{t("production.workOrders")}</h3>
+        {!(data.all_work_orders || data.work_orders || []).length ? <p className="p-4 text-sm text-muted-foreground">{t("manufacturing.noOrders")}</p> : <DataTable data={data.all_work_orders || data.work_orders} rowKey={(order) => order.name} onRowClick={setSelectedOrder} columns={[
+          { id: "name", header: t("common.name"), cell: (order) => <span className="font-medium">{order.name}</span> },
+          { id: "item", header: t("manufacturing.item"), cell: (order) => order.production_item || "—" },
+          { id: "status", header: t("common.status"), cell: (order) => <StatusBadge tone={statusTone(order.status)}>{order.status || "—"}</StatusBadge> },
+          { id: "progress", header: t("projects.completion"), cell: (order) => t("production.woQty", { produced: order.produced_qty ?? 0, total: order.qty ?? 0 }) },
+        ]} />}
+      </section>
+      <WorkOrderProgressDrawer order={selectedOrder} jobCards={data.job_cards} onClose={() => setSelectedOrder(null)} />
       <section className="overflow-hidden border border-border/70 bg-card">
         <h3 className="border-b border-border/60 px-4 py-3 text-sm font-semibold">{t("projects.boms")}</h3>
         {!data.boms.length ? <p className="p-4 text-sm text-muted-foreground">{t("projects.noBoms")}</p> : <DataTable

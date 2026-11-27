@@ -60,6 +60,11 @@ def apply_pricing_uom(doc, row):
 
 
 class UomPricingBOM(BOM):
+	def validate(self):
+		from erpnext_ui.operation_approval_rules import validate_rules
+		validate_rules(self)
+		super().validate()
+
 	def calculate_rm_cost(self, save=False):
 		old_rates = [row.rate for row in self.get("items")]
 		# Native controller owns valuation, last purchase, subassemblies and defaults.

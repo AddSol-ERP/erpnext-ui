@@ -10,6 +10,8 @@ function FieldRenderer({ type, value, options, onChange, id, disabled = false, a
   const [uploading, setUploading] = useState(false);
   const { t } = useTranslation();
   switch (type) {
+    case "datetime":
+      return <Input type="datetime-local" step="1" value={value ? String(value).replace(" ", "T") : ""} disabled={disabled} onChange={(event) => onChange(event.target.value.replace("T", " "))} />;
     case "attach":
       return <div className="space-y-2">
         {/^\/(?:private\/)?files\//.test(value || "") && <a href={value} target="_blank" rel="noopener noreferrer" className="block truncate text-sm text-primary underline">{value.split("/").pop()}</a>}

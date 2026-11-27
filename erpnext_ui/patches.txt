@@ -41,3 +41,6 @@ erpnext_ui.patches.v1_0.bom_template_naming_series
 erpnext_ui.patches.v1_0.add_bom_item_attachment_reference
 
 erpnext_ui.patches.v1_0.add_bom_pricing_fields
+erpnext_ui.patches.v1_0.add_operation_schedule_preferences
+
+erpnext_ui.patches.v1_0.add_operation_approval
