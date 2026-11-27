@@ -11,6 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CatalogueTests(unittest.TestCase):
+    def test_internal_rule_fields_are_hidden_from_desk(self):
+        path = ROOT / "erpnext_ui/addsol_erpnext_ui/doctype/ui_operation_approval_rule/ui_operation_approval_rule.json"
+        fields = {field["fieldname"]: field for field in json.loads(path.read_text())["fields"]}
+        for field in ("operation_row", "instruction_snapshot"):
+            self.assertEqual(fields[field].get("hidden"), 1)
+            self.assertEqual(fields[field].get("read_only"), 1)
+
     def test_metadata_has_matching_controllers_and_edit_permissions(self):
         for folder in ("ui_operation_approval_perspective", "ui_operation_approval_instruction"):
             directory = ROOT / "erpnext_ui/addsol_erpnext_ui/doctype" / folder
