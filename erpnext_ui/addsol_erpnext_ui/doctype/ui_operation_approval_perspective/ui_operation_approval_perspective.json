@@ -1,50 +1,65 @@
 {
- "doctype": "DocType",
- "module": "Addsol Erpnext UI",
- "custom": 0,
- "name": "UI Operation Approval Perspective",
+ "actions": [],
  "autoname": "field:perspective_name",
- "title_field": "perspective_name",
+ "creation": "2026-11-27 22:18:17.802038",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "column_break_qerk",
+  "perspective_name"
+ ],
  "fields": [
   {
    "fieldname": "perspective_name",
-   "label": "Perspective",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Perspective",
    "reqd": 1,
-   "unique": 1,
-   "in_list_view": 1
+   "unique": 1
   },
   {
-   "fieldname": "enabled",
-   "label": "Enabled",
-   "fieldtype": "Check",
    "default": "1",
-   "in_list_view": 1
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "column_break_qerk",
+   "fieldtype": "Column Break"
   }
  ],
- "field_order": [
-  "perspective_name",
-  "enabled"
- ],
+ "links": [],
+ "modified": "2026-11-27 22:36:26.506013",
+ "modified_by": "Administrator",
+ "module": "Addsol Erpnext UI",
+ "name": "UI Operation Approval Perspective",
+ "owner": "Administrator",
  "permissions": [
   {
-   "role": "Manufacturing User",
-   "read": 1
+   "read": 1,
+   "role": "Manufacturing User"
   },
   {
+   "create": 1,
+   "read": 1,
+   "report": 1,
    "role": "Manufacturing Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "report": 1
+   "write": 1
   },
   {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
    "create": 1,
-   "report": 1
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
   }
  ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "perspective_name",
  "track_changes": 1
 }

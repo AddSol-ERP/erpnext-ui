@@ -1,68 +1,83 @@
 {
- "doctype": "DocType",
- "module": "Addsol Erpnext UI",
- "custom": 0,
- "name": "UI Operation Approval Instruction",
+ "actions": [],
  "autoname": "field:instruction_name",
- "title_field": "instruction_name",
+ "creation": "2026-11-27 22:18:17.903587",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "instruction_name",
+  "enabled",
+  "column_break_ajuc",
+  "perspective",
+  "approval_point"
+ ],
  "fields": [
   {
    "fieldname": "instruction_name",
-   "label": "Instruction",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Instruction",
    "reqd": 1,
-   "unique": 1,
-   "in_list_view": 1
+   "unique": 1
   },
   {
    "fieldname": "perspective",
-   "label": "Perspective",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Perspective",
    "options": "UI Operation Approval Perspective",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "approval_point",
-   "label": "Approval Point",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Approval Point",
    "options": "Before Start\nAfter Work",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
-   "fieldname": "enabled",
-   "label": "Enabled",
-   "fieldtype": "Check",
    "default": "1",
-   "in_list_view": 1
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "column_break_ajuc",
+   "fieldtype": "Column Break"
   }
  ],
- "field_order": [
-  "instruction_name",
-  "perspective",
-  "approval_point",
-  "enabled"
- ],
+ "links": [],
+ "modified": "2026-11-27 22:36:13.722608",
+ "modified_by": "Administrator",
+ "module": "Addsol Erpnext UI",
+ "name": "UI Operation Approval Instruction",
+ "owner": "Administrator",
  "permissions": [
   {
-   "role": "Manufacturing User",
-   "read": 1
+   "read": 1,
+   "role": "Manufacturing User"
   },
   {
+   "create": 1,
+   "read": 1,
+   "report": 1,
    "role": "Manufacturing Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "report": 1
+   "write": 1
   },
   {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
    "create": 1,
-   "report": 1
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
   }
  ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "instruction_name",
  "track_changes": 1
 }
