@@ -1,0 +1,89 @@
+{
+ "doctype": "DocType",
+ "name": "UI Operation Approval Rule",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "istable": 1,
+ "fields": [
+  {
+   "fieldname": "operation_row",
+   "label": "Operation Row",
+   "fieldtype": "Data",
+   "description": "Only required when an operation occurs more than once; enter its row ID."
+  },
+  {
+   "fieldname": "operation",
+   "label": "Operation",
+   "fieldtype": "Link",
+   "options": "Operation",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "approval_point",
+   "label": "Approval Point",
+   "fieldtype": "Select",
+   "options": "Before Start\nAfter Work",
+   "in_list_view": 1,
+   "fetch_from": "instruction.approval_point"
+  },
+  {
+   "fieldname": "perspective",
+   "label": "Perspective",
+   "fieldtype": "Link",
+   "options": "UI Operation Approval Perspective",
+   "in_list_view": 1,
+   "fetch_from": "instruction.perspective"
+  },
+  {
+   "fieldname": "instruction",
+   "label": "Instruction",
+   "fieldtype": "Link",
+   "options": "UI Operation Approval Instruction",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "instruction_snapshot",
+   "label": "Instruction Snapshot",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_role",
+   "label": "Approval Role",
+   "fieldtype": "Link",
+   "options": "Role",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "note",
+   "label": "Note",
+   "fieldtype": "Small Text"
+  },
+  {
+   "fieldname": "approved_by",
+   "label": "Approved By",
+   "fieldtype": "Link",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "label": "Approved At",
+   "fieldtype": "Datetime",
+   "read_only": 1
+  }
+ ],
+ "permissions": [],
+ "field_order": [
+  "operation_row",
+  "operation",
+  "approval_point",
+  "perspective",
+  "instruction",
+  "instruction_snapshot",
+  "approval_role",
+  "note",
+  "approved_by",
+  "approved_at"
+ ]
+}

@@ -1,0 +1,68 @@
+{
+ "doctype": "DocType",
+ "module": "Addsol Erpnext UI",
+ "custom": 0,
+ "name": "UI Operation Approval Instruction",
+ "autoname": "field:instruction_name",
+ "title_field": "instruction_name",
+ "fields": [
+  {
+   "fieldname": "instruction_name",
+   "label": "Instruction",
+   "fieldtype": "Data",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "perspective",
+   "label": "Perspective",
+   "fieldtype": "Link",
+   "options": "UI Operation Approval Perspective",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "approval_point",
+   "label": "Approval Point",
+   "fieldtype": "Select",
+   "options": "Before Start\nAfter Work",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "enabled",
+   "label": "Enabled",
+   "fieldtype": "Check",
+   "default": "1",
+   "in_list_view": 1
+  }
+ ],
+ "field_order": [
+  "instruction_name",
+  "perspective",
+  "approval_point",
+  "enabled"
+ ],
+ "permissions": [
+  {
+   "role": "Manufacturing User",
+   "read": 1
+  },
+  {
+   "role": "Manufacturing Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  }
+ ],
+ "track_changes": 1
+}

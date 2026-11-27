@@ -4110,3 +4110,16 @@ transfer. No configured stage leaves native behavior unchanged. Existing job
 cards are not retroactively assigned rules. Run `bench migrate` and restart
 Frappe to install the custom fields and controller override. Site-backed and
 browser verification is still required.
+
+## Multiple operation approvals
+
+Operation approval perspectives and instructions are managed as catalogues. New
+Operation defaults are copied to newly added BOM operation rows; work-order
+operation generation copies BOM rules by exact source row, and new Job Cards
+snapshot the work-order rules. A rule records its point, perspective,
+instruction snapshot, role and optional note. Before-start approvals block work;
+after-work approvals require closed logs and completed quantity, block restart
+and gate Job Card submission. Every approval is recorded independently and
+approved work logs are immutable. Existing single-field rules stay supported in
+place; they are not silently converted to a different approval point. Run bench
+migrate and restart before use. End-to-end site verification remains necessary.

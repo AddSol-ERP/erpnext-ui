@@ -156,16 +156,32 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   // way back to work from this UI at all.
   const actions = fullDoc ? jobCardActionsFor(fullDoc.status) : [];
   const approvalPending = !!fullDoc?.custom_approval_stage && !fullDoc?.custom_approval_by;
-  const blocked = (action) => approvalPending && (fullDoc.custom_approval_stage === "Before Start" || action === "complete");
-  const approve = async () => {
+  const newRules = fullDoc?.custom_approval_rules || [];
+  const afterWorkRules = newRules.filter((rule) => rule.approval_point === "After Work");
+  const logs = fullDoc?.time_logs || [];
+  const workRecorded = logs.length > 0 && logs.every((row) => row.to_time) &&
+    logs.reduce((total, row) => total + (Number(row.completed_qty) || 0), 0) + (Number(fullDoc?.process_loss_qty) || 0) >= Number(fullDoc?.for_quantity || 0);
+  const blocked = (action) => (approvalPending && (fullDoc.custom_approval_stage === "Before Start" || action === "complete")) ||
+    (["start", "resume"].includes(action) && (newRules.some((rule) => !rule.approved_by && rule.approval_point === "Before Start") || (workRecorded && afterWorkRules.length > 0)));
+  const approve = async (ruleName) => {
     try {
       setLoading(true);
-      await post("method/erpnext_ui.api.approve_operation_job_card", { name: doc.name });
+      await post("method/erpnext_ui.api.approve_operation_job_card", { name: doc.name, rule_name: typeof ruleName === "string" ? ruleName : undefined });
       await loadDoc();
       onSuccess?.();
     } catch (e) {
       toast.error(e?.message || t("production.actionFailed"));
     } finally { setLoading(false); }
+  };
+  const release = async () => {
+    try {
+      setLoading(true);
+      await post("method/erpnext_ui.api.release_operation_job_card", { name: doc.name });
+      await loadDoc();
+      onSuccess?.();
+      close();
+    } catch (e) { toast.error(e?.message || t("production.actionFailed")); }
+    finally { setLoading(false); }
   };
 
   /* ===============================
@@ -224,6 +240,7 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
           {loading ? t("production.processing") : t(ACTION_LABEL_KEY[key])}
         </Button>
       ))}
+      {!!afterWorkRules.length && workRecorded && Number(fullDoc?.docstatus) === 0 && <Button disabled={loading || newRules.some((rule) => !rule.approved_by)} onClick={release}>{t("production.releaseOperation")}</Button>}
     </div>
   );
 
@@ -242,6 +259,15 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
+          {!!afterWorkRules.length && workRecorded && newRules.some((rule) => !rule.approved_by) && <p role="status" className="text-sm font-semibold text-amber-700">{t("production.awaitingOperationApproval")}</p>}
+          {newRules.map((rule) => <div key={rule.name} className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p className="font-semibold">{rule.approved_by ? t("production.approvalGranted") : t("production.approvalPending")} · {rule.approval_point} · {rule.perspective}</p>
+            <p>{rule.instruction_snapshot || rule.instruction}</p>
+            {rule.note && <p>{rule.note}</p>}
+            <p>{t("production.approvalRole")}: {rule.approval_role}</p>
+            {rule.approved_by ? <p>{t("production.approvedBy")}: {rule.approved_by} · {rule.approved_at}</p> :
+              <Button type="button" size="sm" disabled={loading} onClick={() => approve(rule.name)}>{t("production.approveOperation")}</Button>}
+          </div>)}
           {fullDoc.custom_approval_stage && <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
             <p className="font-semibold">{fullDoc.custom_approval_by ? t("production.approvalGranted") : t("production.approvalPending")} · {fullDoc.custom_approval_stage}</p>
             <p>{fullDoc.custom_approval_reason}</p>

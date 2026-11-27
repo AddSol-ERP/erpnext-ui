@@ -14,6 +14,18 @@
  *   statusField → drives the status badge color
  */
 export const DOCTYPE_CONFIG = {
+  "UI Operation Approval Perspective": {
+    list: { titleField: "perspective_name", statusField: "enabled" },
+    searchFields: ["perspective_name"],
+  },
+  "UI Operation Approval Instruction": {
+    list: { titleField: "instruction_name", subtitleField: "perspective", metaField: "approval_point", statusField: "enabled" },
+    searchFields: ["instruction_name"],
+  },
+  Operation: {
+    list: { titleField: "name", subtitleField: "description" },
+    searchFields: ["name"],
+  },
   "UI BOM Template": {
     list: { titleField: "template_name", subtitleField: "item", metaField: "company", statusField: "enabled" },
     searchFields: ["template_name", "item"],

@@ -9,7 +9,7 @@ export function buildBomLayout(fields, t, { template = false } = {}) {
     ["details", [...(template ? ["naming_series", "template_name", "enabled", "description"] : []), "item", "company", "project", "quantity", "uom", "is_active", "is_default", "allow_alternative_item", "set_rate_of_sub_assembly_item_based_on_bom"]],
     ["materials", ["items"]],
     ...(!template ? [["explodedItems", ["exploded_items"]]] : []),
-    ["operations", ["with_operations", "transfer_material_against", "routing", "fg_based_operating_cost", "operating_cost_per_bom_quantity", "operations"]],
+    ["operations", ["with_operations", "transfer_material_against", "routing", "fg_based_operating_cost", "operating_cost_per_bom_quantity", "operations", "custom_approval_rules"]],
     ["scrap", ["scrap_items", "process_loss_percentage", "process_loss_qty"]],
     ["costing", ["rm_cost_as_per", "buying_price_list", "price_list_currency", "plc_conversion_rate", "currency", "conversion_rate", "operating_cost", "raw_material_cost", "scrap_material_cost", "base_operating_cost", "base_raw_material_cost", "base_scrap_material_cost", "total_cost", "base_total_cost"]],
     ...(!template ? [["approvedVendors", ["custom_avl_applicable", "custom_approved_vendor_files"]]] : []),

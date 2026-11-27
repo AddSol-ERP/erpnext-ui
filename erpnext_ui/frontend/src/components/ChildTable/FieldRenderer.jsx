@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { uploadFile } from "../../services/api";
 import { useTranslation } from "react-i18next";
 
-function FieldRenderer({ type, value, options, onChange, id, disabled = false, attachmentDoctype, attachmentDocname, attachmentField }) {
+function FieldRenderer({ type, value, options, onChange, id, disabled = false, filters, attachmentDoctype, attachmentDocname, attachmentField }) {
   const [uploading, setUploading] = useState(false);
   const { t } = useTranslation();
   switch (type) {
@@ -81,6 +81,7 @@ function FieldRenderer({ type, value, options, onChange, id, disabled = false, a
       return (
         <LinkField
           doctype={options}
+          filters={filters}
           value={value}
           onChange={onChange}
           placeholder="…"

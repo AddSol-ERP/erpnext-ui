@@ -23,6 +23,15 @@ class NativeWorkOrder:
 	def validate(self):
 		pass
 
+	def set_work_order_operations(self):
+		self.operations = [Row(operation="Weld", bom="B1"), Row(operation="Weld", bom="B1")]
+
+	def set(self, key, value):
+		setattr(self, key, value)
+
+	def append(self, key, value):
+		getattr(self, key).append(Row(value))
+
 	def set_operation_start_end_time(self, row, idx):
 		row.planned_start_time = datetime(2026, 11, 27, 9)
 		row.planned_end_time = row.planned_start_time + timedelta(minutes=row.time_in_mins)
@@ -32,7 +41,11 @@ class NativeWorkOrder:
 
 
 native.WorkOrder = NativeWorkOrder
-modules = {"frappe": frappe, "frappe.utils": utils, native.__name__: native}
+naming = types.ModuleType("frappe.model.naming")
+def set_new_name(row):
+	row.name = "WO-ROW-" + str(id(row))
+naming.set_new_name = set_new_name
+modules = {"frappe": frappe, "frappe.utils": utils, "frappe.model.naming": naming, native.__name__: native}
 spec = importlib.util.spec_from_file_location("scheduling_under_test", Path(__file__).resolve().parents[1] / "erpnext_ui/work_order_scheduling.py")
 module = importlib.util.module_from_spec(spec)
 with patch.dict(sys.modules, modules):
@@ -42,6 +55,8 @@ with patch.dict(sys.modules, modules):
 class Row(dict):
 	__getattr__ = dict.get
 	__setattr__ = dict.__setitem__
+	def set(self, key, value):
+		self[key] = value
 
 
 class ScheduleTests(unittest.TestCase):
@@ -76,6 +91,16 @@ class ScheduleTests(unittest.TestCase):
 		self.row.custom_preferred_end = "2026-11-27 11:00:00"
 		self.assertEqual(self.order.prepare_data_for_job_card(self.row, 0, 30, True), "native")
 		frappe.msgprint.assert_called_once()
+
+	def test_bom_rules_follow_exact_repeated_operation_row(self):
+		self.order.bom_no = "B1"
+		frappe.get_all = Mock(return_value=[Row(name="BOM-ROW-1"), Row(name="BOM-ROW-2")])
+		frappe.get_doc = Mock(return_value=Row(custom_approval_rules=[
+			Row(operation_row="BOM-ROW-2", approval_point="Before Start", instruction="Approve drawing", approval_role="Manager")]))
+		self.order.set_work_order_operations()
+		self.assertEqual(len(self.order.custom_approval_rules), 1)
+		self.assertEqual(self.order.custom_approval_rules[0].operation_row, self.order.operations[1].name)
+		self.assertNotEqual(self.order.custom_approval_rules[0].operation_row, self.order.operations[0].name)
 
 
 if __name__ == "__main__":

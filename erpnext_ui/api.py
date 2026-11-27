@@ -4306,10 +4306,17 @@ def get_work_order_operation_meta():
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
-def approve_operation_job_card(name):
+def approve_operation_job_card(name, rule_name=None):
     from erpnext_ui.operation_approval import approve_job_card
 
-    return approve_job_card(name)
+    return approve_job_card(name, rule_name)
+
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def release_operation_job_card(name):
+    from erpnext_ui.operation_approval import release_job_card
+
+    return release_job_card(name)
 
 
 @frappe.whitelist(allow_guest=False)

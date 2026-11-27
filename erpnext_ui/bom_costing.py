@@ -61,7 +61,8 @@ def apply_pricing_uom(doc, row):
 
 class UomPricingBOM(BOM):
 	def validate(self):
-		from erpnext_ui.operation_approval_rules import validate_rules
+		from erpnext_ui.operation_approval_rules import apply_bom_defaults, validate_rules
+		apply_bom_defaults(self)
 		validate_rules(self)
 		super().validate()
 

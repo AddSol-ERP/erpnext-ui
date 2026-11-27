@@ -19,18 +19,29 @@ class PreferredScheduleWorkOrder(WorkOrder):
 
 	def set_work_order_operations(self):
 		super().set_work_order_operations()
-		from erpnext_ui.operation_approval_rules import RULE_FIELDS
+		from frappe.model.naming import set_new_name
+		from erpnext_ui.operation_approval_rules import COPY_FIELDS, RULE_FIELDS
 		# Native mapping preserves each source BOM and operation order, including
 		# repeated operations and multi-level BOMs, but omits custom fields.
 		by_bom = {}
+		bom_rules = {}
+		self.set("custom_approval_rules", [])
 		for row in self.operations:
 			bom = row.get("bom") or self.bom_no
 			if bom not in by_bom:
-				by_bom[bom] = iter(frappe.get_all("BOM Operation", filters={"parent": bom}, fields=list(RULE_FIELDS), order_by="idx"))
+				by_bom[bom] = iter(frappe.get_all("BOM Operation", filters={"parent": bom}, fields=["name", *RULE_FIELDS], order_by="idx"))
+				bom_rules[bom] = frappe.get_doc("BOM", bom).get("custom_approval_rules") or []
 			source = next(by_bom[bom], None)
 			if source:
 				for field in RULE_FIELDS:
 					row.set(field, source.get(field))
+				if not row.name:
+					set_new_name(row)
+				for rule in bom_rules[bom]:
+					if rule.get("operation_row") == source.name:
+						values = {field: rule.get(field) for field in COPY_FIELDS}
+						values.update(operation=row.operation, operation_row=row.name)
+						self.append("custom_approval_rules", values)
 
 	def set_operation_start_end_time(self, row, idx):
 		super().set_operation_start_end_time(row, idx)

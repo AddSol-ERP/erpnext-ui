@@ -310,6 +310,7 @@ scheduler_events = {
 
 # Generate once before naming, then reassert before insert validation completes.
 doc_events = {
+	"Operation": {"validate": "erpnext_ui.operation_approval_rules.validate_operation"},
 	"Stock Entry": {"validate": "erpnext_ui.store_issue.validate_direct_issue"},
 	"Item": {
 		"before_naming": "erpnext_ui.item_naming.apply_item_code",

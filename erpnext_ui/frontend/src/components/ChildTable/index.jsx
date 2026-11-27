@@ -6,6 +6,8 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import FieldRenderer from "./FieldRenderer";
+import FormSelect from "../FormSelect";
+import OperationApprovals from "./OperationApprovals";
 import { get } from "../../services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +37,9 @@ export default function ChildTable({
   inlineBomFields = false,
   attachmentDoctype,
   attachmentDocname,
+  approvalOperations,
+  operationRules,
+  onOperationRulesChange,
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState(value || []);
@@ -73,6 +78,10 @@ export default function ChildTable({
     const updated = [...data];
     updated[rowIndex] = { ...updated[rowIndex] };
     updated[rowIndex][field] = val;
+    if (field === "operation_row" && approvalOperations) {
+      const operation = approvalOperations.find((item) => item.name === val);
+      if (operation) updated[rowIndex].operation = operation.operation;
+    }
 
     // ===== Auto-calculate amount = qty × rate =====
     const colFields = columns.map((c) => c.field);
@@ -242,11 +251,12 @@ export default function ChildTable({
               disabled={disabled || column.readOnly} onChange={(next) => handleChange(editingRow, column.field, next)} />
             <label htmlFor={`child-row-${column.field}`}>{column.label}{column.required && !disabled && <span className="ms-1 text-destructive">*</span>}</label>
           </div> : <FormField key={column.field} label={column.label} required={column.required && !disabled} className={column.type === "link" && column.options === "Item" ? "sm:col-span-2" : undefined}>
-            <FieldRenderer type={column.type} value={data[editingRow][column.field]} options={column.options}
-              disabled={disabled || column.readOnly} attachmentDoctype={attachmentDoctype} attachmentDocname={attachmentDocname} attachmentField={column.field} onChange={(next) => handleChange(editingRow, column.field, next)} />
+            {column.field === "operation_row" && approvalOperations ? <FormSelect value={data[editingRow][column.field] || ""} placeholder={t("production.selectOperation")} options={approvalOperations.filter((operation) => operation.name).map((operation, index) => ({ value: operation.name, label: `${index + 1}. ${operation.operation || "—"}` }))} disabled={disabled} onChange={(next) => handleChange(editingRow, column.field, next)} /> : <FieldRenderer type={column.type} value={data[editingRow][column.field]} options={column.options} filters={column.options === "UI Operation Approval Instruction" ? { enabled: 1, ...(data[editingRow].perspective ? { perspective: data[editingRow].perspective } : {}), ...(data[editingRow].approval_point ? { approval_point: data[editingRow].approval_point } : {}) } : undefined}
+              disabled={disabled || column.readOnly} attachmentDoctype={attachmentDoctype} attachmentDocname={attachmentDocname} attachmentField={column.field} onChange={(next) => handleChange(editingRow, column.field, next)} />}
             {pricingSide && column.field === "custom_chargeable_qty" && <UomPricingEstimate row={data[editingRow]} side={pricingSide} readOnly={disabled || !!data[editingRow].docstatus} />}
           </FormField>)}
         </div>
+        {onOperationRulesChange && <OperationApprovals operation={data[editingRow]} operations={data} rules={operationRules || []} onChange={onOperationRulesChange} disabled={disabled} />}
       </AppModal>}
     </div>
   );

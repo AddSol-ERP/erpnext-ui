@@ -18,7 +18,7 @@ export default function ProductionDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { setHeader } = useHeader();
-  const { canReadReport } = useRole();
+  const { canReadReport, userRoles } = useRole();
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,6 +53,11 @@ export default function ProductionDashboard() {
   return <DashboardShell>
     <StartWorkModal show={startOpen} onClose={() => setStartOpen(false)} onStarted={() => { setStartOpen(false); loadData(); }} />
     <div className="flex flex-wrap justify-end gap-2">
+      {userRoles?.some((role) => ["Manufacturing Manager", "System Manager"].includes(role)) && <>
+        <Button size="sm" variant="outline" onClick={() => navigate("/production/Operation")}>{t("production.operations")}</Button>
+        <Button size="sm" variant="outline" onClick={() => navigate("/production/UI%20Operation%20Approval%20Perspective")}>{t("production.approvalPerspectives")}</Button>
+        <Button size="sm" variant="outline" onClick={() => navigate("/production/UI%20Operation%20Approval%20Instruction")}>{t("production.approvalInstructions")}</Button>
+      </>}
       {canReadReport("manufacturing") && <Button size="sm" variant="outline" onClick={() => navigate("/projects")}>{t("projects.title")}</Button>}
       <Button size="sm" onClick={() => setStartOpen(true)}><Play />{t("production.startWork")}</Button>
       <Button size="sm" variant="outline" disabled={loading} onClick={loadData}>{t("common.refresh")}</Button>
