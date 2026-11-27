@@ -1,12 +1,14 @@
 {
  "production": {
+  "operationDetails": "Operation details",
+  "existingLegacyApproval": "Existing approval requirement (still enforced)",
   "approvalFieldsMissing": "Approval rules are not available on this site yet. Ask your administrator to migrate and restart the ERPNext app.",
   "operationApprovals": "Approval rules",
   "operationApprovalsHelp": "Add approvals required before this operation starts or after the work is recorded.",
   "addApprovalRule": "Add rule",
   "noApprovalRules": "No approval rules for this operation.",
   "saveRepeatedOperations": "Save the document before adding rules to repeated operations.",
-  "approvalRuleNumber": "Rule {{number}}",
+  "approvalRuleNumber": "Rule {number}",
   "removeApprovalRule": "Remove approval rule",
   "approvalPoint": "Approval point",
   "approvalPerspective": "Perspective",

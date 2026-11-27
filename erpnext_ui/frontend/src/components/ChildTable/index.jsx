@@ -242,10 +242,16 @@ export default function ChildTable({
         <AttachmentsPanel key={`${bomName || "new"}-${data[attachmentRow].name || attachmentRow}`} doctype="BOM"
           docname={bomName && data[attachmentRow].name ? bomName : null} bomItem={data[attachmentRow].name} readOnly={disabled} />
       </AppModal>}
-      {editingRow != null && data[editingRow] && <AppModal show onClose={() => setEditingRow(null)} width="lg"
+      {editingRow != null && data[editingRow] && <AppModal show onClose={() => setEditingRow(null)} width={onOperationRulesChange ? "xl" : "lg"}
+        contentClassName={onOperationRulesChange ? "h-[min(85vh,52rem)]" : undefined}
+        bodyClassName={onOperationRulesChange ? "px-0 py-0 md:overflow-hidden" : undefined}
+        preventOutsideClose={!!onOperationRulesChange}
         title={`${title} · ${t("common.row", { n: editingRow + 1 })}`}
         footer={<Button variant="outline" onClick={() => setEditingRow(null)}>{t("common.close")}</Button>}>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={onOperationRulesChange ? "flex min-h-0 flex-col md:h-full md:flex-row" : undefined}>
+        <section className={onOperationRulesChange ? "min-w-0 px-5 py-4 md:w-1/2 md:overflow-y-auto md:overscroll-contain" : undefined}>
+        {onOperationRulesChange && <h3 className="mb-3 text-sm font-semibold">{t("production.operationDetails")}</h3>}
+        <div className={onOperationRulesChange ? "grid gap-4 xl:grid-cols-2" : "grid gap-4 sm:grid-cols-2"}>
           {columns.map((column) => column.type === "checkbox" ? <div key={column.field} className="flex min-h-8 items-center gap-2 text-sm md:min-h-7">
             <FieldRenderer id={`child-row-${column.field}`} type={column.type} value={data[editingRow][column.field]} options={column.options}
               disabled={disabled || column.readOnly} onChange={(next) => handleChange(editingRow, column.field, next)} />
@@ -256,7 +262,9 @@ export default function ChildTable({
             {pricingSide && column.field === "custom_chargeable_qty" && <UomPricingEstimate row={data[editingRow]} side={pricingSide} readOnly={disabled || !!data[editingRow].docstatus} />}
           </FormField>)}
         </div>
-        {onOperationRulesChange && <OperationApprovals operation={data[editingRow]} operations={data} rules={operationRules || []} onChange={onOperationRulesChange} disabled={disabled} />}
+        </section>
+        {onOperationRulesChange && <div className="min-w-0 border-t border-border bg-muted/20 px-5 py-4 md:w-1/2 md:overflow-y-auto md:overscroll-contain md:border-s md:border-t-0"><OperationApprovals operation={data[editingRow]} operations={data} rules={operationRules || []} onChange={onOperationRulesChange} disabled={disabled} embedded /></div>}
+        </div>
       </AppModal>}
     </div>
   );
