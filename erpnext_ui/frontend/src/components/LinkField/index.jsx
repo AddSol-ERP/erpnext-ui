@@ -261,7 +261,9 @@ export default function LinkField({
     show &&
     createPortal(
       <div
-        className="pointer-events-auto fixed z-[2000] max-h-72 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+        className="pointer-events-auto fixed z-[2000] max-h-72 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
         style={{
           top: position.top,
           left: position.left,

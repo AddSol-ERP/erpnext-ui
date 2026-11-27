@@ -46,11 +46,13 @@ export default function AppModal({
   width = "md",
   contentClassName,
   bodyClassName,
+  preventOutsideClose = false,
 }) {
   return (
     <Dialog open={show} onOpenChange={(open) => !open && onClose?.()}>
       <DialogContent
         showCloseButton={false}
+        onInteractOutside={preventOutsideClose ? (event) => event.preventDefault() : undefined}
         className={cn(
           "flex max-h-[95vh] flex-col gap-0 overflow-hidden p-0",
           widthMap[width] || widthMap.md,

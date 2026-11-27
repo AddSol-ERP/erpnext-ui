@@ -4299,13 +4299,27 @@ def get_project_manufacturing(project):
 
 
 @frappe.whitelist(allow_guest=False)
+def get_work_order_operation_meta():
+    """Return live child metadata, including scheduling custom fields."""
+    frappe.has_permission("Work Order", "read", throw=True)
+    return {"fields": [field.as_dict() for field in frappe.get_meta("Work Order Operation").fields]}
+
+
+@frappe.whitelist(allow_guest=False, methods=["POST"])
+def approve_operation_job_card(name):
+    from erpnext_ui.operation_approval import approve_job_card
+
+    return approve_job_card(name)
+
+
+@frappe.whitelist(allow_guest=False)
 def get_project_production_preview(
-    project, source, source_name, qty=1, source_warehouse=None, fg_warehouse=None, planned_start=None
+    project, source, source_name=None, qty=1, source_warehouse=None, fg_warehouse=None, planned_start=None, bom_items=None, request_item=None
 ):
     """Require source read and plan create; return an unsaved native plan and material requirements."""
     from erpnext_ui.manufacturing import prepare_plan
 
-    return prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehouse, planned_start)
+    return prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehouse, planned_start, bom_items, request_item)
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])

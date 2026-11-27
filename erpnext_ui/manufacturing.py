@@ -25,9 +25,11 @@ def workspace(project):
 	result = {"project": p.as_dict()}
 	for key, dt, filters in (
 		("boms", "BOM", {"project": project, "company": p.company, "is_active": 1, "docstatus": 1}),
+		("draft_boms", "BOM", {"project": project, "company": p.company, "docstatus": 0}),
 		("sales_orders", "Sales Order", {"project": project, "company": p.company, "docstatus": 1}),
 		("plans", "Production Plan", {"project": project, "docstatus": ["!=", 2]}),
 		("work_orders", "Work Order", {"project": project, "docstatus": ["!=", 2]}),
+		("all_work_orders", "Work Order", {"project": project}),
 	):
 		result[key] = []
 		if frappe.has_permission(dt, "read"):
@@ -57,7 +59,7 @@ def workspace(project):
 	return result
 
 
-def prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehouse, planned_start):
+def prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehouse, planned_start, bom_items=None, request_item=None):
 	"""Build an unsaved native plan; explicitly authorize sources before native SQL/mappers."""
 	from erpnext.manufacturing.doctype.production_plan.production_plan import get_items_for_material_requests
 
@@ -77,21 +79,24 @@ def prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehou
 		}
 	)
 	if source == "BOM":
-		bom = readable("BOM", source_name)
-		if bom.project != project or bom.company != p.company or bom.docstatus != 1 or not bom.is_active:
-			frappe.throw("Select an active submitted BOM for this project and company.")
-		if not math.isfinite(flt(qty)) or flt(qty) <= 0:
-			frappe.throw("Production quantity must be positive.")
-		plan.append(
-			"po_items",
-			{
-				"item_code": bom.item,
-				"bom_no": bom.name,
-				"planned_qty": flt(qty),
-				"stock_uom": bom.uom,
-				"include_exploded_items": 1,
-			},
-		)
+		items = frappe.parse_json(bom_items) if bom_items is not None else [{"bom": source_name, "qty": qty}]
+		if not isinstance(items, list) or not items:
+			frappe.throw("Select at least one BOM.")
+		if len(items) != 1:
+			frappe.throw("A production plan can use only one BOM at a time.")
+		seen = set()
+		for item in items:
+			if not isinstance(item, dict) or not item.get("bom") or item["bom"] in seen:
+				frappe.throw("Select each BOM only once.")
+			seen.add(item["bom"])
+			bom = readable("BOM", item["bom"])
+			if bom.project != project or bom.company != p.company or bom.docstatus != 1 or not bom.is_active:
+				frappe.throw("Select an active submitted BOM for this project and company.")
+			quantity = flt(item.get("qty"))
+			if not math.isfinite(quantity) or quantity <= 0:
+				frappe.throw("Production quantity must be positive.")
+			plan.append("po_items", {"item_code": bom.item, "bom_no": bom.name, "planned_qty": quantity,
+				"stock_uom": bom.uom, "include_exploded_items": 1})
 	elif source in ("Sales Order", "Material Request"):
 		doc = readable(source, source_name)
 		if doc.company != p.company or doc.docstatus != 1:
@@ -108,6 +113,15 @@ def prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehou
 		plan.get_items()
 		if source == "Material Request":
 			allowed = {i.name for i in doc.items if i.project == project}
+			if request_item:
+				selected = next((i for i in doc.items if i.name == request_item and i.name in allowed), None)
+				if not selected:
+					frappe.throw("Select a production item from this project's manufacture request.")
+				pending = (flt(selected.qty) - flt(selected.ordered_qty)) * flt(selected.conversion_factor)
+				quantity = flt(qty)
+				if not math.isfinite(quantity) or quantity <= 0 or quantity > pending:
+					frappe.throw("Production quantity must be positive and within the outstanding request quantity.")
+				allowed = {request_item}
 			plan.set("po_items", [i for i in plan.po_items if i.material_request_item in allowed])
 			# ERPNext's mapper skips rows without an explicitly selected or default BOM,
 			# even when the project has a suitable submitted BOM for the item.
@@ -134,10 +148,16 @@ def prepare_plan(project, source, source_name, qty, source_warehouse, fg_warehou
 			if missing:
 				plan.add_items(missing)
 				plan.calculate_total_planned_qty()
+			if request_item:
+				for row in plan.po_items:
+					row.planned_qty = quantity
+				plan.calculate_total_planned_qty()
 	else:
 		frappe.throw("Unknown production source.")
 	if not plan.po_items:
 		frappe.throw("No outstanding production items with a BOM were found.")
+	if len({row.bom_no for row in plan.po_items}) > 1:
+		frappe.throw("A production plan can use only one BOM at a time. Choose a source with one BOM.")
 	for row in plan.po_items:
 		bom = readable("BOM", row.bom_no)
 		if bom.company != p.company or bom.docstatus != 1 or not bom.is_active:
@@ -242,6 +262,8 @@ def start_job(args):
 		frappe.throw("Only start and resume are supported.")
 	card = readable("Job Card", args.job_card_id)
 	card.check_permission("write")
+	from erpnext_ui.operation_approval_rules import assert_allowed
+	assert_allowed(card, "start")
 	if card.status in ("Work In Progress", "Completed", "Cancelled"):
 		frappe.throw("This job is already running or finished.")
 	if card.work_order:

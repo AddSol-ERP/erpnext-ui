@@ -167,6 +167,30 @@ class TransactionPricingTests(unittest.TestCase):
 		self.assertEqual(row.custom_estimated_pricing_amount, 1600)
 		self.assertEqual(row.amount, 1520)
 
+	def test_receipt_edited_measure_does_not_reapply_inferred_margin(self):
+		doc, row = self.document(measurement=19)
+		row.update(price_list_rate=0, discount_percentage=0, discount_amount=0,
+			margin_type=None, margin_rate_or_amount=0, pricing_rules=None)
+		def calculate_totals():
+			# ERPNext applies a persisted margin to the price-list rate here.
+			if row.margin_type == "Amount" and row.margin_rate_or_amount:
+				row.rate = row.price_list_rate + row.margin_rate_or_amount
+			row.amount = row.rate * row.qty
+		doc.calculate_taxes_and_totals = calculate_totals
+		self.run_pricing(doc)
+		self.assertEqual((row.rate, row.amount), (152, 1520))
+		# On editing, ERPNext's first calculation can infer this margin from
+		# the new frontend rate and the old saved price-list rate.
+		row.custom_chargeable_qty = 20
+		row.rate, row.amount = 160, 1600
+		row.margin_type, row.margin_rate_or_amount = "Amount", 8
+		self.run_pricing(doc)
+		self.assertEqual((row.rate, row.amount), (160, 1600))
+		self.assertEqual((row.margin_type, row.margin_rate_or_amount), (None, 0))
+		# Submitting runs validation again with the saved values.
+		self.run_pricing(doc)
+		self.assertEqual((row.rate, row.amount), (160, 1600))
+
 	def test_po_quantity_change_scales_saved_measure_before_tolerance(self):
 		from unittest.mock import Mock
 

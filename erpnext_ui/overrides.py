@@ -176,6 +176,15 @@ def _apply_uom_pricing(doc, side, *, recalculate_totals=True):
 			row.discount_percentage = 0
 		if hasattr(row, "discount_amount"):
 			row.discount_amount = 0
+		# ERPNext may infer a margin during its first calculation when an edited
+		# receipt rate differs from the previously saved price list rate. Once
+		# the per-UOM rate is authoritative that inferred margin is stale: a
+		# second tax calculation would add it to the newly derived rate again.
+		if doc.doctype == "Purchase Receipt" and not row.get("pricing_rules"):
+			if hasattr(row, "margin_type"):
+				row.margin_type = None
+			if hasattr(row, "margin_rate_or_amount"):
+				row.margin_rate_or_amount = 0
 
 		# Enforce +/- tolerance from the enabled UI Uom Pricing Rule, if configured.
 		tolerance_plus = float(pricing.get("tolerance_plus") or 0)
