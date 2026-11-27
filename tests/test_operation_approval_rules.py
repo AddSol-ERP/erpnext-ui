@@ -17,6 +17,25 @@ with patch.dict(sys.modules, {"frappe": frappe}):
 
 
 class ApprovalPolicyTests(unittest.TestCase):
+    def test_operation_is_derived_from_parent_or_selected_row(self):
+        class Row(dict):
+            __getattr__ = dict.get
+            __setattr__ = dict.__setitem__
+        class Doc(Row):
+            def get_doc_before_save(self): return None
+        instruction = Row(enabled=1, perspective="Quality", approval_point="After Work", instruction_name="Inspect weld")
+        database = types.SimpleNamespace(get_value=lambda *args, **kwargs: instruction)
+        def rule(**kwargs):
+            return Row(approval_point="After Work", perspective="Quality", instruction="Inspect weld", approval_role="Manager", **kwargs)
+        master_rule = rule()
+        row_rule = rule(operation_row="ROW2")
+        bom = Doc(doctype="BOM", operations=[Row(name="ROW1", operation="Weld"), Row(name="ROW2", operation="Inspect")], custom_approval_rules=[row_rule])
+        with patch.object(rules.frappe, "db", database, create=True):
+            rules.validate_rules(Doc(doctype="Operation", name="Weld", custom_approval_rules=[master_rule]))
+            rules.validate_rules(bom)
+        self.assertEqual(master_rule.operation, "Weld")
+        self.assertEqual(row_rule.operation, "Inspect")
+
     def test_instruction_must_match_perspective_and_approval_point(self):
         class Row(dict):
             __getattr__ = dict.get

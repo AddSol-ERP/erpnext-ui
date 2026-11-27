@@ -33,6 +33,8 @@ def validate_rules(doc):
 	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
 	previous_rules = {row.name: row for row in (before.get("custom_approval_rules") or [])} if before else {}
 	for rule in doc.get("custom_approval_rules") or []:
+		if doc.doctype == "Operation":
+			rule.operation = doc.name
 		if doc.doctype in ("BOM", "Work Order"):
 			matched = operation_rows.get(rule.get("operation_row"))
 			if not matched:
@@ -41,8 +43,9 @@ def validate_rules(doc):
 					frappe.throw("Select the specific operation for each approval rule.")
 				matched = matches[0]
 				rule.operation_row = matched.name
-			if matched.get("operation") != rule.get("operation"):
+			if rule.get("operation") and matched.get("operation") != rule.get("operation"):
 				frappe.throw("The selected operation does not match the operation row.")
+			rule.operation = matched.get("operation")
 		if rule.get("approval_point") not in ("Before Start", "After Work") or not rule.get("perspective") or not rule.get("instruction") or not rule.get("approval_role"):
 			frappe.throw("Each approval rule requires an approval point, perspective, instruction and role.")
 		if rule.get("approved_by") or rule.get("approved_at"):

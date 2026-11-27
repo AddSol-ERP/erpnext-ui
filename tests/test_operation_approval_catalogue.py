@@ -14,7 +14,7 @@ class CatalogueTests(unittest.TestCase):
     def test_internal_rule_fields_are_hidden_from_desk(self):
         path = ROOT / "erpnext_ui/addsol_erpnext_ui/doctype/ui_operation_approval_rule/ui_operation_approval_rule.json"
         fields = {field["fieldname"]: field for field in json.loads(path.read_text())["fields"]}
-        for field in ("operation_row", "instruction_snapshot"):
+        for field in ("operation", "operation_row", "instruction_snapshot"):
             self.assertEqual(fields[field].get("hidden"), 1)
             self.assertEqual(fields[field].get("read_only"), 1)
 
