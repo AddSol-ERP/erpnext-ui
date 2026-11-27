@@ -38,7 +38,7 @@ def validate_rules(doc):
 			if not matched:
 				matches = [row for row in operation_rows.values() if row.get("operation") == rule.get("operation")]
 				if len(matches) != 1:
-					frappe.throw("Select an operation row on this document; repeated operations require the row ID.")
+					frappe.throw("Select the specific operation for each approval rule.")
 				matched = matches[0]
 				rule.operation_row = matched.name
 			if matched.get("operation") != rule.get("operation"):

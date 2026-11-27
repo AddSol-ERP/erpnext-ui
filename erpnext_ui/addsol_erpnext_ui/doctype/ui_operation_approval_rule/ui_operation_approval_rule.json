@@ -18,10 +18,11 @@
  ],
  "fields": [
   {
-   "description": "Only required when an operation occurs more than once; enter its row ID.",
    "fieldname": "operation_row",
    "fieldtype": "Data",
-   "label": "Operation Row"
+   "label": "Operation Row",
+   "hidden": 1,
+   "read_only": 1
   },
   {
    "fieldname": "operation",
@@ -57,7 +58,8 @@
    "fieldname": "instruction_snapshot",
    "fieldtype": "Data",
    "label": "Instruction Snapshot",
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "fieldname": "approval_role",
