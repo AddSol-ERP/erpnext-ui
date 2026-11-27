@@ -657,7 +657,12 @@ export default function GenericFormPage({ embedded }) {
             if (error.status !== 404 && error.status !== 417) throw error;
           }
         }
-        const fields = bomMeta?.BOM?.fields || metaRes.data?.fields || [];
+        let effectiveMeta = null;
+        if (["Operation", "BOM", "Work Order"].includes(decodedDoctype)) {
+          const response = await get("method/erpnext_ui.api.get_operation_approval_form_meta", { doctype: decodedDoctype });
+          effectiveMeta = response.message;
+        }
+        const fields = effectiveMeta?.fields || bomMeta?.BOM?.fields || metaRes.data?.fields || [];
         setMeta(fields);
 
         const childMetaCache = {};

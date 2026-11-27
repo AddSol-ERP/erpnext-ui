@@ -4299,6 +4299,16 @@ def get_project_manufacturing(project):
 
 
 @frappe.whitelist(allow_guest=False)
+def get_operation_approval_form_meta(doctype):
+    """Return effective parent metadata, including installed custom fields."""
+    if doctype not in ("Operation", "BOM", "Work Order"):
+        frappe.throw("Unsupported approval configuration document.")
+    if not (frappe.has_permission(doctype, "read") or frappe.has_permission(doctype, "create")):
+        frappe.throw("Not permitted to access this document.", frappe.PermissionError)
+    return {"fields": [field.as_dict() for field in frappe.get_meta(doctype).fields]}
+
+
+@frappe.whitelist(allow_guest=False)
 def get_work_order_operation_meta():
     """Return live child metadata, including scheduling custom fields."""
     frappe.has_permission("Work Order", "read", throw=True)

@@ -47,3 +47,4 @@ erpnext_ui.patches.v1_0.add_operation_approval
 
 erpnext_ui.patches.v1_0.seed_operation_approval_catalogue
 erpnext_ui.patches.v1_0.add_operation_approval_rules_table
+erpnext_ui.patches.v1_0.show_operation_approval_sections
