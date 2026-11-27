@@ -986,7 +986,6 @@ export default function GenericFormPage({ embedded }) {
     let currentRow = [];
 
     fields.forEach((field) => {
-      if (["BOM", "Work Order"].includes(decodedDoctype) && field.fieldname === "custom_approval_rules") return;
       if (isBomForm && (!operationFieldVisible(field.fieldname, doc) || !inspectionFieldVisible(field.fieldname, doc))) return;
       if (decodedDoctype === "BOM" && field.fieldname === "custom_approved_vendor_files" && Number(doc.custom_avl_applicable) !== 1) return;
       const ft = field.fieldtype;
@@ -1024,6 +1023,7 @@ export default function GenericFormPage({ embedded }) {
             const listChildFields = editableChildFields.filter((field) => field.in_list_view || field.reqd);
             return (
               <div key={rowIdx} className={fillTable ? "flex min-h-0 flex-1 flex-col" : "mb-3"}>
+                {["BOM Operation", "Work Order Operation"].includes(cf.options) && !meta?.some((field) => field.fieldname === "custom_approval_rules") && <p role="status" className="mb-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-sm">{t("production.approvalFieldsMissing")}</p>}
                 <ChildTable
                   fillHeight={fillTable}
                   inlineBomFields={decodedDoctype === "BOM"}

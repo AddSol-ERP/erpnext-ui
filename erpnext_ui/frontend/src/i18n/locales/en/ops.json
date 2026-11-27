@@ -1,5 +1,6 @@
 {
  "production": {
+  "approvalFieldsMissing": "Approval rules are not available on this site yet. Ask your administrator to migrate and restart the ERPNext app.",
   "operationApprovals": "Approval rules",
   "operationApprovalsHelp": "Add approvals required before this operation starts or after the work is recorded.",
   "addApprovalRule": "Add rule",
