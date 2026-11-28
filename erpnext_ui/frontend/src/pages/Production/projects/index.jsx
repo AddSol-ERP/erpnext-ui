@@ -109,7 +109,12 @@ function Workspace({ project }) {
   useEffect(() => {
     let active = true;
     if (project) get("method/erpnext_ui.api.get_project_manufacturing", { project })
-      .then((res) => { if (active) setData(res.message); })
+      .then((res) => {
+        if (active) {
+          setData(res.message);
+          setWarehouses((current) => mergeWarehouseDefaults(current, res.message?.warehouse_defaults));
+        }
+      })
       .catch((e) => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [project]);
