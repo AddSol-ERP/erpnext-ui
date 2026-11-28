@@ -8,6 +8,13 @@ STAGES = ("Before Start", "Before Completion")
 COPY_FIELDS = ("approval_point", "perspective", "instruction", "instruction_snapshot", "approval_role", "note", "attachment_required")
 
 
+def rule_row_index(rule):
+	try:
+		return int(rule.get("operation_row_index") or 0)
+	except (TypeError, ValueError):
+		frappe.throw("Select a valid operation for each approval rule.")
+
+
 def validate_operation(doc, method=None):
 	validate_rules(doc)
 
@@ -17,9 +24,10 @@ def apply_bom_defaults(doc):
 	before = doc.get_doc_before_save()
 	old_names = {row.name for row in (before.get("operations") or [])} if before else set()
 	configured = {row.get("operation_row") for row in doc.get("custom_approval_rules") or []}
-	configured_codes = {row.get("operation") for row in doc.get("custom_approval_rules") or [] if not row.get("operation_row")}
-	for row in doc.get("operations") or []:
-		if row.name in old_names or row.name in configured or row.get("operation") in configured_codes or not row.get("operation"):
+	configured_indexes = {rule_row_index(rule) for rule in doc.get("custom_approval_rules") or [] if not rule.get("operation_row")}
+	configured_codes = {row.get("operation") for row in doc.get("custom_approval_rules") or [] if not row.get("operation_row") and not row.get("operation_row_index")}
+	for index, row in enumerate(doc.get("operations") or [], start=1):
+		if row.name in old_names or row.name in configured or index in configured_indexes or row.get("operation") in configured_codes or not row.get("operation"):
 			continue
 		operation = frappe.get_doc("Operation", row.operation)
 		for rule in operation.get("custom_approval_rules") or []:
@@ -37,6 +45,12 @@ def validate_rules(doc):
 			rule.operation = doc.name
 		if doc.doctype in ("BOM", "Work Order"):
 			matched = operation_rows.get(rule.get("operation_row"))
+			if not matched and rule.get("operation_row_index"):
+				rows = doc.get("operations") or []
+				index = rule_row_index(rule) - 1
+				if 0 <= index < len(rows) and rows[index].get("operation") == rule.get("operation"):
+					matched = rows[index]
+					rule.operation_row = matched.name
 			if not matched:
 				matches = [row for row in operation_rows.values() if row.get("operation") == rule.get("operation")]
 				if len(matches) != 1:

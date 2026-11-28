@@ -1,7 +1,7 @@
 import { inspectionFieldVisible } from "../../pages/Projects/bom/visibility";
 import ProjectSalesItemPicker from "../../pages/Projects/bom/ProjectSalesItemPicker";
 import ProjectSalesItemSelect from "../../pages/Projects/bom/ProjectSalesItemSelect";
-import { operationsEnabled, routingOperations, operationFieldVisible } from "../../pages/Projects/bom/routing";
+import { operationsEnabled, routingOperations, routingApprovalRules, operationFieldVisible } from "../../pages/Projects/bom/routing";
 import { buildBomLayout, buildPlanningBomLayout, bomTableColumns } from "../../pages/Projects/bom/layout";
 import { buildProductionPlanLayout } from "../../pages/Production/projects/productionPlanLayout";
 import { deskNewUrl, deskDocUrl } from "../../lib/deskUrl";
@@ -273,19 +273,28 @@ export default function GenericFormPage({ embedded }) {
 
     if (isBomForm && ["routing", "with_operations"].includes(fieldname)) {
       const request = ++routingRequest.current;
-      const nextDoc = { ...docRef.current, [fieldname]: value };
+      const previousDoc = docRef.current;
+      const nextDoc = { ...previousDoc, [fieldname]: value };
       if (operationsEnabled(nextDoc) && nextDoc.routing && (fieldname === "routing" || !nextDoc.operations?.length)) {
         setRoutingLoading(true);
         try {
           const res = await get(`resource/Routing/${encodeURIComponent(nextDoc.routing)}`);
           if (!res.data) throw new Error("Routing could not be loaded");
+          const operations = routingOperations(res.data);
+          const approvalEnabled = decodedDoctype === "BOM" && meta?.some((field) => field.fieldname === "custom_approval_rules");
+          const names = approvalEnabled ? [...new Set(operations.map((row) => row.operation).filter(Boolean))] : [];
+          const defaults = await Promise.all(names.map(async (name) => {
+            const operation = await get(`resource/Operation/${encodeURIComponent(name)}`);
+            return [name, operation.data?.custom_approval_rules || []];
+          }));
+          const approvalRules = routingApprovalRules(operations, Object.fromEntries(defaults));
           if (request === routingRequest.current) {
             setDoc((prev) => prev.routing === nextDoc.routing && operationsEnabled(prev)
-              ? { ...prev, operations: routingOperations(res.data) } : prev);
+              ? { ...prev, operations, ...(approvalEnabled ? { custom_approval_rules: approvalRules } : {}) } : prev);
           }
         } catch (e) {
           if (request === routingRequest.current) {
-            setDoc((prev) => ({ ...prev, routing: null, operations: [] }));
+            setDoc((prev) => ({ ...prev, routing: previousDoc.routing, operations: previousDoc.operations, ...(decodedDoctype === "BOM" ? { custom_approval_rules: previousDoc.custom_approval_rules } : {}) }));
             toast.error(e.message || t("common.failedToLoad", { name: "Routing" }));
           }
         } finally {
@@ -293,7 +302,7 @@ export default function GenericFormPage({ embedded }) {
         }
       } else {
         setRoutingLoading(false);
-        if (fieldname === "routing" && !value) setDoc((prev) => ({ ...prev, operations: [] }));
+        if (fieldname === "routing" && !value) setDoc((prev) => ({ ...prev, operations: [], ...(decodedDoctype === "BOM" ? { custom_approval_rules: [] } : {}) }));
       }
     }
 
@@ -1028,7 +1037,7 @@ export default function GenericFormPage({ embedded }) {
             const listChildFields = editableChildFields.filter((field) => field.in_list_view || field.reqd);
             return (
               <div key={rowIdx} className={fillTable ? "flex min-h-0 flex-1 flex-col" : "mb-3"}>
-                {["BOM Operation", "Work Order Operation"].includes(cf.options) && !meta?.some((field) => field.fieldname === "custom_approval_rules") && <p role="status" className="mb-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-sm">{t("production.approvalFieldsMissing")}</p>}
+                {["BOM", "Work Order"].includes(decodedDoctype) && ["BOM Operation", "Work Order Operation"].includes(cf.options) && !meta?.some((field) => field.fieldname === "custom_approval_rules") && <p role="status" className="mb-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-sm">{t("production.approvalFieldsMissing")}</p>}
                 <ChildTable
                   fillHeight={fillTable}
                   inlineBomFields={decodedDoctype === "BOM"}

@@ -1,5 +1,6 @@
 """Keep native BOM costing, with measured-UOM prices for Price List costing."""
 
+import math
 import frappe
 from erpnext.manufacturing.doctype.bom.bom import BOM
 from erpnext.stock.get_item_details import check_packing_list, get_item_price
@@ -61,6 +62,18 @@ def apply_pricing_uom(doc, row):
 
 class UomPricingBOM(BOM):
 	def validate(self):
+		# Frappe calls controller validation before normalizing child Float
+		# fields. REST clients may therefore send a numeric string here.
+		for row in self.get("operations") or []:
+			value = row.get("time_in_mins")
+			if value not in (None, ""):
+				try:
+					value = float(value)
+				except (TypeError, ValueError):
+					frappe.throw(f"Operation row {row.idx}: time must be a number.")
+				if not math.isfinite(value):
+					frappe.throw(f"Operation row {row.idx}: time must be a finite number.")
+				row.time_in_mins = value
 		from erpnext_ui.operation_approval_rules import apply_bom_defaults, validate_rules
 		apply_bom_defaults(self)
 		validate_rules(self)

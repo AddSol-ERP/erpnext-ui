@@ -47,6 +47,7 @@ app_include_js = ["/assets/erpnext_ui/js/addsol_ui_nav.js", "/assets/erpnext_ui/
 
 # include js in doctype views
 doctype_js = {
+	"Routing": "public/js/routing_approval_fields.js",
 	"BOM": "public/js/operation_approval_desk.js",
 	"Work Order": "public/js/operation_approval_desk.js",
 	"Job Card": "public/js/job_card_approval_desk.js",

@@ -8,13 +8,15 @@ import LinkField from "../LinkField";
 
 export default function OperationApprovals({ operation, operations, rules, onChange, disabled, embedded = false }) {
   const { t } = useTranslation();
+  const operationIndex = operations.indexOf(operation) + 1;
   const matches = rules.map((rule, index) => ({ rule, index })).filter(({ rule }) =>
     operation.name && rule.operation_row ? rule.operation_row === operation.name :
-      !rule.operation_row && rule.operation === operation.operation,
+      !rule.operation_row && rule.operation === operation.operation &&
+      (rule.operation_row_index ? Number(rule.operation_row_index) === operationIndex : true),
   );
   const ambiguous = !operation.name && operations.filter((row) => row.operation === operation.operation).length > 1;
   const patch = (index, changes) => onChange(rules.map((rule, i) => i === index ? { ...rule, ...changes } : rule));
-  const add = () => onChange([...rules, { operation: operation.operation, operation_row: operation.name || "", approval_point: "", perspective: "", instruction: "", approval_role: "", note: "", attachment_required: 0 }]);
+  const add = () => onChange([...rules, { operation: operation.operation, operation_row: operation.name || "", operation_row_index: operation.name ? 0 : operationIndex, approval_point: "", perspective: "", instruction: "", approval_role: "", note: "", attachment_required: 0 }]);
   return <section className={embedded ? "space-y-3" : "mt-4 space-y-3 border-t border-border pt-4"}>
     <div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">{t("production.operationApprovals")}</h3><p className="text-xs text-muted-foreground">{t("production.operationApprovalsHelp")}</p></div>
       {!disabled && <Button type="button" size="sm" variant="outline" disabled={!operation.operation || ambiguous} onClick={add}><Plus />{t("production.addApprovalRule")}</Button>}</div>

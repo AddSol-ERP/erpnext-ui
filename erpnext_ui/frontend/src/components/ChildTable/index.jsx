@@ -133,6 +133,17 @@ export default function ChildTable({
 
   const deleteRow = (index) => {
     if (disabled) return;
+    if (onOperationRulesChange) {
+      const removed = data[index];
+      onOperationRulesChange((operationRules || []).flatMap((rule) => {
+        if (rule.operation_row && rule.operation_row === removed.name) return [];
+        if (!rule.operation_row && Number(rule.operation_row_index) === index + 1) return [];
+        if (!rule.operation_row && Number(rule.operation_row_index) > index + 1) {
+          return [{ ...rule, operation_row_index: Number(rule.operation_row_index) - 1 }];
+        }
+        return [rule];
+      }));
+    }
     update(data.filter((_, i) => i !== index));
   };
 

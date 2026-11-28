@@ -5,6 +5,7 @@
  "engine": "InnoDB",
  "field_order": [
   "operation_row",
+  "operation_row_index",
   "approval_point",
   "instruction",
   "approved_by",
@@ -106,6 +107,13 @@
    "options": "File",
    "read_only": 1,
    "hidden": 1
+  },
+  {
+   "fieldname": "operation_row_index",
+   "label": "Operation Row Index",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "read_only": 1
   }
  ],
  "istable": 1,

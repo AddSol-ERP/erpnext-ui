@@ -17,6 +17,34 @@ with patch.dict(sys.modules, {"frappe": frappe}):
 
 
 class ApprovalPolicyTests(unittest.TestCase):
+    def test_routing_rules_resolve_repeated_operations_by_row_index(self):
+        class Row(dict):
+            __getattr__ = dict.get
+            __setattr__ = dict.__setitem__
+        class Doc(Row):
+            def get_doc_before_save(self): return None
+        rows = [Row(name="ROW1", operation="Inspect"), Row(name="ROW2", operation="Inspect")]
+        approvals = [Row(operation="Inspect", operation_row_index=index, approval_point="Before Start", perspective="Quality", instruction="Inspect", approval_role="Manager") for index in (1, 2)]
+        bom = Doc(doctype="BOM", operations=rows, custom_approval_rules=approvals)
+        instruction = Row(enabled=1, perspective="Quality", approval_point="Before Start", instruction_name="Inspect")
+        database = types.SimpleNamespace(get_value=lambda *args, **kwargs: instruction)
+        with patch.object(rules.frappe, "db", database, create=True):
+            rules.validate_rules(bom)
+        self.assertEqual([rule.operation_row for rule in approvals], ["ROW1", "ROW2"])
+
+    def test_routing_defaults_are_not_copied_twice_on_save(self):
+        class Row(dict):
+            __getattr__ = dict.get
+            __setattr__ = dict.__setitem__
+        class Doc(Row):
+            def get_doc_before_save(self): return None
+            def append(self, key, value): self.setdefault(key, []).append(Row(value))
+        bom = Doc(operations=[Row(name="ROW1", operation="Inspect"), Row(name="ROW2", operation="Inspect")],
+            custom_approval_rules=[Row(operation="Inspect", operation_row_index=1), Row(operation="Inspect", operation_row_index=2)])
+        with patch.object(rules.frappe, "get_doc", side_effect=AssertionError("already configured"), create=True):
+            rules.apply_bom_defaults(bom)
+        self.assertEqual(len(bom.custom_approval_rules), 2)
+
     def test_operation_is_derived_from_parent_or_selected_row(self):
         class Row(dict):
             __getattr__ = dict.get

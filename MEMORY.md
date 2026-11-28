@@ -4148,3 +4148,13 @@ endpoint checks read permission on the Job Card before listing its events. Job
 Card handling and Desk expose the approval action and event history. Previously
 approved rules remain visible but are not presented as reconstructed events.
 The new event DocType requires bench migrate; live-site verification is pending.
+
+## Routing approval defaults and BOM operation time
+
+BOM validation converts incoming operation duration strings to finite numbers
+before native ERPNext operation validation. Routing selection loads Operation
+approval defaults into the unsaved BOM immediately; hidden row indexes preserve
+the association when a routing repeats the same operation. BOM validation binds
+those indexes to saved operation-row names and avoids copying defaults twice.
+Deleting an unsaved operation updates its indexed approval rules. The approval
+rule DocType change requires bench migrate; live-site verification is pending.
