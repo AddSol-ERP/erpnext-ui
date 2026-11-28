@@ -293,12 +293,15 @@ def transfer_shortages(work_order, qty=None):
 		key = (item, warehouse_name, row.get("stock_uom") or row.get("uom") or "")
 		totals[key] = totals.get(key, 0) + flt(row.get("transfer_qty") or flt(row.get("qty")) * flt(row.get("conversion_factor") or 1))
 	shortages = []
+	materials = []
 	for (item, warehouse_name, uom), required in totals.items():
 		available = flt(get_stock_balance(item, warehouse_name))
+		material = {"item": item, "warehouse": warehouse_name, "uom": uom,
+			"required": required, "available": available, "shortage": max(0, required - available)}
+		materials.append(material)
 		if required > available + 1e-9:
-			shortages.append({"item": item, "warehouse": warehouse_name, "uom": uom,
-				"required": required, "available": available, "shortage": required - available})
-	return {"shortages": shortages, "existing_draft": existing_draft}
+			shortages.append(material)
+	return {"shortages": shortages, "materials": materials, "existing_draft": existing_draft}
 
 
 def start_job(args):
