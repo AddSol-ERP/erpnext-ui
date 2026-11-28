@@ -275,6 +275,32 @@ def prepare_transfer(work_order, qty=None):
 	return make_stock_entry(wo.name, "Material Transfer for Manufacture", qty=qty)
 
 
+def transfer_shortages(work_order, qty=None):
+	"""Estimate shortages for the mapped transfer; submission remains authoritative."""
+	from erpnext.stock.utils import get_stock_balance
+
+	transfer = prepare_transfer(work_order, qty)
+	existing_draft = transfer.get("existing_name")
+	if existing_draft:
+		transfer = readable("Stock Entry", existing_draft)
+	totals = {}
+	for row in transfer.get("items") or []:
+		item = row.get("item_code")
+		warehouse_name = row.get("s_warehouse")
+		if not item or not warehouse_name:
+			continue
+		readable("Warehouse", warehouse_name)
+		key = (item, warehouse_name, row.get("stock_uom") or row.get("uom") or "")
+		totals[key] = totals.get(key, 0) + flt(row.get("transfer_qty") or flt(row.get("qty")) * flt(row.get("conversion_factor") or 1))
+	shortages = []
+	for (item, warehouse_name, uom), required in totals.items():
+		available = flt(get_stock_balance(item, warehouse_name))
+		if required > available + 1e-9:
+			shortages.append({"item": item, "warehouse": warehouse_name, "uom": uom,
+				"required": required, "available": available, "shortage": required - available})
+	return {"shortages": shortages, "existing_draft": existing_draft}
+
+
 def start_job(args):
 	"""Start a job after its required material transfer has been reviewed."""
 	from erpnext.manufacturing.doctype.job_card.job_card import make_time_log

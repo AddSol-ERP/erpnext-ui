@@ -217,6 +217,15 @@ class ManufacturingTests(unittest.TestCase):
 		manufacturing.prepare_transfer("WO1", "2.5")
 		mapper.make_stock_entry.assert_called_once_with("WO1", "Material Transfer for Manufacture", qty=2.5)
 
+	def test_transfer_shortages_combine_rows_for_same_item_and_warehouse(self):
+		stock_utils = types.ModuleType("erpnext.stock.utils")
+		stock_utils.get_stock_balance = Mock(return_value=3)
+		mapped = Doc(items=[Doc(item_code="RAW", s_warehouse="WH", stock_uom="Kg", transfer_qty=2), Doc(item_code="RAW", s_warehouse="WH", stock_uom="Kg", transfer_qty=4)])
+		with patch.dict(sys.modules, {stock_utils.__name__: stock_utils}), patch.object(manufacturing, "prepare_transfer", return_value=mapped):
+			result = manufacturing.transfer_shortages("WO1", 2)
+		self.assertEqual(result["shortages"], [{"item": "RAW", "warehouse": "WH", "uom": "Kg", "required": 6, "available": 3, "shortage": 3}])
+		stock_utils.get_stock_balance.assert_called_once_with("RAW", "WH")
+
 	def test_invalid_transfer_quantities_are_rejected(self):
 		for qty in ("0", "-1", "7", "nan", "bad"):
 			with self.subTest(qty=qty), self.assertRaises(ValueError):

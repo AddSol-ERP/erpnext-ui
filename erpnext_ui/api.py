@@ -4363,6 +4363,13 @@ def get_project_material_transfer(work_order, qty=None):
     return prepare_transfer(work_order, qty)
 
 
+@frappe.whitelist(allow_guest=False)
+def get_project_material_transfer_shortages(work_order, qty=None):
+    from erpnext_ui.manufacturing import transfer_shortages
+
+    return transfer_shortages(work_order, qty)
+
+
 @frappe.whitelist(allow_guest=False, methods=["POST"])
 def start_project_production_job(args):
     """Require Job Card write and enforce operation approvals before starting."""

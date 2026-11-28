@@ -42,6 +42,7 @@ export default function WorkOrderPreviewModal({
   const [fullDoc, setFullDoc] = useState(null);
   const [busy, setBusy] = useState(null);
   const [transferQty, setTransferQty] = useState(null);
+  const [stockCheck, setStockCheck] = useState(null);
   const [cards, setCards] = useState([]);
   const [cardsError, setCardsError] = useState("");
   const [selectedCard, setSelectedCard] = useState(null);
@@ -85,7 +86,10 @@ export default function WorkOrderPreviewModal({
     setBusy(key);
     try {
       if (key === "startNext") {
-        setTransferQty(String(Math.max(0, Number(fullDoc.qty || 0) - Number(fullDoc.material_transferred_for_manufacturing || 0))));
+        const qty = String(Math.max(0, Number(fullDoc.qty || 0) - Number(fullDoc.material_transferred_for_manufacturing || 0)));
+        setTransferQty(qty);
+        const result = await get("method/erpnext_ui.api.get_project_material_transfer_shortages", { work_order: doc.name, qty });
+        setStockCheck({ qty, ...result.message });
         return;
       } else if (key === "stop") {
         await stopWorkOrder(doc.name);
@@ -122,6 +126,11 @@ export default function WorkOrderPreviewModal({
   const prepareTransfer = async () => {
     setBusy("transfer");
     try {
+      if (!stockCheck || stockCheck.qty !== transferQty) {
+        const check = await get("method/erpnext_ui.api.get_project_material_transfer_shortages", { work_order: doc.name, qty: transferQty });
+        setStockCheck({ qty: transferQty, ...check.message });
+        if (check.message.shortages?.length) return;
+      }
       const result = await get("method/erpnext_ui.api.get_project_material_transfer", { work_order: doc.name, qty: transferQty });
       onClose();
       if (result.message.existing_name) navigate(`/projects/Stock%20Entry/${encodeURIComponent(result.message.existing_name)}`);
@@ -138,7 +147,7 @@ export default function WorkOrderPreviewModal({
       width="lg"
       footer={
         <div className="flex w-full gap-2">
-          {transferQty !== null ? <><Button variant="outline" onClick={() => setTransferQty(null)} disabled={busy !== null}>{t("common.back")}</Button><Button onClick={prepareTransfer} disabled={busy !== null || !(Number(transferQty) > 0)}>{t("production.reviewTransfer")}</Button></> : actions.map((key) => (
+          {transferQty !== null ? <><Button variant="outline" onClick={() => { setTransferQty(null); setStockCheck(null); }} disabled={busy !== null}>{t("common.back")}</Button><Button onClick={prepareTransfer} disabled={busy !== null || !(Number(transferQty) > 0)}>{t(stockCheck?.qty === transferQty && stockCheck.shortages?.length ? "production.continueDespiteShortage" : "production.reviewTransfer")}</Button></> : actions.map((key) => (
             <Button
               key={key}
               variant={key === "startNext" ? "default" : "outline"}
@@ -153,6 +162,7 @@ export default function WorkOrderPreviewModal({
       }
     >
       {transferQty !== null && <label className="mb-4 block text-sm font-medium">{t("production.transferQuantity")}<Input className="mt-1" type="number" min="0" step="any" value={transferQty} onChange={(event) => setTransferQty(event.target.value)} /></label>}
+      {transferQty !== null && stockCheck?.qty === transferQty && stockCheck.shortages?.length > 0 && <div role="alert" className="mb-4 space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"><p className="font-semibold">{t("production.materialShortage")}</p><p>{t(stockCheck.existing_draft ? "production.shortageExistingDraft" : "production.shortageHelp")}</p><ul className="list-inside list-disc">{stockCheck.shortages.map((row) => <li key={`${row.item}-${row.warehouse}-${row.uom}`}>{row.item} · {row.warehouse}: {t("production.stockShortageDetail", { required: row.required, available: row.available, uom: row.uom })}</li>)}</ul></div>}
       <div className="mb-2 font-semibold">{fullDoc.production_item}</div>
 
       <div className="mb-2 text-xs text-muted-foreground">
