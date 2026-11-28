@@ -53,6 +53,7 @@ export default function StartWorkModal({
   onClose,
   project: initialProject,
   onStarted,
+  onReviewJobCard,
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -320,13 +321,13 @@ export default function StartWorkModal({
                         work_order: jc.work_order || "-",
                       }),
                       statusLabel(JOB_CARD_STATUS_UI, jc.status),
-                      actionButtons(
+                      <><Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => onReviewJobCard(jc)}>{t("production.viewApprovals")}</Button>{actionButtons(
                         "jc",
                         jc,
                         jobCardActionsFor(jc.status),
                         JOB_CARD_ACTION_LABEL_KEY,
                         JOB_CARD_ACTION_STYLE,
-                      ),
+                      )}</>,
                     ),
                   )}
                 </div>

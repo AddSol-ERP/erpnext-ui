@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { get } from "../../services/api";
 import { TAB_KEYS, JOB_CARD_TABS, WORK_ORDER_TABS } from "./actions";
 import StartWorkModal from "./StartWorkModal";
+import JobCardPreviewModal from "./job-cards/JobCardPreviewModal";
 const SECTIONS = [
   { doctype: "Work Order", title: "production.workOrders", subtitle: "production.workOrdersSubtitle", path: "/production/work-order", statuses: WORK_ORDER_TABS, icon: ClipboardList },
   { doctype: "Job Card", title: "production.jobCards", subtitle: "production.jobCardsSubtitle", path: "/production/job-cards", statuses: JOB_CARD_TABS, icon: Cog },
@@ -23,6 +24,7 @@ export default function ProductionDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [startOpen, setStartOpen] = useState(false);
+  const [reviewJob, setReviewJob] = useState(null);
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -51,7 +53,8 @@ export default function ProductionDashboard() {
     loadData();
   }, [loadData]);
   return <DashboardShell>
-    <StartWorkModal show={startOpen} onClose={() => setStartOpen(false)} onStarted={() => { setStartOpen(false); loadData(); }} />
+    <StartWorkModal show={startOpen} onClose={() => setStartOpen(false)} onStarted={() => { setStartOpen(false); loadData(); }} onReviewJobCard={(card) => { setStartOpen(false); setReviewJob(card); }} />
+    {reviewJob && <JobCardPreviewModal show doc={reviewJob} onClose={() => setReviewJob(null)} onSuccess={loadData} />}
     <div className="flex flex-wrap justify-end gap-2">
       {userRoles?.some((role) => ["Manufacturing Manager", "System Manager"].includes(role)) && <>
         <Button size="sm" variant="outline" onClick={() => navigate("/production/Operation")}>{t("production.operations")}</Button>

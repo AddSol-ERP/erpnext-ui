@@ -46,7 +46,7 @@ const DONE_TOAST_KEY = {
 export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const { userRoles } = useRole();
+  const { userRoles, currentUser } = useRole();
   const [loading, setLoading] = useState(false);
   const [fullDoc, setFullDoc] = useState(null);
   const [approvalFiles, setApprovalFiles] = useState({});
@@ -184,6 +184,7 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   const actions = fullDoc ? jobCardActionsFor(fullDoc.status) : [];
   const approvalPending = !!fullDoc?.custom_approval_stage && !fullDoc?.custom_approval_by;
   const newRules = fullDoc?.custom_approval_rules || [];
+  const canApprove = (role) => role === "All" ? !!currentUser && currentUser !== "Guest" : !!role && userRoles?.includes(role);
   const afterWorkRules = newRules.filter((rule) => rule.approval_point === "After Work");
   const logs = fullDoc?.time_logs || [];
   const workRecorded = logs.length > 0 && logs.every((row) => row.to_time) &&
@@ -307,17 +308,17 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
             {!rule.approved_by && Number(rule.attachment_required) === 1 && <p className="text-xs font-medium">{t("production.approvalAttachmentHelp")}</p>}
             {rule.approved_by && rule.approval_attachment && (attachmentDetails[rule.approval_attachment]?.file_url ? <a className="inline-block text-xs text-primary underline" href={attachmentDetails[rule.approval_attachment].file_url} target="_blank" rel="noreferrer">{t("production.approvalAttachment")}: {attachmentDetails[rule.approval_attachment].file_name}</a> : <p className="text-xs">{t("production.approvalAttachment")}: {rule.approval_attachment}</p>)}
             {!rule.approved_by && Number(rule.attachment_required) === 1 && <label className="block text-xs">{t("production.approvalAttachment")} *<Input type="file" className="mt-1" disabled={loading} onChange={(event) => setApprovalFiles((current) => ({ ...current, [rule.name]: event.target.files?.[0] || null }))} /></label>}
-            {!rule.approved_by && userRoles?.includes(rule.approval_role) && <label className="block text-xs">{t("production.approvalTransactionNote")}<Input className="mt-1" maxLength={1000} value={approvalNotes[rule.name] || ""} disabled={loading} onChange={(event) => setApprovalNotes((current) => ({ ...current, [rule.name]: event.target.value }))} /></label>}
+            {!rule.approved_by && canApprove(rule.approval_role) && <label className="block text-xs">{t("production.approvalTransactionNote")}<Input className="mt-1" maxLength={1000} value={approvalNotes[rule.name] || ""} disabled={loading} onChange={(event) => setApprovalNotes((current) => ({ ...current, [rule.name]: event.target.value }))} /></label>}
             {rule.approved_by ? <p>{t("production.approvedBy")}: {rule.approved_by} · {rule.approved_at}</p> :
-              userRoles?.includes(rule.approval_role) && <Button type="button" size="sm" disabled={loading || (rule.approval_point === "After Work" && !workRecorded) || (Number(rule.attachment_required) === 1 && !approvalFiles[rule.name])} onClick={() => approve(rule.name)}>{t("production.approveOperation")}</Button>}
+              canApprove(rule.approval_role) && <Button type="button" size="sm" disabled={loading || (rule.approval_point === "After Work" && !workRecorded) || (Number(rule.attachment_required) === 1 && !approvalFiles[rule.name])} onClick={() => approve(rule.name)}>{t("production.approveOperation")}</Button>}
           </div>)}
           {fullDoc.custom_approval_stage && <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
             <p className="font-semibold">{fullDoc.custom_approval_by ? t("production.approvalGranted") : t("production.approvalPending")} · {fullDoc.custom_approval_stage}</p>
             <p>{fullDoc.custom_approval_reason}</p>
             <p>{t("production.approvalRole")}: {fullDoc.custom_approval_role}</p>
-            {!fullDoc.custom_approval_by && userRoles?.includes(fullDoc.custom_approval_role) && <label className="block text-xs">{t("production.approvalTransactionNote")}<Input className="mt-1" maxLength={1000} value={approvalNotes.legacy || ""} disabled={loading} onChange={(event) => setApprovalNotes((current) => ({ ...current, legacy: event.target.value }))} /></label>}
+            {!fullDoc.custom_approval_by && canApprove(fullDoc.custom_approval_role) && <label className="block text-xs">{t("production.approvalTransactionNote")}<Input className="mt-1" maxLength={1000} value={approvalNotes.legacy || ""} disabled={loading} onChange={(event) => setApprovalNotes((current) => ({ ...current, legacy: event.target.value }))} /></label>}
             {fullDoc.custom_approval_by ? <p>{t("production.approvedBy")}: {fullDoc.custom_approval_by} · {fullDoc.custom_approval_at}</p> :
-              userRoles?.includes(fullDoc.custom_approval_role) && <Button type="button" size="sm" disabled={loading} onClick={approve}>{t("production.approveOperation")}</Button>}
+              canApprove(fullDoc.custom_approval_role) && <Button type="button" size="sm" disabled={loading} onClick={approve}>{t("production.approveOperation")}</Button>}
           </div>}
           <section className="space-y-2 border-t border-border pt-3" aria-label={t("production.approvalHistory")}>
             <h3 className="text-sm font-semibold">{t("production.approvalHistory")}</h3>
