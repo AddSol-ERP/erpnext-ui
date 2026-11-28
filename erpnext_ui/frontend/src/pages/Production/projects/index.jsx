@@ -185,7 +185,12 @@ function Workspace({ project }) {
       {step === "orders" && selectedWorkOrder ? canResumeWorkOrder ? <><GenericFormPage key={`order-${selectedWorkOrder}-${workOrderRevision}`} embedded={{ doctype: "Work Order", name: selectedWorkOrder, onDirtyChange: setPlanDirty, onClose: closeWorkOrder,
         header: <div className="flex min-w-0 flex-wrap items-center gap-2">{switchableOrders.length > 1 ? <div className="w-full sm:w-72"><FormSelect value={selectedWorkOrder} aria-label={t("manufacturing.switchWorkOrder")} disabled={busy || planDirty} options={switchableOrders.map((order) => ({ value: order.name, label: `${order.name} · ${order.qty ?? "—"} · ${order.status || "—"}` }))} onChange={(name) => resumeWorkOrder(name, currentWorkOrder.production_plan)} /></div> : <span className="text-xs text-muted-foreground">{selectedWorkOrder}</span>}{planDirty && switchableOrders.length > 1 && <span className="text-xs text-muted-foreground">{t("manufacturing.saveBeforeSwitch")}</span>}</div>,
         onSaved: () => run(async () => { await load(); setWorkOrderRevision((value) => value + 1); }),
-        onSubmitted: () => run(async () => { await load(); setWorkOrderRevision((value) => value + 1); }),
+        onSubmitted: (name) => run(async () => {
+          const response = await get(`resource/Work%20Order/${encodeURIComponent(name)}`);
+          await load();
+          if (Number(response.data.docstatus) === 1) selectStep("timeline");
+          else setWorkOrderRevision((value) => value + 1);
+        }),
       }} /></> : <p role="alert" className="text-sm text-destructive">{t("manufacturing.orderUnavailable")}</p> : step === "plans" && selectedPlan ? canResumePlan ? <><GenericFormPage key={`plan-${selectedPlan}-${planRevision}`} embedded={{ doctype: "Production Plan", name: selectedPlan, onDirtyChange: setPlanDirty, onClose: closePlan, onNext: () => selectStep("orders"),
         header: <span className="text-xs text-muted-foreground">{selectedPlan}</span>,
         onSaved: () => run(async () => { await load(); setPlanRevision((value) => value + 1); }),
