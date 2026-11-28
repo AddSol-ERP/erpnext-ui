@@ -461,6 +461,7 @@
   "goBack": "Go back"
  },
  "manufacturing": {
+  "bomUnavailable": "This draft BOM is unavailable for this project or you do not have access.",
   "productionItem": "Production item",
   "productionQuantity": "Production quantity (stock UOM)",
   "noRequestItems": "No outstanding production items were found for this project.",
@@ -582,7 +583,7 @@
   "planning": "Production planning",
   "planningHelp": "Plan production from a BOM or manufacture request, then manage work orders and track execution.",
   "startPlanning": "Start production planning",
-  "noBoms": "No active BOMs are linked to this project yet.",
+  "noBoms": "No BOMs are linked to this project yet.",
   "backToProject": "Back to project"
  },
  "productionPlanForm": {

@@ -4158,3 +4158,10 @@ the association when a routing repeats the same operation. BOM validation binds
 those indexes to saved operation-row names and avoids copying defaults twice.
 Deleting an unsaved operation updates its indexed approval rules. The approval
 rule DocType change requires bench migrate; live-site verification is pending.
+
+## Project draft BOM access
+
+Project overview lists permission-filtered draft BOMs alongside submitted BOMs.
+Draft rows resume inside the production-planning BOM step via the `bom` query
+parameter. The workspace resolves that parameter only against its project's
+readable draft BOMs; unavailable or submitted records do not open as drafts.

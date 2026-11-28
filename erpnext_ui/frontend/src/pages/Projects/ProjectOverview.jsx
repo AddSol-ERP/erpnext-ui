@@ -37,6 +37,10 @@ function Overview({ project }) {
     return () => setHeader({});
   }, [data, project, setHeader, t, navigate]);
   const manufacturing = `/projects/view/${encodeURIComponent(project)}/manufacturing`;
+  const projectBoms = [...(data?.draft_boms || []), ...(data?.boms || [])];
+  const openBom = (bom) => Number(bom.docstatus) === 0
+    ? navigate(`${manufacturing}?step=bom&bom=${encodeURIComponent(bom.name)}`)
+    : navigate(`/projects/BOM/${encodeURIComponent(bom.name)}`);
   const createBom = () => navigate(`/projects/view/${encodeURIComponent(project)}/bom/create`);
   return <DashboardShell>
     {error && <div role="alert" className="rounded border border-destructive p-4 text-destructive">{error}</div>}
@@ -89,13 +93,14 @@ function Overview({ project }) {
       <WorkOrderProgressDrawer order={selectedOrder} jobCards={data.job_cards} onClose={() => setSelectedOrder(null)} />
       <section className="overflow-hidden border border-border/70 bg-card">
         <h3 className="border-b border-border/60 px-4 py-3 text-sm font-semibold">{t("projects.boms")}</h3>
-        {!data.boms.length ? <p className="p-4 text-sm text-muted-foreground">{t("projects.noBoms")}</p> : <DataTable
-          data={data.boms} rowKey={(bom) => bom.name}
-          onRowClick={(bom) => navigate(`/projects/BOM/${encodeURIComponent(bom.name)}`)}
+        {!projectBoms.length ? <p className="p-4 text-sm text-muted-foreground">{t("projects.noBoms")}</p> : <DataTable
+          data={projectBoms} rowKey={(bom) => bom.name}
+          onRowClick={openBom}
           columns={[
             { id: "name", header: t("manufacturing.bom"), cell: (bom) => <span className="font-medium">{bom.name}</span> },
             { id: "item", header: t("manufacturing.item"), cell: (bom) => <span className="text-xs text-muted-foreground">{bom.item_name || bom.item}</span> },
-            { id: "status", header: t("common.status"), cell: (bom) => <StatusBadge tone={bom.docstatus === 1 ? "info" : "open"}>{t(bom.docstatus === 1 ? "production.statusSubmitted" : "common.draft")}</StatusBadge> },
+            { id: "status", header: t("common.status"), cell: (bom) => <StatusBadge tone={Number(bom.docstatus) === 1 ? "info" : "open"}>{t(Number(bom.docstatus) === 1 ? "production.statusSubmitted" : "common.draft")}</StatusBadge> },
+            { id: "actions", header: t("common.actions"), cell: (bom) => Number(bom.docstatus) === 0 ? <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); openBom(bom); }}>{t("manufacturing.resumeBom")}</Button> : null },
           ]}
         />}
       </section>

@@ -12,6 +12,7 @@ import FormSelect from "../../../components/FormSelect";
 import GenericFormPage from "../../../components/GenericForm";
 import { Button } from "@/components/ui/button";
 import PlanningContent from "./PlanningContent";
+import { resolvePlanningBomDraft } from "./bomDraft";
 import WorkOrderPreviewModal from "../work-order/WorkOrderPreviewModal";
 import JobCardPreviewModal from "../job-cards/JobCardPreviewModal";
 
@@ -31,6 +32,7 @@ function Workspace({ project }) {
   const selectStep = useCallback((value) => setParams((previous) => {
     const next = new URLSearchParams(previous);
     next.set("step", value);
+    if (value !== "bom") next.delete("bom");
     return next;
   }), [setParams]);
   const [data, setData] = useState(null);
@@ -65,6 +67,8 @@ function Workspace({ project }) {
   const [job, setJob] = useState(null);
   const [rawMaterials, setRawMaterials] = useState([]);
   const [bomDraft, setBomDraft] = useState(null);
+  const requestedBom = step === "bom" ? params.get("bom") : null;
+  const activeBomDraft = resolvePlanningBomDraft(requestedBom, bomDraft, data?.draft_boms);
   const [bomRevision, setBomRevision] = useState(0);
   const [bomDirty, setBomDirty] = useState(false);
   const [needsBomPlanning, setNeedsBomPlanning] = useState(false);
@@ -183,13 +187,13 @@ function Workspace({ project }) {
           if (Number(response.data.docstatus) === 1) selectStep("orders");
           else setPlanRevision((value) => value + 1);
         }),
-      }} /></> : <p role="alert" className="text-sm text-destructive">{t("manufacturing.planUnavailable")}</p> : step === "bom" && bomDraft ? <GenericFormPage key={`${bomDraft.name || "new"}-${bomRevision}`} embedded={{ name: bomDraft.name, initialState: bomDraft.initialState, onDirtyChange: setBomDirty,
-        onSaved: (saved) => { setBomDraft((current) => ({ ...current, name: saved.name })); run(load); },
+      }} /></> : <p role="alert" className="text-sm text-destructive">{t("manufacturing.planUnavailable")}</p> : step === "bom" && activeBomDraft ? <GenericFormPage key={`${activeBomDraft.name || "new"}-${bomRevision}`} embedded={{ name: activeBomDraft.name, initialState: activeBomDraft.initialState, onDirtyChange: setBomDirty,
+        onSaved: (saved) => { setBomDraft((current) => ({ ...(current?.name === activeBomDraft.name ? current : activeBomDraft), name: saved.name })); run(load); },
         onSubmitted: (name) => run(async () => { const response = await get(`resource/BOM/${encodeURIComponent(name)}`); await load();
-          if (Number(response.data.docstatus) === 1 && response.data.is_active) { setSource("BOM"); setBomItems([{ bom: name, qty: bomDraft.initialState?.planningQuantity || response.data.quantity || 1 }]); setNeedsBomPlanning(true); setParams((previous) => { const next = new URLSearchParams(previous); next.set("step", "plans"); next.delete("plan"); next.delete("work_order"); return next; }); }
+          if (Number(response.data.docstatus) === 1 && response.data.is_active) { setSource("BOM"); setBomItems([{ bom: name, qty: activeBomDraft.initialState?.planningQuantity || response.data.quantity || 1 }]); setNeedsBomPlanning(true); setParams((previous) => { const next = new URLSearchParams(previous); next.set("step", "plans"); next.delete("plan"); next.delete("work_order"); next.delete("bom"); return next; }); }
           else setBomRevision((current) => current + 1);
         }),
-      }} /> : step === "bom" ? <p className="text-sm text-muted-foreground">{t("manufacturing.chooseBomDraft")}</p> : <PlanningContent step={step === "plans" && needsBomPlanning && !preview ? "setup" : step} data={data} source={source} sourceName={sourceName} qty={qty} start={start} warehouses={warehouses} preview={preview} busy={busy}
+      }} /> : step === "bom" ? <p role={requestedBom ? "alert" : undefined} className={requestedBom ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{t(requestedBom ? "manufacturing.bomUnavailable" : "manufacturing.chooseBomDraft")}</p> : <PlanningContent step={step === "plans" && needsBomPlanning && !preview ? "setup" : step} data={data} source={source} sourceName={sourceName} qty={qty} start={start} warehouses={warehouses} preview={preview} busy={busy}
       onSource={(value) => { invalidate(); setSource(value); setSourceName(""); setRequestItem(""); setRequestItems([]); setRequestLoading(false); setProductionItem(null); setQty(1); }}
       onSourceName={(value) => { invalidate(); setSourceName(value); setRequestItem(""); setRequestItems([]); setRequestLoading(!!value); }}
       productionItem={productionItem} onProductionItem={setProductionItem} requestItems={requestItems} requestItem={requestItem} requestLoading={requestLoading}
@@ -206,9 +210,9 @@ function Workspace({ project }) {
             qty: Number(row.qty), uom: item.stock_uom, stock_uom: item.stock_uom, conversion_factor: 1 };
         }));
         setBomDraft({ name: "", initialState: { manufacturingProject: project, manufacturingCompany: data.project.company, planningMaterials: rows, planningItem: productionItem, planningQuantity: Number(qty) } });
-        selectStep("bom");
+        setParams((previous) => { const next = new URLSearchParams(previous); next.set("step", "bom"); next.delete("bom"); return next; });
       })}
-      onResumeBom={(name) => { setBomDraft({ name, initialState: null }); selectStep("bom"); }}
+      onResumeBom={(name) => { setBomDraft({ name, initialState: null }); setParams((previous) => { const next = new URLSearchParams(previous); next.set("step", "bom"); next.set("bom", name); return next; }); }}
       onResumePlan={resumePlan}
       onResumeOrders={resumeOrders} orderPlan={step === "orders" ? params.get("plan") : null} onAllOrders={closePlan}
       onResumeWorkOrder={resumeWorkOrder}
