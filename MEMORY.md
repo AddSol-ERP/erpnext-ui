@@ -4123,3 +4123,28 @@ and gate Job Card submission. Every approval is recorded independently and
 approved work logs are immutable. Existing single-field rules stay supported in
 place; they are not silently converted to a different approval point. Run bench
 migrate and restart before use. End-to-end site verification remains necessary.
+
+## Operation approval attachments
+
+Approval rules optionally require evidence. `attachment_required` is copied from
+Operation through BOM and Work Order into the Job Card rule snapshot; existing
+rules default to off. The approver sends a file with the role-checked approval
+request. The server checks the rule and upload before recording approval, saves
+private evidence against the Job Card using Frappe's file manager, and records
+its File ID on that individual rule. The requirement and evidence reference are
+immutable through ordinary Job Card edits. Approvers need Job Card read access
+and the configured role; they do not need Job Card write access to submit the
+approval evidence. Both the SPA and Desk present the required upload. Deploying
+requires schema migration and rebuilding Desk/frontend assets; live-site testing
+is still needed.
+
+## Job card approval transactions
+
+Every new role-authorized approval writes a separate UI Operation Approval Event
+in the same request transaction as the rule update. It snapshots the Job Card,
+rule, point, instruction, perspective, role, approver, time, optional note and
+File reference. Normal document edits and deletion are refused, and the history
+endpoint checks read permission on the Job Card before listing its events. Job
+Card handling and Desk expose the approval action and event history. Previously
+approved rules remain visible but are not presented as reconstructed events.
+The new event DocType requires bench migrate; live-site verification is pending.

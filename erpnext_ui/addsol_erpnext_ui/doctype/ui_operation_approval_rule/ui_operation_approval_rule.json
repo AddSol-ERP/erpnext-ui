@@ -14,7 +14,9 @@
   "instruction_snapshot",
   "perspective",
   "approval_role",
-  "note"
+  "attachment_required",
+  "note",
+  "approval_attachment"
  ],
  "fields": [
   {
@@ -90,6 +92,20 @@
   {
    "fieldname": "column_break_qorw",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "attachment_required",
+   "label": "Attachment Required",
+   "fieldtype": "Check",
+   "default": "0"
+  },
+  {
+   "fieldname": "approval_attachment",
+   "label": "Approval Attachment",
+   "fieldtype": "Link",
+   "options": "File",
+   "read_only": 1,
+   "hidden": 1
   }
  ],
  "istable": 1,

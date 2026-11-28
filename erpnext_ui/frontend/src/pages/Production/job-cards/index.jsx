@@ -8,6 +8,7 @@ import ListLayout from "../../../components/ListLayout";
 import { ListRow } from "../../../components/List/ListRow";
 import DataTable from "../../../components/List/DataTable";
 import { StatusBadge } from "../../../components/List/StatusBadge";
+import { Button } from "@/components/ui/button";
 import useListPagination from "../../../hooks/useListPagination";
 import { get } from "../../../services/api";
 import { listFilterHandlers } from "../../../lib/filterChips";
@@ -238,6 +239,11 @@ export default function JobCardsList() {
           <StatusBadge tone={row.status}>{row.statusLabel}</StatusBadge>
         ),
       },
+      {
+        id: "approvals",
+        header: t("production.operationApprovals"),
+        cell: (row) => <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); setPreviewDoc(row.raw); setShowPreview(true); }}>{t("production.viewApprovals")}</Button>,
+      },
     ],
     [t],
   );
@@ -283,6 +289,7 @@ export default function JobCardsList() {
                   setPreviewDoc(doc);
                   setShowPreview(true);
                 }}
+                actions={<Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); setPreviewDoc(item.raw); setShowPreview(true); }}>{t("production.viewApprovals")}</Button>}
               />
             ))}
           </div>

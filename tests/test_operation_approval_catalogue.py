@@ -18,6 +18,14 @@ class CatalogueTests(unittest.TestCase):
             self.assertEqual(fields[field].get("hidden"), 1)
             self.assertEqual(fields[field].get("read_only"), 1)
 
+    def test_attachment_requirement_is_optional_and_evidence_is_read_only(self):
+        path = ROOT / "erpnext_ui/addsol_erpnext_ui/doctype/ui_operation_approval_rule/ui_operation_approval_rule.json"
+        fields = {field["fieldname"]: field for field in json.loads(path.read_text())["fields"]}
+        self.assertEqual(fields["attachment_required"]["default"], "0")
+        self.assertEqual(fields["approval_attachment"]["options"], "File")
+        self.assertEqual(fields["approval_attachment"]["read_only"], 1)
+        self.assertEqual(fields["approval_attachment"]["hidden"], 1)
+
     def test_metadata_has_matching_controllers_and_edit_permissions(self):
         for folder in ("ui_operation_approval_perspective", "ui_operation_approval_instruction"):
             directory = ROOT / "erpnext_ui/addsol_erpnext_ui/doctype" / folder

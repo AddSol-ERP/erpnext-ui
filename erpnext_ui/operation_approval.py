@@ -19,7 +19,7 @@ class ApprovalJobCard(JobCard):
 				if rule.get("operation_row") == self.operation_id:
 					self.append("custom_approval_rules", {key: rule.get(key) for key in (
 						"operation", "operation_row", "approval_point", "perspective", "instruction",
-						"instruction_snapshot", "approval_role", "note")})
+						"instruction_snapshot", "approval_role", "note", "attachment_required")})
 			row = frappe.db.get_value("Work Order Operation", {"name": self.operation_id, "parent": self.work_order}, list(RULE_FIELDS), as_dict=True)
 			if row:
 				for field in RULE_FIELDS:
@@ -38,7 +38,7 @@ class ApprovalJobCard(JobCard):
 				log_fields = ("name", "from_time", "to_time", "completed_qty", "operation", "employee")
 				if [tuple(row.get(field) for field in log_fields) for row in self.get("time_logs") or []] != [tuple(row.get(field) for field in log_fields) for row in old.get("time_logs") or []] or self.get("process_loss_qty") != old.get("process_loss_qty"):
 					frappe.throw("Work records cannot be changed after an after-work approval.")
-			fields = ("name", "operation", "operation_row", "approval_point", "perspective", "instruction", "instruction_snapshot", "approval_role", "note", "approved_by", "approved_at")
+			fields = ("name", "operation", "operation_row", "approval_point", "perspective", "instruction", "instruction_snapshot", "approval_role", "note", "attachment_required", "approval_attachment", "approved_by", "approved_at")
 			if [tuple(row.get(field) for field in fields) for row in self.get("custom_approval_rules") or []] != [tuple(row.get(field) for field in fields) for row in old.get("custom_approval_rules") or []]:
 				frappe.throw("Job card approval rules cannot be changed directly.")
 			for field in (*RULE_FIELDS, *AUDIT_FIELDS, "work_order", "operation_id"):
@@ -65,9 +65,39 @@ class ApprovalJobCard(JobCard):
 		super().validate()
 
 
-def approve_job_card(name, rule_name=None):
+def record_approval(card, rule, values, remark):
+	"""Insert an audit event in the same transaction as the rule update."""
+	frappe.get_doc({
+		"doctype": "UI Operation Approval Event",
+		"job_card": card.name,
+		"work_order": card.get("work_order"),
+		"operation": card.get("operation"),
+		"rule_reference": rule.get("name"),
+		"approval_point": rule.get("approval_point"),
+		"perspective": rule.get("perspective"),
+		"instruction": rule.get("instruction_snapshot") or rule.get("instruction"),
+		"approval_role": rule.get("approval_role"),
+		"approved_by": values["approved_by"],
+		"approved_at": values["approved_at"],
+		"attachment": values.get("approval_attachment"),
+		"remark": remark,
+	}).insert(ignore_permissions=True)
+
+
+def approval_history(name):
 	card = frappe.get_doc("Job Card", name)
 	card.check_permission("read")
+	return frappe.get_all("UI Operation Approval Event", filters={"job_card": card.name},
+		fields=["name", "rule_reference", "approval_point", "perspective", "instruction", "approval_role", "approved_by", "approved_at", "attachment", "remark"],
+		order_by="approved_at asc, creation asc", limit_page_length=0)
+
+
+def approve_job_card(name, rule_name=None, upload=None, remark=None):
+	card = frappe.get_doc("Job Card", name)
+	card.check_permission("read")
+	if remark is not None and (not isinstance(remark, str) or len(remark) > 1000):
+		frappe.throw("Approval note must be at most 1000 characters.")
+	remark = (remark or "").strip()
 	frappe.db.get_value("Job Card", name, "name", for_update=True)
 	card.reload()
 	if card.docstatus == 2 or card.status in ("Completed", "Cancelled"):
@@ -83,7 +113,19 @@ def approve_job_card(name, rule_name=None):
 		if rule.get("approval_point") == "After Work":
 			if not work_recorded(card):
 				frappe.throw("Record and finish the work before approving this rule.")
-		frappe.db.set_value("UI Operation Approval Rule", rule.name, {"approved_by": frappe.session.user, "approved_at": now_datetime()})
+		if int(rule.get("attachment_required") or 0) and not upload:
+			frappe.throw("Attach a file before approving this rule.")
+		values = {"approved_by": frappe.session.user, "approved_at": now_datetime()}
+		if upload:
+			filename = (upload.filename or "").strip()
+			content = upload.stream.read()
+			if not filename or not content:
+				frappe.throw("Select a non-empty attachment before approving this rule.")
+			from frappe.utils.file_manager import save_file
+			file_doc = save_file(filename, content, "Job Card", card.name, is_private=1)
+			values["approval_attachment"] = file_doc.name
+		frappe.db.set_value("UI Operation Approval Rule", rule.name, values)
+		record_approval(card, rule, values, remark)
 		return {"approved_by": frappe.session.user}
 	if not card.get(RULE_FIELDS[0]):
 		frappe.throw("This operation has no approval requirement.")
@@ -91,7 +133,10 @@ def approve_job_card(name, rule_name=None):
 		frappe.throw("This operation has already been approved.")
 	if card.get(RULE_FIELDS[1]) not in frappe.get_roles(frappe.session.user):
 		frappe.throw("You do not have the role required to approve this operation.", frappe.PermissionError)
-	frappe.db.set_value("Job Card", name, {AUDIT_FIELDS[0]: frappe.session.user, AUDIT_FIELDS[1]: now_datetime()})
+	values = {AUDIT_FIELDS[0]: frappe.session.user, AUDIT_FIELDS[1]: now_datetime()}
+	frappe.db.set_value("Job Card", name, values)
+	record_approval(card, {"name": "legacy", "approval_point": card.get(RULE_FIELDS[0]), "approval_role": card.get(RULE_FIELDS[1]), "instruction_snapshot": card.get(RULE_FIELDS[2])},
+		{"approved_by": values[AUDIT_FIELDS[0]], "approved_at": values[AUDIT_FIELDS[1]]}, remark)
 	return {"approved_by": frappe.session.user}
 
 

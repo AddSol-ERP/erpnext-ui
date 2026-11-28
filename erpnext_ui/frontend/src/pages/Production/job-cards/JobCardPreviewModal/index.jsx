@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Timer } from "lucide-react";
-import { get, post } from "../../../../services/api";
+import { get, post, uploadFile } from "../../../../services/api";
 import { useToast } from "../../../../context/ToastContext";
+import { useRole } from "../../../../context/RoleContext";
 import AppModal from "../../../../components/AppModal";
 import { StatusBadge } from "../../../../components/List/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -45,8 +46,14 @@ const DONE_TOAST_KEY = {
 export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const { userRoles } = useRole();
   const [loading, setLoading] = useState(false);
   const [fullDoc, setFullDoc] = useState(null);
+  const [approvalFiles, setApprovalFiles] = useState({});
+  const [attachmentDetails, setAttachmentDetails] = useState({});
+  const [approvalHistory, setApprovalHistory] = useState([]);
+  const [historyError, setHistoryError] = useState("");
+  const [approvalNotes, setApprovalNotes] = useState({});
 
   /** Complete is a two-step: the quantity is a measurement, so it is asked
    * for. This replaces the footer in place -- never a second dialog stacked
@@ -57,6 +64,22 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   const loadDoc = async () => {
     const res = await get(`resource/Job Card/${doc.name}`);
     setFullDoc(res.data);
+    let events = [];
+    try {
+      const history = await get("method/erpnext_ui.api.get_job_card_approval_history", { name: doc.name });
+      events = history.message || [];
+      setApprovalHistory(events);
+      setHistoryError("");
+    } catch (error) {
+      setApprovalHistory([]);
+      setHistoryError(error.message || t("production.approvalHistoryError"));
+    }
+    const names = [...new Set([...(res.data.custom_approval_rules || []).map((rule) => rule.approval_attachment), ...events.map((event) => event.attachment)].filter(Boolean))];
+    const files = await Promise.all(names.map(async (name) => {
+      try { return [name, (await get(`resource/File/${encodeURIComponent(name)}`)).data]; }
+      catch { return [name, null]; }
+    }));
+    setAttachmentDetails(Object.fromEntries(files));
   };
 
   useEffect(() => {
@@ -73,6 +96,10 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   const close = () => {
     setCompleting(false);
     setQty("");
+    setApprovalFiles({});
+    setApprovalNotes({});
+    setApprovalHistory([]);
+    setHistoryError("");
     onClose();
   };
 
@@ -166,7 +193,18 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
   const approve = async (ruleName) => {
     try {
       setLoading(true);
-      await post("method/erpnext_ui.api.approve_operation_job_card", { name: doc.name, rule_name: typeof ruleName === "string" ? ruleName : undefined });
+      const selectedFile = typeof ruleName === "string" ? approvalFiles[ruleName] : null;
+      if (selectedFile) {
+        const body = new FormData();
+        body.append("name", doc.name);
+        body.append("rule_name", ruleName);
+        body.append("remark", approvalNotes[ruleName] || "");
+        body.append("file", selectedFile);
+        await uploadFile("method/erpnext_ui.api.approve_operation_job_card", body);
+      } else {
+        await post("method/erpnext_ui.api.approve_operation_job_card", { name: doc.name, rule_name: typeof ruleName === "string" ? ruleName : undefined, remark: approvalNotes[typeof ruleName === "string" ? ruleName : "legacy"] || "" });
+      }
+      if (typeof ruleName === "string") setApprovalFiles((current) => { const next = { ...current }; delete next[ruleName]; return next; });
       await loadDoc();
       onSuccess?.();
     } catch (e) {
@@ -260,21 +298,36 @@ export default function JobCardPreviewModal({ show, onClose, doc, onSuccess }) {
       ) : (
         <div className="flex flex-col gap-3">
           {!!afterWorkRules.length && workRecorded && newRules.some((rule) => !rule.approved_by) && <p role="status" className="text-sm font-semibold text-amber-700">{t("production.awaitingOperationApproval")}</p>}
+          {(newRules.length > 0 || fullDoc.custom_approval_stage) && <h3 className="text-sm font-semibold">{t("production.operationApprovals")}</h3>}
           {newRules.map((rule) => <div key={rule.name} className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
             <p className="font-semibold">{rule.approved_by ? t("production.approvalGranted") : t("production.approvalPending")} · {rule.approval_point} · {rule.perspective}</p>
             <p>{rule.instruction_snapshot || rule.instruction}</p>
             {rule.note && <p>{rule.note}</p>}
             <p>{t("production.approvalRole")}: {rule.approval_role}</p>
+            {!rule.approved_by && Number(rule.attachment_required) === 1 && <p className="text-xs font-medium">{t("production.approvalAttachmentHelp")}</p>}
+            {rule.approved_by && rule.approval_attachment && (attachmentDetails[rule.approval_attachment]?.file_url ? <a className="inline-block text-xs text-primary underline" href={attachmentDetails[rule.approval_attachment].file_url} target="_blank" rel="noreferrer">{t("production.approvalAttachment")}: {attachmentDetails[rule.approval_attachment].file_name}</a> : <p className="text-xs">{t("production.approvalAttachment")}: {rule.approval_attachment}</p>)}
+            {!rule.approved_by && Number(rule.attachment_required) === 1 && <label className="block text-xs">{t("production.approvalAttachment")} *<Input type="file" className="mt-1" disabled={loading} onChange={(event) => setApprovalFiles((current) => ({ ...current, [rule.name]: event.target.files?.[0] || null }))} /></label>}
+            {!rule.approved_by && userRoles?.includes(rule.approval_role) && <label className="block text-xs">{t("production.approvalTransactionNote")}<Input className="mt-1" maxLength={1000} value={approvalNotes[rule.name] || ""} disabled={loading} onChange={(event) => setApprovalNotes((current) => ({ ...current, [rule.name]: event.target.value }))} /></label>}
             {rule.approved_by ? <p>{t("production.approvedBy")}: {rule.approved_by} · {rule.approved_at}</p> :
-              <Button type="button" size="sm" disabled={loading} onClick={() => approve(rule.name)}>{t("production.approveOperation")}</Button>}
+              userRoles?.includes(rule.approval_role) && <Button type="button" size="sm" disabled={loading || (rule.approval_point === "After Work" && !workRecorded) || (Number(rule.attachment_required) === 1 && !approvalFiles[rule.name])} onClick={() => approve(rule.name)}>{t("production.approveOperation")}</Button>}
           </div>)}
           {fullDoc.custom_approval_stage && <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
             <p className="font-semibold">{fullDoc.custom_approval_by ? t("production.approvalGranted") : t("production.approvalPending")} · {fullDoc.custom_approval_stage}</p>
             <p>{fullDoc.custom_approval_reason}</p>
             <p>{t("production.approvalRole")}: {fullDoc.custom_approval_role}</p>
+            {!fullDoc.custom_approval_by && userRoles?.includes(fullDoc.custom_approval_role) && <label className="block text-xs">{t("production.approvalTransactionNote")}<Input className="mt-1" maxLength={1000} value={approvalNotes.legacy || ""} disabled={loading} onChange={(event) => setApprovalNotes((current) => ({ ...current, legacy: event.target.value }))} /></label>}
             {fullDoc.custom_approval_by ? <p>{t("production.approvedBy")}: {fullDoc.custom_approval_by} · {fullDoc.custom_approval_at}</p> :
-              <Button type="button" size="sm" disabled={loading} onClick={approve}>{t("production.approveOperation")}</Button>}
+              userRoles?.includes(fullDoc.custom_approval_role) && <Button type="button" size="sm" disabled={loading} onClick={approve}>{t("production.approveOperation")}</Button>}
           </div>}
+          <section className="space-y-2 border-t border-border pt-3" aria-label={t("production.approvalHistory")}>
+            <h3 className="text-sm font-semibold">{t("production.approvalHistory")}</h3>
+            {historyError ? <p role="alert" className="text-xs text-destructive">{t("production.approvalHistoryError")}: {historyError}</p> : !approvalHistory.length ? <p className="text-xs text-muted-foreground">{t("production.noApprovalHistory")}</p> : approvalHistory.map((event) => <div key={event.name} className="rounded border border-border p-2 text-xs">
+              <p className="font-medium">{event.instruction || t("production.approvalGranted")} · {event.approval_point}{event.perspective ? ` · ${event.perspective}` : ""}</p>
+              <p>{t("production.approvedBy")}: {event.approved_by} · {event.approved_at} · {event.approval_role}</p>
+              {event.remark && <p>{t("production.approvalTransactionNote")}: {event.remark}</p>}
+              {event.attachment && (attachmentDetails[event.attachment]?.file_url ? <a className="text-primary underline" href={attachmentDetails[event.attachment].file_url} target="_blank" rel="noreferrer">{t("production.approvalAttachment")}: {attachmentDetails[event.attachment].file_name}</a> : <p>{t("production.approvalAttachment")}: {event.attachment}</p>)}
+            </div>)}
+          </section>
           {/* STATUS HEADER */}
           <div className="flex items-center justify-between gap-2">
             <div className="text-lg font-semibold">{fullDoc.operation}</div>

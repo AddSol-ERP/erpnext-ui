@@ -14,7 +14,7 @@ export default function OperationApprovals({ operation, operations, rules, onCha
   );
   const ambiguous = !operation.name && operations.filter((row) => row.operation === operation.operation).length > 1;
   const patch = (index, changes) => onChange(rules.map((rule, i) => i === index ? { ...rule, ...changes } : rule));
-  const add = () => onChange([...rules, { operation: operation.operation, operation_row: operation.name || "", approval_point: "", perspective: "", instruction: "", approval_role: "", note: "" }]);
+  const add = () => onChange([...rules, { operation: operation.operation, operation_row: operation.name || "", approval_point: "", perspective: "", instruction: "", approval_role: "", note: "", attachment_required: 0 }]);
   return <section className={embedded ? "space-y-3" : "mt-4 space-y-3 border-t border-border pt-4"}>
     <div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">{t("production.operationApprovals")}</h3><p className="text-xs text-muted-foreground">{t("production.operationApprovalsHelp")}</p></div>
       {!disabled && <Button type="button" size="sm" variant="outline" disabled={!operation.operation || ambiguous} onClick={add}><Plus />{t("production.addApprovalRule")}</Button>}</div>
@@ -29,6 +29,7 @@ export default function OperationApprovals({ operation, operations, rules, onCha
         <FormField label={t("production.approvalInstruction")} required><LinkField doctype="UI Operation Approval Instruction" filters={{ enabled: 1, ...(rule.perspective ? { perspective: rule.perspective } : {}), ...(rule.approval_point ? { approval_point: rule.approval_point } : {}) }} value={rule.instruction || ""} disabled={disabled} onChange={(value) => patch(index, { instruction: value })} /></FormField>
         <FormField label={t("production.approvalRole")} required><LinkField doctype="Role" value={rule.approval_role || ""} disabled={disabled} onChange={(value) => patch(index, { approval_role: value })} /></FormField>
         <FormField label={t("production.approvalNote")}><Input value={rule.note || ""} disabled={disabled} onChange={(event) => patch(index, { note: event.target.value })} /></FormField>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Number(rule.attachment_required) === 1} disabled={disabled} onChange={(event) => patch(index, { attachment_required: event.target.checked ? 1 : 0 })} />{t("production.approvalAttachmentRequired")}</label>
       </div>
     </div>)}
   </section>;

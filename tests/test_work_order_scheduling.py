@@ -96,11 +96,12 @@ class ScheduleTests(unittest.TestCase):
 		self.order.bom_no = "B1"
 		frappe.get_all = Mock(return_value=[Row(name="BOM-ROW-1"), Row(name="BOM-ROW-2")])
 		frappe.get_doc = Mock(return_value=Row(custom_approval_rules=[
-			Row(operation_row="BOM-ROW-2", approval_point="Before Start", instruction="Approve drawing", approval_role="Manager")]))
+			Row(operation_row="BOM-ROW-2", approval_point="Before Start", instruction="Approve drawing", approval_role="Manager", attachment_required=1)]))
 		self.order.set_work_order_operations()
 		self.assertEqual(len(self.order.custom_approval_rules), 1)
 		self.assertEqual(self.order.custom_approval_rules[0].operation_row, self.order.operations[1].name)
 		self.assertNotEqual(self.order.custom_approval_rules[0].operation_row, self.order.operations[0].name)
+		self.assertEqual(self.order.custom_approval_rules[0].attachment_required, 1)
 
 
 if __name__ == "__main__":

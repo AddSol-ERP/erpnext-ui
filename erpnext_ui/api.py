@@ -4316,10 +4316,18 @@ def get_work_order_operation_meta():
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
-def approve_operation_job_card(name, rule_name=None):
+def approve_operation_job_card(name, rule_name=None, remark=None):
     from erpnext_ui.operation_approval import approve_job_card
 
-    return approve_job_card(name, rule_name)
+    upload = frappe.request.files.get("file") if frappe.request and frappe.request.files else None
+    return approve_job_card(name, rule_name, upload=upload, remark=remark)
+
+
+@frappe.whitelist(allow_guest=False)
+def get_job_card_approval_history(name):
+    from erpnext_ui.operation_approval import approval_history
+
+    return approval_history(name)
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])

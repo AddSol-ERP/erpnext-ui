@@ -1,0 +1,104 @@
+{
+ "doctype": "DocType",
+ "name": "UI Operation Approval Event",
+ "module": "Addsol Erpnext UI",
+ "autoname": "hash",
+ "fields": [
+  {
+   "fieldname": "job_card",
+   "label": "Job Card",
+   "fieldtype": "Link",
+   "read_only": 1,
+   "options": "Job Card",
+   "reqd": 1
+  },
+  {
+   "fieldname": "work_order",
+   "label": "Work Order",
+   "fieldtype": "Link",
+   "read_only": 1,
+   "options": "Work Order"
+  },
+  {
+   "fieldname": "operation",
+   "label": "Operation",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_reference",
+   "label": "Rule Reference",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_point",
+   "label": "Approval Point",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "perspective",
+   "label": "Perspective",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "instruction",
+   "label": "Instruction",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_role",
+   "label": "Approval Role",
+   "fieldtype": "Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_by",
+   "label": "Approved By",
+   "fieldtype": "Link",
+   "read_only": 1,
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "label": "Approved At",
+   "fieldtype": "Datetime",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "attachment",
+   "label": "Attachment",
+   "fieldtype": "Link",
+   "read_only": 1,
+   "options": "File"
+  },
+  {
+   "fieldname": "remark",
+   "label": "Approval Note",
+   "fieldtype": "Small Text",
+   "read_only": 1
+  }
+ ],
+ "permissions": [],
+ "field_order": [
+  "job_card",
+  "work_order",
+  "operation",
+  "rule_reference",
+  "approval_point",
+  "perspective",
+  "instruction",
+  "approval_role",
+  "approved_by",
+  "approved_at",
+  "attachment",
+  "remark"
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

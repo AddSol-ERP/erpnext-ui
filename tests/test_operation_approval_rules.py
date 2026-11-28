@@ -57,11 +57,12 @@ class ApprovalPolicyTests(unittest.TestCase):
             def append(self, key, value): self.setdefault(key, []).append(Row(value))
         old = Row(operations=[Row(name="OLD", operation="Weld")])
         bom = Bom(before=old, operations=[Row(name="OLD", operation="Weld"), Row(name="NEW", operation="Cut")], custom_approval_rules=[])
-        operation = Row(custom_approval_rules=[Row(approval_point="Before Start", perspective="Customer", instruction="Approve drawing", approval_role="Manager")])
+        operation = Row(custom_approval_rules=[Row(approval_point="Before Start", perspective="Customer", instruction="Approve drawing", approval_role="Manager", attachment_required=1)])
         with patch.object(rules.frappe, "get_doc", return_value=operation, create=True):
             rules.apply_bom_defaults(bom)
         self.assertEqual(len(bom.custom_approval_rules), 1)
         self.assertEqual((bom.custom_approval_rules[0].operation, bom.custom_approval_rules[0].operation_row), ("Cut", "NEW"))
+        self.assertEqual(bom.custom_approval_rules[0].attachment_required, 1)
 
     def test_multiple_rules_gate_start_and_release_independently(self):
         rows = [

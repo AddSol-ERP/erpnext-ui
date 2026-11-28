@@ -5,7 +5,7 @@ import frappe
 RULE_FIELDS = ("custom_approval_stage", "custom_approval_role", "custom_approval_reason")
 AUDIT_FIELDS = ("custom_approval_by", "custom_approval_at")
 STAGES = ("Before Start", "Before Completion")
-COPY_FIELDS = ("approval_point", "perspective", "instruction", "instruction_snapshot", "approval_role", "note")
+COPY_FIELDS = ("approval_point", "perspective", "instruction", "instruction_snapshot", "approval_role", "note", "attachment_required")
 
 
 def validate_operation(doc, method=None):
@@ -48,7 +48,7 @@ def validate_rules(doc):
 			rule.operation = matched.get("operation")
 		if rule.get("approval_point") not in ("Before Start", "After Work") or not rule.get("perspective") or not rule.get("instruction") or not rule.get("approval_role"):
 			frappe.throw("Each approval rule requires an approval point, perspective, instruction and role.")
-		if rule.get("approved_by") or rule.get("approved_at"):
+		if rule.get("approved_by") or rule.get("approved_at") or rule.get("approval_attachment"):
 			frappe.throw("Approval status can only be recorded on a job card.")
 		previous = previous_rules.get(rule.get("name"))
 		if previous and all(previous.get(field) == rule.get(field) for field in ("instruction", "perspective", "approval_point")):

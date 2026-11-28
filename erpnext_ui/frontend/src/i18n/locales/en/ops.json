@@ -1,5 +1,13 @@
 {
  "production": {
+  "approvalHistory": "Approval history",
+  "approvalHistoryError": "Could not load approval history",
+  "noApprovalHistory": "No approval transactions recorded yet. Earlier approvals, if any, appear on their rules above.",
+  "approvalTransactionNote": "Approval note (optional)",
+  "viewApprovals": "View approvals",
+  "approvalAttachmentRequired": "Attachment required",
+  "approvalAttachmentHelp": "Attach evidence before approving this rule.",
+  "approvalAttachment": "Approval attachment",
   "operationDetails": "Operation details",
   "existingLegacyApproval": "Existing approval requirement (still enforced)",
   "approvalFieldsMissing": "Approval rules are not available on this site yet. Ask your administrator to migrate and restart the ERPNext app.",

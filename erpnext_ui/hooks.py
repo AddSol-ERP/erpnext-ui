@@ -49,6 +49,7 @@ app_include_js = ["/assets/erpnext_ui/js/addsol_ui_nav.js", "/assets/erpnext_ui/
 doctype_js = {
 	"BOM": "public/js/operation_approval_desk.js",
 	"Work Order": "public/js/operation_approval_desk.js",
+	"Job Card": "public/js/job_card_approval_desk.js",
 	"Supplier Quotation": "public/js/supplier_quotation_desk.js",
 	"Item": "public/js/item_uom_pricing.js",
 }
