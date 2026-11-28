@@ -12,7 +12,7 @@ import FormSelect from "../../../components/FormSelect";
 import GenericFormPage from "../../../components/GenericForm";
 import { Button } from "@/components/ui/button";
 import PlanningContent from "./PlanningContent";
-import { resolvePlanningBomDraft } from "./bomDraft";
+import { mergeWarehouseDefaults, resolvePlanningBomDraft } from "./bomDraft";
 import WorkOrderPreviewModal from "../work-order/WorkOrderPreviewModal";
 import JobCardPreviewModal from "../job-cards/JobCardPreviewModal";
 
@@ -104,6 +104,7 @@ function Workspace({ project }) {
     if (!project) return;
     const res = await get("method/erpnext_ui.api.get_project_manufacturing", { project });
     setData(res.message);
+    return res.message;
   }, [project]);
   useEffect(() => {
     let active = true;
@@ -189,11 +190,11 @@ function Workspace({ project }) {
         }),
       }} /></> : <p role="alert" className="text-sm text-destructive">{t("manufacturing.planUnavailable")}</p> : step === "bom" && activeBomDraft ? <GenericFormPage key={`${activeBomDraft.name || "new"}-${bomRevision}`} embedded={{ name: activeBomDraft.name, initialState: activeBomDraft.initialState, onDirtyChange: setBomDirty,
         onSaved: (saved) => { setBomDraft((current) => ({ ...(current?.name === activeBomDraft.name ? current : activeBomDraft), name: saved.name })); run(load); },
-        onSubmitted: (name) => run(async () => { const response = await get(`resource/BOM/${encodeURIComponent(name)}`); await load();
-          if (Number(response.data.docstatus) === 1 && response.data.is_active) { setSource("BOM"); setBomItems([{ bom: name, qty: activeBomDraft.initialState?.planningQuantity || response.data.quantity || 1 }]); setNeedsBomPlanning(true); setParams((previous) => { const next = new URLSearchParams(previous); next.set("step", "plans"); next.delete("plan"); next.delete("work_order"); next.delete("bom"); return next; }); }
+        onSubmitted: (name) => run(async () => { const response = await get(`resource/BOM/${encodeURIComponent(name)}`); const updated = await load();
+          if (Number(response.data.docstatus) === 1 && Number(response.data.is_active) === 1) { setSource("BOM"); setBomItems([{ bom: name, qty: activeBomDraft.initialState?.planningQuantity || response.data.quantity || 1 }]); setWarehouses((current) => mergeWarehouseDefaults(current, updated?.warehouse_defaults)); setNeedsBomPlanning(true); setParams((previous) => { const next = new URLSearchParams(previous); next.set("step", "plans"); next.delete("plan"); next.delete("work_order"); next.delete("bom"); return next; }); }
           else setBomRevision((current) => current + 1);
         }),
-      }} /> : step === "bom" ? <p role={requestedBom ? "alert" : undefined} className={requestedBom ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{t(requestedBom ? "manufacturing.bomUnavailable" : "manufacturing.chooseBomDraft")}</p> : <PlanningContent step={step === "plans" && needsBomPlanning && !preview ? "setup" : step} data={data} source={source} sourceName={sourceName} qty={qty} start={start} warehouses={warehouses} preview={preview} busy={busy}
+      }} /> : step === "bom" ? <p role={requestedBom ? "alert" : undefined} className={requestedBom ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{t(requestedBom ? "manufacturing.bomUnavailable" : "manufacturing.chooseBomDraft")}</p> : <PlanningContent step={step === "plans" && needsBomPlanning && !preview ? "setup" : step} data={data} source={source} sourceName={sourceName} qty={qty} start={start} warehouses={warehouses} preview={preview} busy={busy} lockBomSource={step === "plans" && needsBomPlanning && !preview}
       onSource={(value) => { invalidate(); setSource(value); setSourceName(""); setRequestItem(""); setRequestItems([]); setRequestLoading(false); setProductionItem(null); setQty(1); }}
       onSourceName={(value) => { invalidate(); setSourceName(value); setRequestItem(""); setRequestItems([]); setRequestLoading(!!value); }}
       productionItem={productionItem} onProductionItem={setProductionItem} requestItems={requestItems} requestItem={requestItem} requestLoading={requestLoading}

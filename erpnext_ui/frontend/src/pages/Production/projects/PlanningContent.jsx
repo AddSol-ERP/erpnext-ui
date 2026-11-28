@@ -31,7 +31,7 @@ function Documents({ rows, columns, onOpen, actions, describe }) {
 export default function PlanningContent({ step = "setup", data, source, sourceName, start, warehouses, preview, busy,
   onSource, onSourceName, onStart, onWarehouse, onOpen, onCreateBom, onCreateOrders, onTransfer, onOrder, onJob,
   rawMaterials = [], onRawMaterials, onContinueMaterials, onResumeBom, onResumePlan, onResumeOrders, onResumeWorkOrder, orderPlan, onAllOrders, bomItems = [], onBomItems,
-  productionItem, onProductionItem, qty, onQty, requestItems = [], requestItem, onRequestItem, requestLoading }) {
+  productionItem, onProductionItem, qty, onQty, requestItems = [], requestItem, onRequestItem, requestLoading, lockBomSource = false }) {
   const { t } = useTranslation();
   const [materialsOpen, setMaterialsOpen] = useState(false);
   const [editingWarehouses, setEditingWarehouses] = useState(false);
@@ -60,7 +60,7 @@ export default function PlanningContent({ step = "setup", data, source, sourceNa
         {data.plans.filter((plan) => Number(plan.docstatus) === 0).map((plan) => <div key={plan.name} className="flex flex-wrap items-center gap-2 text-sm"><span>{plan.name} · {plan.posting_date || "—"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onResumePlan(plan.name)}>{t("manufacturing.resumePlan")}</Button></div>)}
       </div>}
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
-        {field("source", <FormSelect id="source" value={source} disabled={busy} onChange={onSource} placeholder={t("manufacturing.chooseSource")} options={["BOM", "Material Request", "new"].map((value) => ({ value, label: t(`manufacturing.sources.${value}`) }))} />)}
+        {field("source", <FormSelect id="source" value={source} disabled={busy || lockBomSource} onChange={onSource} placeholder={t("manufacturing.chooseSource")} options={["BOM", "Material Request", "new"].map((value) => ({ value, label: t(`manufacturing.sources.${value}`) }))} />)}
         {source && source !== "new" && source !== "BOM" && field("sourceDocument", <FormSelect id="sourceDocument" value={sourceName} disabled={busy} onChange={onSourceName} placeholder={t("manufacturing.select")} options={options.map((row) => row.name)} />)}
         {source && source !== "new" && field("start", <Input id="start" type="datetime-local" value={start} disabled={busy} onChange={(event) => onStart(event.target.value)} />)}
         {source && source !== "new" && ["source", "wip", "fg"].map((key) => <div key={key}>{field(`${key}Warehouse`, <LinkField doctype="Warehouse" filters={warehouseOptions} value={warehouses[key]} disabled={busy} onChange={(value) => onWarehouse(key, value)} />, key !== "wip")}</div>)}
@@ -74,10 +74,10 @@ export default function PlanningContent({ step = "setup", data, source, sourceNa
         <FormField label={t("manufacturing.productionQuantity")} required><Input type="number" min="0" step="any" value={qty} disabled={busy} onChange={(event) => onQty(event.target.value)} /></FormField>
       </div>}
       {source === "BOM" && <div className="mt-3 flex flex-wrap items-end gap-2">
-        <div className="min-w-48 flex-1"><FormField label={t("manufacturing.bom")} required><FormSelect value={bomItems[0]?.bom || ""} disabled={busy} placeholder={t("manufacturing.select")} options={options.map((bom) => ({ value: bom.name, label: `${bom.item || "—"} · ${bom.name}` }))} onChange={(value) => onBomItems([{ ...bomItems[0], bom: value }])} /></FormField></div>
+        <div className="min-w-48 flex-1"><FormField label={t("manufacturing.bom")} required><FormSelect value={bomItems[0]?.bom || ""} disabled={busy || lockBomSource} placeholder={t("manufacturing.select")} options={options.map((bom) => ({ value: bom.name, label: `${bom.item || "—"} · ${bom.name}` }))} onChange={(value) => onBomItems([{ ...bomItems[0], bom: value }])} /></FormField></div>
         <div className="w-32"><FormField label={t("manufacturing.qty")} required><Input type="number" min="0.001" step="any" value={bomItems[0]?.qty ?? 1} disabled={busy} onChange={(event) => onBomItems([{ ...bomItems[0], qty: event.target.value }])} /></FormField></div>
       </div>}
-      {source === "BOM" && <Button type="button" variant="outline" size="sm" className="mt-4" disabled={busy} onClick={onCreateBom}>{t("manufacturing.createBom")}</Button>}
+      {source === "BOM" && !lockBomSource && <Button type="button" variant="outline" size="sm" className="mt-4" disabled={busy} onClick={onCreateBom}>{t("manufacturing.createBom")}</Button>}
       {source === "new" && <div className="mt-3 space-y-2">
         {!!data.draft_boms?.length && <div className="space-y-2"><p className="text-sm font-medium">{t("manufacturing.draftBoms")}</p>{data.draft_boms.map((bom) => <div key={bom.name} className="flex flex-wrap items-center gap-2 text-sm"><span>{bom.name} · {bom.item || "—"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onResumeBom(bom.name)}>{t("manufacturing.resumeBom")}</Button></div>)}</div>}
         <p className="text-sm text-muted-foreground">{t("manufacturing.selectMaterialsHelp")}</p>

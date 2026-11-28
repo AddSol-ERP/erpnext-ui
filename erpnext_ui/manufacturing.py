@@ -19,10 +19,27 @@ def warehouse(name, company):
 	return name
 
 
+def warehouse_defaults(company):
+	"""Offer configured defaults only when they are usable by this user/company."""
+	candidates = {
+		"source": frappe.db.get_single_value("Stock Settings", "default_warehouse"),
+		"wip": frappe.db.get_single_value("Manufacturing Settings", "default_wip_warehouse"),
+		"fg": frappe.db.get_single_value("Manufacturing Settings", "default_fg_warehouse"),
+	}
+	defaults = {}
+	for key, name in candidates.items():
+		if not isinstance(name, str) or not name or not frappe.has_permission("Warehouse", "read", name):
+			defaults[key] = ""
+			continue
+		row = frappe.db.get_value("Warehouse", name, ["company", "is_group", "disabled"], as_dict=True)
+		defaults[key] = name if row and row.get("company") == company and not row.get("is_group") and not row.get("disabled") else ""
+	return defaults
+
+
 def workspace(project):
 	"""Read only permission-filtered parents; child rows never bypass their parent."""
 	p = readable("Project", project)
-	result = {"project": p.as_dict()}
+	result = {"project": p.as_dict(), "warehouse_defaults": warehouse_defaults(p.company)}
 	for key, dt, filters in (
 		("boms", "BOM", {"project": project, "company": p.company, "is_active": 1, "docstatus": 1}),
 		("draft_boms", "BOM", {"project": project, "company": p.company, "docstatus": 0}),

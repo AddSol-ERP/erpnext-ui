@@ -88,6 +88,18 @@ class ManufacturingTests(unittest.TestCase):
 		self.assertEqual(result["po_items"][0].warehouse, "FG")
 		self.assertEqual(result["mr_items"][0]["required_bom_qty"], 6)
 
+	def test_warehouse_defaults_only_include_accessible_active_company_leaves(self):
+		values = {"default_warehouse": "RAW", "default_wip_warehouse": "WIP", "default_fg_warehouse": "FG"}
+		rows = {"RAW": Doc(company="C1", is_group=0, disabled=0), "WIP": Doc(company="C1", is_group=0, disabled=0), "FG": Doc(company="OTHER", is_group=0, disabled=0)}
+		with patch.object(frappe.db, "get_single_value", side_effect=lambda dt, field: values[field]), patch.object(frappe.db, "get_value", side_effect=lambda dt, name, fields, as_dict: rows[name]), patch.object(frappe, "has_permission", side_effect=lambda dt, action, name: name != "WIP"):
+			self.assertEqual(manufacturing.warehouse_defaults("C1"), {"source": "RAW", "wip": "", "fg": ""})
+
+	def test_warehouse_defaults_reject_groups_and_disabled(self):
+		values = {"default_warehouse": "GROUP", "default_wip_warehouse": "DISABLED", "default_fg_warehouse": "FG"}
+		rows = {"GROUP": Doc(company="C1", is_group=1, disabled=0), "DISABLED": Doc(company="C1", is_group=0, disabled=1), "FG": Doc(company="C1", is_group=0, disabled=0)}
+		with patch.object(frappe.db, "get_single_value", side_effect=lambda dt, field: values[field]), patch.object(frappe.db, "get_value", side_effect=lambda dt, name, fields, as_dict: rows[name]), patch.object(frappe, "has_permission", return_value=True):
+			self.assertEqual(manufacturing.warehouse_defaults("C1"), {"source": "", "wip": "", "fg": "FG"})
+
 	def test_workspace_lists_cancelled_orders_only_in_complete_project_list(self):
 		orders = {"WO1": Doc(name="WO1", docstatus=1), "WO2": Doc(name="WO2", docstatus=2)}
 		original = frappe.get_doc.side_effect

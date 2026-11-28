@@ -4,3 +4,8 @@ export function resolvePlanningBomDraft(requestedName, localDraft, availableDraf
   if (!availableDrafts.some((bom) => bom.name === requestedName && Number(bom.docstatus) === 0)) return null;
   return localDraft?.name === requestedName ? localDraft : { name: requestedName, initialState: null };
 }
+
+/** Keep explicit selections and fill only unselected warehouse fields. */
+export function mergeWarehouseDefaults(current, defaults = {}) {
+  return Object.fromEntries(["source", "wip", "fg"].map((key) => [key, current[key] || defaults?.[key] || ""]));
+}
