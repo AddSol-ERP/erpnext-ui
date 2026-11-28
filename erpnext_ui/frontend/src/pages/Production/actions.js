@@ -175,7 +175,7 @@ export const JOB_CARD_ACTION_LABEL_KEY = {
 };
 
 export const WORK_ORDER_ACTION_LABEL_KEY = {
-  startNext: "production.startNextJob",
+  startNext: "production.startWorkOrder",
   stop: "production.stopOrder",
   reopen: "production.reopenOrder",
 };

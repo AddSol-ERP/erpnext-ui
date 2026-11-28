@@ -27,7 +27,6 @@ import {
   reopenWorkOrder,
   resumeJobCard,
   startJobCard,
-  startNextJobCard,
 } from "./jobActions";
 
 /** How much of each list the dialog shows; the dashboard's Browse all links
@@ -54,6 +53,7 @@ export default function StartWorkModal({
   project: initialProject,
   onStarted,
   onReviewJobCard,
+  onReviewWorkOrder,
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -179,18 +179,7 @@ export default function StartWorkModal({
 
   const runWorkOrderAction = (row, key) => {
     if (key === "startNext") {
-      run(
-        `wo:${row.name}:${key}`,
-        async () => {
-          const started = await startNextJobCard(row.name);
-          // Nothing ready: every remaining card is done or waiting on a later
-          // operation. Throwing keeps one error path for both kinds of
-          // refusal.
-          if (!started) throw new Error(t("production.noJobCardReady"));
-          toast.success(t("production.startedCardToast", { name: started }));
-        },
-        null,
-      );
+      onReviewWorkOrder(row);
       return;
     }
 

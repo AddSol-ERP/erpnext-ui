@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { get } from "../../../../services/api";
 import { useToast } from "../../../../context/ToastContext";
 import AppModal from "../../../../components/AppModal";
 import { StatusBadge } from "../../../../components/List/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { WORK_ORDER_STATUS_UI, workOrderActionsFor } from "../../actions";
+import { Input } from "@/components/ui/input";
+import { JOB_CARD_STATUS_UI, WORK_ORDER_STATUS_UI, workOrderActionsFor } from "../../actions";
+import JobCardPreviewModal from "../../job-cards/JobCardPreviewModal";
 import {
   reopenWorkOrder,
-  startNextJobCard,
   stopWorkOrder,
 } from "../../jobActions";
 
@@ -22,19 +24,12 @@ const ACTION_STYLE = {
 };
 
 const ACTION_LABEL_KEY = {
-  startNext: "production.startNextJob",
+  startNext: "production.startWorkOrder",
   stop: "production.stopOrder",
   reopen: "production.reopenOrder",
 };
 
-/**
- * Read-only preview of a Work Order's operations, plus the same stop / re-open
- * / start-next-job-card actions the dashboard rows offer.
- *
- * "Start next job" is what starting a Work ORDER means here: ERPNext has no WO
- * start -- its status is derived from stock movements and job cards, so
- * production begins when a job card begins (see `jobActions.startNextJobCard`).
- */
+/** Review a work order, its job cards and material transfer. */
 export default function WorkOrderPreviewModal({
   show,
   onClose,
@@ -43,12 +38,38 @@ export default function WorkOrderPreviewModal({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const navigate = useNavigate();
   const [fullDoc, setFullDoc] = useState(null);
   const [busy, setBusy] = useState(null);
+  const [transferQty, setTransferQty] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [cardsError, setCardsError] = useState("");
+  const [selectedCard, setSelectedCard] = useState(null);
 
   const loadDoc = async () => {
-    const res = await get(`resource/Work Order/${doc.name}`);
+    const res = await get(`resource/Work Order/${encodeURIComponent(doc.name)}`);
     setFullDoc(res.data);
+    try {
+      const allCards = [];
+      const pageSize = 100;
+      let page;
+      do {
+        const result = await get("resource/Job Card", {
+          fields: JSON.stringify(["name", "operation", "workstation", "status", "for_quantity", "total_completed_qty"]),
+          filters: JSON.stringify([["work_order", "=", doc.name], ["docstatus", "!=", 2]]),
+          order_by: "sequence_id asc, creation asc",
+          limit_start: allCards.length,
+          limit_page_length: pageSize,
+        });
+        page = result.data || [];
+        allCards.push(...page);
+      } while (page.length === pageSize);
+      setCards(allCards);
+      setCardsError("");
+    } catch (error) {
+      setCards([]);
+      setCardsError(error.message || t("production.loadFailed"));
+    }
   };
 
   useEffect(() => {
@@ -64,11 +85,8 @@ export default function WorkOrderPreviewModal({
     setBusy(key);
     try {
       if (key === "startNext") {
-        const started = await startNextJobCard(doc.name);
-        // Nothing ready: every remaining card is done or waiting on a later
-        // operation. Throwing keeps one error path for both kinds of refusal.
-        if (!started) throw new Error(t("production.noJobCardReady"));
-        toast.success(t("production.startedCardToast", { name: started }));
+        setTransferQty(String(Math.max(0, Number(fullDoc.qty || 0) - Number(fullDoc.material_transferred_for_manufacturing || 0))));
+        return;
       } else if (key === "stop") {
         await stopWorkOrder(doc.name);
         toast.success(t("production.woStoppedToast"));
@@ -93,12 +111,24 @@ export default function WorkOrderPreviewModal({
 
   if (!fullDoc) return null;
 
+  if (selectedCard) return <JobCardPreviewModal show doc={selectedCard} onClose={() => { setSelectedCard(null); loadDoc(); }} onSuccess={loadDoc} />;
+
   const statusUi = WORK_ORDER_STATUS_UI[fullDoc.status] || {
     labelKey: "production.statusUnknown",
     tone: "open",
   };
 
-  const actions = workOrderActionsFor(fullDoc.status);
+  const actions = workOrderActionsFor(fullDoc.status).filter((key) => key !== "startNext" || (Number(fullDoc.docstatus) === 1 && !Number(fullDoc.skip_transfer) && fullDoc.transfer_material_against !== "Job Card" && (fullDoc.required_items || []).some((row) => Number(row.transferred_qty || 0) < Number(row.required_qty || 0))));
+  const prepareTransfer = async () => {
+    setBusy("transfer");
+    try {
+      const result = await get("method/erpnext_ui.api.get_project_material_transfer", { work_order: doc.name, qty: transferQty });
+      onClose();
+      if (result.message.existing_name) navigate(`/projects/Stock%20Entry/${encodeURIComponent(result.message.existing_name)}`);
+      else navigate("/projects/Stock%20Entry/new", { state: { manufacturingTransfer: result.message } });
+    } catch (error) { toast.error(error?.message || t("production.actionFailed")); }
+    finally { setBusy(null); }
+  };
 
   return (
     <AppModal
@@ -108,7 +138,7 @@ export default function WorkOrderPreviewModal({
       width="lg"
       footer={
         <div className="flex w-full gap-2">
-          {actions.map((key) => (
+          {transferQty !== null ? <><Button variant="outline" onClick={() => setTransferQty(null)} disabled={busy !== null}>{t("common.back")}</Button><Button onClick={prepareTransfer} disabled={busy !== null || !(Number(transferQty) > 0)}>{t("production.reviewTransfer")}</Button></> : actions.map((key) => (
             <Button
               key={key}
               variant={key === "startNext" ? "default" : "outline"}
@@ -122,6 +152,7 @@ export default function WorkOrderPreviewModal({
         </div>
       }
     >
+      {transferQty !== null && <label className="mb-4 block text-sm font-medium">{t("production.transferQuantity")}<Input className="mt-1" type="number" min="0" step="any" value={transferQty} onChange={(event) => setTransferQty(event.target.value)} /></label>}
       <div className="mb-2 font-semibold">{fullDoc.production_item}</div>
 
       <div className="mb-2 text-xs text-muted-foreground">
@@ -135,24 +166,13 @@ export default function WorkOrderPreviewModal({
         <StatusBadge tone={statusUi.tone}>{t(statusUi.labelKey)}</StatusBadge>
       </div>
 
-      <div>
-        <div className="mb-2 font-semibold">{t("production.operations")}</div>
-
-        {(fullDoc.operations || []).map((op) => (
-          <div
-            key={op.name}
-            className="mb-2 rounded-lg border border-border p-2"
-          >
-            <div className="font-semibold">{op.operation}</div>
-            <div className="text-xs text-muted-foreground">
-              {t("production.workstation", { name: op.workstation || "-" })}
-            </div>
-            <div className="text-xs">
-              {op.completed_qty || 0} / {op.qty || 0}
-            </div>
-          </div>
-        ))}
-      </div>
+      <section>
+        <div className="mb-2 font-semibold">{t("production.jobCards")} <span className="text-xs font-normal text-muted-foreground">({cards.length})</span></div>
+        {cardsError ? <p role="alert" className="text-sm text-destructive">{cardsError}</p> : cards.length ? <div className="overflow-x-auto rounded-md border border-border"><table className="w-full text-start text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-start">{t("production.operations")}</th><th className="p-2 text-start">{t("common.name")}</th><th className="p-2 text-start">{t("common.status")}</th><th className="p-2 text-end">{t("production.jobProgress")}</th></tr></thead><tbody>{cards.map((card) => {
+          const ui = JOB_CARD_STATUS_UI[card.status] || { labelKey: "production.statusUnknown", tone: "open" };
+          return <tr key={card.name} className="border-t border-border"><td className="p-2"><button type="button" className="text-start font-medium text-primary hover:underline" onClick={() => setSelectedCard(card)}>{card.operation || card.name}</button><span className="block text-xs text-muted-foreground">{card.workstation || "—"}</span></td><td className="p-2"><button type="button" className="text-start text-primary hover:underline" onClick={() => setSelectedCard(card)}>{card.name}</button></td><td className="p-2"><StatusBadge tone={ui.tone}>{t(ui.labelKey)}</StatusBadge></td><td className="p-2 text-end tabular-nums">{card.total_completed_qty || 0} / {card.for_quantity || 0}</td></tr>;
+        })}</tbody></table></div> : <p className="text-sm text-muted-foreground">{Number(fullDoc.docstatus) === 0 ? t("production.jobCardsAfterSubmit") : t("production.noWorkOrderJobCards")}</p>}
+      </section>
     </AppModal>
   );
 }

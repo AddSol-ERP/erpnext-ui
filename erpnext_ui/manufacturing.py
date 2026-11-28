@@ -237,7 +237,7 @@ def make_orders(plan_name, source_warehouse, wip_warehouse, fg_warehouse):
 	return created
 
 
-def prepare_transfer(work_order):
+def prepare_transfer(work_order, qty=None):
 	"""Permission-check the native stock mapper, which does not enforce source read access."""
 	from erpnext.manufacturing.doctype.work_order.work_order import make_stock_entry
 
@@ -245,9 +245,20 @@ def prepare_transfer(work_order):
 	frappe.has_permission("Stock Entry", "create", throw=True)
 	if wo.docstatus != 1 or wo.status in ("Stopped", "Closed", "Completed") or wo.skip_transfer:
 		frappe.throw("Select a submitted active work order requiring material transfer.")
-	qty = flt(wo.qty) - flt(wo.material_transferred_for_manufacturing)
-	if qty <= 0:
+	if wo.transfer_material_against == "Job Card":
+		frappe.throw("Transfer materials against the Job Card for this work order.")
+	remaining = flt(wo.qty) - flt(wo.material_transferred_for_manufacturing)
+	if remaining <= 0:
 		frappe.throw("All planned material has already been transferred.")
+	if qty is None or qty == "":
+		qty = remaining
+	else:
+		try:
+			qty = float(qty)
+		except (TypeError, ValueError):
+			frappe.throw("Enter a valid transfer quantity.")
+		if not (0 < qty <= remaining):
+			frappe.throw("Transfer quantity must be greater than zero and no more than the remaining quantity.")
 	existing = frappe.get_list(
 		"Stock Entry",
 		filters={
@@ -265,14 +276,8 @@ def prepare_transfer(work_order):
 
 
 def start_job(args):
-	"""Start a project job and transfer remaining raw materials in the same transaction.
-
-	Tracking allocations and stock workflows require a reviewed transfer first.
-	Native validation failures roll back both the transfer and the job start.
-	"""
+	"""Start a job after its required material transfer has been reviewed."""
 	from erpnext.manufacturing.doctype.job_card.job_card import make_time_log
-	from erpnext.manufacturing.doctype.work_order.work_order import make_stock_entry
-	from frappe.model.workflow import get_workflow_name
 
 	args = frappe._dict(frappe.parse_json(args))
 	if args.status not in ("Work In Progress", "Resume Job"):
@@ -291,34 +296,8 @@ def start_job(args):
 			wo.reload()
 			if wo.docstatus != 1 or wo.status in ("Stopped", "Closed", "Completed"):
 				frappe.throw("The work order must be submitted and active before starting a job.")
-			remaining = flt(wo.qty) - flt(wo.material_transferred_for_manufacturing)
-			if remaining > 0 and wo.required_items:
-				if wo.transfer_material_against != "Work Order":
-					frappe.throw("Transfer materials against the Job Card before starting it.")
-				frappe.has_permission("Stock Entry", "create", throw=True)
-				frappe.has_permission("Stock Entry", "submit", throw=True)
-				if get_workflow_name("Stock Entry"):
-					frappe.throw("Complete the material transfer approval workflow before starting the job.")
-				if frappe.db.exists(
-					"Stock Entry",
-					{
-						"work_order": wo.name,
-						"docstatus": 0,
-						"stock_entry_type": "Material Transfer for Manufacture",
-					},
-				):
-					frappe.throw("Review and submit the existing WIP transfer draft before starting the job.")
-				stock = frappe.get_doc(
-					make_stock_entry(wo.name, "Material Transfer for Manufacture", qty=remaining)
-				)
-				for row in stock.items:
-					item = readable("Item", row.item_code)
-					if item.has_serial_no or item.has_batch_no:
-						frappe.throw(
-							"Prepare and submit the WIP transfer with serial/batch allocations before starting."
-						)
-				stock.insert()
-				stock.submit()
+			if wo.transfer_material_against == "Work Order" and wo.required_items and flt(wo.material_transferred_for_manufacturing) <= 0:
+				frappe.throw("Review and submit a Material Transfer for Manufacture before starting the job.")
 	frappe.db.get_value("Job Card", card.name, "name", for_update=True)
 	card.reload()
 	if card.status in ("Work In Progress", "Completed", "Cancelled"):

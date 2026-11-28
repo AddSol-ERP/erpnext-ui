@@ -213,6 +213,16 @@ class ManufacturingTests(unittest.TestCase):
 		manufacturing.prepare_transfer("WO1")
 		mapper.make_stock_entry.assert_called_once_with("WO1", "Material Transfer for Manufacture", qty=6)
 
+	def test_transfer_maps_selected_quantity(self):
+		manufacturing.prepare_transfer("WO1", "2.5")
+		mapper.make_stock_entry.assert_called_once_with("WO1", "Material Transfer for Manufacture", qty=2.5)
+
+	def test_invalid_transfer_quantities_are_rejected(self):
+		for qty in ("0", "-1", "7", "nan", "bad"):
+			with self.subTest(qty=qty), self.assertRaises(ValueError):
+				manufacturing.prepare_transfer("WO1", qty)
+		mapper.make_stock_entry.assert_not_called()
+
 	def test_completed_transfer_cannot_be_repeated(self):
 		self.wo.material_transferred_for_manufacturing = 10
 		with self.assertRaisesRegex(ValueError, "already been transferred"):
@@ -299,31 +309,18 @@ class ProjectJobStartTests(unittest.TestCase):
 	def start(self):
 		manufacturing.start_job({"job_card_id": "JC1", "status": "Work In Progress"})
 
-	def test_transfer_is_submitted_before_start(self):
-		events = []
-		self.stock.submit.side_effect = lambda: events.append("transfer")
-		self.job_module.make_time_log.side_effect = lambda args: events.append("start")
-		self.start()
-		self.assertEqual(events, ["transfer", "start"])
-
-	def test_tracking_requires_review_before_start(self):
-		self.item.has_batch_no = 1
-		with self.assertRaisesRegex(ValueError, "serial/batch"):
+	def test_job_start_requires_reviewed_transfer(self):
+		with self.assertRaisesRegex(ValueError, "Review and submit"):
 			self.start()
+		self.stock.insert.assert_not_called()
 		self.stock.submit.assert_not_called()
 		self.job_module.make_time_log.assert_not_called()
 
-	def test_workflow_is_never_bypassed(self):
-		self.workflow.get_workflow_name.return_value = "Stock approval"
-		with self.assertRaisesRegex(ValueError, "approval workflow"):
-			self.start()
-		self.job_module.make_time_log.assert_not_called()
-
-	def test_insufficient_stock_does_not_start_job(self):
-		self.stock.submit.side_effect = ValueError("Insufficient stock")
-		with self.assertRaisesRegex(ValueError, "Insufficient stock"):
-			self.start()
-		self.job_module.make_time_log.assert_not_called()
+	def test_partial_transfer_can_start_without_automatic_transfer(self):
+		self.wo.material_transferred_for_manufacturing = 2
+		self.start()
+		self.stock.insert.assert_not_called()
+		self.job_module.make_time_log.assert_called_once()
 
 	def test_already_transferred_order_is_not_transferred_again(self):
 		self.wo.material_transferred_for_manufacturing = 10
@@ -336,18 +333,6 @@ class ProjectJobStartTests(unittest.TestCase):
 		with self.assertRaisesRegex(ValueError, "already running"):
 			self.start()
 		self.stock.insert.assert_not_called()
-
-	def test_stock_submission_permission_is_required(self):
-		def authorize(doctype, permission, **kwargs):
-			if doctype == "Stock Entry" and permission == "submit":
-				raise PermissionError("Stock Entry submit denied")
-			return True
-
-		with patch.object(frappe, "has_permission", side_effect=authorize):
-			with self.assertRaises(PermissionError):
-				self.start()
-		self.stock.submit.assert_not_called()
-		self.job_module.make_time_log.assert_not_called()
 
 
 if __name__ == "__main__":

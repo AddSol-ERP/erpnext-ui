@@ -744,6 +744,11 @@ export default function GenericFormPage({ embedded }) {
         if (isNew && hub === "projects" && decodedDoctype === "Project") {
           initialDoc.is_active = initialDoc.is_active || "Yes";
         }
+        if (isNew && decodedDoctype === "Stock Entry" && location.state?.manufacturingTransfer) {
+          Object.keys(initialDoc).forEach((key) => {
+            if (location.state.manufacturingTransfer[key] !== undefined) initialDoc[key] = location.state.manufacturingTransfer[key];
+          });
+        }
         if (isNew && decodedDoctype === "UI BOM Template" && location.state?.manufacturingCompany) {
           initialDoc.company = location.state.manufacturingCompany;
         }

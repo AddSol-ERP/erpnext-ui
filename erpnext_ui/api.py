@@ -4356,16 +4356,16 @@ def create_project_work_orders(plan, source_warehouse, wip_warehouse, fg_warehou
 
 
 @frappe.whitelist(allow_guest=False)
-def get_project_material_transfer(work_order):
+def get_project_material_transfer(work_order, qty=None):
     """Require Work Order read and Stock Entry create before invoking the stock mapper."""
     from erpnext_ui.manufacturing import prepare_transfer
 
-    return prepare_transfer(work_order)
+    return prepare_transfer(work_order, qty)
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
 def start_project_production_job(args):
-    """Require Job Card write; project starts also require stock create/submit for automatic WIP transfer."""
+    """Require Job Card write and enforce operation approvals before starting."""
     from erpnext_ui.manufacturing import start_job
 
     return start_job(args)
