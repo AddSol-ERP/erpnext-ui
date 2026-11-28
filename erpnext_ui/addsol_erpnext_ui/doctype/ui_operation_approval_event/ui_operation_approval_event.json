@@ -1,104 +1,121 @@
 {
- "doctype": "DocType",
- "name": "UI Operation Approval Event",
- "module": "Addsol Erpnext UI",
+ "actions": [],
  "autoname": "hash",
- "fields": [
-  {
-   "fieldname": "job_card",
-   "label": "Job Card",
-   "fieldtype": "Link",
-   "read_only": 1,
-   "options": "Job Card",
-   "reqd": 1
-  },
-  {
-   "fieldname": "work_order",
-   "label": "Work Order",
-   "fieldtype": "Link",
-   "read_only": 1,
-   "options": "Work Order"
-  },
-  {
-   "fieldname": "operation",
-   "label": "Operation",
-   "fieldtype": "Data",
-   "read_only": 1
-  },
-  {
-   "fieldname": "rule_reference",
-   "label": "Rule Reference",
-   "fieldtype": "Data",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approval_point",
-   "label": "Approval Point",
-   "fieldtype": "Data",
-   "read_only": 1
-  },
-  {
-   "fieldname": "perspective",
-   "label": "Perspective",
-   "fieldtype": "Data",
-   "read_only": 1
-  },
-  {
-   "fieldname": "instruction",
-   "label": "Instruction",
-   "fieldtype": "Data",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approval_role",
-   "label": "Approval Role",
-   "fieldtype": "Data",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approved_by",
-   "label": "Approved By",
-   "fieldtype": "Link",
-   "read_only": 1,
-   "options": "User",
-   "reqd": 1
-  },
-  {
-   "fieldname": "approved_at",
-   "label": "Approved At",
-   "fieldtype": "Datetime",
-   "read_only": 1,
-   "reqd": 1
-  },
-  {
-   "fieldname": "attachment",
-   "label": "Attachment",
-   "fieldtype": "Link",
-   "read_only": 1,
-   "options": "File"
-  },
-  {
-   "fieldname": "remark",
-   "label": "Approval Note",
-   "fieldtype": "Small Text",
-   "read_only": 1
-  }
- ],
- "permissions": [],
+ "creation": "2026-11-28 13:30:35.518253",
+ "doctype": "DocType",
+ "engine": "InnoDB",
  "field_order": [
   "job_card",
   "work_order",
   "operation",
   "rule_reference",
   "approval_point",
+  "attachment",
+  "column_break_kxcr",
   "perspective",
   "instruction",
   "approval_role",
   "approved_by",
   "approved_at",
-  "attachment",
   "remark"
  ],
+ "fields": [
+  {
+   "fieldname": "job_card",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Job Card",
+   "options": "Job Card",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "work_order",
+   "fieldtype": "Link",
+   "label": "Work Order",
+   "options": "Work Order",
+   "read_only": 1
+  },
+  {
+   "fieldname": "operation",
+   "fieldtype": "Data",
+   "label": "Operation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_reference",
+   "fieldtype": "Data",
+   "label": "Rule Reference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_point",
+   "fieldtype": "Data",
+   "label": "Approval Point",
+   "read_only": 1
+  },
+  {
+   "fieldname": "perspective",
+   "fieldtype": "Data",
+   "label": "Perspective",
+   "read_only": 1
+  },
+  {
+   "fieldname": "instruction",
+   "fieldtype": "Data",
+   "label": "Instruction",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_role",
+   "fieldtype": "Data",
+   "label": "Approval Role",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Approved At",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "attachment",
+   "fieldtype": "Link",
+   "label": "Attachment",
+   "options": "File",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Approval Note",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_kxcr",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-28 13:34:12.976587",
+ "modified_by": "Administrator",
+ "module": "Addsol Erpnext UI",
+ "name": "UI Operation Approval Event",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "creation",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "states": []
 }
